@@ -11,12 +11,14 @@ import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
 import {
-  appendLog,
   buildLayout,
+  DEFAULT_LOG_DIRECTION,
   isActionFailure,
+  LOG_DIR_KEY,
   renderBuildPanel,
   renderDiplomacyPanel,
   renderEndingOverlay,
+  renderLogInto,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -26,6 +28,7 @@ import {
   renderTutorial,
   unlockRequirementText,
 } from './ui/dom'
+import type { LogDirection } from './ui/dom'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
@@ -39,6 +42,9 @@ async function main(): Promise<void> {
   let endingDismissed = false
   // 音效管理
   const sound = new SoundManager()
+  // 日志排序方向（偏好记忆），已渲染日志游标
+  let logDirection: LogDirection = (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION
+  let lastLogId = 0
 
   // 离线收益结算（首次进入或回归时）
   const offline = settleOffline(state, Date.now())
@@ -72,12 +78,21 @@ async function main(): Promise<void> {
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderPendingEvents(els.logEl, state)
+    // 增量渲染新增日志，并按方向自动滚动
+    const beforeId = lastLogId
+    lastLogId = renderLogInto(els.logEl, state, lastLogId, logDirection)
+    if (lastLogId !== beforeId) {
+      if (logDirection === 'newest-bottom') els.logEl.scrollTop = els.logEl.scrollHeight
+      else els.logEl.scrollTop = 0
+    }
     // 结局面板：ended 且未临时收起时显示
     renderEndingOverlay(els.endingOverlay, state, state.phase === 'ended' && !endingDismissed)
     renderTutorial(els.tutorial, state)
-    // 静音按钮状态
+    // 工具栏按钮状态
     const muteBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="mute"]')
     if (muteBtn) muteBtn.textContent = sound.isMuted() ? '🔇 已静音' : '🔊 静音'
+    const dirBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="logdir"]')
+    if (dirBtn) dirBtn.textContent = logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -89,13 +104,6 @@ async function main(): Promise<void> {
     const diploTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="diplomacy"]')
     if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
   }
-
-  // 日志区：一次性渲染当前全部日志（后续增量用 MutationObserver 自动滚动）
-  for (const entry of state.log) appendLog(els.logEl, entry)
-  const logObserver = new MutationObserver(() => {
-    els.logEl.scrollTop = 0
-  })
-  logObserver.observe(els.logEl, { childList: true })
 
   // 面板 tab 切换（01 仅"建造"可用）
   for (const tab of Array.from(els.panel.querySelectorAll<HTMLElement>('.tab'))) {
@@ -112,6 +120,13 @@ async function main(): Promise<void> {
     const tool = btn.dataset.tool
     if (tool === 'mute') {
       sound.setMuted(!sound.isMuted())
+      render()
+    } else if (tool === 'logdir') {
+      // 切换日志排序方向（偏好记忆），全量重渲染
+      logDirection = logDirection === 'newest-bottom' ? 'newest-top' : 'newest-bottom'
+      localStorage.setItem(LOG_DIR_KEY, logDirection)
+      lastLogId = 0
+      els.logEl.innerHTML = ''
       render()
     } else if (tool === 'export') {
       const json = serializeSave(state)
@@ -135,8 +150,8 @@ async function main(): Promise<void> {
           state = createInitialState(Date.now())
           for (const scene of OPENING_SCENES) pushLog(state, 'story', scene)
           endingDismissed = false
+          lastLogId = 0
           els.logEl.innerHTML = ''
-          for (const entry of state.log) appendLog(els.logEl, entry)
           render()
           void saveGame(state)
         })()
@@ -163,8 +178,8 @@ async function main(): Promise<void> {
         pushLog(state, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
       }
       state.nextEventAt = Math.max(state.nextEventAt, Date.now() + 45_000)
+      lastLogId = 0
       els.logEl.innerHTML = ''
-      for (const entry of state.log) appendLog(els.logEl, entry)
       pushLog(state, 'system', `导入成功：来自朋友的存档已接管殖民地。`)
       render()
       void saveGame(state)
@@ -202,8 +217,8 @@ async function main(): Promise<void> {
     } else if (action === 'ngplus') {
       startNewGamePlus(state, Date.now())
       endingDismissed = false
+      lastLogId = 0
       els.logEl.innerHTML = ''
-      for (const entry of state.log) appendLog(els.logEl, entry)
       render()
       void saveGame(state)
     } else if (action === 'close') {
@@ -340,8 +355,8 @@ async function main(): Promise<void> {
     await deleteSave()
     state = createInitialState(Date.now())
     pushLog(state, 'story', '档案已抹除。新的殖民舱正在降落……')
+    lastLogId = 0
     els.logEl.innerHTML = ''
-    for (const entry of state.log) appendLog(els.logEl, entry)
     render()
   }
 }

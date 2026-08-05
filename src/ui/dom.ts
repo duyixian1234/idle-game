@@ -50,6 +50,11 @@ const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
   warning: 'log-warning',
 }
 
+/** 日志排序方向：最新在底（聊天式，默认）/ 最新在顶 */
+export type LogDirection = 'newest-bottom' | 'newest-top'
+export const LOG_DIR_KEY = 'idle-game-log-direction'
+export const DEFAULT_LOG_DIRECTION: LogDirection = 'newest-bottom'
+
 /** 构建应用骨架，返回各区域元素引用 */
 export function buildLayout(container: HTMLElement): AppElements {
   container.innerHTML = ''
@@ -71,6 +76,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     </section>
     <footer class="toolbar" aria-label="工具">
       <button type="button" class="tool-btn" data-tool="mute">🔊 静音</button>
+      <button type="button" class="tool-btn" data-tool="logdir">📜 排序</button>
       <button type="button" class="tool-btn" data-tool="export">导出存档</button>
       <button type="button" class="tool-btn" data-tool="import">导入存档</button>
       <button type="button" class="tool-btn danger" data-tool="reset">重置</button>
@@ -227,12 +233,41 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
   }
 }
 
-/** 向日志区追加一条消息（新消息置顶） */
-export function appendLog(el: HTMLElement, entry: LogEntry): void {
+/** 向日志区追加一条消息（方向感知：最新在底则追加，最新在顶则置顶） */
+export function appendLog(el: HTMLElement, entry: LogEntry, dir: LogDirection): void {
   const div = document.createElement('div')
   div.className = `log-line ${LOG_TYPE_CLASS[entry.type]}`
   div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>`
-  el.prepend(div)
+  if (dir === 'newest-bottom') {
+    el.appendChild(div)
+  } else {
+    // 置顶：插入到事件卡片（event-stack）之后、最旧日志之前
+    const anchor = firstLogNode(el)
+    if (anchor) el.insertBefore(div, anchor)
+    else el.appendChild(div)
+  }
+}
+
+/** 第一个日志行节点（跳过置顶的事件卡片容器） */
+function firstLogNode(el: HTMLElement): Node | null {
+  for (const child of Array.from(el.childNodes)) {
+    if (child.nodeType !== Node.ELEMENT_NODE) continue
+    const cls = (child as HTMLElement).classList
+    if (cls && cls.contains('event-stack')) continue
+    return child
+  }
+  return null
+}
+
+/**
+ * 增量渲染日志：追加 id > fromId 的日志行（按 id 升序）。
+ * 返回已渲染的最新日志 id（供下次增量）。
+ */
+export function renderLogInto(el: HTMLElement, state: GameState, fromId: number, dir: LogDirection): number {
+  const pending = state.log.filter((e) => e.id > fromId)
+  pending.sort((a, b) => a.id - b.id)
+  for (const entry of pending) appendLog(el, entry, dir)
+  return pending.length > 0 ? state.nextLogId - 1 : fromId
 }
 
 /** 渲染待处理随机事件卡片（置顶于日志区，可点击选项） */
