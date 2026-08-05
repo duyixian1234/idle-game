@@ -17,7 +17,7 @@ import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
-import { netProduction, productionReport } from './production'
+import { netProduction, productionReport, militaryCap } from './production'
 
 export function createInitialState(nowMs: number): GameState {
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
@@ -34,6 +34,8 @@ export function createInitialState(nowMs: number): GameState {
     ngPlusLevel: 0,
     factionCodex: [],
     permanentMult: 1,
+    permanentBonuses: {},
+    conquest: {},
     stats: { totalMineralEarned: 0 },
     resources,
     buildings: {},
@@ -103,17 +105,18 @@ export interface ActionSuccess<T = undefined> {
 
 export type ActionResult<T = undefined> = ActionSuccess<T> | ActionFailure
 
-/** 资源是否足够支付成本 */
+/** 资源是否足够支付成本（cost 缺省键按 0 处理，兼容手写三键成本） */
 function canAfford(resources: Record<ResourceKey, number>, cost: Record<ResourceKey, number>): boolean {
-  return RESOURCE_KEYS.every((k) => resources[k] >= cost[k])
+  return RESOURCE_KEYS.every((k) => resources[k] >= (cost[k] ?? 0))
 }
 
-/** 前置建筑/科技是否已满足（建筑拥有 ≥1 台，科技已研发） */
+/** 前置建筑/科技/星球是否已满足（建筑拥有 ≥1 台，科技已研发，星球已解锁） */
 export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) return false
   if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) return false
+  if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) return false
   return true
 }
 
@@ -287,6 +290,10 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   }
   // 能源余额兜底不为负（消耗类建筑已按比例结算）
   if (state.resources.energy < 0) state.resources.energy = 0
+  // 军力容量兜底：截断累计超上限的部分（秒级近似下的保险）
+  if (state.resources.military > militaryCap(state)) {
+    state.resources.military = militaryCap(state)
+  }
   state.lastTick = nowMs
   state.playSeconds += dt
 

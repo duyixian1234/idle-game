@@ -27,10 +27,10 @@ describe('ui: 布局与冒烟', () => {
     expect(els.resourceBar).toBeTruthy()
     expect(els.logEl).toBeTruthy()
     expect(els.panel).toBeTruthy()
-    expect(container.querySelectorAll('.tab')).toHaveLength(3)
+    expect(container.querySelectorAll('.tab')).toHaveLength(4)
   })
 
-  it('资源条渲染三资源与速率', () => {
+  it('资源条渲染四资源与速率（军力显示当前/上限）', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
     const s = createInitialState(0)
@@ -38,10 +38,12 @@ describe('ui: 布局与冒烟', () => {
     s.buildings.miner = 1
     renderResources(els.resourceBar, s, netProduction(s))
     const items = els.resourceBar.querySelectorAll('.resource')
-    expect(items).toHaveLength(3)
+    expect(items).toHaveLength(4)
     expect(items[0].textContent).toContain('矿物')
     expect(items[0].textContent).toContain('5,000')
     expect(items[0].textContent).toContain('+1.0/s')
+    expect(items[3].textContent).toContain('军力')
+    expect(items[3].textContent).toContain('0/100')
   })
 
   it('建造面板展示建筑与成本，资源不足时按钮禁用', () => {

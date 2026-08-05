@@ -5,14 +5,17 @@ export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string }
   mineral: { name: '矿物', symbol: '◆' },
   energy: { name: '能源', symbol: '⚡' },
   tech: { name: '科技点', symbol: '◎' },
+  military: { name: '军力', symbol: '⚔' },
 }
 
-export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech']
+export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech', 'military']
 
 export interface BuildingDef {
   id: string
   name: string
   desc: string
+  /** 建筑类别：civil 显示于建造面板，military 显示于军事面板 */
+  category?: 'civil' | 'military'
   /** 首个成本（含各资源） */
   baseCost: Partial<Record<ResourceKey, number>>
   /** 每买一个的成本增长倍率 */
@@ -21,12 +24,16 @@ export interface BuildingDef {
   produces: Partial<Record<ResourceKey, number>>
   /** 每单位每秒消耗（当前仅能源消耗类建筑） */
   consumes?: Partial<Record<ResourceKey, number>>
+  /** 每单位提供的资源容量（当前仅军港的军力上限） */
+  capacity?: Partial<Record<ResourceKey, number>>
   /** 升级成本倍率（相对当前购买成本） */
   upgradeCostMult?: number
   /** 解锁前置建筑（无则始终可见） */
   requires?: string[]
   /** 解锁前置科技 */
   requiresTech?: string[]
+  /** 解锁前置星球（需已解锁） */
+  requiresPlanet?: string[]
 }
 
 /** 每级建筑升级的产出加成（+50%/级） */
@@ -82,7 +89,40 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     upgradeCostMult: 4,
     requiresTech: ['deepDrill'],
   },
+  barracks: {
+    id: 'barracks',
+    name: '兵营',
+    desc: '招募并训练殖民者卫队，持续产出军力（⚔）。军力有容量上限，满员时产出停止。',
+    category: 'military',
+    baseCost: { mineral: 8_000, energy: 200 },
+    costGrowth: 1.25,
+    produces: { military: 0.5 },
+    upgradeCostMult: 4,
+    requiresPlanet: ['orbital'],
+  },
+  militaryPort: {
+    id: 'militaryPort',
+    name: '军港',
+    desc: '泊满护卫舰的轨道船坞，每座提升军力容量上限。',
+    category: 'military',
+    baseCost: { mineral: 20_000, tech: 500 },
+    costGrowth: 1.3,
+    produces: {},
+    capacity: { military: 200 },
+    upgradeCostMult: 4,
+    requiresPlanet: ['orbital'],
+  },
 }
+
+/** 军事类建筑子集（显示于军事面板；civil 类显示于建造面板） */
+export const MILITARY_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
+  Object.entries(BUILDINGS).filter(([, def]) => def.category === 'military'),
+)
+
+/** 民用类建筑子集（显示于建造面板） */
+export const CIVIL_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
+  Object.entries(BUILDINGS).filter(([, def]) => def.category !== 'military'),
+)
 
 /** 科技效果：产出系数加成 */
 export interface TechEffectProduction {

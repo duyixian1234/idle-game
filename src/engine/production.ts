@@ -15,6 +15,21 @@ export function levelMultiplier(level: number): number {
   return 1 + LEVEL_PRODUCTION_BONUS * level
 }
 
+/** 军力初始容量上限（无军港时） */
+export const MILITARY_BASE_CAP = 100
+/** 每座军港提供的军力容量 */
+export const MILITARY_PORT_CAP = 200
+
+/**
+ * 军力容量上限：基础 100 + 军港数量 × 200，再乘永久加成（'militaryCap' 键累计，如攻占区域奖励）。
+ * 军力是唯一有上限的资源：满上限时兵营产出截断（浪费语义，逼玩家消费/扩容）。
+ */
+export function militaryCap(state: GameState): number {
+  const portCount = state.buildings.militaryPort ?? 0
+  const bonus = state.permanentBonuses['militaryCap'] ?? 0
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount) * (1 + bonus))
+}
+
 export interface ProductionReport {
   /** 各资源名义净产出（含等级加成与消耗，未打折） */
   nominal: Record<ResourceKey, number>
@@ -55,9 +70,10 @@ export function productionReport(state: GameState): ProductionReport {
   // 星球机制：轨道工厂站（将 15% 矿物产能转化为科技点）
   applyPlanetMechanics(state, nominal)
 
-  // NG+ 永久产出加成
-  if (state.permanentMult !== 1) {
-    for (const key of RESOURCE_KEYS) nominal[key] *= state.permanentMult
+  // NG+ 永久产出加成 × 区域永久加成（permanentBonuses['production'] 累计，随存档持久化）
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  if (permMult !== 1) {
+    for (const key of RESOURCE_KEYS) nominal[key] *= permMult
   }
 
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
@@ -69,10 +85,14 @@ export function productionReport(state: GameState): ProductionReport {
       const mul = levelMultiplier(state.upgrades[id] ?? 0)
       for (const key of RESOURCE_KEYS) {
         const prod = (def.produces[key] ?? 0) * count * mul
-        nominal[key] -= prod * techMult[key] * state.permanentMult * (1 - energyRatio)
+        nominal[key] -= prod * techMult[key] * permMult * (1 - energyRatio)
       }
     }
   }
+
+  // 军力容量截断：剩余容量为 0 时产出停摆，接近上限时按剩余容量打折（秒级口径）
+  const room = militaryCap(state) - state.resources.military
+  nominal.military = Math.max(0, Math.min(nominal.military, room))
   return { nominal, energyRatio }
 }
 
@@ -114,9 +134,9 @@ export function simulateProductionDelta(
   return { current, after, delta }
 }
 
-/** 各资源科技产出系数（已研发科技按等级累乘） */
+/** 各资源科技产出系数（已研发科技按等级累乘；军力不吃生产科技加成，仅军械科技可提升） */
 export function productionMultipliers(state: GameState): Record<ResourceKey, number> {
-  const m = { mineral: 1, energy: 1, tech: 1 }
+  const m: Record<ResourceKey, number> = { mineral: 1, energy: 1, tech: 1, military: 1 }
   for (const def of Object.values(TECHS)) {
     const lv = state.techLevels[def.id] ?? 0
     if (lv <= 0 || def.effect.kind !== 'production') continue

@@ -84,7 +84,7 @@ export interface ActionResult {
 }
 
 function canAfford(resources: Record<ResourceKey, number>, cost: Record<ResourceKey, number>): boolean {
-  return RESOURCE_KEYS.every((k) => resources[k] >= cost[k])
+  return RESOURCE_KEYS.every((k) => resources[k] >= (cost[k] ?? 0))
 }
 
 /** 派生查询：当前可否对某派系贸易 */
@@ -132,7 +132,7 @@ export function factionTrade(state: GameState, id: string): ActionResult {
   if (f.allied) return { ok: false, reason: '已结盟，无需贸易' }
   const cost = tradeCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
-  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.favor = clampFavor(f.favor + TRADE_FAVOR_GAIN)
   f.tradeCount += 1
   // 贸易网络成型叙事（累计 10 次）
@@ -148,7 +148,7 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   if (f.allied) return { ok: false, reason: '已结盟' }
   if (f.favor < ALLIANCE_FAVOR_THRESHOLD) return { ok: false, reason: '好感度不足' }
   if (!canAfford(state.resources, ALLIANCE_COST)) return { ok: false, reason: '资源不足' }
-  for (const k of RESOURCE_KEYS) state.resources[k] -= ALLIANCE_COST[k]
+  for (const k of RESOURCE_KEYS) state.resources[k] -= (ALLIANCE_COST[k] ?? 0)
   f.allied = true
   f.favor = FAVOR_CAP
   // 记录派系图鉴（NG+ 继承）
@@ -166,7 +166,7 @@ export function factionIntimidate(state: GameState, id: string): ActionResult {
   if (f.allied) return { ok: false, reason: '盟友不可威慑' }
   const cost = intimidateCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
-  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.favor = clampFavor(f.favor - INTIMIDATE_FAVOR_LOSS)
   f.threat = Math.max(0, f.threat - INTIMIDATE_THREAT_LOSS)
   f.intimidateCount += 1
@@ -182,7 +182,7 @@ export function factionTechShare(state: GameState, id: string): ActionResult {
   const f = state.factions[id]
   if (f.allied) return { ok: false, reason: '盟友不可技术共享' }
   if (!canAfford(state.resources, TECH_SHARE_COST)) return { ok: false, reason: '资源不足' }
-  for (const k of RESOURCE_KEYS) state.resources[k] -= TECH_SHARE_COST[k]
+  for (const k of RESOURCE_KEYS) state.resources[k] -= (TECH_SHARE_COST[k] ?? 0)
   f.favor = clampFavor(f.favor + TECH_SHARE_FAVOR_GAIN)
   return { ok: true }
 }

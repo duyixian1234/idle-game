@@ -1,4 +1,4 @@
-import { productionReport } from './production'
+import { militaryCap, productionReport } from './production'
 import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
@@ -32,11 +32,14 @@ export function settleOffline(state: GameState, nowMs: number): OfflineResult {
   for (const k of Object.keys(gains) as ResourceKey[]) {
     gains[k] = report.nominal[k] * duration
   }
+  // 军力容量封顶：离线产出不超上限（productionReport 已按当前剩余容量打折，此处兜底累计）
+  gains.military = Math.min(gains.military, Math.max(0, militaryCap(state) - state.resources.military))
 
   for (const k of Object.keys(gains) as ResourceKey[]) {
     state.resources[k] += gains[k]
   }
   if (state.resources.energy < 0) state.resources.energy = 0
+  if (state.resources.military > militaryCap(state)) state.resources.military = militaryCap(state)
   // 离线收益计入累计采集统计
   if (gains.mineral > 0) {
     state.stats.totalMineralEarned += gains.mineral

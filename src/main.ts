@@ -1,5 +1,5 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
 import type { BulkPreview } from './engine/bulk'
@@ -79,9 +79,10 @@ async function main(): Promise<void> {
     renderResources(els.resourceBar, state, netProduction(state))
     renderPlanetBar(els.planetBar, state)
     renderPlanetMechanic(els.mechanicBar, state)
-    renderBuildPanel(panels['build'], state, BUILDINGS)
+    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS)
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
+    renderBuildPanel(panels['military'], state, MILITARY_BUILDINGS)
     renderPendingEvents(els.logEl, state)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId
@@ -108,6 +109,9 @@ async function main(): Promise<void> {
     // 外交 tab 可用性：解锁轨道工厂站后开放
     const diploTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="diplomacy"]')
     if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
+    // 军事 tab 可用性：解锁轨道工厂站后开放
+    const militaryTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="military"]')
+    if (militaryTab) militaryTab.disabled = !state.planets.orbital?.unlocked
   }
 
   // 面板 tab 切换（01 仅"建造"可用）

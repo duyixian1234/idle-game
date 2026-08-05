@@ -1,5 +1,5 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
@@ -33,7 +33,7 @@ import {
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
-import { simulateProductionDelta, techMultiplier } from '../engine/production'
+import { simulateProductionDelta, techMultiplier, militaryCap } from '../engine/production'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
@@ -79,10 +79,12 @@ export function buildLayout(container: HTMLElement): AppElements {
         <button type="button" class="tab active" data-tab="build">建造</button>
         <button type="button" class="tab" data-tab="tech">科技</button>
         <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
+        <button type="button" class="tab" data-tab="military" disabled>军事</button>
       </div>
       <div class="panel-body" data-panel="build"></div>
       <div class="panel-body hidden" data-panel="tech"></div>
       <div class="panel-body hidden" data-panel="diplomacy"></div>
+      <div class="panel-body hidden" data-panel="military"></div>
     </section>
     <footer class="toolbar" aria-label="工具">
       <button type="button" class="tool-btn" data-tool="mute">🔊 静音</button>
@@ -214,7 +216,7 @@ export function renderPlanetMechanic(el: HTMLElement, state: GameState): void {
   el.innerHTML = `<span class="mech-name">${escapeHtml(mech.name)}</span><span class="mech-desc">${escapeHtml(mech.desc)}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
 }
 
-/** 渲染顶部资源条（带正/负速率标记） */
+/** 渲染顶部资源条（带正/负速率标记；军力显示「当前/上限」） */
 export function renderResources(el: HTMLElement, state: GameState, netProd: Record<string, number>): void {
   el.innerHTML = ''
   for (const key of RESOURCE_KEYS) {
@@ -225,9 +227,10 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
     item.className = 'resource'
     item.setAttribute('data-resource', key)
     const rateText = rate > 0 ? `+${rate.toFixed(1)}/s` : rate < 0 ? `${rate.toFixed(1)}/s` : ''
+    const valueText = key === 'military' ? `${formatNumber(value)}/${formatNumber(militaryCap(state))}` : formatNumber(value)
     item.innerHTML = `<span class="res-symbol">${meta.symbol}</span>
       <span class="res-name">${meta.name}</span>
-      <span class="res-value">${formatNumber(value)}</span>
+      <span class="res-value">${valueText}</span>
       <span class="res-rate">${rateText}</span>`
     el.appendChild(item)
   }

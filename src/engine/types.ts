@@ -1,5 +1,5 @@
-/** 三种基础资源 */
-export type ResourceKey = 'mineral' | 'energy' | 'tech'
+/** 四种资源（军力为唯一有上限资源，上限由军港容量决定） */
+export type ResourceKey = 'mineral' | 'energy' | 'tech' | 'military'
 
 /** 星球机制 id（与 PLANETS.mechanicId / PLANET_MECHANICS 联动） */
 export type MechanicId = 'none' | 'orbitalForge' | 'gravityWell' | 'massProduction' | 'warpCore'
@@ -38,8 +38,22 @@ export interface EventInstance {
   payload?: Record<string, number>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化） */
-export const SCHEMA_VERSION = 2
+/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表） */
+export const SCHEMA_VERSION = 3
+
+/** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
+export type ConquestStatus = 'locked' | 'available' | 'conquered'
+
+/** 攻占区域状态（存档字段，NG+ 重置） */
+export interface ConquestState {
+  status: ConquestStatus
+  /** 发起攻占的时间戳（ms） */
+  startedAt?: number
+  /** 结算时间戳（ms）= startedAt + 区域倒计时 */
+  finishAt?: number
+  /** 投入军力（结算时按成功率消耗） */
+  invested?: number
+}
 
 /** 星球解锁状态 */
 export interface PlanetState {
@@ -86,6 +100,10 @@ export interface GameState {
   factionCodex: string[]
   /** 永久产出加成系数（NG+ 继承，默认 1） */
   permanentMult: number
+  /** 永久加成表（区域攻占奖励/NG+，键为汇总语义：'production' 全产出累计、'militaryCap' 军力上限累计；NG+ 继承） */
+  permanentBonuses: Record<string, number>
+  /** 区域攻占状态：conquestId -> ConquestState */
+  conquest: Record<string, ConquestState>
   /** 累计统计 */
   stats: GameStats
   /** 三种资源余额 */

@@ -28,7 +28,7 @@ import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './data'
 describe('engine: 初始状态', () => {
   it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {
     const s = createInitialState(1000)
-    expect(s.resources).toEqual({ mineral: 15, energy: 0, tech: 0 })
+    expect(s.resources).toEqual({ mineral: 15, energy: 0, tech: 0, military: 0 })
     expect(s.buildings).toEqual({})
     expect(s.upgrades).toEqual({})
     expect(s.lastTick).toBe(1000)
@@ -82,7 +82,7 @@ describe('engine: 建造建筑', () => {
     s.resources.energy = 1000
     expect(buyBuilding(s, 'solar')).toEqual({ ok: true })
     expect(buyBuilding(s, 'lab')).toEqual({ ok: true })
-    expect(netProduction(s)).toEqual({ mineral: 0, energy: 1, tech: 0.5 })
+    expect(netProduction(s)).toEqual({ mineral: 0, energy: 1, tech: 0.5, military: 0 })
   })
 
   it('精炼厂有前置建筑（太阳能板），未解锁时不可建造', () => {
@@ -291,7 +291,7 @@ describe('engine: 时间推进与产出', () => {
   it('净产出为产出减消耗', () => {
     const s = createInitialState(0)
     s.buildings.miner = 3
-    expect(netProduction(s)).toEqual({ mineral: 3, energy: 0, tech: 0 })
+    expect(netProduction(s)).toEqual({ mineral: 3, energy: 0, tech: 0, military: 0 })
   })
 
   it('多建筑混合产出', () => {
@@ -299,7 +299,7 @@ describe('engine: 时间推进与产出', () => {
     s.buildings.miner = 2
     s.buildings.solar = 1
     s.buildings.lab = 2
-    expect(netProduction(s)).toEqual({ mineral: 2, energy: 1, tech: 1 })
+    expect(netProduction(s)).toEqual({ mineral: 2, energy: 1, tech: 1, military: 0 })
   })
 })
 
@@ -373,7 +373,7 @@ describe('engine: 科技系统', () => {
     expect(s.techLevels.planetDrill).toBe(1)
     expect(s.resources.tech).toBe(9_990)
     // 升级成本 = base × TECH_UPGRADE_GROWTH^level
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0 })
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0, military: 0 })
     expect(upgradeTech(s, 'planetDrill')).toEqual({ ok: true })
     expect(s.techLevels.planetDrill).toBe(2)
     expect(s.resources.mineral).toBe(100_000 - 500 - 850)
@@ -427,15 +427,16 @@ describe('engine: 科技系统', () => {
 
   it('升级成本按倍率指数递增（Lv0 即基础成本）', () => {
     const s = createInitialState(0)
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0, military: 0 })
     s.techLevels.planetDrill = 1
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0 })
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0, military: 0 })
     s.techLevels.planetDrill = 9
     const k = Math.pow(TECH_UPGRADE_GROWTH, 9)
     expect(techCost(s, 'planetDrill')).toEqual({
       mineral: Math.max(1, Math.floor(500 * k)),
       tech: Math.max(1, Math.floor(10 * k)),
       energy: 0,
+      military: 0,
     })
   })
 })
@@ -493,7 +494,7 @@ describe('engine: 科技系统（补充）', () => {
 
   it('科技成本为固定值（Lv0 即基础成本）', () => {
     const s = createInitialState(0)
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0, military: 0 })
   })
 })
 

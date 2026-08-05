@@ -8,7 +8,7 @@ import type { GameState, LogEntry, LogType, ResourceKey } from './types'
 
 /** 零资源 */
 export function zeroResources(): Record<ResourceKey, number> {
-  return { mineral: 0, energy: 0, tech: 0 }
+  return { mineral: 0, energy: 0, tech: 0, military: 0 }
 }
 
 /** 追加日志（新消息插到数组头部，保持"新消息置顶"） */

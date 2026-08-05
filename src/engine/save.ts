@@ -3,6 +3,8 @@ import type { GameState } from './types'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
+/** 首个支持军力资源/区域攻占的 schema 版本 */
+const SCHEMA_V2 = 2
 /** 支持的最低版本（当前全部可迁移版本） */
 const MIN_SUPPORTED_VERSION = 1
 
@@ -42,6 +44,8 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'ngPlusLevel', check: isNumber },
   { key: 'factionCodex', check: isArray },
   { key: 'permanentMult', check: isNumber },
+  { key: 'permanentBonuses', since: 3, check: isPlainObject },
+  { key: 'conquest', since: 3, check: isPlainObject },
   { key: 'stats', check: isPlainObject },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
@@ -99,13 +103,26 @@ function migrateV1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
   delete next.researched
   next.techLevels = techLevels
+  next.schemaVersion = SCHEMA_V2
+  return next
+}
+
+/** v2 → v3：补齐军力资源、永久加成表与区域攻占状态（默认 0/空，区域表由引擎初始化兜底） */
+function migrateV2ToV3(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const resources = { ...(next.resources as Record<string, number>) }
+  if (typeof resources.military !== 'number' || !Number.isFinite(resources.military)) resources.military = 0
+  next.resources = resources
+  next.permanentBonuses = (next.permanentBonuses as Record<string, number>) ?? {}
+  next.conquest = (next.conquest as Record<string, unknown>) ?? {}
   next.schemaVersion = SCHEMA_VERSION
   return next
 }
 
 /**
  * 迁移旧版本存档到当前版本。
- * - v1 存档（有 researched 无 techLevels）→ 转 v2 并补齐 techLevels
+ * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3
+ * - v2 存档（无军力/区域字段）→ 转 v3
  * - 已是当前版本：原样返回
  *
  * loadGame（IndexedDB 加载路径）与 deserializeSave（导入路径）共用此入口，
@@ -114,10 +131,10 @@ function migrateV1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
  *   根因：loadGame 只校验不迁移，v1 raw.techLevels undefined → engine 读 techLevels[id] 抛错）。
  */
 export function migrateSave(raw: GameState): GameState {
-  if (raw.schemaVersion === SCHEMA_V1) {
-    return migrateV1ToV2(raw as unknown as Record<string, unknown>) as unknown as GameState
-  }
-  return raw
+  let cur = raw as unknown as Record<string, unknown>
+  if (cur.schemaVersion === SCHEMA_V1) cur = migrateV1ToV2(cur)
+  if (cur.schemaVersion === SCHEMA_V2) cur = migrateV2ToV3(cur)
+  return cur as unknown as GameState
 }
 
 /**

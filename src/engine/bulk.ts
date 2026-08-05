@@ -2,7 +2,7 @@ import { BUILDINGS, RESOURCE_KEYS, TECH_MAX_LEVEL } from './data'
 import { buyBuilding, isBuildingUnlocked, techLevel, upgradeBuilding, upgradeTech } from './engine'
 import { FAVOR_CAP, factionTechShare, factionTrade } from './diplomacy'
 import { zeroResources } from './core'
-import { productionReport } from './production'
+import { militaryCap, productionReport } from './production'
 import type { GameState, ResourceKey } from './types'
 
 /**
@@ -16,7 +16,7 @@ import type { GameState, ResourceKey } from './types'
 export type BulkKind = 'building' | 'buildingUpgrade' | 'techUpgrade'
 
 /** 停止原因 */
-export type BulkStopReason = 'resource' | 'maxLevel' | 'favorCap' | 'notUnlocked'
+export type BulkStopReason = 'resource' | 'maxLevel' | 'favorCap' | 'notUnlocked' | 'militaryCap'
 
 /** 批量结果（执行与预演共用） */
 export interface BulkSpend {
@@ -118,9 +118,11 @@ function runLoop(state: GameState, target: LoopTarget): BulkSpend & { firstFailR
 /** 各 kind 的循环目标 */
 function loopTargetFor(_state: GameState, kind: BulkKind, id: string): LoopTarget {
   if (kind === 'building') {
+    // 产出军力的建筑：军力已达容量上限时停止（防纯浪费，与军力截断语义一致）
+    const producesMilitary = (BUILDINGS[id]?.produces?.military ?? 0) > 0
     return {
-      atCap: () => false,
-      capReason: 'resource',
+      atCap: (s) => producesMilitary && s.resources.military >= militaryCap(s),
+      capReason: 'militaryCap',
       tryOnce: (s) => buyBuilding(s, id),
     }
   }
@@ -208,7 +210,12 @@ export function executeDiplomacyMax(state: GameState, factionId: string, action:
 
 /** 目标是否可批量（引擎层判定，UI 用于按钮可用性） */
 export function canBulkBuy(state: GameState, kind: BulkKind, id: string): boolean {
-  if (kind === 'building') return isBuildingUnlocked(state, id) && BUILDINGS[id] !== undefined
+  if (kind === 'building') {
+    if (!isBuildingUnlocked(state, id) || BUILDINGS[id] === undefined) return false
+    // 产军力建筑：军力已满上限则不可批量
+    if ((BUILDINGS[id]?.produces?.military ?? 0) > 0 && state.resources.military >= militaryCap(state)) return false
+    return true
+  }
   if (kind === 'buildingUpgrade') return (state.buildings[id] ?? 0) > 0
   return techLevel(state, id) > 0 && techLevel(state, id) < TECH_MAX_LEVEL
 }

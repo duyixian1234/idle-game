@@ -25,8 +25,8 @@ describe('engine: buyBuildingMax（一键买满建筑）', () => {
       ok: true,
       value: {
         count: 6,
-        spent: { mineral: 86, energy: 0, tech: 0 },
-        remaining: { mineral: 14, energy: 0, tech: 0 },
+        spent: { mineral: 86, energy: 0, tech: 0, military: 0 },
+        remaining: { mineral: 14, energy: 0, tech: 0, military: 0 },
         stoppedReason: 'resource',
         targetLevel: undefined,
       },
