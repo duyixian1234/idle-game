@@ -43,7 +43,8 @@ describe('engine: 存档序列化往返', () => {
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 2
     // 模拟 v2：resources 只有三键、无 permanentBonuses/conquest
-    const res3 = { mineral: raw.resources.mineral, energy: raw.resources.energy, tech: raw.resources.tech }
+    const r = raw.resources as Record<string, number>
+    const res3 = { mineral: r.mineral, energy: r.energy, tech: r.tech }
     raw.resources = res3
     delete (raw as Record<string, unknown>).permanentBonuses
     delete (raw as Record<string, unknown>).conquest
