@@ -871,7 +871,9 @@ body {
   font-family: var(--font-mono);
 }
 
-/* ---- 响应式（窄屏） ---- */
+/* ---- 响应式（窄屏） ----
+   注意：不给 .build-btn 设 width:100%（会塞进不换行的 flex 行导致按钮行溢出视口，
+   历史上移动端「按钮叠在一起无法游玩」即由此而来）；全宽/堆叠由各容器显式声明。 */
 @media (max-width: 480px) {
   .resource-bar {
     gap: 4px;
@@ -892,7 +894,40 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
-  .build-btn {
-    width: 100%;
+  /* 建造/升级/买满/升满纵向堆叠，按钮撑满列宽（与外交/科技面板一致） */
+  .build-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  /* 外交操作同样显式纵向堆叠（不再依赖被移除的 width:100% 规则） */
+  .faction-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* 兑换行换行：输入框独占一行，按钮紧随其后 */
+  .exchange-row {
+    flex-wrap: wrap;
+  }
+  .exchange-input {
+    flex-basis: 100%;
+  }
+}
+
+/* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：资源条进一步收紧 */
+@media (max-width: 360px) {
+  .resource-bar {
+    gap: 3px;
+    padding: 5px 6px;
+  }
+  .resource {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .res-rate {
+    display: none;
+  }
+  .panel-body {
+    padding: 8px;
   }
 }
