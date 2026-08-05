@@ -23,6 +23,7 @@ import {
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
+  levelMultiplier,
   techCost,
   techRequirementsMet,
   upgradeCost,
@@ -294,6 +295,25 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
   el.prepend(stack)
 }
 
+/** 升级预览：下一级每台各资源产出 当前 → 升级后 */
+export function upgradePreviewText(def: BuildingDef, level: number): string {
+  const parts: string[] = []
+  for (const k of RESOURCE_KEYS) {
+    const unit = (def.produces[k] ?? 0)
+    if (unit <= 0) continue
+    const now = unit * levelMultiplier(level)
+    const next = unit * levelMultiplier(level + 1)
+    const delta = next - now
+    parts.push(`${RESOURCE_META[k].symbol} ${fmtRate(now)} → ${fmtRate(next)}/台（${delta >= 0 ? '+' : ''}${fmtRate(delta)}/台）`)
+  }
+  return parts.join('，') || '无产出'
+}
+
+function fmtRate(n: number): string {
+  const r = Math.round(n * 10) / 10
+  return String(r)
+}
+
 /** 渲染建造面板（含升级按钮与锁定态） */
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>): void {
   el.innerHTML = ''
@@ -314,6 +334,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
           ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
+        ${count > 0 ? `<div class="build-upgrade-preview">升级预览：${upgradePreviewText(def, level)}</div>` : ''}
       </div>`
 
     if (!unlocked) {

@@ -164,4 +164,36 @@ describe('ui: 布局与冒烟', () => {
     expect(text).toContain('矿物 3万/20万')
     expect(text).toContain('科技点 500/2,000')
   })
+
+  it('建造面板展示升级预览（每台产出 当前→升级后）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 2
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
+    expect(preview).toBeTruthy()
+    // 采矿机 1/s，0 级 → 1.5/s：每台 +0.5
+    expect(preview!.textContent).toContain('1 → 1.5/台')
+    expect(preview!.textContent).toContain('+0.5/台')
+  })
+
+  it('升级后预览数值随等级变化（1 级 → 2 级 1.5→2/台）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.upgrades.miner = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
+    expect(preview!.textContent).toContain('1.5 → 2/台')
+  })
+
+  it('未建造建筑不显示升级预览', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    expect(container.querySelector('[data-building="miner"] .build-upgrade-preview')).toBeNull()
+  })
 })
