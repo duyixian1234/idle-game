@@ -1,4 +1,5 @@
-import { productionReport, zeroResources } from './engine'
+import { productionReport } from './production'
+import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
 /** 离线收益封顶：8 小时 */

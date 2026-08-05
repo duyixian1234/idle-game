@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES } from './story'
-import { buyBuilding, checkPlanetUnlocks, createInitialState, playMilestone, pushLog } from './engine'
+import { ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
+import { buyBuilding, checkPlanetUnlocks, createInitialState } from './engine'
+import { pushLog } from './core'
 import { PLANETS } from './data'
 
 /** 统计中文字符数（排除空白与标点装饰） */

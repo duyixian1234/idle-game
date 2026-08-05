@@ -3,12 +3,12 @@ import {
   buyBuilding,
   convertMineralToTech,
   maxConvertibleTechPoints,
-  pushLog,
   researchTech,
   setActivePlanet,
   upgradeBuilding,
   upgradeTech,
 } from '../engine/engine'
+import { pushLog } from '../engine/core'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
 import type { GameState, LogType } from '../engine/types'

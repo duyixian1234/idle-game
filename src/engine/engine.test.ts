@@ -11,14 +11,9 @@ import {
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
-  netProduction,
   planetRequirementsMet,
-  productionMultipliers,
-  productionReport,
-  pushLog,
   researchTech,
   setActivePlanet,
-  simulateProductionDelta,
   techCost,
   techRequirementsMet,
   tick,
@@ -26,6 +21,8 @@ import {
   upgradeCost,
   upgradeTech,
 } from './engine'
+import { netProduction, productionMultipliers, productionReport, simulateProductionDelta } from './production'
+import { pushLog } from './core'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './data'
 
 describe('engine: 初始状态', () => {

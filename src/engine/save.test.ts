@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, pushLog } from './engine'
+import { createInitialState } from './engine'
+import { pushLog } from './core'
 import { deserializeSave, isValidSave, serializeSave } from './save'
 import { SCHEMA_VERSION } from './types'
 

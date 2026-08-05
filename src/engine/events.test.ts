@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, netProduction, pushLog, tick } from './engine'
+import { createInitialState, tick } from './engine'
+import { netProduction } from './production'
+import { pushLog } from './core'
 import { applyEvent, createEventInstance, MEAN_EVENT_GAP_SECONDS, pruneStaleEvents, resolveEvent, scheduleNextEvent, triggerRandomEvent } from './events'
 
 /** 固定 rng 序列 */

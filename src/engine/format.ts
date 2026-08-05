@@ -30,3 +30,11 @@ function formatMantissa(scaled: number, sig: number): string {
 export function formatNumber(n: number): string {
   return formatBigNumber(n)
 }
+
+/** 通关时长格式化 */
+export function formatPlayTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h <= 0) return `${m}分钟`
+  return `${h}小时${m}分`
+}

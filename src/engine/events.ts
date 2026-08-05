@@ -1,5 +1,5 @@
 import type { EventInstance, GameState } from './types'
-import { netProduction } from './engine'
+import { netProduction } from './production'
 import { EVENT_STORIES } from './story'
 
 export interface RandomEventDef {

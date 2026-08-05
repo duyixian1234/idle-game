@@ -1,6 +1,10 @@
+import { pushLog } from './core'
+import type { GameState } from './types'
+
 /**
  * 全量剧情文本（叙事内容，3000-5000 字）。
  * 文本以 `story` 类型展示在日志流中；挂点见 storyFlags 触发逻辑。
+ * playMilestone（叙事播放逻辑）与叙事文本同居此处（locality）。
  */
 
 /** 开局叙事序列（首次进入新游戏时连播） */
@@ -93,3 +97,12 @@ export const ENDING_SCENES: string[] = [
   '"四百年前，我们的祖先在这里签下分裂的条约。"你举起那份古老的文书，将它投入反应堆的火光中，"今天，我们在这里签署新的开端。"文书在火焰中卷曲、消失。全息屏幕上，联邦的徽记重新亮起——这一次，是由所有人共同托举的。',
   '【完】深空中，奥丁的最后一条日志写道："任务完成。P-01 的殖民者，成为了星系的继承者。联邦重生之日，亦是你我告别之时。"你望向舷窗外。新的星图展开，比想象中更辽阔。也许，这就是你们启程的意义。',
 ]
+
+/** 播放关键节点叙事（仅首次） */
+export function playMilestone(state: GameState, key: string): void {
+  if (state.storyFlags[key]) return
+  const text = MILESTONE_STORIES[key]
+  if (!text) return
+  state.storyFlags[key] = true
+  pushLog(state, 'story', text)
+}

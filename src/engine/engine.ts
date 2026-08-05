@@ -1,28 +1,23 @@
 import {
   BUILDINGS,
   FACTIONS,
-  LEVEL_PRODUCTION_BONUS,
   PLANETS,
+  RESOURCE_KEYS,
   TECHS,
   TECH_EXCHANGE_RATE,
   TECH_MAX_LEVEL,
-  TECH_PER_LEVEL_BONUS,
   TECH_UPGRADE_GROWTH,
 } from './data'
-import type { TechDef, TechEffectProduction } from './data'
+import type { TechDef } from './data'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
-import { ENDING_SCENES, MILESTONE_STORIES, PLANET_STORIES } from './story'
+import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { SCHEMA_VERSION } from './types'
-import type { FactionState, GameState, LogEntry, LogType, ResourceKey } from './types'
-
-export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech']
-
-/** 零资源 */
-export function zeroResources(): Record<ResourceKey, number> {
-  return { mineral: 0, energy: 0, tech: 0 }
-}
+import type { FactionState, GameState, ResourceKey } from './types'
+import { pushLog, zeroResources } from './core'
+import { formatPlayTime } from './format'
+import { netProduction, productionReport } from './production'
 
 export function createInitialState(nowMs: number): GameState {
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
@@ -62,14 +57,6 @@ export function createInitialState(nowMs: number): GameState {
   }
 }
 
-/** 追加日志（新消息插到数组头部，保持"新消息置顶"） */
-export function pushLog(state: GameState, type: LogType, text: string): void {
-  const entry: LogEntry = { id: state.nextLogId, type, text, time: Date.now() }
-  state.nextLogId += 1
-  state.log.unshift(entry)
-  if (state.log.length > 200) state.log.length = 200
-}
-
 /** 建筑购买成本：baseCost * growth^count，向下取整，至少 1 */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
@@ -94,148 +81,6 @@ export function upgradeCost(state: GameState, id: string): Record<ResourceKey, n
     cost[key] = buy[key] > 0 ? Math.max(1, Math.floor(buy[key] * mult)) : 0
   }
   return cost
-}
-
-/** 单建筑产出的等级加成系数：1 + 0.5*level */
-export function levelMultiplier(level: number): number {
-  return 1 + LEVEL_PRODUCTION_BONUS * level
-}
-
-export interface ProductionReport {
-  /** 各资源名义净产出（含等级加成与消耗，未打折） */
-  nominal: Record<ResourceKey, number>
-  /** 能源缺口折减系数（0..1）：精炼厂等消耗能源建筑的产出比例 */
-  energyRatio: number
-}
-
-/** 各资源每秒产出（含等级加成）；能源消耗建筑的产出按能源可得性打折 */
-export function netProduction(state: GameState): Record<ResourceKey, number> {
-  return productionReport(state).nominal
-}
-
-/**
- * 完整生产报告：
- * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
- * 精炼厂类建筑的产出按 可用能源/需求 比例折减，能源不会扣成负数。
- */
-export function productionReport(state: GameState): ProductionReport {
-  const base = zeroResources()
-  let energyDemand = 0
-  for (const [id, count] of Object.entries(state.buildings)) {
-    const def = BUILDINGS[id]
-    if (!def || count <= 0) continue
-    const mul = levelMultiplier(state.upgrades[id] ?? 0)
-    for (const key of RESOURCE_KEYS) {
-      base[key] += (def.produces[key] ?? 0) * count * mul
-    }
-    for (const key of RESOURCE_KEYS) {
-      energyDemand += (def.consumes?.[key] ?? 0) * count
-    }
-  }
-
-  // 应用科技产出系数
-  const techMult = productionMultipliers(state)
-  const nominal = zeroResources()
-  for (const key of RESOURCE_KEYS) nominal[key] = base[key] * techMult[key]
-
-  // 星球机制：对名义产出的修正（规则见 mechanics.ts，引擎与 UI 共用同一真源）
-  applyPlanetMechanics(state, nominal)
-
-  // NG+ 永久产出加成
-  if (state.permanentMult !== 1) {
-    for (const key of RESOURCE_KEYS) nominal[key] *= state.permanentMult
-  }
-
-  const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
-  if (energyRatio < 1) {
-    // 能源不足：消耗能源类建筑的产出按 (1-ratio) 折减（含科技与 NG+ 加成口径）
-    for (const [id, count] of Object.entries(state.buildings)) {
-      const def = BUILDINGS[id]
-      if (!def || count <= 0 || !def.consumes) continue
-      const mul = levelMultiplier(state.upgrades[id] ?? 0)
-      for (const key of RESOURCE_KEYS) {
-        const prod = (def.produces[key] ?? 0) * count * mul
-        nominal[key] -= prod * techMult[key] * state.permanentMult * (1 - energyRatio)
-      }
-    }
-  }
-  return { nominal, energyRatio }
-}
-
-export interface ProductionDelta {
-  /** 当前各资源真实净产出（含全部加成与能源折减） */
-  current: Record<ResourceKey, number>
-  /** 变更后的各资源真实净产出 */
-  after: Record<ResourceKey, number>
-  /** after - current */
-  delta: Record<ResourceKey, number>
-}
-
-/**
- * 模拟建筑数量/等级变化后的真实产出差异。
- * 复用 productionReport 全链路（数量 × 等级 × 科技 × 星球机制 × NG+，再按能源可得性折减），
- * 不修改原 state、不扣除购买/升级成本（预览聚焦产出变化本身）。
- * @param change.countDelta 数量变化（负值结果 clamp ≥0）
- * @param change.levelDelta 等级变化（仅对已建造建筑有意义）
- */
-export function simulateProductionDelta(
-  state: GameState,
-  change: { buildingId: string; countDelta?: number; levelDelta?: number },
-): ProductionDelta {
-  const current = productionReport(state).nominal
-  const sim: GameState = {
-    ...state,
-    buildings: { ...state.buildings },
-    upgrades: { ...state.upgrades },
-  }
-  if (change.countDelta) {
-    sim.buildings[change.buildingId] = Math.max(0, (sim.buildings[change.buildingId] ?? 0) + change.countDelta)
-  }
-  if (change.levelDelta) {
-    sim.upgrades[change.buildingId] = Math.max(0, (sim.upgrades[change.buildingId] ?? 0) + change.levelDelta)
-  }
-  const after = productionReport(sim).nominal
-  const delta = zeroResources()
-  for (const k of RESOURCE_KEYS) delta[k] = after[k] - current[k]
-  return { current, after, delta }
-}
-
-/** 各资源科技产出系数（已研发科技按等级累乘） */
-export function productionMultipliers(state: GameState): Record<ResourceKey, number> {
-  const m = { mineral: 1, energy: 1, tech: 1 }
-  for (const def of Object.values(TECHS)) {
-    const lv = techLevel(state, def.id)
-    if (lv <= 0 || def.effect.kind !== 'production') continue
-    m[def.effect.resource] *= techMultiplier(def.effect, lv)
-  }
-  return m
-}
-
-/**
- * 科技生效系数：基础 mult + 0.5×(lv−1)，随等级线性提升（Lv1 即基础效果）。
- * 仅 production 类科技有等级含义。
- */
-export function techMultiplier(effect: TechEffectProduction, level: number): number {
-  return effect.mult + TECH_PER_LEVEL_BONUS * (level - 1)
-}
-
-/**
- * 计算能源可得比例：
- * 可用能源池 = 本期名义能源产出 + 当前能源余额（一次性可用，dt 内恒定）；
- * ratio = clamp(可用/需求, 0, 1)，需求为 0 时恒为 1。
- */
-function settleEnergyRatio(state: GameState, energyProd: number, energyDemand: number): number {
-  if (energyDemand <= 0) return 1
-  const pool = Math.max(0, energyProd) + Math.max(0, state.resources.energy)
-  if (pool <= 0) return 0
-  return Math.min(1, pool / energyDemand)
-}
-
-/** 当前星球机制的产出修正（规则集中在 mechanics.ts，唯一真源） */
-function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, number>): void {
-  const def = PLANETS[state.activePlanet]
-  if (!def) return
-  PLANET_MECHANICS[def.mechanicId].apply(state, nominal)
 }
 
 /** 当前星球机制的周期副作用（风暴收获）；无机制或未到点时无操作 */
@@ -518,15 +363,6 @@ export function checkPlanetUnlocks(state: GameState): string[] {
   return unlockedNow
 }
 
-/** 播放关键节点叙事（仅首次） */
-export function playMilestone(state: GameState, key: string): void {
-  if (state.storyFlags[key]) return
-  const text = MILESTONE_STORIES[key]
-  if (!text) return
-  state.storyFlags[key] = true
-  pushLog(state, 'story', text)
-}
-
 /** 切换当前星球（仅已解锁星球），切换后重置停留时长 */
 export function setActivePlanet(state: GameState, id: string): ActionResult {
   if (!PLANETS[id]) return { ok: false, reason: '未知星球' }
@@ -636,12 +472,4 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
     'story',
     `【NG+ 第 ${state.ngPlusLevel} 周目】旧世界的记忆随你而来：${state.factionCodex.length} 个派系的信任、${carryTech} 科技点、以及 ×${state.permanentMult.toFixed(2)} 的永久产出加成。殖民舱再次降落，但这一次，你带着答案回来。`,
   )
-}
-
-/** 通关时长格式化 */
-export function formatPlayTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h <= 0) return `${m}分钟`
-  return `${h}小时${m}分`
 }

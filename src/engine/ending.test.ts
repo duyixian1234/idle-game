@@ -6,11 +6,11 @@ import {
   enterInfiniteMode,
   eventGapScale,
   NG_PLUS_TECH_BASE,
-  netProduction,
   setActivePlanet,
   startNewGamePlus,
   tick,
 } from './engine'
+import { netProduction } from './production'
 import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './diplomacy'
 
 describe('engine: 结局判定', () => {

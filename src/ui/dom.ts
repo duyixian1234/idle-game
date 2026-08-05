@@ -2,8 +2,8 @@ import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
-import { formatNumber } from '../engine/format'
-import { formatPlayTime, NG_PLUS_TECH_BASE } from '../engine/engine'
+import { formatNumber, formatPlayTime } from '../engine/format'
+import { NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
   ALLIANCE_COST,
@@ -28,13 +28,12 @@ import {
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
-  simulateProductionDelta,
   techCost,
   techLevel,
-  techMultiplier,
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
+import { simulateProductionDelta, techMultiplier } from '../engine/production'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
 import type { ActionFailure } from '../engine/engine'
 

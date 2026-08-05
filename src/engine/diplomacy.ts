@@ -1,6 +1,6 @@
-import { FACTIONS } from './data'
+import { FACTIONS, RESOURCE_KEYS } from './data'
+import { playMilestone } from './story'
 import type { FactionState, GameState, ResourceKey } from './types'
-import { playMilestone, RESOURCE_KEYS } from './engine'
 
 /** 结盟所需好感阈值 */
 export const ALLIANCE_FAVOR_THRESHOLD = 80

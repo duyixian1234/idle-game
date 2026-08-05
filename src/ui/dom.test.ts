@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, netProduction, pushLog } from '../engine/engine'
+import { createInitialState } from '../engine/engine'
+import { netProduction } from '../engine/production'
+import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
 import { BUILDINGS, PLANETS, TECH_MAX_LEVEL } from '../engine/data'
 import {
