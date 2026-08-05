@@ -320,11 +320,15 @@ body {
   color: var(--accent);
   background-color: rgba(88, 166, 255, 0.08);
   box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
-  transform: translateY(-1px);
+  /* hover 态禁用 transition：游戏每 250ms 全量重建面板 DOM，新建按钮若带过渡
+     会从基础态重放渐变 → 边框/背景持续闪烁。禁用后 hover 立即生效、稳定。 */
+  transition: none;
 }
 
+/* 按压反馈：仅 active 时向下 1px（hover 不位移——上浮会导致鼠标滑出按钮触发
+   mouseleave/mouseenter 振荡，边框在高亮/基础两态间闪烁） */
 .build-btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(1px);
   background-color: rgba(88, 166, 255, 0.16);
 }
 
@@ -387,6 +391,8 @@ body {
   color: var(--tech);
   background-color: rgba(188, 140, 255, 0.08);
   box-shadow: 0 0 0 1px rgba(188, 140, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  /* 同上：hover 态禁用 transition，避免 250ms 全量重建导致渐变重放闪烁 */
+  transition: none;
 }
 
 .tech-btn:active:not(:disabled) {
@@ -403,11 +409,13 @@ body {
   color: #e6d5ff;
   background-color: rgba(188, 140, 255, 0.14);
   box-shadow: 0 0 0 2px rgba(188, 140, 255, 0.35), 0 0 14px rgba(188, 140, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.4);
-  transform: translateY(-1px);
+  /* hover 不位移 + 禁用 transition：上浮会 mouseenter/mouseleave 振荡；
+     过渡会随 250ms 全量重建重放 → 两者都会造成边框闪烁 */
+  transition: none;
 }
 
 .upgrade-tech-btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(1px);
   background-color: rgba(188, 140, 255, 0.22);
 }
 
