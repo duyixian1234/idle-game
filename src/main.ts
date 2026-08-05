@@ -1,4 +1,4 @@
-import { buyBuilding, checkPlanetUnlocks, createInitialState, netProduction, pushLog, researchTech, setActivePlanet, tick, upgradeBuilding } from './engine/engine'
+import { buyBuilding, checkPlanetUnlocks, createInitialState, enterInfiniteMode, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding } from './engine/engine'
 import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
@@ -13,6 +13,7 @@ import {
   isActionFailure,
   renderBuildPanel,
   renderDiplomacyPanel,
+  renderEndingOverlay,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -29,6 +30,8 @@ async function main(): Promise<void> {
   const els = buildLayout(container)
 
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
+  // 结局面板临时收起标记
+  let endingDismissed = false
 
   // 离线收益结算（首次进入或回归时）
   const offline = settleOffline(state, Date.now())
@@ -62,6 +65,8 @@ async function main(): Promise<void> {
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderPendingEvents(els.logEl, state)
+    // 结局面板：ended 且未临时收起时显示
+    renderEndingOverlay(els.endingOverlay, state, state.phase === 'ended' && !endingDismissed)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -88,6 +93,29 @@ async function main(): Promise<void> {
       for (const [name, body] of Object.entries(panels)) body.classList.toggle('hidden', name !== tab.dataset.tab)
     })
   }
+
+  // 结局面板操作
+  els.endingOverlay.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-ending]')
+    if (!btn) return
+    const action = btn.dataset.ending
+    if (action === 'infinite') {
+      enterInfiniteMode(state)
+      endingDismissed = true
+      render()
+      void saveGame(state)
+    } else if (action === 'ngplus') {
+      startNewGamePlus(state, Date.now())
+      endingDismissed = false
+      els.logEl.innerHTML = ''
+      for (const entry of state.log) appendLog(els.logEl, entry)
+      render()
+      void saveGame(state)
+    } else if (action === 'close') {
+      endingDismissed = true
+      render()
+    }
+  })
 
   // 星球切换事件委托
   els.planetBar.addEventListener('click', (e) => {

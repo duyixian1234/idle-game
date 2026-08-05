@@ -1,9 +1,9 @@
-import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
-import { createFactions } from './diplomacy'
+import { BUILDINGS, FACTIONS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
+import { createFactions, isFederationUnified } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
-import { MILESTONE_STORIES, PLANET_STORIES } from './story'
+import { ENDING_SCENES, MILESTONE_STORIES, PLANET_STORIES } from './story'
 import { SCHEMA_VERSION } from './types'
-import type { GameState, LogEntry, LogType, ResourceKey } from './types'
+import type { FactionState, GameState, LogEntry, LogType, ResourceKey } from './types'
 
 export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech']
 
@@ -19,6 +19,12 @@ export function createInitialState(nowMs: number): GameState {
   }
   return {
     schemaVersion: SCHEMA_VERSION,
+    phase: 'playing',
+    endingTriggered: false,
+    ngPlusLevel: 0,
+    factionCodex: [],
+    permanentMult: 1,
+    stats: { totalMineralEarned: 0 },
     resources: zeroResources(),
     buildings: {},
     upgrades: {},
@@ -118,6 +124,11 @@ export function productionReport(state: GameState): ProductionReport {
 
   // 星球机制：轨道工厂站（将 30% 矿物产能转化为科技点）
   applyPlanetMechanics(state, nominal)
+
+  // NG+ 永久产出加成
+  if (state.permanentMult !== 1) {
+    for (const key of RESOURCE_KEYS) nominal[key] *= state.permanentMult
+  }
 
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
   if (energyRatio < 1) {
@@ -342,6 +353,10 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   for (const k of RESOURCE_KEYS) {
     state.resources[k] += report.nominal[k] * dt
   }
+  // 累计采集矿物统计
+  if (report.nominal.mineral > 0) {
+    state.stats.totalMineralEarned += report.nominal.mineral * dt
+  }
   // 能源余额兜底不为负（消耗类建筑已按比例结算）
   if (state.resources.energy < 0) state.resources.energy = 0
   state.lastTick = nowMs
@@ -352,10 +367,10 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
     state.planetStaySeconds += dt
   }
 
-  // 随机事件：到点触发一次并安排下一次
+  // 随机事件：到点触发一次并安排下一次（无限模式更密）
   if (nowMs >= state.nextEventAt) {
     const outcomeText = triggerRandomEvent(state, rng)
-    scheduleNextEvent(state, nowMs, rng)
+    scheduleNextEvent(state, nowMs, rng, eventGapScale(state))
     if (outcomeText) {
       pushLog(state, 'event', outcomeText)
     }
@@ -364,6 +379,8 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   applyStormHarvest(state, nowMs)
   // 星球解锁检查（满足条件播报叙事日志）
   checkPlanetUnlocks(state)
+  // 结局判定
+  checkEnding(state)
   // 清理超时未处理的事件实例
   pruneStaleEvents(state, nowMs)
   return state
@@ -433,4 +450,101 @@ export function setActivePlanet(state: GameState, id: string): ActionResult {
   state.activePlanet = id
   state.planetStaySeconds = 0
   return { ok: true }
+}
+
+// ---- 结局、无限模式与 NG+ ----
+
+/** NG+ 继承的科技点基数（随周目递增） */
+export const NG_PLUS_TECH_BASE = 2_000
+/** NG+ 每周目永久产出加成 */
+export const NG_PLUS_PERMANENT_BONUS = 0.15
+/** 图鉴派系在 NG+ 的初始好感加成 */
+export const CODEX_FAVOR_BONUS = 25
+
+/** 结局：星系统一联邦达成时触发演出（仅一次），返回是否触发 */
+export function checkEnding(state: GameState): boolean {
+  if (state.endingTriggered) return false
+  if (!isFederationUnified(state)) return false
+  state.endingTriggered = true
+  state.phase = 'ended'
+  for (const scene of ENDING_SCENES) pushLog(state, 'story', scene)
+  pushLog(
+    state,
+    'system',
+    `【通关统计】统一历时 ${formatPlayTime(state.playSeconds)}；累计采集矿物 ${Math.floor(state.stats.totalMineralEarned).toLocaleString('zh-CN')}；NG+ 周目：${state.ngPlusLevel}。`,
+  )
+  return true
+}
+
+/** 进入无限模式（数值继续膨胀，事件更密） */
+export function enterInfiniteMode(state: GameState): void {
+  if (state.phase !== 'ended') return
+  state.phase = 'infinite'
+  pushLog(state, 'story', '联邦的旗帜在星海间展开。没有终点的旅程，本身就是答案。无限模式开启——殖民地日志将继续书写。')
+}
+
+/** 事件间隔缩放：无限模式更密（0.5×） */
+export function eventGapScale(state: GameState): number {
+  return state.phase === 'infinite' ? 0.5 : 1
+}
+
+/** 开启 NG+：携带科技点/派系图鉴/永久加成重开，资源与建筑重置 */
+export function startNewGamePlus(state: GameState, nowMs: number): void {
+  state.ngPlusLevel += 1
+  state.permanentMult = 1 + NG_PLUS_PERMANENT_BONUS * state.ngPlusLevel
+  const carryTech = NG_PLUS_TECH_BASE * state.ngPlusLevel
+
+  // 记录已结盟派系（图鉴）
+  for (const def of Object.values(FACTIONS)) {
+    if (state.factions[def.id]?.allied && !state.factionCodex.includes(def.id)) {
+      state.factionCodex.push(def.id)
+    }
+  }
+
+  // 重置资源与建筑，保留科技点继承
+  state.resources = zeroResources()
+  state.resources.tech = carryTech
+  state.buildings = {}
+  state.upgrades = {}
+  state.researched = {}
+
+  // 星球重置为起点；派系好感重置（图鉴派系加成）
+  const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
+  for (const p of Object.values(PLANETS)) planets[p.id] = { unlocked: p.id === 'barren' }
+  state.planets = planets
+  state.activePlanet = 'barren'
+  state.planetStaySeconds = 0
+
+  const factions: Record<string, FactionState> = {}
+  for (const def of Object.values(FACTIONS)) {
+    factions[def.id] = {
+      favor: state.factionCodex.includes(def.id) ? def.initialFavor + CODEX_FAVOR_BONUS : def.initialFavor,
+      allied: false,
+      tradeCount: 0,
+      intimidateCount: 0,
+      threat: def.initialThreat,
+    }
+  }
+  state.factions = factions
+
+  state.pendingEvents = []
+  state.nextEventId = 1
+  state.lastStormHarvestAt = nowMs
+  state.phase = 'playing'
+  state.endingTriggered = false
+  state.lastTick = nowMs
+  state.nextEventAt = nowMs + FIRST_EVENT_DELAY_SECONDS * 1000
+  pushLog(
+    state,
+    'story',
+    `【NG+ 第 ${state.ngPlusLevel} 周目】旧世界的记忆随你而来：${state.factionCodex.length} 个派系的信任、${carryTech} 科技点、以及 ×${state.permanentMult.toFixed(2)} 的永久产出加成。殖民舱再次降落，但这一次，你带着答案回来。`,
+  )
+}
+
+/** 通关时长格式化 */
+export function formatPlayTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h <= 0) return `${m}分钟`
+  return `${h}小时${m}分`
 }

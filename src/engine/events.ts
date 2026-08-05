@@ -152,9 +152,9 @@ export function triggerRandomEvent(state: GameState, rng: () => number = Math.ra
   return null
 }
 
-/** 安排下次事件触发时间：均值间隔 × (0.5~1.5) 抖动 */
-export function scheduleNextEvent(state: GameState, nowMs: number, rng: () => number = Math.random): void {
-  const gap = MEAN_EVENT_GAP_SECONDS * (0.5 + rng())
+/** 安排下次事件触发时间：均值间隔 × (0.5~1.5) 抖动 × 缩放（无限模式更密） */
+export function scheduleNextEvent(state: GameState, nowMs: number, rng: () => number = Math.random, scale = 1): void {
+  const gap = MEAN_EVENT_GAP_SECONDS * (0.5 + rng()) * scale
   state.nextEventAt = nowMs + gap * 1000
 }
 

@@ -134,6 +134,8 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   for (const k of RESOURCE_KEYS) state.resources[k] -= ALLIANCE_COST[k]
   f.allied = true
   f.favor = FAVOR_CAP
+  // 记录派系图鉴（NG+ 继承）
+  if (!state.factionCodex.includes(id)) state.factionCodex.push(id)
   // 首次结盟叙事
   playMilestone(state, 'firstAlliance')
   return { ok: true }

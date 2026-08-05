@@ -56,12 +56,33 @@ export interface FactionState {
   threat: number
 }
 
+/** 游戏阶段：进行中 / 已通关（结局演出后）/ 无限模式 */
+export type GamePhase = 'playing' | 'ended' | 'infinite'
+
+/** 通关统计 */
+export interface GameStats {
+  /** 累计采集矿物 */
+  totalMineralEarned: number
+}
+
 /**
  * 游戏全局状态（引擎数据模型）。
  * 引擎产出/修改该状态；UI 只读取渲染，不承载业务逻辑。
  */
 export interface GameState {
   schemaVersion: number
+  /** 游戏阶段 */
+  phase: GamePhase
+  /** 结局是否已触发（防重复演出） */
+  endingTriggered: boolean
+  /** NG+ 周目数（0 = 未开启） */
+  ngPlusLevel: number
+  /** 已结盟派系图鉴（NG+ 继承） */
+  factionCodex: string[]
+  /** 永久产出加成系数（NG+ 继承，默认 1） */
+  permanentMult: number
+  /** 累计统计 */
+  stats: GameStats
   /** 三种资源余额 */
   resources: Record<ResourceKey, number>
   /** 各建筑数量：buildingId -> count */

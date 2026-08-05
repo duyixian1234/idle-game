@@ -14,6 +14,12 @@ export function isValidSave(raw: unknown): raw is GameState {
   if (typeof raw !== 'object' || raw === null) return false
   const s = raw as Record<string, unknown>
   if (typeof s.schemaVersion !== 'number' || s.schemaVersion !== SCHEMA_VERSION) return false
+  if (typeof s.phase !== 'string') return false
+  if (typeof s.endingTriggered !== 'boolean') return false
+  if (typeof s.ngPlusLevel !== 'number') return false
+  if (!Array.isArray(s.factionCodex)) return false
+  if (typeof s.permanentMult !== 'number') return false
+  if (typeof s.stats !== 'object' || s.stats === null) return false
   if (typeof s.resources !== 'object' || s.resources === null) return false
   const res = s.resources as Record<string, unknown>
   for (const k of ['mineral', 'energy', 'tech'] as const) {
