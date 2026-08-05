@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, netProduction } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
-import { BUILDINGS } from '../engine/data'
-import { appendLog, buildLayout, renderBuildPanel, renderPendingEvents, renderResources } from './dom'
+import { BUILDINGS, PLANETS } from '../engine/data'
+import { appendLog, buildLayout, renderBuildPanel, renderPendingEvents, renderPlanetBar, renderResources, unlockRequirementText } from './dom'
 
 describe('ui: 布局与冒烟', () => {
   it('buildLayout 生成资源条/日志区/操作面板', () => {
@@ -80,5 +80,29 @@ describe('ui: 布局与冒烟', () => {
     expect(acceptBtn!.dataset.eventResolve).toBe(`${inst.uid}:accept`)
     const refuseBtn = card!.querySelector<HTMLButtonElement>('[data-event-resolve]:last-child')
     expect(refuseBtn!.dataset.eventResolve).toBe(`${inst.uid}:refuse`)
+  })
+
+  it('未解锁星球可点击且悬停提示解锁条件（含进度）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 12_000
+    renderPlanetBar(els.planetBar, s)
+    const orbital = els.planetBar.querySelector<HTMLButtonElement>('[data-planet="orbital"]')
+    expect(orbital).toBeTruthy()
+    expect(orbital!.disabled).toBe(false) // 可点击查看条件
+    expect(orbital!.classList.contains('locked')).toBe(true)
+    expect(orbital!.title).toContain('矿物')
+    expect(orbital!.title).toContain('1.2万/5万')
+  })
+
+  it('unlockRequirementText 输出条件与进度', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 30_000
+    s.resources.tech = 500
+    const ice = PLANETS['ice']
+    const text = unlockRequirementText(ice, s)
+    expect(text).toContain('矿物 3万/20万')
+    expect(text).toContain('科技点 500/2,000')
   })
 })

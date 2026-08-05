@@ -24,6 +24,7 @@ import {
   renderStatusLine,
   renderTechPanel,
   renderTutorial,
+  unlockRequirementText,
 } from './ui/dom'
 
 const SAVE_INTERVAL_MS = 5_000
@@ -214,8 +215,17 @@ async function main(): Promise<void> {
   // 星球切换事件委托
   els.planetBar.addEventListener('click', (e) => {
     const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-planet]')
-    if (!chip || chip.classList.contains('locked')) return
+    if (!chip) return
     const id = chip.dataset.planet ?? ''
+    // 未解锁星球：显示解锁条件
+    if (chip.classList.contains('locked')) {
+      const def = PLANETS[id]
+      if (def) {
+        pushLog(state, 'system', unlockRequirementText(def, state))
+        render()
+      }
+      return
+    }
     const result = setActivePlanet(state, id)
     if (!isActionFailure(result)) {
       pushLog(state, 'system', `舰队坐标锁定：前往「${PLANETS[id].name}」。`)

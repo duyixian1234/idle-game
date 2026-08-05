@@ -1,6 +1,6 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { BUILDINGS, FACTIONS, MECHANICS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
-import type { BuildingDef } from '../engine/data'
+import type { BuildingDef, PlanetDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
 import { formatPlayTime, NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
@@ -156,9 +156,9 @@ export function renderPlanetBar(el: HTMLElement, state: GameState): void {
     btn.className = `planet-chip${active ? ' active' : ''}`
     btn.setAttribute('data-planet', def.id)
     if (!unlocked) {
+      // 未解锁星球可点击：显示解锁条件（悬停 title + 点击日志）
       btn.classList.add('locked')
-      btn.disabled = true
-      btn.title = '未解锁'
+      btn.title = unlockRequirementText(def, state)
       btn.textContent = `🔒 ${def.name}`
     } else {
       btn.title = active ? '当前星球' : `切换到 ${def.name}`
@@ -166,6 +166,22 @@ export function renderPlanetBar(el: HTMLElement, state: GameState): void {
     }
     el.appendChild(btn)
   }
+}
+
+/** 生成星球的解锁条件描述（含当前进度） */
+export function unlockRequirementText(def: PlanetDef, state: GameState): string {
+  const parts: string[] = []
+  for (const k of RESOURCE_KEYS) {
+    const need = def.unlock.resources[k] ?? 0
+    if (need > 0) {
+      const have = state.resources[k]
+      parts.push(`${RESOURCE_META[k].name} ${formatNumber(have)}/${formatNumber(need)}`)
+    }
+  }
+  if (def.unlock.techs && def.unlock.techs.length > 0) {
+    parts.push(`科技：${def.unlock.techs.map((t) => TECHS[t]?.name ?? t).join('、')}`)
+  }
+  return `解锁条件：${parts.length > 0 ? parts.join('，') : '已可解锁'}`
 }
 
 /** 渲染当前星球机制状态条 */
