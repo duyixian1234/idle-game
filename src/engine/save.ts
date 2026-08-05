@@ -104,6 +104,23 @@ function migrateV1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * 迁移旧版本存档到当前版本。
+ * - v1 存档（有 researched 无 techLevels）→ 转 v2 并补齐 techLevels
+ * - 已是当前版本：原样返回
+ *
+ * loadGame（IndexedDB 加载路径）与 deserializeSave（导入路径）共用此入口，
+ * 保证两条路径行为一致——老玩家升级 v2 后存档自动迁移（fix：线上崩溃
+ *   Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'planetDrill')
+ *   根因：loadGame 只校验不迁移，v1 raw.techLevels undefined → engine 读 techLevels[id] 抛错）。
+ */
+export function migrateSave(raw: GameState): GameState {
+  if (raw.schemaVersion === SCHEMA_V1) {
+    return migrateV1ToV2(raw as unknown as Record<string, unknown>) as unknown as GameState
+  }
+  return raw
+}
+
+/**
  * 反序列化：解析 JSON、校验结构并迁移旧版本。
  * 非法输入抛错，由调用方（导入入口）转为用户可读错误。
  */
@@ -115,8 +132,5 @@ export function deserializeSave(json: string): GameState {
     throw new Error('存档文件不是有效的 JSON')
   }
   if (!isValidSave(raw)) throw new Error('存档格式无效或版本不兼容')
-  if (raw.schemaVersion === SCHEMA_V1) {
-    raw = migrateV1ToV2(raw as unknown as Record<string, unknown>)
-  }
-  return raw as GameState
+  return migrateSave(raw as GameState)
 }

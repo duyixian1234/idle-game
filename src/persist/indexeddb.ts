@@ -1,4 +1,4 @@
-import { isValidSave } from '../engine/save'
+import { isValidSave, migrateSave } from '../engine/save'
 import type { GameState } from '../engine/types'
 
 const DB_NAME = 'idle-game'
@@ -19,7 +19,7 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-/** 读取存档；无存档或存档非法返回 null */
+/** 读取存档；无存档或存档非法返回 null。校验通过后自动迁移到当前 schema 版本。 */
 export async function loadGame(): Promise<GameState | null> {
   try {
     const db = await openDb()
@@ -28,7 +28,7 @@ export async function loadGame(): Promise<GameState | null> {
       const get = tx.objectStore(STORE).get(KEY)
       get.onsuccess = () => {
         const raw = get.result as GameState | undefined
-        resolve(raw && isValidSave(raw) ? raw : null)
+        resolve(raw && isValidSave(raw) ? migrateSave(raw) : null)
       }
       get.onerror = () => reject(get.error)
     })
