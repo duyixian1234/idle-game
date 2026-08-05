@@ -1,7 +1,7 @@
-import { buyBuilding, checkPlanetUnlocks, createInitialState, enterInfiniteMode, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
+import { buyBuilding, checkPlanetUnlocks, convertMineralToTech, createInitialState, enterInfiniteMode, maxConvertibleTech, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
 import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
 import { deserializeSave, serializeSave } from './engine/save'
@@ -250,6 +250,19 @@ async function main(): Promise<void> {
   })
 
   // 建造/升级按钮事件委托
+  function applyTechConversion(s: GameState, amount: number): void {
+    const result = convertMineralToTech(s, amount)
+    if (isActionFailure(result)) {
+      pushLog(s, 'warning', `兑换失败：${result.reason}。`)
+      return
+    }
+    const { mineralSpent, techGained } = result.value ?? { mineralSpent: 0, techGained: 0 }
+    pushLog(s, 'system', `兑换完成：-${mineralSpent} 矿物，+${techGained} 科技点。`)
+    sound.play('click')
+    render()
+    void saveGame(s)
+  }
+
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
     const buyBtn = target.closest<HTMLElement>('[data-build]')
@@ -298,6 +311,18 @@ async function main(): Promise<void> {
         render()
         void saveGame(state)
       }
+      return
+    }
+    const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')
+    if (convertBtn) {
+      const input = panels['tech'].querySelector<HTMLInputElement>('[data-exchange-input]')
+      const amount = Number(input?.value ?? 0)
+      applyTechConversion(state, amount)
+      return
+    }
+    const convertMaxBtn = target.closest<HTMLElement>('[data-convert-max]')
+    if (convertMaxBtn) {
+      applyTechConversion(state, maxConvertibleTech(state) * TECH_EXCHANGE_RATE)
       return
     }
     const diploBtn = target.closest<HTMLElement>('[data-diplomacy]')

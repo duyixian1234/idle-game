@@ -6,6 +6,7 @@ import {
   canAffordUpgrade,
   canResearchTech,
   checkPlanetUnlocks,
+  convertMineralToTech,
   createInitialState,
   isBuildingUnlocked,
   isPlanetUnlocked,
@@ -440,7 +441,46 @@ describe('engine: 科技系统', () => {
       energy: 0,
     })
   })
+})
 
+describe('engine: 科技点兑换', () => {
+  it('兑换成功：100 矿物 → 1 科技点', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    const r = convertMineralToTech(s, 500)
+    expect(r).toEqual({ ok: true, value: { mineralSpent: 500, techGained: 5 } })
+    expect(s.resources.mineral).toBe(500)
+    expect(s.resources.tech).toBe(5)
+  })
+
+  it('矿物不足时兑换失败且状态不变', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 99
+    const r = convertMineralToTech(s, 100)
+    expect(r).toMatchObject({ ok: false, reason: '资源不足' })
+    expect(s.resources.mineral).toBe(99)
+    expect(s.resources.tech).toBe(0)
+  })
+
+  it('非法数量拒绝（0 或负数）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    expect(convertMineralToTech(s, 0)).toMatchObject({ ok: false })
+    expect(convertMineralToTech(s, -50)).toMatchObject({ ok: false })
+    expect(s.resources.mineral).toBe(1000)
+  })
+
+  it('非 100 整数倍按 100 向下取整兑换', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    const r = convertMineralToTech(s, 250)
+    expect(r).toEqual({ ok: true, value: { mineralSpent: 200, techGained: 2 } })
+    expect(s.resources.mineral).toBe(800)
+    expect(s.resources.tech).toBe(2)
+  })
+})
+
+describe('engine: 科技系统（补充）', () => {
   it('解锁型科技：深层钻探解锁深层钻机建筑', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100_000
@@ -454,7 +494,7 @@ describe('engine: 科技系统', () => {
     expect(netProduction(s).mineral).toBe(8)
   })
 
-  it('科技成本为固定值', () => {
+  it('科技成本为固定值（Lv0 即基础成本）', () => {
     const s = createInitialState(0)
     expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
   })

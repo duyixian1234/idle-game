@@ -115,6 +115,8 @@ export const TECH_MAX_LEVEL = 10
 export const TECH_PER_LEVEL_BONUS = 0.5
 /** 科技升级成本增长倍率（cost(lv) = base × 1.5^(lv−1)） */
 export const TECH_UPGRADE_GROWTH = 1.5
+/** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
+export const TECH_EXCHANGE_RATE = 100
 
 /** 星球解锁条件 */
 export interface PlanetUnlock {

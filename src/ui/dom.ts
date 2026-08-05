@@ -31,7 +31,7 @@ import {
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
-import { TECH_MAX_LEVEL } from '../engine/data'
+import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
 import type { ActionFailure } from '../engine/engine'
 
 export interface AppElements {
@@ -460,6 +460,19 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       </button>`
     el.appendChild(item)
   }
+
+  // 底部兑换区块：矿物 → 科技点（固定 100:1，单向）
+  const canConvert = state.resources.mineral >= TECH_EXCHANGE_RATE
+  const exchange = document.createElement('div')
+  exchange.className = 'tech-exchange'
+  exchange.innerHTML = `
+    <div class="exchange-hint">矿物兑换科技点（100 矿物 → 1 科技点）</div>
+    <div class="exchange-row">
+      <input type="number" class="exchange-input" data-exchange-input min="0" step="100" placeholder="矿物数量" />
+      <button type="button" class="build-btn tech-btn" data-convert-tech ${canConvert ? '' : 'disabled'}>兑换</button>
+      <button type="button" class="build-btn tech-btn" data-convert-max ${canConvert ? '' : 'disabled'}>最大</button>
+    </div>`
+  el.appendChild(exchange)
 }
 
 /** 系数格式化：整数去小数位，其余保留 1 位 */

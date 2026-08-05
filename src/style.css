@@ -373,6 +373,37 @@ body {
   margin-left: 6px;
 }
 
+/* 科技面板底部兑换区块 */
+.tech-exchange {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.exchange-hint {
+  color: var(--tech);
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.exchange-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.exchange-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
 .researched-hint {
   color: var(--good);
   border-color: #2d5a3d;

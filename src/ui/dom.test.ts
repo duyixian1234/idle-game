@@ -299,4 +299,24 @@ describe('ui: 科技面板', () => {
     expect(item!.textContent).toContain('✓ 生效中')
     expect(item!.querySelector('[data-upgrade-tech]')).toBeNull()
   })
+
+  it('科技面板底部展示兑换区块（100:1）', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.resources.mineral = 500
+    renderTechPanel(el, s)
+    expect(el.textContent).toContain('100 矿物 → 1 科技点')
+    expect(el.querySelector('[data-exchange-input]')).toBeTruthy()
+    expect(el.querySelector<HTMLButtonElement>('[data-convert-tech]')!.disabled).toBe(false)
+    expect(el.querySelector<HTMLButtonElement>('[data-convert-max]')!.disabled).toBe(false)
+  })
+
+  it('矿物不足 100 时兑换按钮禁用', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.resources.mineral = 50
+    renderTechPanel(el, s)
+    expect(el.querySelector<HTMLButtonElement>('[data-convert-tech]')!.disabled).toBe(true)
+    expect(el.querySelector<HTMLButtonElement>('[data-convert-max]')!.disabled).toBe(true)
+  })
 })
