@@ -1,5 +1,8 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
-import { BUILDINGS, PLANETS, RESOURCE_META } from './engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
+import type { BulkKind } from './engine/bulk'
+import type { BulkPreview } from './engine/bulk'
 import { formatNumber } from './engine/format'
 import { netProduction } from './engine/production'
 import { pushLog } from './engine/core'
@@ -15,6 +18,7 @@ import {
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
   renderBuildPanel,
+  renderBuyMaxModal,
   renderDiplomacyPanel,
   renderEndingOverlay,
   renderLogInto,
@@ -235,6 +239,80 @@ async function main(): Promise<void> {
     playSound: (name) => sound.play(name),
   }
 
+  // ---- 一键买满确认弹窗 ----
+  // 点击「买满/升满」按钮或 Shift+点击购买/升级按钮 → 预演 → 弹窗展示 → 确认后 dispatch 执行
+  let buyMaxPending: { actionId: string; payload: string | number } | null = null
+
+  function closeBuyMaxModal(): void {
+    buyMaxPending = null
+    els.buyMaxOverlay.classList.add('hidden')
+  }
+
+  function openBuyMaxModal(kind: BulkKind | 'diplomacy', id: string, action?: string): void {
+    let preview: BulkPreview
+    let title: string
+    let summary: string
+    let actionId: string
+    let payload: string | number
+
+    if (kind === 'diplomacy') {
+      const act = action ?? 'trade'
+      const factionName = FACTIONS[id]?.name ?? id
+      preview = previewDiplomacyMax(state, id, act === 'techshare' ? 'techShare' : 'trade')
+      title = act === 'techshare' ? `共享满：${factionName}` : `买满贸易：${factionName}`
+      summary = act === 'techshare' ? `将技术共享 ${preview.count} 次直至好感上限` : `将贸易 ${preview.count} 次直至好感上限`
+      actionId = 'diplomacyMax'
+      payload = `${id}:${act}`
+    } else if (kind === 'building') {
+      const name = BUILDINGS[id]?.name ?? id
+      preview = previewMaxBuy(state, kind, id)
+      title = `买满：${name}`
+      summary = `将购买 ${preview.count} 台「${name}」`
+      actionId = 'buyMax'
+      payload = id
+    } else if (kind === 'buildingUpgrade') {
+      const name = BUILDINGS[id]?.name ?? id
+      preview = previewMaxBuy(state, kind, id)
+      title = `升满：${name}`
+      summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
+      actionId = 'upgradeMax'
+      payload = id
+    } else {
+      const name = TECHS[id]?.name ?? id
+      preview = previewMaxBuy(state, kind, id)
+      title = `升满科技：${name}`
+      summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
+      actionId = 'upgradeTechMax'
+      payload = id
+    }
+
+    if (preview.count <= 0) return // 无可执行操作（按钮 disabled 时不会触发）
+    buyMaxPending = { actionId, payload }
+    renderBuyMaxModal(els.buyMaxOverlay, { title, summary, preview })
+    els.buyMaxOverlay.classList.remove('hidden')
+  }
+
+  // 确认弹窗事件：确认 / 取消 / 遮罩点击 / Esc
+  els.buyMaxOverlay.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t === els.buyMaxOverlay) {
+      closeBuyMaxModal()
+      return
+    }
+    if (t.closest('[data-buy-max-confirm]')) {
+      if (buyMaxPending) {
+        const { actionId, payload } = buyMaxPending
+        closeBuyMaxModal()
+        dispatch(state, actionId, payload, deps)
+      }
+      return
+    }
+    if (t.closest('[data-buy-max-cancel]')) closeBuyMaxModal()
+  })
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
+  })
+
   // 星球切换事件委托（未解锁星球：显示解锁条件）
   els.planetBar.addEventListener('click', (e) => {
     const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-planet]')
@@ -257,18 +335,52 @@ async function main(): Promise<void> {
     // 显式三元组 [data-attr, actionId, datasetKey]：
     // dataset 键为 camelCase（data-upgrade-tech → dataset.upgradeTech），
     // 不能靠 attr.slice(5) 推导（slice 得 kebab-case → undefined，升级科技静默失效）。
-    for (const [attr, actionId, dataKey] of [
-      ['data-build', 'buy', 'build'],
-      ['data-upgrade', 'upgrade', 'upgrade'],
-      ['data-research', 'research', 'research'],
-      ['data-upgrade-tech', 'upgradeTech', 'upgradeTech'],
-      ['data-diplomacy', 'diplomacy', 'diplomacy'],
+    // kind 标注批量类别：Shift+点击主按钮 = 打开买满确认弹窗。
+    for (const [attr, actionId, dataKey, kind] of [
+      ['data-build', 'buy', 'build', 'building'],
+      ['data-upgrade', 'upgrade', 'upgrade', 'buildingUpgrade'],
+      ['data-research', 'research', 'research', 'none'],
+      ['data-upgrade-tech', 'upgradeTech', 'upgradeTech', 'techUpgrade'],
+      ['data-diplomacy', 'diplomacy', 'diplomacy', 'diplomacy'],
     ] as const) {
       const btn = target.closest<HTMLElement>(`[${attr}]`)
       if (!btn) {
         continue
       }
-      dispatch(state, actionId, btn.dataset[dataKey] ?? '', deps)
+      const payload = btn.dataset[dataKey] ?? ''
+      if (e.shiftKey && kind !== 'none') {
+        if (kind === 'diplomacy') {
+          const [fid, act] = String(payload).split(':')
+          if (act === 'trade' || act === 'techshare') {
+            openBuyMaxModal('diplomacy', fid, act)
+            return
+          }
+        } else {
+          openBuyMaxModal(kind, String(payload))
+          return
+        }
+      }
+      dispatch(state, actionId, payload, deps)
+      return
+    }
+    // 一键买满按钮（独立 data-* 属性，显式 dataset 键映射）
+    for (const [attr, dataKey, kind, isDiplomacy] of [
+      ['data-buy-max', 'buyMax', 'building', false],
+      ['data-upgrade-max', 'upgradeMax', 'buildingUpgrade', false],
+      ['data-upgrade-tech-max', 'upgradeTechMax', 'techUpgrade', false],
+      ['data-diplomacy-max', 'diplomacyMax', 'diplomacy', true],
+    ] as const) {
+      const btn = target.closest<HTMLElement>(`[${attr}]`)
+      if (!btn) {
+        continue
+      }
+      const payload = String(btn.dataset[dataKey] ?? '')
+      if (isDiplomacy) {
+        const [fid, act] = payload.split(':')
+        openBuyMaxModal('diplomacy', fid, act)
+      } else {
+        openBuyMaxModal(kind, payload)
+      }
       return
     }
     const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')

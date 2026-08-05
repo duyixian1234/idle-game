@@ -1,4 +1,4 @@
-import { BUILDINGS, FACTIONS, PLANETS, TECHS, TECH_EXCHANGE_RATE } from '../engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from '../engine/data'
 import {
   buyBuilding,
   convertMineralToTech,
@@ -8,10 +8,13 @@ import {
   upgradeBuilding,
   upgradeTech,
 } from '../engine/engine'
+import { executeDiplomacyMax, executeMaxBuy } from '../engine/bulk'
+import type { BulkSpend } from '../engine/bulk'
+import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
-import type { GameState, LogType } from '../engine/types'
+import type { GameState, LogType, ResourceKey } from '../engine/types'
 import type { SoundName } from '../audio'
 import { isActionFailure } from './dom'
 
@@ -58,6 +61,34 @@ function convertFeedback(_state: GameState, result: unknown): ActionFeedback {
 
 function convertOnFailure(_state: GameState, _payload: string | number, reason: string): { logs: ActionLog[] } {
   return { logs: [{ type: 'warning', text: `兑换失败：${reason}。` }] }
+}
+
+// ---- 一键买满（批量购买/升级） ----
+
+/** 按资源逐项格式化（◆12,345 ⚡67） */
+function formatCostText(spent: Record<ResourceKey, number>): string {
+  return RESOURCE_KEYS.filter((k) => spent[k] > 0)
+    .map((k) => `${RESOURCE_META[k].symbol}${formatNumber(spent[k])}`)
+    .join(' ')
+}
+
+/** 批量成功反馈：次数 + 花费 + 剩余 */
+function bulkFeedbackText(result: unknown, prefix: string): ActionFeedback {
+  const v = (result as { ok: true; value: BulkSpend }).value
+  return {
+    logs: [{ type: 'system', text: `${prefix}：${v.count} 次，花费 ${formatCostText(v.spent)}，剩余 ${formatCostText(v.remaining)}。` }],
+    sound: 'click',
+  }
+}
+
+function bulkOnFailure(_state: GameState, _payload: string | number, reason: string): { logs: ActionLog[] } {
+  return { logs: [{ type: 'warning', text: `一键买满失败：${reason}。` }] }
+}
+
+/** 外交批量：payload 为 "factionId:action"（trade | techshare） */
+function runDiplomacyMax(state: GameState, payload: string | number): unknown {
+  const [factionId, action] = String(payload).split(':')
+  return executeDiplomacyMax(state, factionId, action === 'techshare' ? 'techShare' : 'trade')
 }
 
 /** 外交动作分发：payload 为 "factionId:action" */
@@ -139,6 +170,43 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'diplomacy',
     run: runDiplomacy,
     feedback: diplomacyFeedback,
+  },
+  buyMax: {
+    id: 'buyMax',
+    run: (state, id) => executeMaxBuy(state, 'building', String(id)),
+    feedback: (_state, _r, id) => {
+      const name = BUILDINGS[String(id)]?.name ?? String(id)
+      return bulkFeedbackText(_r, `一键买满「${name}」：购买`)
+    },
+    onFailure: bulkOnFailure,
+  },
+  upgradeMax: {
+    id: 'upgradeMax',
+    run: (state, id) => executeMaxBuy(state, 'buildingUpgrade', String(id)),
+    feedback: (_state, _r, id) => {
+      const name = BUILDINGS[String(id)]?.name ?? String(id)
+      return bulkFeedbackText(_r, `一键升满「${name}」：升级`)
+    },
+    onFailure: bulkOnFailure,
+  },
+  upgradeTechMax: {
+    id: 'upgradeTechMax',
+    run: (state, id) => executeMaxBuy(state, 'techUpgrade', String(id)),
+    feedback: (_state, _r, id) => {
+      const name = TECHS[String(id)]?.name ?? String(id)
+      return bulkFeedbackText(_r, `一键升满科技「${name}」：升级`)
+    },
+    onFailure: bulkOnFailure,
+  },
+  diplomacyMax: {
+    id: 'diplomacyMax',
+    run: runDiplomacyMax,
+    feedback: (_state, _r, payload) => {
+      const [factionId, action] = String(payload).split(':')
+      const name = FACTIONS[factionId]?.name ?? factionId
+      return bulkFeedbackText(_r, `与${name}${action === 'techshare' ? '技术共享' : '贸易'}`)
+    },
+    onFailure: bulkOnFailure,
   },
   resolveEvent: {
     id: 'resolveEvent',

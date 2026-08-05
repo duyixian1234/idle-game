@@ -607,8 +607,9 @@ body {
   color: var(--bad);
 }
 
-/* ---- 结局面板 ---- */
-.ending-overlay {
+/* ---- 结局面板 / 一键买满确认弹窗（共享遮罩与卡片体系） ---- */
+.ending-overlay,
+.buy-max-overlay {
   position: fixed;
   inset: 0;
   background: rgba(5, 8, 12, 0.88);
@@ -620,11 +621,13 @@ body {
   overflow-y: auto;
 }
 
-.ending-overlay.hidden {
+.ending-overlay.hidden,
+.buy-max-overlay.hidden {
   display: none;
 }
 
-.ending-card {
+.ending-card,
+.buy-max-card {
   max-width: 560px;
   width: 100%;
   background: var(--bg-panel);
@@ -632,6 +635,82 @@ body {
   border-radius: 10px;
   padding: 28px 24px;
   text-align: center;
+}
+
+/* 一键买满确认弹窗内部结构 */
+.buy-max-card {
+  max-width: 440px;
+  text-align: left;
+}
+
+.buy-max-title {
+  color: var(--mineral);
+  font-size: 18px;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+
+.buy-max-summary {
+  color: var(--text);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.buy-max-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.buy-max-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: normal;
+  padding: 4px 12px 4px 0;
+  width: 90px;
+}
+
+.buy-max-table td {
+  text-align: right;
+  color: var(--text);
+}
+
+.buy-max-warn {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--bad);
+  border-radius: 4px;
+  color: var(--bad);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.buy-max-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.buy-max-actions .ending-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* 买满/升满小按钮（虚线边框区分主操作） */
+.max-btn {
+  margin-left: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.max-btn:hover:not(:disabled) {
+  opacity: 1;
+  border-style: dashed;
 }
 
 .ending-title {

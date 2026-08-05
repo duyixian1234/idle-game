@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
+import { previewMaxBuy } from '../engine/bulk'
 import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
@@ -8,6 +9,7 @@ import {
   appendLog,
   buildLayout,
   renderBuildPanel,
+  renderBuyMaxModal,
   renderDiplomacyPanel,
   renderLogInto,
   renderPendingEvents,
@@ -417,5 +419,135 @@ describe('ui: 星球机制状态条', () => {
     renderPlanetMechanic(els.mechanicBar, s)
     expect(els.mechanicBar.textContent).toContain('引力井')
     expect(els.mechanicBar.textContent).toContain('80%')
+  })
+})
+
+describe('ui: 一键买满按钮与确认弹窗', () => {
+  it('建造面板渲染买满按钮，禁用态与主按钮一致', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 5 // 买不起
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const buyBtn = container.querySelector<HTMLButtonElement>('[data-build="miner"]')
+    const maxBtn = container.querySelector<HTMLButtonElement>('[data-buy-max="miner"]')
+    expect(maxBtn).toBeTruthy()
+    expect(maxBtn!.disabled).toBe(buyBtn!.disabled)
+    expect(maxBtn!.textContent).toContain('买满')
+  })
+
+  it('已建建筑显示升级与升满按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.buildings.miner = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    expect(container.querySelector('[data-upgrade-max="miner"]')).toBeTruthy()
+    expect(container.querySelector('[data-upgrade="miner"]')).toBeTruthy()
+    // 未建建筑无升满按钮
+    expect(container.querySelector('[data-upgrade-max="solar"]')).toBeNull()
+  })
+
+  it('科技面板升满按钮仅在可升级时渲染（Lv1-9）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    s.techLevels.planetDrill = 1 // 已研发可升级
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    expect(container.querySelector('[data-upgrade-tech-max="planetDrill"]')).toBeTruthy()
+    // 未研发科技无升满按钮
+    expect(container.querySelector('[data-upgrade-tech-max="nanoFab"]')).toBeNull()
+    // 满级无升满按钮
+    s.techLevels.planetDrill = TECH_MAX_LEVEL
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    expect(container.querySelector('[data-upgrade-tech-max="planetDrill"]')).toBeNull()
+  })
+
+  it('外交面板：贸易/技术共享有买满按钮，威慑/结盟无', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 3_000_000
+    s.resources.tech = 200_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    expect(container.querySelector('[data-diplomacy-max="ferro:trade"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy-max="ferro:techshare"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy-max="ferro:alliance"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-max="ferro:intimidate"]')).toBeNull()
+  })
+
+  it('确认弹窗渲染花费/剩余与确认取消按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const preview = previewMaxBuy(s, 'building', 'miner')
+    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
+      title: '买满：采矿机',
+      summary: `将购买 ${preview.count} 台「采矿机」`,
+      preview,
+    })
+    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
+    expect(overlay.textContent).toContain('买满：采矿机')
+    expect(overlay.textContent).toContain('将购买 6 台')
+    expect(overlay.textContent).toContain('◆86')
+    expect(overlay.textContent).toContain('◆14')
+    expect(overlay.querySelector('[data-buy-max-confirm]')).toBeTruthy()
+    expect(overlay.querySelector('[data-buy-max-cancel]')).toBeTruthy()
+  })
+
+  it('确认弹窗展示清零红字警示', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 97 // 第 6 台后能源清零
+    const preview = previewMaxBuy(s, 'building', 'lab')
+    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
+      title: '买满：实验室',
+      summary: `将购买 ${preview.count} 台「实验室」`,
+      preview,
+    })
+    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
+    expect(overlay.querySelector('.buy-max-warn')).toBeTruthy()
+    expect(overlay.textContent).toContain('将清空资源：能源')
+  })
+
+  it('确认弹窗展示能源平衡警示（精炼厂）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 500
+    s.buildings.solar = 1 // 冗余仅可驱动 2 台精炼厂
+    const preview = previewMaxBuy(s, 'building', 'refinery')
+    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
+      title: '买满：精炼厂',
+      summary: `将购买 ${preview.count} 台「精炼厂」`,
+      preview,
+    })
+    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
+    expect(overlay.textContent).toContain('能源平衡')
+    expect(overlay.textContent).toContain('最多可驱动 2 台')
+    expect(overlay.textContent).toContain('本次将买 4 台')
+  })
+
+  it('无警示时弹窗不渲染警示行', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const preview = previewMaxBuy(s, 'building', 'miner')
+    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
+      title: '买满：采矿机',
+      summary: '将购买 6 台「采矿机」',
+      preview,
+    })
+    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
+    expect(overlay.querySelector('.buy-max-warn')).toBeNull()
   })
 })

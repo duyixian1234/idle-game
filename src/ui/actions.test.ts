@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from '../engine/engine'
+import { createInitialState, researchTech } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
 import type { ActionDeps } from './actions'
 import { ACTIONS, dispatch } from './actions'
@@ -190,10 +190,67 @@ describe('actions: 星球切换', () => {
   })
 })
 
+describe('actions: 一键买满（批量）', () => {
+  it('buyMax 买满建筑：状态结算 + 成功日志 + 音效/渲染/保存', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const { deps, calls } = fakeDeps()
+    dispatch(s, 'buyMax', 'miner', deps)
+    expect(s.buildings.miner).toBe(6)
+    expect(s.resources.mineral).toBe(14)
+    expect(s.log[0].text).toContain('一键买满「采矿机」：购买：6 次')
+    expect(s.log[0].text).toContain('花费 ◆86')
+    expect(s.log[0].text).toContain('剩余 ◆14')
+    expect(calls).toEqual(['sound:click', 'render', 'save'])
+  })
+
+  it('upgradeTechMax 升满科技：日志含目标等级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 200_000
+    s.resources.tech = 5_000
+    researchTech(s, 'planetDrill')
+    dispatch(s, 'upgradeTechMax', 'planetDrill', fakeDeps().deps)
+    expect(s.techLevels.planetDrill).toBe(10)
+    expect(s.log[0].text).toContain('一键升满科技「行星钻探」')
+  })
+
+  it('diplomacyMax 贸易到好感 100', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 3_000_000
+    dispatch(s, 'diplomacyMax', 'ferro:trade', fakeDeps().deps)
+    expect(s.factions.ferro.favor).toBe(100)
+    expect(s.log[0].text).toContain('与铁卫同盟贸易')
+  })
+
+  it('批量失败写 warning 日志', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 5 // 首台都买不起
+    const { deps, calls } = fakeDeps()
+    dispatch(s, 'buyMax', 'miner', deps)
+    expect(s.log[0].type).toBe('warning')
+    expect(s.log[0].text).toContain('一键买满失败：资源不足')
+    expect(calls).toEqual(['render'])
+  })
+})
+
 describe('actions: 注册表完整性', () => {
-  it('九个动作全部注册', () => {
+  it('十三个动作全部注册', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
-      ['buy', 'convert', 'convertMax', 'diplomacy', 'research', 'resolveEvent', 'setPlanet', 'upgrade', 'upgradeTech'].sort(),
+      [
+        'buy',
+        'buyMax',
+        'convert',
+        'convertMax',
+        'diplomacy',
+        'diplomacyMax',
+        'research',
+        'resolveEvent',
+        'setPlanet',
+        'upgrade',
+        'upgradeMax',
+        'upgradeTech',
+        'upgradeTechMax',
+      ].sort(),
     )
   })
 

@@ -35,6 +35,7 @@ import {
 } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier } from '../engine/production'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
+import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
 
 export interface AppElements {
@@ -46,6 +47,7 @@ export interface AppElements {
   panel: HTMLElement
   statusLine: HTMLElement
   endingOverlay: HTMLElement
+  buyMaxOverlay: HTMLElement
   toolbar: HTMLElement
   tutorial: HTMLElement
 }
@@ -92,6 +94,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     </footer>
     <div class="status-line"></div>
     <div class="ending-overlay hidden" aria-label="结局"></div>
+    <div class="buy-max-overlay hidden" aria-label="批量购买确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
   `
   const root = container
@@ -104,6 +107,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     panel: container.querySelector('.panel') as HTMLElement,
     statusLine: container.querySelector('.status-line') as HTMLElement,
     endingOverlay: container.querySelector('.ending-overlay') as HTMLElement,
+    buyMaxOverlay: container.querySelector('.buy-max-overlay') as HTMLElement,
     toolbar: container.querySelector('.toolbar') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
   }
@@ -377,8 +381,14 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
         <button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="建造">
           ${formatCost(buyCost)}
         </button>
+        <button type="button" class="build-btn max-btn" data-buy-max="${def.id}" ${canBuy ? '' : 'disabled'} title="一键买满：买到资源不足为止">
+          买满
+        </button>
         ${count > 0 ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 +50%">
           升级 ${formatCost(upCost)}
+        </button>
+        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
+          升满
         </button>` : ''}
       </div>`
     el.appendChild(item)
@@ -448,6 +458,9 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     item.innerHTML = `${info}
       <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +0.5（Lv.${level} → Lv.${level + 1}）">
         升级 ▶ ${formatCost(cost)}
+      </button>
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn max-btn" data-upgrade-tech-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级到 Lv.10 或资源不足为止">
+        升满
       </button>`
     el.appendChild(item)
   }
@@ -524,8 +537,14 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
           <button type="button" class="build-btn diplo-btn" data-diplomacy="${def.id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
             贸易 ${formatCost(tradeC)}
           </button>
+          <button type="button" class="build-btn diplo-btn max-btn" data-diplomacy-max="${def.id}:trade" ${canTrade ? '' : 'disabled'} title="一键贸易：买到好感满或矿物不足为止">
+            买满
+          </button>
           <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy="${def.id}:techshare" ${canShare ? '' : 'disabled'} title="分享技术情报，花费科技点直接提升好感">
             技术共享 ${formatCost(shareC)}
+          </button>
+          <button type="button" class="build-btn diplo-btn tech-share-btn max-btn" data-diplomacy-max="${def.id}:techshare" ${canShare ? '' : 'disabled'} title="一键共享：共享到好感满或科技点不足为止">
+            共享满
           </button>
           <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${ALLIANCE_FAVOR_THRESHOLD} 后可结盟（消耗大量资源）">
             结盟 ${formatCost(ALLIANCE_COST)}
@@ -541,6 +560,46 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
 
 export function renderStatusLine(el: HTMLElement, text: string): void {
   el.textContent = text
+}
+
+/** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */
+export interface BuyMaxModalData {
+  title: string
+  summary: string
+  preview: BulkPreview
+}
+
+/** 渲染一键买满确认弹窗（复用 ending overlay 卡片体系） */
+export function renderBuyMaxModal(el: HTMLElement, data: BuyMaxModalData): void {
+  const { preview } = data
+  const spendText = formatCost(preview.spent)
+  const remainText = formatCost(preview.remaining) || '0'
+  const emptyText = preview.emptyWarnings.map((k) => RESOURCE_META[k].name).join('、')
+  const energy = preview.energyWarning
+  const energyWarn =
+    energy && energy.bought > energy.maxDriven
+      ? `<div class="buy-max-warn">⚠ 能源平衡：当前产出 ${formatNumber(energy.production)}/s · 需求 ${formatNumber(energy.consumption)}/s · 最多可驱动 ${energy.maxDriven} 台 · 本次将买 ${energy.bought} 台，超出部分无产出。</div>`
+      : ''
+  const emptyWarn = emptyText
+    ? `<div class="buy-max-warn">⚠ 将清空资源：${escapeHtml(emptyText)}（执行后剩余不足 1）</div>`
+    : ''
+  el.innerHTML = `
+    <div class="buy-max-card">
+      <div class="buy-max-title">${escapeHtml(data.title)}</div>
+      <div class="buy-max-body">
+        <div class="buy-max-summary">${escapeHtml(data.summary)}</div>
+        <table class="buy-max-table">
+          <tr><th>总花费</th><td>${spendText || '0'}</td></tr>
+          <tr><th>执行后剩余</th><td>${remainText}</td></tr>
+        </table>
+        ${emptyWarn}
+        ${energyWarn}
+      </div>
+      <div class="buy-max-actions">
+        <button type="button" class="ending-btn primary" data-buy-max-confirm>确认花光</button>
+        <button type="button" class="ending-btn ghost" data-buy-max-cancel>取消</button>
+      </div>
+    </div>`
 }
 
 function formatCost(cost: Record<ResourceKey, number>): string {
