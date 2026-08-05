@@ -3,6 +3,7 @@ import { BUILDINGS, FACTIONS, MECHANICS, PLANETS, RESOURCE_META, RESOURCE_KEYS, 
 import type { BuildingDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
 import { formatPlayTime } from '../engine/engine'
+import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
@@ -37,6 +38,8 @@ export interface AppElements {
   panel: HTMLElement
   statusLine: HTMLElement
   endingOverlay: HTMLElement
+  toolbar: HTMLElement
+  tutorial: HTMLElement
 }
 
 const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
@@ -66,8 +69,16 @@ export function buildLayout(container: HTMLElement): AppElements {
       <div class="panel-body hidden" data-panel="tech"></div>
       <div class="panel-body hidden" data-panel="diplomacy"></div>
     </section>
-    <footer class="status-line"></footer>
+    <footer class="toolbar" aria-label="工具">
+      <button type="button" class="tool-btn" data-tool="mute">🔊 静音</button>
+      <button type="button" class="tool-btn" data-tool="export">导出存档</button>
+      <button type="button" class="tool-btn" data-tool="import">导入存档</button>
+      <button type="button" class="tool-btn danger" data-tool="reset">重置</button>
+      <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
+    </footer>
+    <div class="status-line"></div>
     <div class="ending-overlay hidden" aria-label="结局"></div>
+    <div class="tutorial hidden" aria-label="新手引导"></div>
   `
   const root = container
   return {
@@ -79,7 +90,35 @@ export function buildLayout(container: HTMLElement): AppElements {
     panel: container.querySelector('.panel') as HTMLElement,
     statusLine: container.querySelector('.status-line') as HTMLElement,
     endingOverlay: container.querySelector('.ending-overlay') as HTMLElement,
+    toolbar: container.querySelector('.toolbar') as HTMLElement,
+    tutorial: container.querySelector('.tutorial') as HTMLElement,
   }
+}
+
+/** 渲染新手引导浮层（未完成时显示） */
+export function renderTutorial(el: HTMLElement, state: GameState): void {
+  if (tutorialDone(state)) {
+    el.classList.add('hidden')
+    el.innerHTML = ''
+    return
+  }
+  const step = currentTutorialStep(state)
+  if (!step) {
+    el.classList.add('hidden')
+    el.innerHTML = ''
+    return
+  }
+  el.classList.remove('hidden')
+  el.innerHTML = `
+    <div class="tutorial-card">
+      <div class="tutorial-step">${state.tutorialStep + 1}/${TUTORIAL_STEPS.length}</div>
+      <div class="tutorial-title">${escapeHtml(step.title)}</div>
+      <div class="tutorial-text">${escapeHtml(step.text)}</div>
+      <div class="tutorial-actions">
+        <button type="button" class="tutorial-btn ghost" data-tutorial="skip">跳过引导</button>
+        <button type="button" class="tutorial-btn primary" data-tutorial="next">下一步</button>
+      </div>
+    </div>`
 }
 
 /** 渲染结局面板（含通关统计与无限/NG+ 入口） */

@@ -103,6 +103,8 @@ export interface GameState {
   lastStormHarvestAt: number
   /** 已播放的叙事标记（防重复触发） */
   storyFlags: Record<string, boolean>
+  /** 新手引导步骤：0-4 进行中，5 表示完成，-1 表示已跳过 */
+  tutorialStep: number
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 待处理的随机事件实例 */

@@ -35,6 +35,7 @@ export function createInitialState(nowMs: number): GameState {
     planetStaySeconds: 0,
     lastStormHarvestAt: nowMs,
     storyFlags: {},
+    tutorialStep: 0,
     log: [],
     pendingEvents: [],
     nextEventId: 1,

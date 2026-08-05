@@ -34,6 +34,7 @@ export function isValidSave(raw: unknown): raw is GameState {
   if (typeof s.planetStaySeconds !== 'number') return false
   if (typeof s.lastStormHarvestAt !== 'number') return false
   if (typeof s.storyFlags !== 'object' || s.storyFlags === null) return false
+  if (typeof s.tutorialStep !== 'number') return false
   if (!Array.isArray(s.log)) return false
   if (!Array.isArray(s.pendingEvents)) return false
   if (typeof s.nextEventId !== 'number' || typeof s.nextEventAt !== 'number') return false
