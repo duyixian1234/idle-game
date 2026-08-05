@@ -243,7 +243,7 @@ function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, num
   switch (mech) {
     case 'orbitalForge': {
       if (!state.planets.orbital?.unlocked) break
-      const converted = nominal.mineral * 0.3
+      const converted = nominal.mineral * ORBITAL_FORGE_CONVERT_RATIO
       nominal.mineral -= converted
       nominal.tech += converted
       break
@@ -267,6 +267,12 @@ function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, num
 
 /** 风暴收获间隔（ms）：5 分钟 */
 export const STORM_HARVEST_INTERVAL_MS = 5 * 60_000
+
+/**
+ * 轨道工厂站转换比例：30% → 15%（ticket 05 平衡调参）。
+ * 原 30% 被矿物科技系数放大后科技点严重过剩（通关期可得量 ×32.7 倍于全经济需求），减半收敛。
+ */
+export const ORBITAL_FORGE_CONVERT_RATIO = 0.15
 
 /** 风暴收获：驻留气态巨星时周期性凝聚风暴结晶（科技点） */
 function applyStormHarvest(state: GameState, nowMs: number): void {

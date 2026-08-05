@@ -226,7 +226,7 @@ export const MECHANICS: Record<string, MechanicInfo> = {
   none: { name: '无', desc: '标准产出行星。' },
   orbitalForge: {
     name: '轨道工厂',
-    desc: '将 30% 矿物产能转化为科技点（稀有合金冶炼）。',
+    desc: '将 15% 矿物产能转化为科技点（稀有合金冶炼）。',
   },
   gravityWell: {
     name: '引力井衰减',

@@ -189,14 +189,14 @@ describe('engine: simulateProductionDelta（预览口径）', () => {
     expect(buy.delta.mineral).toBe(3)
   })
 
-  it('含星球机制：轨道工厂将 30% 矿物转为科技点', () => {
+  it('含星球机制：轨道工厂将 15% 矿物转为科技点', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
     s.planets.orbital.unlocked = true
     setActivePlanet(s, 'orbital')
     const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
-    expect(buy.delta.mineral).toBeCloseTo(0.7, 5)
-    expect(buy.delta.tech).toBeCloseTo(0.3, 5)
+    expect(buy.delta.mineral).toBeCloseTo(0.85, 5)
+    expect(buy.delta.tech).toBeCloseTo(0.15, 5)
   })
 
   it('能源不足：买精炼厂不提升矿物产出（停产折减为 0）', () => {
@@ -544,8 +544,8 @@ describe('engine: 星球系统', () => {
     checkPlanetUnlocks(s)
     setActivePlanet(s, 'orbital')
     const after = netProduction(s)
-    expect(after.mineral).toBeCloseTo(7)
-    expect(after.tech).toBeCloseTo(3)
+    expect(after.mineral).toBeCloseTo(8.5)
+    expect(after.tech).toBeCloseTo(1.5)
   })
 
   it('切回荒芜星恢复原产出', () => {
