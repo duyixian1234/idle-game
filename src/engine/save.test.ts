@@ -10,12 +10,14 @@ describe('engine: 存档序列化往返', () => {
     s.buildings.miner = 3
     s.buildings.solar = 1
     s.upgrades.miner = 2
+    s.researched.planetDrill = true
     pushLog(s, 'story', '一段日志')
     const restored = deserializeSave(serializeSave(s))
     expect(restored.schemaVersion).toBe(s.schemaVersion)
     expect(restored.resources).toEqual(s.resources)
     expect(restored.buildings).toEqual(s.buildings)
     expect(restored.upgrades).toEqual(s.upgrades)
+    expect(restored.researched).toEqual(s.researched)
     expect(restored.log).toEqual(s.log)
     expect(restored.lastTick).toBe(1234)
     expect(restored.nextLogId).toBe(s.nextLogId)

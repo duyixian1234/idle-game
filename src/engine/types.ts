@@ -27,6 +27,8 @@ export interface GameState {
   buildings: Record<string, number>
   /** 各建筑升级等级：buildingId -> level（0 起步，每级产出 +50%） */
   upgrades: Record<string, number>
+  /** 已研发科技：techId -> true */
+  researched: Record<string, boolean>
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 上次资源结算时间戳（ms），离线收益结算以此为准 */

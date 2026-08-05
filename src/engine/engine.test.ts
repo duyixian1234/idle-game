@@ -4,11 +4,17 @@ import {
   buyBuilding,
   canAffordBuilding,
   canAffordUpgrade,
+  canResearchTech,
   createInitialState,
   isBuildingUnlocked,
+  isTechResearched,
   netProduction,
+  productionMultipliers,
   productionReport,
   pushLog,
+  researchTech,
+  techCost,
+  techRequirementsMet,
   tick,
   upgradeBuilding,
   upgradeCost,
@@ -203,6 +209,87 @@ describe('engine: 时间推进与产出', () => {
     s.buildings.solar = 1
     s.buildings.lab = 2
     expect(netProduction(s)).toEqual({ mineral: 2, energy: 1, tech: 1 })
+  })
+})
+
+describe('engine: 科技系统', () => {
+  it('研发成功扣除资源并记录状态', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.tech = 100
+    expect(researchTech(s, 'planetDrill')).toEqual({ ok: true })
+    expect(s.researched.planetDrill).toBe(true)
+    expect(s.resources.mineral).toBe(500)
+    expect(s.resources.tech).toBe(90)
+  })
+
+  it('产出系数生效：矿物产出 ×1.5', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 2
+    expect(netProduction(s).mineral).toBe(2)
+    s.researched.planetDrill = true
+    expect(productionMultipliers(s).mineral).toBe(1.5)
+    expect(netProduction(s).mineral).toBe(3)
+  })
+
+  it('多个产出科技累乘', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.researched.planetDrill = true
+    s.researched.nanoFab = true
+    expect(netProduction(s).mineral).toBe(1 * 1.5 * 2)
+  })
+
+  it('资源不足时研发失败并给出原因', () => {
+    const s = createInitialState(0)
+    expect(researchTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '资源不足' })
+    expect(isTechResearched(s, 'planetDrill')).toBe(false)
+  })
+
+  it('前置科技未研发时不可研发', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    expect(techRequirementsMet(s, 'fusionCell')).toBe(false)
+    expect(canResearchTech(s, 'fusionCell')).toBe(false)
+    const r = researchTech(s, 'fusionCell')
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { reason: string }).reason).toContain('需先研发')
+  })
+
+  it('前置科技满足后可研发', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    s.researched.solarEfficiency = true
+    expect(techRequirementsMet(s, 'fusionCell')).toBe(true)
+    expect(researchTech(s, 'fusionCell')).toEqual({ ok: true })
+  })
+
+  it('重复研发失败', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    researchTech(s, 'planetDrill')
+    expect(researchTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '已研发' })
+  })
+
+  it('解锁型科技：深层钻探解锁深层钻机建筑', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.energy = 100_000
+    s.resources.tech = 10_000
+    expect(isBuildingUnlocked(s, 'deepDrill')).toBe(false)
+    expect(buyBuilding(s, 'deepDrill')).toMatchObject({ ok: false, reason: '前置建筑未解锁' })
+    researchTech(s, 'deepDrill')
+    expect(isBuildingUnlocked(s, 'deepDrill')).toBe(true)
+    expect(buyBuilding(s, 'deepDrill')).toEqual({ ok: true })
+    expect(netProduction(s).mineral).toBe(8)
+  })
+
+  it('科技成本为固定值', () => {
+    const s = createInitialState(0)
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
   })
 })
 

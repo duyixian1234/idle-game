@@ -25,6 +25,8 @@ export interface BuildingDef {
   upgradeCostMult?: number
   /** 解锁前置建筑（无则始终可见） */
   requires?: string[]
+  /** 解锁前置科技 */
+  requiresTech?: string[]
 }
 
 /** 每级建筑升级的产出加成（+50%/级） */
@@ -69,5 +71,88 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     consumes: { energy: 0.5 },
     upgradeCostMult: 4,
     requires: ['solar'],
+  },
+  deepDrill: {
+    id: 'deepDrill',
+    name: '深层钻机',
+    desc: '直达地幔热矿层，产出大量矿物。需要「深层钻探」科技解锁。',
+    baseCost: { mineral: 2500, energy: 120 },
+    costGrowth: 1.3,
+    produces: { mineral: 8 },
+    upgradeCostMult: 4,
+    requiresTech: ['deepDrill'],
+  },
+}
+
+/** 科技效果：产出系数加成 */
+export interface TechEffectProduction {
+  kind: 'production'
+  resource: ResourceKey
+  mult: number
+}
+
+/** 科技效果：解锁新建筑 */
+export interface TechEffectUnlock {
+  kind: 'unlockBuilding'
+  buildingId: string
+}
+
+export type TechEffect = TechEffectProduction | TechEffectUnlock
+
+export interface TechDef {
+  id: string
+  name: string
+  desc: string
+  cost: Partial<Record<ResourceKey, number>>
+  effect: TechEffect
+  /** 前置科技 */
+  requires?: string[]
+}
+
+/** 科技定义表 */
+export const TECHS: Record<string, TechDef> = {
+  planetDrill: {
+    id: 'planetDrill',
+    name: '行星钻探',
+    desc: '深入行星地壳，矿物产出 ×1.5。',
+    cost: { mineral: 500, tech: 10 },
+    effect: { kind: 'production', resource: 'mineral', mult: 1.5 },
+  },
+  solarEfficiency: {
+    id: 'solarEfficiency',
+    name: '太阳能效率',
+    desc: '优化光伏材料，能源产出 ×1.5。',
+    cost: { mineral: 900, tech: 25 },
+    effect: { kind: 'production', resource: 'energy', mult: 1.5 },
+  },
+  computingBoost: {
+    id: 'computingBoost',
+    name: '计算加速',
+    desc: '升级量子计算核心，科技点产出 ×1.5。',
+    cost: { mineral: 1400, tech: 60 },
+    effect: { kind: 'production', resource: 'tech', mult: 1.5 },
+  },
+  deepDrill: {
+    id: 'deepDrill',
+    name: '深层钻探',
+    desc: '解锁「深层钻机」建筑。',
+    cost: { mineral: 3200, tech: 150 },
+    effect: { kind: 'unlockBuilding', buildingId: 'deepDrill' },
+  },
+  fusionCell: {
+    id: 'fusionCell',
+    name: '聚变电池',
+    desc: '核聚变储能技术，能源产出 ×2.5。',
+    cost: { mineral: 6000, tech: 400 },
+    effect: { kind: 'production', resource: 'energy', mult: 2.5 },
+    requires: ['solarEfficiency'],
+  },
+  nanoFab: {
+    id: 'nanoFab',
+    name: '纳米制造',
+    desc: '纳米级矿物重组，矿物产出 ×2。',
+    cost: { mineral: 12000, tech: 1000 },
+    effect: { kind: 'production', resource: 'mineral', mult: 2 },
+    requires: ['planetDrill'],
   },
 }

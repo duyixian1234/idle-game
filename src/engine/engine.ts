@@ -1,4 +1,4 @@
-import { BUILDINGS, LEVEL_PRODUCTION_BONUS } from './data'
+import { BUILDINGS, LEVEL_PRODUCTION_BONUS, TECHS } from './data'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, LogEntry, LogType, ResourceKey } from './types'
 
@@ -15,6 +15,7 @@ export function createInitialState(nowMs: number): GameState {
     resources: zeroResources(),
     buildings: {},
     upgrades: {},
+    researched: {},
     log: [],
     lastTick: nowMs,
     createdAt: nowMs,
@@ -76,37 +77,53 @@ export function netProduction(state: GameState): Record<ResourceKey, number> {
 
 /**
  * 完整生产报告：
- * 先汇总各建筑名义产出（数量 × 等级加成），再汇总能源消耗需求；
- * 精炼厂类建筑的矿物产出按 可用能源/需求 比例折减，能源不会扣成负数。
+ * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
+ * 精炼厂类建筑的产出按 可用能源/需求 比例折减，能源不会扣成负数。
  */
 export function productionReport(state: GameState): ProductionReport {
-  const nominal = zeroResources()
+  const base = zeroResources()
   let energyDemand = 0
   for (const [id, count] of Object.entries(state.buildings)) {
     const def = BUILDINGS[id]
     if (!def || count <= 0) continue
     const mul = levelMultiplier(state.upgrades[id] ?? 0)
     for (const key of RESOURCE_KEYS) {
-      nominal[key] += (def.produces[key] ?? 0) * count * mul
+      base[key] += (def.produces[key] ?? 0) * count * mul
     }
     for (const key of RESOURCE_KEYS) {
       energyDemand += (def.consumes?.[key] ?? 0) * count
     }
   }
 
+  // 应用科技产出系数
+  const techMult = productionMultipliers(state)
+  const nominal = zeroResources()
+  for (const key of RESOURCE_KEYS) nominal[key] = base[key] * techMult[key]
+
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
   if (energyRatio < 1) {
-    // 能源不足：产出能力按比例折算（名义值相应扣减）
+    // 能源不足：消耗能源类建筑的产出按 (1-ratio) 折减
     for (const [id, count] of Object.entries(state.buildings)) {
       const def = BUILDINGS[id]
       if (!def || count <= 0 || !def.consumes) continue
       const mul = levelMultiplier(state.upgrades[id] ?? 0)
       for (const key of RESOURCE_KEYS) {
-        nominal[key] -= (def.produces[key] ?? 0) * count * mul * (1 - energyRatio)
+        const prod = (def.produces[key] ?? 0) * count * mul
+        nominal[key] -= prod * techMult[key] * (1 - energyRatio)
       }
     }
   }
   return { nominal, energyRatio }
+}
+
+/** 各资源科技产出系数（已研发科技累乘） */
+export function productionMultipliers(state: GameState): Record<ResourceKey, number> {
+  const m = { mineral: 1, energy: 1, tech: 1 }
+  for (const def of Object.values(TECHS)) {
+    if (!state.researched[def.id] || def.effect.kind !== 'production') continue
+    m[def.effect.resource] *= def.effect.mult
+  }
+  return m
 }
 
 /**
@@ -138,12 +155,13 @@ function canAfford(resources: Record<ResourceKey, number>, cost: Record<Resource
   return RESOURCE_KEYS.every((k) => resources[k] >= cost[k])
 }
 
-/** 前置建筑是否已解锁（拥有至少 1 台） */
+/** 前置建筑/科技是否已满足（建筑拥有 ≥1 台，科技已研发） */
 export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
-  if (!def.requires) return true
-  return def.requires.every((req) => (state.buildings[req] ?? 0) > 0)
+  if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) return false
+  if (def.requiresTech && !def.requiresTech.every((t) => state.researched[t])) return false
+  return true
 }
 
 /** 派生查询：当前是否买得起某建筑 */
@@ -181,6 +199,55 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.upgrades[id] = (state.upgrades[id] ?? 0) + 1
+  return { ok: true }
+}
+
+// ---- 科技系统 ----
+
+/** 科技研发成本（固定，不随状态增长） */
+export function techCost(_state: GameState, id: string): Record<ResourceKey, number> {
+  const def = TECHS[id]
+  const cost = zeroResources()
+  for (const key of RESOURCE_KEYS) {
+    cost[key] = def?.cost[key] ?? 0
+  }
+  return cost
+}
+
+export function isTechResearched(state: GameState, id: string): boolean {
+  return Boolean(state.researched[id])
+}
+
+/** 科技前置是否满足 */
+export function techRequirementsMet(state: GameState, id: string): boolean {
+  const def = TECHS[id]
+  if (!def) return false
+  if (!def.requires) return true
+  return def.requires.every((t) => state.researched[t])
+}
+
+/** 派生查询：当前是否研得起某科技（资源 + 前置） */
+export function canResearchTech(state: GameState, id: string): boolean {
+  const def = TECHS[id]
+  if (!def) return false
+  if (isTechResearched(state, id)) return false
+  if (!techRequirementsMet(state, id)) return false
+  return canAfford(state.resources, techCost(state, id))
+}
+
+/** 研发科技 */
+export function researchTech(state: GameState, id: string): ActionResult {
+  const def = TECHS[id]
+  if (!def) return { ok: false, reason: '未知科技' }
+  if (isTechResearched(state, id)) return { ok: false, reason: '已研发' }
+  if (!techRequirementsMet(state, id)) {
+    const names = def.requires!.map((t) => TECHS[t]?.name ?? t).join('、')
+    return { ok: false, reason: `需先研发：${names}` }
+  }
+  const cost = techCost(state, id)
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  state.researched[id] = true
   return { ok: true }
 }
 

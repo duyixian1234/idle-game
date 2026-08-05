@@ -1,8 +1,16 @@
-import { buyBuilding, createInitialState, netProduction, pushLog, tick, upgradeBuilding } from './engine/engine'
-import { BUILDINGS } from './engine/data'
+import { buyBuilding, createInitialState, netProduction, pushLog, researchTech, tick, upgradeBuilding } from './engine/engine'
+import { BUILDINGS, TECHS } from './engine/data'
 import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
-import { appendLog, buildLayout, isActionFailure, renderBuildPanel, renderResources, renderStatusLine } from './ui/dom'
+import {
+  appendLog,
+  buildLayout,
+  isActionFailure,
+  renderBuildPanel,
+  renderResources,
+  renderStatusLine,
+  renderTechPanel,
+} from './ui/dom'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
@@ -25,6 +33,7 @@ async function main(): Promise<void> {
   function render(): void {
     renderResources(els.resourceBar, state, netProduction(state))
     renderBuildPanel(panels['build'], state, BUILDINGS)
+    renderTechPanel(panels['tech'], state)
     const activePlanet = '荒芜星 P-01'
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -69,6 +78,17 @@ async function main(): Promise<void> {
       const result = upgradeBuilding(state, id)
       if (!isActionFailure(result)) {
         pushLog(state, 'system', `${BUILDINGS[id].name} 升级至 Lv.${state.upgrades[id]}，产出提升。`)
+        render()
+        void saveGame(state)
+      }
+      return
+    }
+    const researchBtn = target.closest<HTMLElement>('[data-research]')
+    if (researchBtn) {
+      const id = researchBtn.dataset.research ?? ''
+      const result = researchTech(state, id)
+      if (!isActionFailure(result)) {
+        pushLog(state, 'reward', `科技「${TECHS[id].name}」研发完成，新能力已生效。`)
         render()
         void saveGame(state)
       }

@@ -1,7 +1,17 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
+import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
-import { buildingCost, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../engine/engine'
+import {
+  buildingCost,
+  canAffordBuilding,
+  canAffordUpgrade,
+  canResearchTech,
+  isBuildingUnlocked,
+  isTechResearched,
+  techCost,
+  techRequirementsMet,
+  upgradeCost,
+} from '../engine/engine'
 import type { ActionFailure } from '../engine/engine'
 
 export interface AppElements {
@@ -30,7 +40,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <section class="panel" aria-label="操作面板">
       <div class="panel-tabs">
         <button type="button" class="tab active" data-tab="build">建造</button>
-        <button type="button" class="tab" data-tab="tech" disabled>科技</button>
+        <button type="button" class="tab" data-tab="tech">科技</button>
         <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
       </div>
       <div class="panel-body" data-panel="build"></div>
@@ -99,9 +109,13 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
       </div>`
 
     if (!unlocked) {
+      const reqParts = [
+        ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
+        ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
+      ]
       item.innerHTML = `${info}
         <div class="build-lock">
-          <span class="lock-hint">前置：${def.requires!.map((r) => escapeHtml(BUILDINGS[r]?.name ?? r)).join('、')}</span>
+          <span class="lock-hint">前置：${reqParts.join('、')}</span>
         </div>`
       el.appendChild(item)
       continue
@@ -116,10 +130,57 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
         <button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="建造">
           ${formatCost(buyCost)}
         </button>
-        ${count > 0 ? `<button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 +50%">
+        ${count > 0 ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 +50%">
           升级 ${formatCost(upCost)}
         </button>` : ''}
       </div>`
+    el.appendChild(item)
+  }
+}
+
+/** 渲染科技面板 */
+export function renderTechPanel(el: HTMLElement, state: GameState): void {
+  el.innerHTML = ''
+  for (const def of Object.values(TECHS)) {
+    const researched = isTechResearched(state, def.id)
+    const met = techRequirementsMet(state, def.id)
+    const affordable = canResearchTech(state, def.id)
+    const cost = techCost(state, def.id)
+    const item = document.createElement('div')
+    item.className = 'build-item tech-item'
+    item.setAttribute('data-tech', def.id)
+
+    const effectText = def.effect.kind === 'unlockBuilding'
+      ? `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
+      : `${RESOURCE_META[def.effect.resource].name}产出 ×${def.effect.mult}`
+
+    const info = `
+      <div class="build-info">
+        <div class="build-name">
+          ${escapeHtml(def.name)}
+          ${researched ? '<span class="build-count researched-badge">已研发</span>' : ''}
+        </div>
+        <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
+      </div>`
+
+    if (researched) {
+      item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>`
+      el.appendChild(item)
+      continue
+    }
+
+    if (!met) {
+      const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')
+      item.innerHTML = `${info}
+        <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>`
+      el.appendChild(item)
+      continue
+    }
+
+    item.innerHTML = `${info}
+      <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'}>
+        研发 ${formatCost(cost)}
+      </button>`
     el.appendChild(item)
   }
 }

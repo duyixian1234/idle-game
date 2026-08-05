@@ -273,6 +273,26 @@ body {
   margin-left: 6px;
 }
 
+.tech-btn {
+  border-color: #4a3a6a;
+}
+
+.tech-btn:hover:not(:disabled) {
+  border-color: var(--tech);
+  color: var(--tech);
+}
+
+.researched-badge {
+  color: var(--good);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.researched-hint {
+  color: var(--good);
+  border-color: #2d5a3d;
+}
+
 /* ---- 底部状态行 ---- */
 .status-line {
   padding: 6px 12px;
