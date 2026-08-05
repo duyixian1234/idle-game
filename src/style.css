@@ -131,6 +131,37 @@ body {
   cursor: not-allowed;
 }
 
+/* ---- 星球机制状态条 ---- */
+.mechanic-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mech-name {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mech-desc {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mech-status {
+  color: var(--warn);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 /* ---- 中央日志 ---- */
 .log-area {
   flex: 1;

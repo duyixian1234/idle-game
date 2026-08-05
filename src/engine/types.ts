@@ -76,6 +76,10 @@ export interface GameState {
   activePlanet: string
   /** 派系外交状态：factionId -> FactionState */
   factions: Record<string, FactionState>
+  /** 当前星球连续停留秒数（引力井衰减机制用，切换星球重置） */
+  planetStaySeconds: number
+  /** 上次「风暴收获」触发时间戳（ms） */
+  lastStormHarvestAt: number
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 待处理的随机事件实例 */

@@ -14,6 +14,7 @@ import {
   renderDiplomacyPanel,
   renderPendingEvents,
   renderPlanetBar,
+  renderPlanetMechanic,
   renderResources,
   renderStatusLine,
   renderTechPanel,
@@ -55,6 +56,7 @@ async function main(): Promise<void> {
   function render(): void {
     renderResources(els.resourceBar, state, netProduction(state))
     renderPlanetBar(els.planetBar, state)
+    renderPlanetMechanic(els.mechanicBar, state)
     renderBuildPanel(panels['build'], state, BUILDINGS)
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)

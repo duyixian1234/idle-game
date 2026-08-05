@@ -25,6 +25,8 @@ export function createInitialState(nowMs: number): GameState {
     planets,
     activePlanet: 'barren',
     factions: createFactions(),
+    planetStaySeconds: 0,
+    lastStormHarvestAt: nowMs,
     log: [],
     pendingEvents: [],
     nextEventId: 1,
@@ -155,15 +157,55 @@ function settleEnergyRatio(state: GameState, energyProd: number, energyDemand: n
 
 /**
  * 当前星球机制对名义产出的修正。
- * 轨道工厂站「奥伯斯」：将 30% 矿物产能转化为科技点（稀有合金）。
- * 其余星机制在 08 落地。
+ * - orbitalForge（轨道工厂站）：30% 矿物产能转化为科技点
+ * - gravityWell（冰封星·霜落）：引力井衰减，驻留越久产出越低（封底 50%）
+ * - massProduction（气态巨星·风暴之喉）：能源产出 ×1.5
+ * - warpCore（母星·曙光）：曲率时间加速，所有产出 ×3
  */
 function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, number>): void {
-  if (state.activePlanet !== 'orbital') return
-  if (!state.planets.orbital?.unlocked) return
-  const converted = nominal.mineral * 0.3
-  nominal.mineral -= converted
-  nominal.tech += converted
+  const mech = PLANETS[state.activePlanet]?.mechanicId
+  if (!mech || mech === 'none') return
+  switch (mech) {
+    case 'orbitalForge': {
+      if (!state.planets.orbital?.unlocked) break
+      const converted = nominal.mineral * 0.3
+      nominal.mineral -= converted
+      nominal.tech += converted
+      break
+    }
+    case 'gravityWell': {
+      const stayMin = state.planetStaySeconds / 60
+      const mult = Math.max(0.5, 1 - stayMin * 0.02)
+      for (const k of RESOURCE_KEYS) nominal[k] *= mult
+      break
+    }
+    case 'massProduction': {
+      nominal.energy *= 1.5
+      break
+    }
+    case 'warpCore': {
+      for (const k of RESOURCE_KEYS) nominal[k] *= 3
+      break
+    }
+  }
+}
+
+/** 风暴收获间隔（ms）：5 分钟 */
+export const STORM_HARVEST_INTERVAL_MS = 5 * 60_000
+
+/** 风暴收获：驻留气态巨星时周期性凝聚风暴结晶（科技点） */
+function applyStormHarvest(state: GameState, nowMs: number): void {
+  if (state.activePlanet !== 'gas' || !state.planets.gas?.unlocked) return
+  if (nowMs - state.lastStormHarvestAt < STORM_HARVEST_INTERVAL_MS) return
+  const prod = netProduction(state)
+  const gain = Math.max(100, Math.floor(prod.tech * 60))
+  state.resources.tech += gain
+  state.lastStormHarvestAt = nowMs
+  pushLog(state, 'event', `风暴之喉的能量漩涡凝聚出风暴结晶，提炼出 ${formatInt(gain)} 科技点。`)
+}
+
+function formatInt(n: number): string {
+  return Math.floor(n).toLocaleString('zh-CN')
 }
 
 export interface ActionFailure {
@@ -298,6 +340,11 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   state.lastTick = nowMs
   state.playSeconds += dt
 
+  // 星球停留时长累计（引力井衰减机制），切换星球时重置
+  if (state.activePlanet !== 'barren') {
+    state.planetStaySeconds += dt
+  }
+
   // 随机事件：到点触发一次并安排下一次
   if (nowMs >= state.nextEventAt) {
     const outcomeText = triggerRandomEvent(state, rng)
@@ -306,6 +353,8 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
       pushLog(state, 'event', outcomeText)
     }
   }
+  // 星球机制周期效果（风暴收获）
+  applyStormHarvest(state, nowMs)
   // 星球解锁检查（满足条件播报叙事日志）
   checkPlanetUnlocks(state)
   // 清理超时未处理的事件实例
@@ -356,11 +405,12 @@ export function checkPlanetUnlocks(state: GameState): string[] {
   return unlockedNow
 }
 
-/** 切换当前星球（仅已解锁星球） */
+/** 切换当前星球（仅已解锁星球），切换后重置停留时长 */
 export function setActivePlanet(state: GameState, id: string): ActionResult {
   if (!PLANETS[id]) return { ok: false, reason: '未知星球' }
   if (!state.planets[id]?.unlocked) return { ok: false, reason: '该星球尚未解锁' }
   if (state.activePlanet === id) return { ok: false, reason: '已在该星球' }
   state.activePlanet = id
+  state.planetStaySeconds = 0
   return { ok: true }
 }

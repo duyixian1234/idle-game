@@ -1,5 +1,5 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, FACTIONS, MECHANICS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
 import {
@@ -31,6 +31,7 @@ export interface AppElements {
   root: HTMLElement
   resourceBar: HTMLElement
   planetBar: HTMLElement
+  mechanicBar: HTMLElement
   logEl: HTMLElement
   panel: HTMLElement
   statusLine: HTMLElement
@@ -51,6 +52,7 @@ export function buildLayout(container: HTMLElement): AppElements {
   container.innerHTML = `
     <header class="resource-bar" aria-label="资源条"></header>
     <nav class="planet-bar" aria-label="星域总览"></nav>
+    <div class="mechanic-bar" aria-label="星球机制"></div>
     <main class="log-area" aria-label="日志流"></main>
     <section class="panel" aria-label="操作面板">
       <div class="panel-tabs">
@@ -69,6 +71,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     root,
     resourceBar: container.querySelector('.resource-bar') as HTMLElement,
     planetBar: container.querySelector('.planet-bar') as HTMLElement,
+    mechanicBar: container.querySelector('.mechanic-bar') as HTMLElement,
     logEl: container.querySelector('.log-area') as HTMLElement,
     panel: container.querySelector('.panel') as HTMLElement,
     statusLine: container.querySelector('.status-line') as HTMLElement,
@@ -96,6 +99,30 @@ export function renderPlanetBar(el: HTMLElement, state: GameState): void {
     }
     el.appendChild(btn)
   }
+}
+
+/** 渲染当前星球机制状态条 */
+export function renderPlanetMechanic(el: HTMLElement, state: GameState): void {
+  const def = PLANETS[state.activePlanet]
+  if (!def) {
+    el.textContent = ''
+    return
+  }
+  const mech = MECHANICS[def.mechanicId] ?? MECHANICS.none
+  let status = ''
+  if (def.mechanicId === 'gravityWell') {
+    const stayMin = state.planetStaySeconds / 60
+    const mult = Math.max(0.5, 1 - stayMin * 0.02)
+    status = `驻留 ${stayMin.toFixed(1)} 分钟 · 产出系数 ${(mult * 100).toFixed(0)}%`
+  } else if (def.mechanicId === 'massProduction') {
+    const remain = Math.max(0, 5 * 60_000 - (Date.now() - state.lastStormHarvestAt))
+    status = `下次风暴收获 ${Math.ceil(remain / 1000)} 秒后`
+  } else if (def.mechanicId === 'warpCore') {
+    status = '时间流速 ×3'
+  } else if (def.mechanicId === 'orbitalForge') {
+    status = '矿物 30% → 科技点'
+  }
+  el.innerHTML = `<span class="mech-name">${escapeHtml(mech.name)}</span><span class="mech-desc">${escapeHtml(mech.desc)}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
 }
 
 /** 渲染顶部资源条（带正/负速率标记） */

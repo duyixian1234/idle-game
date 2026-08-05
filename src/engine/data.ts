@@ -207,6 +207,32 @@ export const FACTIONS: Record<string, FactionDef> = {
   },
 }
 
+/** 星球机制说明（UI 状态展示用） */
+export interface MechanicInfo {
+  name: string
+  desc: string
+}
+
+export const MECHANICS: Record<string, MechanicInfo> = {
+  none: { name: '无', desc: '标准产出行星。' },
+  orbitalForge: {
+    name: '轨道工厂',
+    desc: '将 30% 矿物产能转化为科技点（稀有合金冶炼）。',
+  },
+  gravityWell: {
+    name: '引力井衰减',
+    desc: '强引力扭曲时空，驻留越久产出越低（约 25 分钟后衰减至 50% 封底）；切换星球后重置。',
+  },
+  massProduction: {
+    name: '风暴批量生产',
+    desc: '风暴能量驱动巨型平台：能源产出 ×1.5；每 5 分钟自动凝聚风暴结晶（科技点）。',
+  },
+  warpCore: {
+    name: '曲率时间加速',
+    desc: '曲率核心扭曲时空流速：所有产出 ×3。终局的前夜。',
+  },
+}
+
 /** 科技定义表 */
 export const TECHS: Record<string, TechDef> = {
   planetDrill: {
