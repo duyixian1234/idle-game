@@ -361,3 +361,34 @@ describe('ui: 外交面板', () => {
     expect(btn!.textContent).toContain('◎1万')
   })
 })
+
+describe('ui: 事件科技分支', () => {
+  it('陨石雨卡片含常规采集与科技防护罩选项（hint 标科技成本）', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.resources.tech = 10_000
+    const inst = createEventInstance(s, 'meteor')
+    s.pendingEvents.push(inst)
+    renderPendingEvents(els.logEl, s)
+    const card = els.logEl.querySelector<HTMLElement>('.event-card')!
+    expect(card.textContent).toContain('常规采集')
+    const shieldBtn = card.querySelector<HTMLButtonElement>('[data-event-resolve$=":shield"]')
+    expect(shieldBtn).toBeTruthy()
+    expect(shieldBtn!.textContent).toContain('科技防护罩')
+    expect(shieldBtn!.textContent).toContain('科技')
+  })
+
+  it('虫族警报卡片含神经干扰选项（hint 标科技成本）', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.resources.tech = 10_000
+    const inst = createEventInstance(s, 'bug')
+    s.pendingEvents.push(inst)
+    renderPendingEvents(els.logEl, s)
+    const card = els.logEl.querySelector<HTMLElement>('.event-card')!
+    const jamBtn = card.querySelector<HTMLButtonElement>('[data-event-resolve$=":jam"]')
+    expect(jamBtn).toBeTruthy()
+    expect(jamBtn!.textContent).toContain('神经干扰')
+    expect(jamBtn!.textContent).toContain('科技')
+  })
+})

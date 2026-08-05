@@ -19,14 +19,15 @@ describe('engine: 随机事件触发', () => {
     expect(s.nextEventAt).toBeGreaterThan(10_000)
   })
 
-  it('陨石雨事件立即生效（矿物增加 + 日志文本返回）', () => {
+  it('陨石雨进入待处理队列（交互事件）', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
     // rng 0.5 → roll=4.5：trade(4)→剩0.5→meteor(3)→触发
     const text = triggerRandomEvent(s, seqRng([0.5]))
-    expect(text).toContain('陨石雨')
-    expect(s.resources.mineral).toBeGreaterThan(0)
-    expect(s.pendingEvents).toHaveLength(0)
+    expect(text).toBeNull()
+    expect(s.pendingEvents).toHaveLength(1)
+    expect(s.pendingEvents[0].defId).toBe('meteor')
+    expect(s.resources.mineral).toBe(15) // 未决策前资源不变
   })
 
   it('事件触发不改变 lastTick（不打断结算）', () => {
@@ -81,6 +82,43 @@ describe('engine: 贸易商事件', () => {
   })
 })
 
+describe('engine: 陨石雨事件', () => {
+  it('常规采集：获得基础矿物', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const inst = createEventInstance(s, 'meteor')
+    const gain = inst.payload!.gain
+    const outcome = applyEvent(s, inst, 'collect')
+    expect(outcome.changed).toBe(true)
+    expect(s.resources.mineral).toBe(100 + gain)
+  })
+
+  it('科技防护罩：扣科技点、采集翻倍', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    s.resources.tech = 10_000
+    const inst = createEventInstance(s, 'meteor')
+    const shieldCost = inst.payload!.shieldCost
+    const gain = inst.payload!.gain
+    const outcome = applyEvent(s, inst, 'shield')
+    expect(outcome.changed).toBe(true)
+    expect(outcome.logText).toContain('防护罩')
+    expect(s.resources.tech).toBe(10_000 - shieldCost)
+    expect(s.resources.mineral).toBe(100 + gain * 2)
+  })
+
+  it('科技防护罩：科技点不足时失败且资源不变', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    s.resources.tech = 0
+    const inst = createEventInstance(s, 'meteor')
+    const outcome = applyEvent(s, inst, 'shield')
+    expect(outcome.changed).toBe(false)
+    expect(s.resources.mineral).toBe(100)
+    expect(s.resources.tech).toBe(0)
+  })
+})
+
 describe('engine: 虫族警报事件', () => {
   it('派遣：扣矿物、无资源损失', () => {
     const s = createInitialState(0)
@@ -90,6 +128,29 @@ describe('engine: 虫族警报事件', () => {
     expect(outcome.changed).toBe(true)
     expect(outcome.logText).toContain('清剿队')
     expect(s.resources.mineral).toBeLessThan(50_000)
+  })
+
+  it('神经干扰：扣科技点替代矿物清剿', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    s.resources.tech = 10_000
+    const inst = createEventInstance(s, 'bug')
+    const jamCost = inst.payload!.jamCost
+    const outcome = applyEvent(s, inst, 'jam')
+    expect(outcome.changed).toBe(true)
+    expect(outcome.logText).toContain('神经干扰')
+    expect(s.resources.tech).toBe(10_000 - jamCost)
+    expect(s.resources.mineral).toBe(50_000) // 矿物不受损
+  })
+
+  it('神经干扰：科技点不足时失败', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    s.resources.tech = 0
+    const inst = createEventInstance(s, 'bug')
+    const outcome = applyEvent(s, inst, 'jam')
+    expect(outcome.changed).toBe(false)
+    expect(s.resources.mineral).toBe(50_000)
   })
 
   it('忽略：扣减当前矿物 10%', () => {

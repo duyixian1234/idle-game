@@ -80,16 +80,33 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       ],
     }
   }
+  if (defId === 'meteor') {
+    const gain = scaledBy(netProduction(state).mineral, 300, 60)
+    const shieldCost = scaledBy(netProduction(state).tech, 200, 60)
+    const story = eventStory('meteor', rng)
+    return {
+      ...base,
+      title: '陨石雨',
+      desc: story || `流星碎片坠入矿区，部分可采集；启动防护罩可减缓冲击、回收更多。`,
+      payload: { gain, shieldCost },
+      options: [
+        { id: 'collect', label: '常规采集', hint: `+${gain}矿物` },
+        { id: 'shield', label: '科技防护罩', hint: `-${shieldCost}科技 +${gain * 2}矿物` },
+      ],
+    }
+  }
   // bug
   const cost = scaledBy(netProduction(state).mineral, 800, 200)
+  const jamCost = scaledBy(netProduction(state).tech, 150, 50)
   const story = eventStory('bug', rng)
   return {
     ...base,
     title: '虫族警报',
     desc: story || `殖民地下层监测到虫群啃食矿脉的迹象。`,
-    payload: { cost },
+    payload: { cost, jamCost },
     options: [
       { id: 'dispatch', label: '派遣清剿队', hint: `-${cost}矿物` },
+      { id: 'jam', label: '神经干扰', hint: `-${jamCost}科技` },
       { id: 'ignore', label: '暂不处理' },
     ],
   }
@@ -116,10 +133,19 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   }
 
   if (defId === 'meteor') {
-    const gain = scaledBy(prod.mineral, 300, 60)
+    const gain = instance.payload?.gain ?? scaledBy(prod.mineral, 300, 60)
+    const shieldCost = instance.payload?.shieldCost ?? scaledBy(prod.tech, 200, 60)
+    if (optionId === 'shield') {
+      if (state.resources.tech < shieldCost) {
+        return { logType: 'warning', logText: '科技点不足以维持防护罩，陨石雨自然坠落。', changed: false }
+      }
+      state.resources.tech -= shieldCost
+      state.resources.mineral += gain * 2
+      return { logType: 'reward', logText: `防护罩展开，陨石完整回收：-${shieldCost} 科技，+${gain * 2} 矿物。`, changed: true }
+    }
+    // collect（默认）
     state.resources.mineral += gain
-    const story = eventStory('meteor')
-    return { logType: 'reward', logText: `${story}采集到 ${gain} 矿物。`, changed: true }
+    return { logType: 'reward', logText: `陨石雨结束，采集到 ${gain} 矿物。`, changed: true }
   }
 
   if (defId === 'bug') {
@@ -131,6 +157,14 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
       state.resources.mineral -= cost
       return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${cost} 矿物）。`, changed: true }
     }
+    if (optionId === 'jam') {
+      const jamCost = instance.payload?.jamCost ?? scaledBy(prod.tech, 150, 50)
+      if (state.resources.tech < jamCost) {
+        return { logType: 'warning', logText: '科技点不足以发动神经干扰。', changed: false }
+      }
+      state.resources.tech -= jamCost
+      return { logType: 'system', logText: `神经干扰波覆盖矿层，虫群失去方向溃散（-${jamCost} 科技）。`, changed: true }
+    }
     // ignore：扣减当前矿物 10%
     const loss = Math.floor(state.resources.mineral * 0.1)
     state.resources.mineral -= loss
@@ -140,18 +174,10 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   return { logType: 'system', logText: '未知事件。', changed: false }
 }
 
-/** 触发一次随机事件：meteor 立即生效；trade/bug 进入待处理队列 */
+/** 触发一次随机事件：trade/bug/meteor 均进入待处理队列（交互事件） */
 export function triggerRandomEvent(state: GameState, rng: () => number = Math.random): string | null {
   const def = pickEventDef(rng)
-  if (def.kind === 'meteor') {
-    const outcome = applyEvent(
-      state,
-      { uid: -1, defId: 'meteor', title: '', desc: '', options: [], createdAt: state.lastTick, resolved: true },
-      '',
-    )
-    return outcome.logText
-  }
-  const instance = createEventInstance(state, def.id)
+  const instance = createEventInstance(state, def.id, rng)
   state.pendingEvents.push(instance)
   return null
 }
