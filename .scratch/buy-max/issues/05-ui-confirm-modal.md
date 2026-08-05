@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — 需要 action 注册与按钮触发路径
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] overlay 结构与样式（`.buy-max-overlay`/`.buy-max-card`，复用 ending 体系，`.hidden` 控制）
 - [ ] 打开流程：点击买满按钮/Shift 点击 → 调 preview → 渲染表格（次数/花费/剩余/目标等级）→ 显示

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — preview 复用其循环计算核心
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] `BulkPreview` 类型 + `previewMaxBuy` / `previewDiplomacyMax`（不修改状态：调用前后 state 深比较不变）
 - [ ] 清零警示 `emptyWarnings`：remaining < 1 的资源正确识别（含多资源目标）

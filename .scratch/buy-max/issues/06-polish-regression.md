@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02, 03, 04, 05 — 收尾回归
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] `data.ts:119` 注释修正为 42.8 万口径
 - [ ] 全量 vitest（引擎 + UI 冒烟）全绿，typecheck clean

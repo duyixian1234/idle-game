@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] `src/engine/bulk.ts`：`BulkBuyResult` 类型（count / spent / remaining / stoppedReason: 'resource'|'maxLevel'|'notUnlocked' / targetLevel?）
 - [ ] `buyBuildingMax`：正常买满、单资源不足停、多资源（lab/refinery/deepDrill 含 ⚡）以瓶颈资源停、`notUnlocked` 拒绝（count=0, ok=false）

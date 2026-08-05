@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — previewDiplomacyMax 的循环语义依赖 02 的共享计算核心
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] `diplomacyMax(state, factionId, 'trade')`：循环到好感 100 停或资源不足停；成本 ×1.5^count 逐次重算
 - [ ] `diplomacyMax(state, factionId, 'techShare')`：固定 2 万◎/次，循环到好感 100 停或科技点不足停

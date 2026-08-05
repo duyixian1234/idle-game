@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02, 03 — 需要引擎批量动作与 preview 数据
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] 建造面板：`data-buy-max` 按钮渲染 + disabled 态（同 canAfford）
 - [ ] 建筑升级：`data-upgrade-max` 按钮（仅已建建筑）
