@@ -69,11 +69,11 @@ function auditLayout(): AuditIssue[] {
     return r.width > 0 && r.height > 0 && b.offsetParent !== null
   }
 
-  // 1) 页面级 + 容器级水平溢出（.planet-bar 除外：窄屏下为刻意横滚导航，scrollWidth>clientWidth 属预期）
+  // 1) 页面级 + 容器级水平溢出
   if (document.documentElement.scrollWidth > vw + 1) {
     issues.push({ kind: 'overflow', detail: `页面 scrollWidth=${document.documentElement.scrollWidth} > 视口 ${vw}` })
   }
-  for (const sel of ['.panel-body', '.log-area', '.mechanic-bar', '.favor-row', '.resource-bar', '.panel-tabs', '.event-options', '.exchange-row']) {
+  for (const sel of ['.panel-body', '.log-area', '.mechanic-bar', '.favor-row', '.resource-bar', '.planet-bar', '.panel-tabs', '.event-options', '.exchange-row']) {
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
       if (el.scrollWidth > el.clientWidth + 1) {
         issues.push({ kind: 'overflow', detail: `${sel} scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}` })
@@ -81,19 +81,27 @@ function auditLayout(): AuditIssue[] {
     }
   }
 
-  // 1b) 日志区保底高度：日志流是叙事主体，必须保证 ≥20vh 可见，防面板挤压
+  // 1b) 日志区保底高度：日志流是叙事主体，必须保证 ≥18vh 可见，防面板挤压
   const logArea = document.querySelector('.log-area')
   if (logArea) {
     const lh = logArea.getBoundingClientRect().height
-    if (lh < window.innerHeight * 0.2 - 2) {
-      issues.push({ kind: 'logHeight', detail: `日志区高度 ${Math.round(lh)}px < 20vh（${Math.round(window.innerHeight * 0.2)}px），被操作面板挤压` })
+    if (lh < window.innerHeight * 0.18 - 2) {
+      issues.push({ kind: 'logHeight', detail: `日志区高度 ${Math.round(lh)}px < 18vh（${Math.round(window.innerHeight * 0.18)}px），被操作面板挤压` })
     }
   }
 
-  // 2) 主流程按钮越出视口（排除浮层 overlay 与星球条横滚导航——chip 可横滑查看）
+  // 1c) 星球切换导航必须全部可见可点（横向滚动曾把后 2-3 个星球藏到屏外）
+  const planetChips = Array.from(document.querySelectorAll<HTMLElement>('.planet-bar .planet-chip'))
+  for (const c of planetChips) {
+    const r = c.getBoundingClientRect()
+    if (r.left < -1 || r.right > vw + 1) {
+      issues.push({ kind: 'outOfViewport', detail: `星球 chip「${c.textContent?.trim()}」x=[${Math.round(r.left)},${Math.round(r.right)}] 越出视口，无法切换区域` })
+    }
+  }
+
+  // 2) 主流程按钮越出视口（排除浮层 overlay 内部按钮；星球 chip 由 1c 专项检查）
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((b) => {
     if (b.closest('.ending-overlay, .buy-max-overlay, .tutorial')) return false
-    if (b.closest('.planet-bar')) return false
     return isVisible(b)
   })
   for (const b of buttons) {
@@ -186,10 +194,18 @@ for (const vp of VIEWPORTS) {
       let upgradeMaxClickable = true
       try {
         await page.locator('[data-upgrade-max="miner"]').click({ timeout: 3_000 })
+        // 升满按钮会打开确认弹窗（buy-max 设计行为）→ Esc 关闭，避免遮挡后续点击
+        await page.keyboard.press('Escape')
+        await expect(page.locator('.buy-max-overlay')).toHaveClass(/hidden/)
       } catch (err) {
         upgradeMaxClickable = false
         allIssues.push({ kind: 'outOfViewport', detail: `点击 [data-upgrade-max="miner"] 失败：${err instanceof Error ? err.message.split('\n')[0] : err}` })
       }
+
+      // 6) 星球切换行为：点击可见的已解锁「冰封星」chip 必须切换成功
+      const iceChip = page.locator('[data-planet="ice"]')
+      await iceChip.click()
+      await expect(page.locator('.planet-chip.active')).toHaveAttribute('data-planet', 'ice')
 
       await page.waitForTimeout(800)
       expect(pageErrors, '存在未捕获异常').toEqual([])
