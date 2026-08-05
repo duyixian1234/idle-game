@@ -234,6 +234,45 @@ body {
   cursor: not-allowed;
 }
 
+.upgrade-btn {
+  margin-left: 8px;
+  border-color: #3a5b7a;
+}
+
+.upgrade-btn:hover:not(:disabled) {
+  border-color: var(--tech);
+  color: var(--tech);
+}
+
+.build-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.build-item.locked {
+  opacity: 0.55;
+}
+
+.build-lock {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.lock-hint {
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.build-level {
+  color: var(--tech);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
 /* ---- 底部状态行 ---- */
 .status-line {
   padding: 6px 12px;

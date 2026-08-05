@@ -20,6 +20,7 @@ export function isValidSave(raw: unknown): raw is GameState {
     if (typeof res[k] !== 'number' || !Number.isFinite(res[k])) return false
   }
   if (typeof s.buildings !== 'object' || s.buildings === null) return false
+  if (typeof s.upgrades !== 'object' || s.upgrades === null) return false
   if (!Array.isArray(s.log)) return false
   if (typeof s.lastTick !== 'number' || typeof s.createdAt !== 'number') return false
   return true

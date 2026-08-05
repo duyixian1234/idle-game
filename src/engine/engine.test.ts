@@ -3,22 +3,28 @@ import {
   buildingCost,
   buyBuilding,
   canAffordBuilding,
+  canAffordUpgrade,
   createInitialState,
+  isBuildingUnlocked,
   netProduction,
+  productionReport,
   pushLog,
   tick,
+  upgradeBuilding,
+  upgradeCost,
 } from './engine'
 
 describe('engine: 初始状态', () => {
-  it('三资源初始为 0，无建筑', () => {
+  it('三资源初始为 0，无建筑无升级', () => {
     const s = createInitialState(1000)
     expect(s.resources).toEqual({ mineral: 0, energy: 0, tech: 0 })
     expect(s.buildings).toEqual({})
+    expect(s.upgrades).toEqual({})
     expect(s.lastTick).toBe(1000)
   })
 })
 
-describe('engine: 建造采矿机', () => {
+describe('engine: 建造建筑', () => {
   it('资源足够时建造成功并扣费', () => {
     const s = createInitialState(1000)
     s.resources.mineral = 100
@@ -41,13 +47,123 @@ describe('engine: 建造采矿机', () => {
     expect(buyBuilding(s, 'nope')).toMatchObject({ ok: false })
   })
 
-  it('成本随已有数量增长（1.15 倍率）', () => {
+  it('成本随已有数量增长', () => {
     const s = createInitialState(1000)
     expect(buildingCost(s, 'miner').mineral).toBe(10)
     s.buildings.miner = 5
     const cost = buildingCost(s, 'miner')
     expect(cost.mineral).toBe(Math.floor(10 * Math.pow(1.15, 5)))
     expect(canAffordBuilding(s, 'miner')).toBe(false)
+  })
+
+  it('太阳能板产出能源、实验室消耗能源与矿物', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 1000
+    expect(buyBuilding(s, 'solar')).toEqual({ ok: true })
+    expect(buyBuilding(s, 'lab')).toEqual({ ok: true })
+    expect(netProduction(s)).toEqual({ mineral: 0, energy: 1, tech: 0.5 })
+  })
+
+  it('精炼厂有前置建筑（太阳能板），未解锁时不可建造', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 1000
+    expect(isBuildingUnlocked(s, 'refinery')).toBe(false)
+    expect(buyBuilding(s, 'refinery')).toMatchObject({ ok: false, reason: '前置建筑未解锁' })
+    expect(s.buildings.refinery).toBeUndefined()
+  })
+
+  it('拥有前置建筑后可建造精炼厂', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 1000
+    s.buildings.solar = 1
+    expect(isBuildingUnlocked(s, 'refinery')).toBe(true)
+    expect(buyBuilding(s, 'refinery')).toEqual({ ok: true })
+    expect(s.buildings.refinery).toBe(1)
+  })
+})
+
+describe('engine: 建筑升级', () => {
+  it('升级提升产出（+50%/级）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.buildings.miner = 2
+    expect(netProduction(s).mineral).toBe(2)
+    const upCost = upgradeCost(s, 'miner')
+    expect(upCost.mineral).toBeGreaterThan(0)
+    expect(canAffordUpgrade(s, 'miner')).toBe(true)
+    expect(upgradeBuilding(s, 'miner')).toEqual({ ok: true })
+    expect(s.upgrades.miner).toBe(1)
+    expect(netProduction(s).mineral).toBe(2 * 1.5)
+  })
+
+  it('升级成本随等级增长（1.6 倍/级）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    s.buildings.miner = 1
+    const c0 = upgradeCost(s, 'miner').mineral
+    s.upgrades.miner = 1
+    const c1 = upgradeCost(s, 'miner').mineral
+    expect(c1).toBe(Math.floor(c0 * 1.6))
+  })
+
+  it('未建造建筑不可升级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '尚未建造该建筑' })
+  })
+
+  it('资源不足时升级失败', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '资源不足' })
+  })
+})
+
+describe('engine: 精炼厂能源互锁', () => {
+  it('能源充足时精炼厂满产', () => {
+    const s = createInitialState(0)
+    s.buildings.solar = 1 // 1 能源/s
+    s.buildings.refinery = 2 // 需求 1 能源/s
+    const report = productionReport(s)
+    expect(report.energyRatio).toBe(1)
+    expect(report.nominal.mineral).toBe(6) // 3 * 2
+  })
+
+  it('无能源来源时精炼厂停产（0 折减）', () => {
+    const s = createInitialState(0)
+    s.buildings.refinery = 2
+    const report = productionReport(s)
+    expect(report.energyRatio).toBe(0)
+    expect(report.nominal.mineral).toBe(0)
+  })
+
+  it('能源产出不足时按比例打折', () => {
+    const s = createInitialState(0)
+    s.buildings.solar = 1 // 1 能源/s
+    s.buildings.refinery = 4 // 需求 2 能源/s
+    const report = productionReport(s)
+    expect(report.energyRatio).toBe(0.5)
+    expect(report.nominal.mineral).toBeCloseTo(3 * 4 * 0.5)
+  })
+
+  it('能源余额可补足缺口', () => {
+    const s = createInitialState(0)
+    s.resources.energy = 5
+    s.buildings.refinery = 2 // 需求 1 能源/s，可用 = 0 + 5
+    const report = productionReport(s)
+    expect(report.energyRatio).toBe(1)
+  })
+
+  it('tick 结算后能源余额不为负', () => {
+    const s = createInitialState(0)
+    s.buildings.refinery = 2
+    s.buildings.solar = 1
+    tick(s, 5_000) // 5 秒
+    expect(s.resources.energy).toBeGreaterThanOrEqual(0)
+    expect(s.resources.mineral).toBeGreaterThan(0)
   })
 })
 
@@ -79,6 +195,14 @@ describe('engine: 时间推进与产出', () => {
     const s = createInitialState(0)
     s.buildings.miner = 3
     expect(netProduction(s)).toEqual({ mineral: 3, energy: 0, tech: 0 })
+  })
+
+  it('多建筑混合产出', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 2
+    s.buildings.solar = 1
+    s.buildings.lab = 2
+    expect(netProduction(s)).toEqual({ mineral: 2, energy: 1, tech: 1 })
   })
 })
 

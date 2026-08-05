@@ -1,4 +1,4 @@
-import { createInitialState, tick, buyBuilding, netProduction, pushLog } from './engine/engine'
+import { buyBuilding, createInitialState, netProduction, pushLog, tick, upgradeBuilding } from './engine/engine'
 import { BUILDINGS } from './engine/data'
 import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
@@ -49,16 +49,29 @@ async function main(): Promise<void> {
     })
   }
 
-  // 建造按钮事件委托
+  // 建造/升级按钮事件委托
   els.panel.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-build]')
-    if (!btn) return
-    const id = btn.dataset.build ?? ''
-    const result = buyBuilding(state, id)
-    if (!isActionFailure(result)) {
-      pushLog(state, 'system', `建造了 ${BUILDINGS[id].name}，矿区产能提升。`)
-      render()
-      void saveGame(state)
+    const target = e.target as HTMLElement
+    const buyBtn = target.closest<HTMLElement>('[data-build]')
+    if (buyBtn) {
+      const id = buyBtn.dataset.build ?? ''
+      const result = buyBuilding(state, id)
+      if (!isActionFailure(result)) {
+        pushLog(state, 'system', `建造了 ${BUILDINGS[id].name}（第 ${state.buildings[id]} 台）。`)
+        render()
+        void saveGame(state)
+      }
+      return
+    }
+    const upBtn = target.closest<HTMLElement>('[data-upgrade]')
+    if (upBtn) {
+      const id = upBtn.dataset.upgrade ?? ''
+      const result = upgradeBuilding(state, id)
+      if (!isActionFailure(result)) {
+        pushLog(state, 'system', `${BUILDINGS[id].name} 升级至 Lv.${state.upgrades[id]}，产出提升。`)
+        render()
+        void saveGame(state)
+      }
     }
   })
 

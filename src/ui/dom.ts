@@ -1,7 +1,7 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
+import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
-import { buildingCost, canAffordBuilding } from '../engine/engine'
+import { buildingCost, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../engine/engine'
 import type { ActionFailure } from '../engine/engine'
 
 export interface AppElements {
@@ -76,23 +76,50 @@ export function appendLog(el: HTMLElement, entry: LogEntry): void {
   el.prepend(div)
 }
 
-/** 渲染建造面板 */
+/** 渲染建造面板（含升级按钮与锁定态） */
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>): void {
   el.innerHTML = ''
   for (const def of Object.values(defs)) {
-    const cost = buildingCost(state, def.id)
-    const affordable = canAffordBuilding(state, def.id)
     const count = state.buildings[def.id] ?? 0
+    const level = state.upgrades[def.id] ?? 0
+    const unlocked = isBuildingUnlocked(state, def.id)
     const item = document.createElement('div')
     item.className = 'build-item'
-    item.innerHTML = `
+    item.setAttribute('data-building', def.id)
+    if (!unlocked) item.classList.add('locked')
+
+    const info = `
       <div class="build-info">
-        <div class="build-name">${escapeHtml(def.name)} <span class="build-count">×${count}</span></div>
+        <div class="build-name">
+          ${escapeHtml(def.name)}
+          <span class="build-count">×${count}</span>
+          ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
+        </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
-      </div>
-      <button type="button" class="build-btn" data-build="${def.id}" ${affordable ? '' : 'disabled'}>
-        ${formatCost(cost)}
-      </button>`
+      </div>`
+
+    if (!unlocked) {
+      item.innerHTML = `${info}
+        <div class="build-lock">
+          <span class="lock-hint">前置：${def.requires!.map((r) => escapeHtml(BUILDINGS[r]?.name ?? r)).join('、')}</span>
+        </div>`
+      el.appendChild(item)
+      continue
+    }
+
+    const buyCost = buildingCost(state, def.id)
+    const canBuy = canAffordBuilding(state, def.id)
+    const upCost = upgradeCost(state, def.id)
+    const canUp = canAffordUpgrade(state, def.id)
+    item.innerHTML = `${info}
+      <div class="build-actions">
+        <button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="建造">
+          ${formatCost(buyCost)}
+        </button>
+        ${count > 0 ? `<button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 +50%">
+          升级 ${formatCost(upCost)}
+        </button>` : ''}
+      </div>`
     el.appendChild(item)
   }
 }
