@@ -1,4 +1,4 @@
-import { BUILDINGS, LEVEL_PRODUCTION_BONUS, TECHS } from './data'
+import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, LogEntry, LogType, ResourceKey } from './types'
@@ -11,12 +11,18 @@ export function zeroResources(): Record<ResourceKey, number> {
 }
 
 export function createInitialState(nowMs: number): GameState {
+  const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
+  for (const def of Object.values(PLANETS)) {
+    planets[def.id] = { unlocked: def.id === 'barren' }
+  }
   return {
     schemaVersion: SCHEMA_VERSION,
     resources: zeroResources(),
     buildings: {},
     upgrades: {},
     researched: {},
+    planets,
+    activePlanet: 'barren',
     log: [],
     pendingEvents: [],
     nextEventId: 1,
@@ -104,6 +110,9 @@ export function productionReport(state: GameState): ProductionReport {
   const nominal = zeroResources()
   for (const key of RESOURCE_KEYS) nominal[key] = base[key] * techMult[key]
 
+  // 星球机制：轨道工厂站（将 30% 矿物产能转化为科技点）
+  applyPlanetMechanics(state, nominal)
+
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
   if (energyRatio < 1) {
     // 能源不足：消耗能源类建筑的产出按 (1-ratio) 折减
@@ -140,6 +149,19 @@ function settleEnergyRatio(state: GameState, energyProd: number, energyDemand: n
   const pool = Math.max(0, energyProd) + Math.max(0, state.resources.energy)
   if (pool <= 0) return 0
   return Math.min(1, pool / energyDemand)
+}
+
+/**
+ * 当前星球机制对名义产出的修正。
+ * 轨道工厂站「奥伯斯」：将 30% 矿物产能转化为科技点（稀有合金）。
+ * 其余星机制在 08 落地。
+ */
+function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, number>): void {
+  if (state.activePlanet !== 'orbital') return
+  if (!state.planets.orbital?.unlocked) return
+  const converted = nominal.mineral * 0.3
+  nominal.mineral -= converted
+  nominal.tech += converted
 }
 
 export interface ActionFailure {
@@ -282,6 +304,8 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
       pushLog(state, 'event', outcomeText)
     }
   }
+  // 星球解锁检查（满足条件播报叙事日志）
+  checkPlanetUnlocks(state)
   // 清理超时未处理的事件实例
   pruneStaleEvents(state, nowMs)
   return state
@@ -290,4 +314,48 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
 /** 读取状态快照（供 UI 订阅；当前为同一引用，UI 只读） */
 export function getSnapshot(state: GameState): GameState {
   return state
+}
+
+// ---- 星球系统 ----
+
+/** 派生查询：某星球是否已解锁 */
+export function isPlanetUnlocked(state: GameState, id: string): boolean {
+  return Boolean(state.planets[id]?.unlocked)
+}
+
+/** 派生查询：某星球的解锁条件是否已满足 */
+export function planetRequirementsMet(state: GameState, id: string): boolean {
+  const def = PLANETS[id]
+  if (!def) return false
+  const req = def.unlock.resources
+  for (const k of RESOURCE_KEYS) {
+    if ((req[k] ?? 0) > 0 && state.resources[k] < (req[k] ?? 0)) return false
+  }
+  if (def.unlock.techs && !def.unlock.techs.every((t) => state.researched[t])) return false
+  return true
+}
+
+/**
+ * 检查星球解锁：满足条件则解锁并播报叙事日志。
+ * 返回本次解锁的星球 id 列表。
+ */
+export function checkPlanetUnlocks(state: GameState): string[] {
+  const unlockedNow: string[] = []
+  for (const def of Object.values(PLANETS)) {
+    if (state.planets[def.id]?.unlocked) continue
+    if (!planetRequirementsMet(state, def.id)) continue
+    state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
+    unlockedNow.push(def.id)
+    pushLog(state, 'story', `【星域广播】探测信号确认：「${def.name}」已进入可殖民范围。${def.desc}`)
+  }
+  return unlockedNow
+}
+
+/** 切换当前星球（仅已解锁星球） */
+export function setActivePlanet(state: GameState, id: string): ActionResult {
+  if (!PLANETS[id]) return { ok: false, reason: '未知星球' }
+  if (!state.planets[id]?.unlocked) return { ok: false, reason: '该星球尚未解锁' }
+  if (state.activePlanet === id) return { ok: false, reason: '已在该星球' }
+  state.activePlanet = id
+  return { ok: true }
 }

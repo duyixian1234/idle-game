@@ -95,6 +95,42 @@ body {
   font-size: 11px;
 }
 
+/* ---- 星域总览条 ---- */
+.planet-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border);
+}
+
+.planet-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.planet-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.planet-chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.planet-chip.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ---- 中央日志 ---- */
 .log-area {
   flex: 1;

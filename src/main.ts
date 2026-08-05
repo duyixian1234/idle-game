@@ -1,6 +1,6 @@
-import { buyBuilding, createInitialState, netProduction, pushLog, researchTech, tick, upgradeBuilding } from './engine/engine'
+import { buyBuilding, checkPlanetUnlocks, createInitialState, netProduction, pushLog, researchTech, setActivePlanet, tick, upgradeBuilding } from './engine/engine'
 import { resolveEvent } from './engine/events'
-import { BUILDINGS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
 import type { GameState } from './engine/types'
@@ -11,6 +11,7 @@ import {
   isActionFailure,
   renderBuildPanel,
   renderPendingEvents,
+  renderPlanetBar,
   renderResources,
   renderStatusLine,
   renderTechPanel,
@@ -36,6 +37,9 @@ async function main(): Promise<void> {
     pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
   }
 
+  // 回归时补查一次星球解锁（离线期间可能已满足条件）
+  checkPlanetUnlocks(state)
+
   // 首次进入时补一条欢迎日志
   if (state.log.length === 0) {
     pushLog(state, 'story', '舷窗外是一颗灰褐色的荒芜星球。你的殖民舱已着陆，任务只有一个：让它活下去，然后让它繁荣。')
@@ -48,10 +52,11 @@ async function main(): Promise<void> {
 
   function render(): void {
     renderResources(els.resourceBar, state, netProduction(state))
+    renderPlanetBar(els.planetBar, state)
     renderBuildPanel(panels['build'], state, BUILDINGS)
     renderTechPanel(panels['tech'], state)
     renderPendingEvents(els.logEl, state)
-    const activePlanet = '荒芜星 P-01'
+    const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
       .filter(([, v]) => v !== 0)
@@ -74,6 +79,19 @@ async function main(): Promise<void> {
       for (const [name, body] of Object.entries(panels)) body.classList.toggle('hidden', name !== tab.dataset.tab)
     })
   }
+
+  // 星球切换事件委托
+  els.planetBar.addEventListener('click', (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-planet]')
+    if (!chip || chip.classList.contains('locked')) return
+    const id = chip.dataset.planet ?? ''
+    const result = setActivePlanet(state, id)
+    if (!isActionFailure(result)) {
+      pushLog(state, 'system', `舰队坐标锁定：前往「${PLANETS[id].name}」。`)
+      render()
+      void saveGame(state)
+    }
+  })
 
   // 建造/升级按钮事件委托
   els.panel.addEventListener('click', (e) => {

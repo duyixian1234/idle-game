@@ -109,6 +109,61 @@ export interface TechDef {
   requires?: string[]
 }
 
+/** 星球解锁条件 */
+export interface PlanetUnlock {
+  resources: Partial<Record<ResourceKey, number>>
+  techs?: string[]
+}
+
+export interface PlanetDef {
+  id: string
+  name: string
+  /** 星域总览短描述 */
+  desc: string
+  unlock: PlanetUnlock
+  /** 机制挂点：'none' 表示无机制；其余对应各星机制 id（08 落地） */
+  mechanicId: string
+}
+
+/** 星球定义表 */
+export const PLANETS: Record<string, PlanetDef> = {
+  barren: {
+    id: 'barren',
+    name: '荒芜星 P-01',
+    desc: '你的起点。灰褐色的地表埋着浅层矿脉。',
+    unlock: { resources: {} },
+    mechanicId: 'none',
+  },
+  orbital: {
+    id: 'orbital',
+    name: '轨道工厂站·奥伯斯',
+    desc: '废弃的空间工厂站，可将矿物产能转化为稀有合金（科技点）。',
+    unlock: { resources: { mineral: 50_000 } },
+    mechanicId: 'orbitalForge',
+  },
+  ice: {
+    id: 'ice',
+    name: '冰封星·霜落',
+    desc: '永夜冰层下封存着远古科技残骸。',
+    unlock: { resources: { mineral: 200_000, tech: 2_000 } },
+    mechanicId: 'gravityWell',
+  },
+  gas: {
+    id: 'gas',
+    name: '气态巨星·风暴之喉',
+    desc: '风暴云层中漂浮着能量采集平台。',
+    unlock: { resources: { mineral: 1_000_000, tech: 10_000 } },
+    mechanicId: 'massProduction',
+  },
+  dawn: {
+    id: 'dawn',
+    name: '母星·曙光',
+    desc: '传说中旧联邦的首都星，终局的前夜。',
+    unlock: { resources: { mineral: 10_000_000, tech: 50_000 } },
+    mechanicId: 'warpCore',
+  },
+}
+
 /** 科技定义表 */
 export const TECHS: Record<string, TechDef> = {
   planetDrill: {

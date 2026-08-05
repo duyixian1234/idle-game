@@ -36,6 +36,12 @@ export interface EventInstance {
 /** 存档 schema 版本 */
 export const SCHEMA_VERSION = 1
 
+/** 星球解锁状态 */
+export interface PlanetState {
+  unlocked: boolean
+  unlockedAt?: number
+}
+
 /**
  * 游戏全局状态（引擎数据模型）。
  * 引擎产出/修改该状态；UI 只读取渲染，不承载业务逻辑。
@@ -50,6 +56,10 @@ export interface GameState {
   upgrades: Record<string, number>
   /** 已研发科技：techId -> true */
   researched: Record<string, boolean>
+  /** 星球解锁状态：planetId -> PlanetState */
+  planets: Record<string, PlanetState>
+  /** 当前查看/生效的星球 */
+  activePlanet: string
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 待处理的随机事件实例 */

@@ -22,6 +22,8 @@ export function isValidSave(raw: unknown): raw is GameState {
   if (typeof s.buildings !== 'object' || s.buildings === null) return false
   if (typeof s.upgrades !== 'object' || s.upgrades === null) return false
   if (typeof s.researched !== 'object' || s.researched === null) return false
+  if (typeof s.planets !== 'object' || s.planets === null) return false
+  if (typeof s.activePlanet !== 'string') return false
   if (!Array.isArray(s.log)) return false
   if (!Array.isArray(s.pendingEvents)) return false
   if (typeof s.nextEventId !== 'number' || typeof s.nextEventAt !== 'number') return false

@@ -1,5 +1,5 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
 import {
@@ -8,6 +8,7 @@ import {
   canAffordUpgrade,
   canResearchTech,
   isBuildingUnlocked,
+  isPlanetUnlocked,
   isTechResearched,
   techCost,
   techRequirementsMet,
@@ -18,6 +19,7 @@ import type { ActionFailure } from '../engine/engine'
 export interface AppElements {
   root: HTMLElement
   resourceBar: HTMLElement
+  planetBar: HTMLElement
   logEl: HTMLElement
   panel: HTMLElement
   statusLine: HTMLElement
@@ -37,6 +39,7 @@ export function buildLayout(container: HTMLElement): AppElements {
   container.className = 'game'
   container.innerHTML = `
     <header class="resource-bar" aria-label="资源条"></header>
+    <nav class="planet-bar" aria-label="星域总览"></nav>
     <main class="log-area" aria-label="日志流"></main>
     <section class="panel" aria-label="操作面板">
       <div class="panel-tabs">
@@ -54,9 +57,33 @@ export function buildLayout(container: HTMLElement): AppElements {
   return {
     root,
     resourceBar: container.querySelector('.resource-bar') as HTMLElement,
+    planetBar: container.querySelector('.planet-bar') as HTMLElement,
     logEl: container.querySelector('.log-area') as HTMLElement,
     panel: container.querySelector('.panel') as HTMLElement,
     statusLine: container.querySelector('.status-line') as HTMLElement,
+  }
+}
+
+/** 渲染星域总览条（锁定/已解锁/当前选中态） */
+export function renderPlanetBar(el: HTMLElement, state: GameState): void {
+  el.innerHTML = ''
+  for (const def of Object.values(PLANETS)) {
+    const unlocked = isPlanetUnlocked(state, def.id)
+    const active = state.activePlanet === def.id
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = `planet-chip${active ? ' active' : ''}`
+    btn.setAttribute('data-planet', def.id)
+    if (!unlocked) {
+      btn.classList.add('locked')
+      btn.disabled = true
+      btn.title = '未解锁'
+      btn.textContent = `🔒 ${def.name}`
+    } else {
+      btn.title = active ? '当前星球' : `切换到 ${def.name}`
+      btn.textContent = `● ${def.name}`
+    }
+    el.appendChild(btn)
   }
 }
 

@@ -5,14 +5,18 @@ import {
   canAffordBuilding,
   canAffordUpgrade,
   canResearchTech,
+  checkPlanetUnlocks,
   createInitialState,
   isBuildingUnlocked,
+  isPlanetUnlocked,
   isTechResearched,
   netProduction,
+  planetRequirementsMet,
   productionMultipliers,
   productionReport,
   pushLog,
   researchTech,
+  setActivePlanet,
   techCost,
   techRequirementsMet,
   tick,
@@ -290,6 +294,74 @@ describe('engine: 科技系统', () => {
   it('科技成本为固定值', () => {
     const s = createInitialState(0)
     expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
+  })
+})
+
+describe('engine: 星球系统', () => {
+  it('初始仅荒芜星解锁，其余锁定', () => {
+    const s = createInitialState(0)
+    expect(isPlanetUnlocked(s, 'barren')).toBe(true)
+    expect(isPlanetUnlocked(s, 'orbital')).toBe(false)
+    expect(isPlanetUnlocked(s, 'dawn')).toBe(false)
+    expect(s.activePlanet).toBe('barren')
+  })
+
+  it('满足资源阈值后解锁并播报日志', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    const unlocked = checkPlanetUnlocks(s)
+    expect(unlocked).toContain('orbital')
+    expect(isPlanetUnlocked(s, 'orbital')).toBe(true)
+    expect(s.log[0].text).toContain('轨道工厂站')
+  })
+
+  it('条件未满足不解锁', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 49_999
+    expect(planetRequirementsMet(s, 'orbital')).toBe(false)
+    expect(checkPlanetUnlocks(s)).toEqual([])
+  })
+
+  it('可切换至已解锁星球，未解锁不可切换', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    checkPlanetUnlocks(s)
+    expect(setActivePlanet(s, 'orbital')).toEqual({ ok: true })
+    expect(s.activePlanet).toBe('orbital')
+    expect(setActivePlanet(s, 'ice')).toMatchObject({ ok: false, reason: '该星球尚未解锁' })
+    expect(s.activePlanet).toBe('orbital')
+  })
+
+  it('轨道工厂机制：30% 矿物产能转化为科技点', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 10 // 10 矿物/s
+    const before = netProduction(s)
+    expect(before.mineral).toBe(10)
+    s.resources.mineral = 50_000
+    checkPlanetUnlocks(s)
+    setActivePlanet(s, 'orbital')
+    const after = netProduction(s)
+    expect(after.mineral).toBeCloseTo(7)
+    expect(after.tech).toBeCloseTo(3)
+  })
+
+  it('切回荒芜星恢复原产出', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 10
+    s.resources.mineral = 50_000
+    checkPlanetUnlocks(s)
+    setActivePlanet(s, 'orbital')
+    setActivePlanet(s, 'barren')
+    expect(netProduction(s).mineral).toBe(10)
+    expect(netProduction(s).tech).toBe(0)
+  })
+
+  it('tick 自动检查解锁', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    s.nextEventAt = Number.MAX_SAFE_INTEGER // 屏蔽事件
+    tick(s, 1000)
+    expect(isPlanetUnlocked(s, 'orbital')).toBe(true)
   })
 })
 
