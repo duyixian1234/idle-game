@@ -312,7 +312,7 @@ describe('engine: 星球系统', () => {
     const unlocked = checkPlanetUnlocks(s)
     expect(unlocked).toContain('orbital')
     expect(isPlanetUnlocked(s, 'orbital')).toBe(true)
-    expect(s.log[0].text).toContain('轨道工厂站')
+    expect(s.log.some((e) => e.text.includes('轨道工厂站'))).toBe(true)
   })
 
   it('条件未满足不解锁', () => {

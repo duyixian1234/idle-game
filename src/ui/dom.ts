@@ -1,7 +1,18 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
+import {
+  ALLIANCE_COST,
+  ALLIANCE_FAVOR_THRESHOLD,
+  canFactionAlliance,
+  canFactionIntimidate,
+  canFactionTrade,
+  factionsVisible,
+  federationProgress,
+  intimidateCost,
+  tradeCost,
+} from '../engine/diplomacy'
 import {
   buildingCost,
   canAffordBuilding,
@@ -233,6 +244,69 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'}>
         研发 ${formatCost(cost)}
       </button>`
+    el.appendChild(item)
+  }
+}
+
+/** 好感度横条 */
+function renderFavorBar(favor: number): string {
+  const filled = Math.round((favor / 100) * 10)
+  const empty = 10 - filled
+  return `<span class="favor-bar"><span class="favor-filled">${'█'.repeat(filled)}</span><span class="favor-empty">${'░'.repeat(empty)}</span></span>`
+}
+
+/** 渲染外交面板 */
+export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
+  el.innerHTML = ''
+  if (!factionsVisible(state)) {
+    el.innerHTML = `<div class="diplo-empty">星域中尚未探测到其他文明信号。解锁「轨道工厂站·奥伯斯」后，派系将进入舞台。</div>`
+    return
+  }
+  const prog = federationProgress(state)
+  const header = document.createElement('div')
+  header.className = 'diplo-header'
+  header.textContent = `星系统一联邦：${prog.satisfied}/${prog.total} 派系达成统一条件`
+  el.appendChild(header)
+
+  for (const def of Object.values(FACTIONS)) {
+    const f = state.factions[def.id]
+    const tradeC = tradeCost(state, def.id)
+    const intC = intimidateCost(state, def.id)
+    const canTrade = canFactionTrade(state, def.id)
+    const canAlliance = canFactionAlliance(state, def.id)
+    const canIntimidate = canFactionIntimidate(state, def.id)
+
+    const item = document.createElement('div')
+    item.className = 'build-item faction-item'
+    item.setAttribute('data-faction', def.id)
+    item.innerHTML = `
+      <div class="build-info faction-info">
+        <div class="build-name">
+          ${escapeHtml(def.name)}
+          ${f.allied ? '<span class="build-count allied-badge">已结盟</span>' : ''}
+        </div>
+        <div class="build-desc">${escapeHtml(def.desc)}</div>
+        <div class="favor-row">
+          <span class="favor-label">好感</span>
+          ${renderFavorBar(f.favor)}
+          <span class="favor-num">${Math.floor(f.favor)}/100</span>
+          <span class="favor-label threat-label">威胁</span>
+          <span class="threat-num">${Math.floor(f.threat)}</span>
+        </div>
+      </div>
+      <div class="build-actions faction-actions">
+        ${f.allied ? '' : `
+          <button type="button" class="build-btn diplo-btn" data-diplomacy="${def.id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
+            贸易 ${formatCost(tradeC)}
+          </button>
+          <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${ALLIANCE_FAVOR_THRESHOLD} 后可结盟（消耗大量资源）">
+            结盟 ${formatCost(ALLIANCE_COST)}
+          </button>
+          <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${def.id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
+            威慑 ${formatCost(intC)}
+          </button>
+        `}
+      </div>`
     el.appendChild(item)
   }
 }

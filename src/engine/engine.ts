@@ -1,4 +1,5 @@
 import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
+import { createFactions } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, LogEntry, LogType, ResourceKey } from './types'
@@ -23,6 +24,7 @@ export function createInitialState(nowMs: number): GameState {
     researched: {},
     planets,
     activePlanet: 'barren',
+    factions: createFactions(),
     log: [],
     pendingEvents: [],
     nextEventId: 1,
@@ -347,6 +349,9 @@ export function checkPlanetUnlocks(state: GameState): string[] {
     state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
     unlockedNow.push(def.id)
     pushLog(state, 'story', `【星域广播】探测信号确认：「${def.name}」已进入可殖民范围。${def.desc}`)
+    if (def.id === 'orbital') {
+      pushLog(state, 'story', '星域扫描捕获四个文明信号：铁卫同盟、圣光议会、天鹅贸易联盟、沃克斯矿业集团。外交频道已开放。')
+    }
   }
   return unlockedNow
 }

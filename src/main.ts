@@ -1,6 +1,7 @@
 import { buyBuilding, checkPlanetUnlocks, createInitialState, netProduction, pushLog, researchTech, setActivePlanet, tick, upgradeBuilding } from './engine/engine'
+import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
-import { BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
 import type { GameState } from './engine/types'
@@ -10,6 +11,7 @@ import {
   buildLayout,
   isActionFailure,
   renderBuildPanel,
+  renderDiplomacyPanel,
   renderPendingEvents,
   renderPlanetBar,
   renderResources,
@@ -55,6 +57,7 @@ async function main(): Promise<void> {
     renderPlanetBar(els.planetBar, state)
     renderBuildPanel(panels['build'], state, BUILDINGS)
     renderTechPanel(panels['tech'], state)
+    renderDiplomacyPanel(panels['diplomacy'], state)
     renderPendingEvents(els.logEl, state)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
@@ -63,6 +66,9 @@ async function main(): Promise<void> {
       .map(([k, v]) => `${k}:${v >= 0 ? '+' : ''}${v.toFixed(1)}/s`)
       .join(' ')
     renderStatusLine(els.statusLine, `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`)
+    // 外交 tab 可用性：解锁轨道工厂站后开放
+    const diploTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="diplomacy"]')
+    if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
   }
 
   // 日志区：一次性渲染当前全部日志（后续增量用 MutationObserver 自动滚动）
@@ -137,6 +143,28 @@ async function main(): Promise<void> {
       if (outcome.logText) pushLog(state, outcome.logType, outcome.logText)
       render()
       if (outcome.changed) void saveGame(state)
+      return
+    }
+    const diploBtn = target.closest<HTMLElement>('[data-diplomacy]')
+    if (diploBtn) {
+      const [factionId, action] = (diploBtn.dataset.diplomacy ?? ':').split(':')
+      const def = FACTIONS[factionId]
+      let result: { ok: boolean; reason?: string }
+      if (action === 'trade') result = factionTrade(state, factionId)
+      else if (action === 'alliance') result = factionAlliance(state, factionId)
+      else result = factionIntimidate(state, factionId)
+      if (result.ok) {
+        const f = state.factions[factionId]
+        const actionText = action === 'trade' ? `与${def.name}达成贸易，好感 +6（当前 ${Math.floor(f.favor)}）。`
+          : action === 'alliance' ? `与${def.name}正式结盟！星系统一的版图再近一步。`
+          : `对${def.name}展示威慑，其军力下降，好感 -8（当前 ${Math.floor(f.favor)}）。`
+        pushLog(state, action === 'alliance' ? 'reward' : 'system', actionText)
+        if (isFederationUnified(state)) {
+          pushLog(state, 'story', '【星系统一联邦】四个派系已全部达成统一条件。旧时代的裂痕正在愈合……')
+        }
+        render()
+        void saveGame(state)
+      }
     }
   })
 

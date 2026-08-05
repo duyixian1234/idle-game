@@ -164,6 +164,49 @@ export const PLANETS: Record<string, PlanetDef> = {
   },
 }
 
+/** 派系定义 */
+export interface FactionDef {
+  id: string
+  name: string
+  desc: string
+  /** 初始好感 0-100 */
+  initialFavor: number
+  /** 初始军力威胁度 0-100 */
+  initialThreat: number
+}
+
+/** 派系定义表（4 派系） */
+export const FACTIONS: Record<string, FactionDef> = {
+  ferro: {
+    id: 'ferro',
+    name: '铁卫同盟',
+    desc: '控制着轨道防御网络的老牌军事集团。',
+    initialFavor: 20,
+    initialThreat: 70,
+  },
+  lumen: {
+    id: 'lumen',
+    name: '圣光议会',
+    desc: '信奉星火教义的神秘政治实体。',
+    initialFavor: 25,
+    initialThreat: 40,
+  },
+  cygnus: {
+    id: 'cygnus',
+    name: '天鹅贸易联盟',
+    desc: '垄断跨星系航线的商业寡头。',
+    initialFavor: 30,
+    initialThreat: 50,
+  },
+  vox: {
+    id: 'vox',
+    name: '沃克斯矿业集团',
+    desc: '贪婪的矿业巨头，掌控稀有金属定价。',
+    initialFavor: 15,
+    initialThreat: 60,
+  },
+}
+
 /** 科技定义表 */
 export const TECHS: Record<string, TechDef> = {
   planetDrill: {

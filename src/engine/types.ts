@@ -42,6 +42,20 @@ export interface PlanetState {
   unlockedAt?: number
 }
 
+/** 派系外交状态 */
+export interface FactionState {
+  /** 好感度 0-100 */
+  favor: number
+  /** 是否已结盟 */
+  allied: boolean
+  /** 已贸易次数（成本递增用） */
+  tradeCount: number
+  /** 已威慑次数（成本递增用） */
+  intimidateCount: number
+  /** 军力威胁度 0-100（威慑可降） */
+  threat: number
+}
+
 /**
  * 游戏全局状态（引擎数据模型）。
  * 引擎产出/修改该状态；UI 只读取渲染，不承载业务逻辑。
@@ -60,6 +74,8 @@ export interface GameState {
   planets: Record<string, PlanetState>
   /** 当前查看/生效的星球 */
   activePlanet: string
+  /** 派系外交状态：factionId -> FactionState */
+  factions: Record<string, FactionState>
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 待处理的随机事件实例 */
