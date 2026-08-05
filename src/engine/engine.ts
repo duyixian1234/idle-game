@@ -374,7 +374,7 @@ export function canTechUpgrade(def: TechDef, level: number): boolean {
 }
 
 /**
- * 升到下一级的成本：base × 1.5^level（level 为当前等级，Lv0 即基础研发成本）。
+ * 升到下一级的成本：base × 1.7^level（level 为当前等级，Lv0 即基础研发成本）。
  * 研发（Lv0→1）与升级（Lv≥1→Lv+1）共用该成本函数。
  */
 export function techCost(state: GameState, id: string): Record<ResourceKey, number> {
@@ -446,8 +446,8 @@ export function upgradeTech(state: GameState, id: string): ActionResult {
   return { ok: true }
 }
 
-/** 当前矿物可兑换的科技点上限（按 100 整数倍向下取整） */
-export function maxConvertibleTech(state: GameState): number {
+/** 当前矿物可兑换的科技点数上限（= floor(mineral/100)，兑换时按 100 整数倍扣矿物） */
+export function maxConvertibleTechPoints(state: GameState): number {
   return Math.floor(state.resources.mineral / TECH_EXCHANGE_RATE)
 }
 

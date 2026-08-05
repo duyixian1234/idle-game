@@ -65,10 +65,7 @@ export function intimidateCost(state: GameState, id: string): Record<ResourceKey
   }
 }
 
-/** 技术共享成本（固定） */
-export function techShareCost(_state: GameState, _id: string): Record<ResourceKey, number> {
-  return { ...TECH_SHARE_COST }
-}
+/** 技术共享成本（固定常量，渲染与结算共用 TECH_SHARE_COST） */
 
 /** 统一联邦判定：全部派系好感达标（=100）或已结盟 */
 export function isFederationUnified(state: GameState): boolean {

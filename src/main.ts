@@ -1,4 +1,4 @@
-import { buyBuilding, checkPlanetUnlocks, convertMineralToTech, createInitialState, enterInfiniteMode, maxConvertibleTech, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
+import { buyBuilding, checkPlanetUnlocks, convertMineralToTech, createInitialState, enterInfiniteMode, maxConvertibleTechPoints, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from './engine/data'
@@ -322,7 +322,7 @@ async function main(): Promise<void> {
     }
     const convertMaxBtn = target.closest<HTMLElement>('[data-convert-max]')
     if (convertMaxBtn) {
-      applyTechConversion(state, maxConvertibleTech(state) * TECH_EXCHANGE_RATE)
+      applyTechConversion(state, maxConvertibleTechPoints(state) * TECH_EXCHANGE_RATE)
       return
     }
     const diploBtn = target.closest<HTMLElement>('[data-diplomacy]')

@@ -14,7 +14,7 @@ import {
   factionsVisible,
   federationProgress,
   intimidateCost,
-  techShareCost,
+  TECH_SHARE_COST,
   tradeCost,
 } from '../engine/diplomacy'
 import {
@@ -22,6 +22,7 @@ import {
   canAffordBuilding,
   canAffordUpgrade,
   canResearchTech,
+  canTechUpgrade,
   canUpgradeTech,
   isBuildingUnlocked,
   isPlanetUnlocked,
@@ -404,7 +405,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     const researched = isTechResearched(state, def.id)
     const met = techRequirementsMet(state, def.id)
     const cost = techCost(state, def.id)
-    const upgradable = researched && def.effect.kind === 'production' && level < TECH_MAX_LEVEL
+    const upgradable = canTechUpgrade(def, level)
     const canUp = canUpgradeTech(state, def.id)
     const affordable = canResearchTech(state, def.id)
     const item = document.createElement('div')
@@ -506,7 +507,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
     const f = state.factions[def.id]
     const tradeC = tradeCost(state, def.id)
     const intC = intimidateCost(state, def.id)
-    const shareC = techShareCost(state, def.id)
+    const shareC = TECH_SHARE_COST
     const canTrade = canFactionTrade(state, def.id)
     const canAlliance = canFactionAlliance(state, def.id)
     const canIntimidate = canFactionIntimidate(state, def.id)
