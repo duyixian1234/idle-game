@@ -375,12 +375,12 @@ describe('engine: 科技系统', () => {
     researchTech(s, 'planetDrill') // Lv1，花 10 科技点
     expect(s.techLevels.planetDrill).toBe(1)
     expect(s.resources.tech).toBe(9_990)
-    // 升级成本 = base × 1.5^level
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 750, tech: 15, energy: 0 })
+    // 升级成本 = base × TECH_UPGRADE_GROWTH^level
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0 })
     expect(upgradeTech(s, 'planetDrill')).toEqual({ ok: true })
     expect(s.techLevels.planetDrill).toBe(2)
-    expect(s.resources.mineral).toBe(100_000 - 500 - 750)
-    expect(s.resources.tech).toBe(9_990 - 15)
+    expect(s.resources.mineral).toBe(100_000 - 500 - 850)
+    expect(s.resources.tech).toBe(9_990 - 17)
   })
 
   it('未研发科技不可升级', () => {
@@ -428,11 +428,11 @@ describe('engine: 科技系统', () => {
     expect(netProduction(s).mineral).toBe(6)
   })
 
-  it('升级成本按 1.5 倍指数递增（Lv0 即基础成本）', () => {
+  it('升级成本按倍率指数递增（Lv0 即基础成本）', () => {
     const s = createInitialState(0)
     expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
     s.techLevels.planetDrill = 1
-    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 750, tech: 15, energy: 0 })
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 850, tech: 17, energy: 0 })
     s.techLevels.planetDrill = 9
     const k = Math.pow(TECH_UPGRADE_GROWTH, 9)
     expect(techCost(s, 'planetDrill')).toEqual({

@@ -113,8 +113,12 @@ export interface TechDef {
 export const TECH_MAX_LEVEL = 10
 /** 每级科技升级的产出系数增量（线性叠加：mult + 0.5×(lv−1)，与建筑升级口径一致） */
 export const TECH_PER_LEVEL_BONUS = 0.5
-/** 科技升级成本增长倍率（cost(lv) = base × 1.5^(lv−1)） */
-export const TECH_UPGRADE_GROWTH = 1.5
+/**
+ * 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)）。
+ * 原 1.5（spec 决策）：平衡模拟显示满级需求仅 17 万、后期产能 6 分钟升完，
+ * 调为 1.7 后满级需求 ≈ 131.7 万，升级成为通关期持续目标（ticket 05 确认）。
+ */
+export const TECH_UPGRADE_GROWTH = 1.7
 /** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
 export const TECH_EXCHANGE_RATE = 100
 
