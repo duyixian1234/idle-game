@@ -34,8 +34,8 @@ export interface EventInstance {
   createdAt: number
   /** 是否已处理 */
   resolved: boolean
-  /** 实例创建时固化的数值（如事件成本/收益），保证提示与结算一致 */
-  payload?: Record<string, number>
+  /** 实例创建时固化的数值（如事件成本/收益），保证提示与结算一致；raid 事件含 factionId（string） */
+  payload?: Record<string, number | string>
 }
 
 /** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表） */

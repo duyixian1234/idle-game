@@ -98,7 +98,7 @@ describe('engine: 派系骚扰（raid）', () => {
     const out = applyEvent(s, inst, 'buyoff')
     expect(out.changed).toBe(true)
     expect(s.factions.ferro.favor).toBe(before + 5)
-    expect(s.resources.mineral).toBe(1_000_000 - (inst.payload?.buyoff ?? 0))
+    expect(s.resources.mineral).toBe(1_000_000 - Number(inst.payload?.buyoff ?? 0))
   })
 
   it('无视：矿/能各 −5%', () => {

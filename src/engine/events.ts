@@ -186,8 +186,8 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
 
   if (defId === 'trade') {
     // 优先用实例固化数值，保证与提示一致
-    const cost = instance.payload?.cost ?? tradeTerms(state).cost
-    const gain = instance.payload?.gain ?? tradeTerms(state).gain
+    const cost = Number(instance.payload?.cost ?? tradeTerms(state).cost)
+    const gain = Number(instance.payload?.gain ?? tradeTerms(state).gain)
     if (optionId === 'accept') {
       if (state.resources.mineral < cost) {
         return { logType: 'warning', logText: '贸易商摇摇头——你的矿物不够支付这笔交易。', changed: false }
@@ -200,8 +200,8 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   }
 
   if (defId === 'meteor') {
-    const gain = instance.payload?.gain ?? scaledBy(prod.mineral, 300, 60)
-    const shieldCost = instance.payload?.shieldCost ?? scaledBy(prod.tech, 200, 60)
+    const gain = Number(instance.payload?.gain ?? scaledBy(prod.mineral, 300, 60))
+    const shieldCost = Number(instance.payload?.shieldCost ?? scaledBy(prod.tech, 200, 60))
     if (optionId === 'shield') {
       if (state.resources.tech < shieldCost) {
         return { logType: 'warning', logText: '科技点不足以维持防护罩，陨石雨自然坠落。', changed: false }
@@ -217,7 +217,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
 
   if (defId === 'bug') {
     if (optionId === 'dispatch') {
-      const cost = instance.payload?.cost ?? scaledBy(prod.mineral, 800, 200)
+      const cost = Number(instance.payload?.cost ?? scaledBy(prod.mineral, 800, 200))
       if (state.resources.mineral < cost) {
         return { logType: 'warning', logText: '你的矿物不足以组织清剿队。', changed: false }
       }
@@ -225,7 +225,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
       return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${cost} 矿物）。`, changed: true }
     }
     if (optionId === 'jam') {
-      const jamCost = instance.payload?.jamCost ?? scaledBy(prod.tech, 150, 50)
+      const jamCost = Number(instance.payload?.jamCost ?? scaledBy(prod.tech, 150, 50))
       if (state.resources.tech < jamCost) {
         return { logType: 'warning', logText: '科技点不足以发动神经干扰。', changed: false }
       }
@@ -245,11 +245,11 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
 
 /** 骚扰事件结算：三选项（击退/买平安/无视），数值以实例固化 payload 为准 */
 function applyRaid(state: GameState, instance: EventInstance, optionId: string): EventOutcome {
-  const factionId = instance.payload?.factionId ?? 'unknown'
+  const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
   const factionName = FACTIONS[factionId]?.name ?? '未知势力'
-  const strength = instance.payload?.strength ?? raidTerms(state, factionId).strength
-  const buyoff = instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff
+  const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
+  const buyoff = Number(instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff)
   if (optionId === 'repel') {
     if (state.resources.military < strength) {
       return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${strength}⚔，当前 ${Math.floor(state.resources.military)}⚔）。`, changed: false }

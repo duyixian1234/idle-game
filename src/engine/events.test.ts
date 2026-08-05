@@ -89,7 +89,7 @@ describe('engine: 陨石雨事件', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
     const inst = createEventInstance(s, 'meteor')
-    const gain = inst.payload!.gain
+    const gain = Number(inst.payload!.gain)
     const outcome = applyEvent(s, inst, 'collect')
     expect(outcome.changed).toBe(true)
     expect(s.resources.mineral).toBe(100 + gain)
@@ -100,8 +100,8 @@ describe('engine: 陨石雨事件', () => {
     s.resources.mineral = 100
     s.resources.tech = 10_000
     const inst = createEventInstance(s, 'meteor')
-    const shieldCost = inst.payload!.shieldCost
-    const gain = inst.payload!.gain
+    const shieldCost = Number(inst.payload!.shieldCost)
+    const gain = Number(inst.payload!.gain)
     const outcome = applyEvent(s, inst, 'shield')
     expect(outcome.changed).toBe(true)
     expect(outcome.logText).toContain('防护罩')
@@ -137,7 +137,7 @@ describe('engine: 虫族警报事件', () => {
     s.resources.mineral = 50_000
     s.resources.tech = 10_000
     const inst = createEventInstance(s, 'bug')
-    const jamCost = inst.payload!.jamCost
+    const jamCost = Number(inst.payload!.jamCost)
     const outcome = applyEvent(s, inst, 'jam')
     expect(outcome.changed).toBe(true)
     expect(outcome.logText).toContain('神经干扰')
@@ -190,7 +190,7 @@ describe('engine: 事件解析与清理', () => {
     s.resources.mineral = 50_000
     s.buildings.miner = 1
     const inst = createEventInstance(s, 'bug')
-    const fixedCost = inst.payload?.cost ?? 0
+    const fixedCost = Number(inst.payload?.cost ?? 0)
     // 结算前改变产出，成本不应漂移
     s.buildings.miner = 100
     const outcome = applyEvent(s, inst, 'dispatch')
@@ -202,8 +202,8 @@ describe('engine: 事件解析与清理', () => {
     const s = createInitialState(0)
     s.resources.mineral = 50_000
     const inst = createEventInstance(s, 'trade')
-    const fixedCost = inst.payload?.cost ?? 0
-    const fixedGain = inst.payload?.gain ?? 0
+    const fixedCost = Number(inst.payload?.cost ?? 0)
+    const fixedGain = Number(inst.payload?.gain ?? 0)
     s.buildings.miner = 1000
     const outcome = applyEvent(s, inst, 'accept')
     expect(outcome.changed).toBe(true)
