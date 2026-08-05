@@ -120,6 +120,8 @@ export function factionTrade(state: GameState, id: string): ActionResult {
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   f.favor = clampFavor(f.favor + TRADE_FAVOR_GAIN)
   f.tradeCount += 1
+  // 贸易网络成型叙事（累计 10 次）
+  if (f.tradeCount === 10) playMilestone(state, 'tradeRich')
   return { ok: true }
 }
 
@@ -153,6 +155,8 @@ export function factionIntimidate(state: GameState, id: string): ActionResult {
   f.favor = clampFavor(f.favor - INTIMIDATE_FAVOR_LOSS)
   f.threat = Math.max(0, f.threat - INTIMIDATE_THREAT_LOSS)
   f.intimidateCount += 1
+  // 首次威慑叙事
+  if (f.intimidateCount === 1) playMilestone(state, 'firstIntimidate')
   return { ok: true }
 }
 

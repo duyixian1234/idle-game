@@ -31,6 +31,8 @@ export interface EventInstance {
   createdAt: number
   /** 是否已处理 */
   resolved: boolean
+  /** 实例创建时固化的数值（如事件成本/收益），保证提示与结算一致 */
+  payload?: Record<string, number>
 }
 
 /** 存档 schema 版本 */

@@ -152,6 +152,16 @@ async function main(): Promise<void> {
       const imported = deserializeSave(text)
       state = imported
       endingDismissed = false
+      // 导入后立即按 8h 封顶结算离线收益，避免全量时间差无限产出
+      const off = settleOffline(state, Date.now())
+      if (off.durationSeconds > 0) {
+        const gainsText = (['mineral', 'energy', 'tech'] as const)
+          .filter((k) => off.gains[k] > 0)
+          .map((k) => `${RESOURCE_META[k].name} +${formatNumber(off.gains[k])}`)
+          .join('、')
+        pushLog(state, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
+      }
+      state.nextEventAt = Math.max(state.nextEventAt, Date.now() + 45_000)
       els.logEl.innerHTML = ''
       for (const entry of state.log) appendLog(els.logEl, entry)
       pushLog(state, 'system', `导入成功：来自朋友的存档已接管殖民地。`)

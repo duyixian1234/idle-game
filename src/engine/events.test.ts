@@ -122,6 +122,32 @@ describe('engine: 事件解析与清理', () => {
     expect(again.changed).toBe(false)
   })
 
+  it('虫族事件结算使用创建时固化成本（提示与扣费一致）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    s.buildings.miner = 1
+    const inst = createEventInstance(s, 'bug')
+    const fixedCost = inst.payload?.cost ?? 0
+    // 结算前改变产出，成本不应漂移
+    s.buildings.miner = 100
+    const outcome = applyEvent(s, inst, 'dispatch')
+    expect(outcome.changed).toBe(true)
+    expect(s.resources.mineral).toBe(50_000 - fixedCost)
+  })
+
+  it('贸易事件结算使用固化数值', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    const inst = createEventInstance(s, 'trade')
+    const fixedCost = inst.payload?.cost ?? 0
+    const fixedGain = inst.payload?.gain ?? 0
+    s.buildings.miner = 1000
+    const outcome = applyEvent(s, inst, 'accept')
+    expect(outcome.changed).toBe(true)
+    expect(s.resources.mineral).toBe(50_000 - fixedCost)
+    expect(s.resources.tech).toBe(fixedGain)
+  })
+
   it('超时未处理的事件被清理，新事件保留', () => {
     const s = createInitialState(0)
     const inst = createEventInstance(s, 'bug')

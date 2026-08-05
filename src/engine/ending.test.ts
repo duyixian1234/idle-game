@@ -7,10 +7,11 @@ import {
   eventGapScale,
   NG_PLUS_TECH_BASE,
   netProduction,
+  setActivePlanet,
   startNewGamePlus,
   tick,
 } from './engine'
-import { factionAlliance, factionTrade, isFederationUnified } from './diplomacy'
+import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './diplomacy'
 
 describe('engine: 结局判定', () => {
   it('全派系统一后触发结局并播放叙事', () => {
@@ -159,5 +160,56 @@ describe('engine: NG+', () => {
     startNewGamePlus(s, 5_000)
     s.resources.mineral = 10_000
     expect(factionTrade(s, 'lumen')).toEqual({ ok: true })
+  })
+
+  it('统一前夕叙事：3/4 派系达成时触发（仅一次）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    for (const id of Object.keys(s.factions)) s.factions[id].favor = 100
+    s.factions.vox.favor = 30 // 3/4 达成
+    s.nextEventAt = Number.MAX_SAFE_INTEGER
+    tick(s, 1000)
+    expect(s.storyFlags.federationPending).toBe(true)
+    const count = s.log.filter((e) => e.text.includes('星系统一的轮廓')).length
+    expect(count).toBe(1)
+    tick(s, 2000)
+    expect(s.log.filter((e) => e.text.includes('星系统一的轮廓')).length).toBe(1)
+  })
+
+  it('首次抵达母星触发曲率叙事', () => {
+    const s = createInitialState(0)
+    s.planets.dawn.unlocked = true
+    setActivePlanet(s, 'dawn')
+    expect(s.storyFlags.firstWarp).toBe(true)
+    setActivePlanet(s, 'barren')
+    setActivePlanet(s, 'dawn')
+    expect(s.log.filter((e) => e.text.includes('曲率引擎')).length).toBe(1)
+  })
+
+  it('无限模式触发 endless 叙事', () => {
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    enterInfiniteMode(s)
+    expect(s.storyFlags.endless).toBe(true)
+    expect(s.log.some((e) => e.text.includes('无限模式开启'))).toBe(true)
+  })
+
+  it('首次威慑触发叙事', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    factionIntimidate(s, 'vox')
+    expect(s.storyFlags.firstIntimidate).toBe(true)
+  })
+
+  it('贸易 10 次触发贸易网络叙事', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000_000
+    for (let i = 0; i < 10; i++) {
+      factionTrade(s, 'cygnus')
+    }
+    expect(s.storyFlags.tradeRich).toBe(true)
   })
 })

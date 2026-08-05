@@ -1,3 +1,4 @@
+import { isValidSave } from '../engine/save'
 import type { GameState } from '../engine/types'
 
 const DB_NAME = 'idle-game'
@@ -18,14 +19,17 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-/** 读取存档；无存档返回 null */
+/** 读取存档；无存档或存档非法返回 null */
 export async function loadGame(): Promise<GameState | null> {
   try {
     const db = await openDb()
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       const get = tx.objectStore(STORE).get(KEY)
-      get.onsuccess = () => resolve((get.result as GameState | undefined) ?? null)
+      get.onsuccess = () => {
+        const raw = get.result as GameState | undefined
+        resolve(raw && isValidSave(raw) ? raw : null)
+      }
       get.onerror = () => reject(get.error)
     })
   } catch {

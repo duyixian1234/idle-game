@@ -1,5 +1,5 @@
 import { BUILDINGS, FACTIONS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
-import { createFactions, isFederationUnified } from './diplomacy'
+import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { ENDING_SCENES, MILESTONE_STORIES, PLANET_STORIES } from './story'
 import { SCHEMA_VERSION } from './types'
@@ -133,14 +133,14 @@ export function productionReport(state: GameState): ProductionReport {
 
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
   if (energyRatio < 1) {
-    // 能源不足：消耗能源类建筑的产出按 (1-ratio) 折减
+    // 能源不足：消耗能源类建筑的产出按 (1-ratio) 折减（含科技与 NG+ 加成口径）
     for (const [id, count] of Object.entries(state.buildings)) {
       const def = BUILDINGS[id]
       if (!def || count <= 0 || !def.consumes) continue
       const mul = levelMultiplier(state.upgrades[id] ?? 0)
       for (const key of RESOURCE_KEYS) {
         const prod = (def.produces[key] ?? 0) * count * mul
-        nominal[key] -= prod * techMult[key] * (1 - energyRatio)
+        nominal[key] -= prod * techMult[key] * state.permanentMult * (1 - energyRatio)
       }
     }
   }
@@ -380,6 +380,8 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   applyStormHarvest(state, nowMs)
   // 星球解锁检查（满足条件播报叙事日志）
   checkPlanetUnlocks(state)
+  // 统一前夕叙事（3/4 达成时）
+  checkFederationPendingStory(state)
   // 结局判定
   checkEnding(state)
   // 清理超时未处理的事件实例
@@ -450,6 +452,8 @@ export function setActivePlanet(state: GameState, id: string): ActionResult {
   if (state.activePlanet === id) return { ok: false, reason: '已在该星球' }
   state.activePlanet = id
   state.planetStaySeconds = 0
+  // 首次抵达母星叙事（曲率引擎）
+  if (id === 'dawn') playMilestone(state, 'firstWarp')
   return { ok: true }
 }
 
@@ -477,11 +481,21 @@ export function checkEnding(state: GameState): boolean {
   return true
 }
 
+/** 统一前夕叙事：3/4 派系达成时触发（仅一次） */
+export function checkFederationPendingStory(state: GameState): void {
+  if (state.endingTriggered || state.storyFlags.federationPending) return
+  const prog = federationProgress(state)
+  if (prog.total > 0 && prog.satisfied === prog.total - 1) {
+    playMilestone(state, 'federationPending')
+  }
+}
+
 /** 进入无限模式（数值继续膨胀，事件更密） */
 export function enterInfiniteMode(state: GameState): void {
   if (state.phase !== 'ended') return
   state.phase = 'infinite'
   pushLog(state, 'story', '联邦的旗帜在星海间展开。没有终点的旅程，本身就是答案。无限模式开启——殖民地日志将继续书写。')
+  playMilestone(state, 'endless')
 }
 
 /** 事件间隔缩放：无限模式更密（0.5×） */

@@ -60,7 +60,7 @@ export function eventStory(defId: string, rng: () => number = Math.random): stri
   return pool[Math.floor(rng() * pool.length)]
 }
 
-/** 生成事件实例（交互类事件） */
+/** 生成事件实例（交互类事件），数值固化进 payload 保证提示与结算一致 */
 export function createEventInstance(state: GameState, defId: string, rng: () => number = Math.random): EventInstance {
   const uid = state.nextEventId
   state.nextEventId += 1
@@ -73,6 +73,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       ...base,
       title: '贸易商抵达',
       desc: story || `一艘挂着陌生旗帜的货船停靠在你的轨道港。`,
+      payload: { cost, gain },
       options: [
         { id: 'accept', label: '成交', hint: `-${cost}矿物 +${gain}科技` },
         { id: 'refuse', label: '拒绝' },
@@ -86,6 +87,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     ...base,
     title: '虫族警报',
     desc: story || `殖民地下层监测到虫群啃食矿脉的迹象。`,
+    payload: { cost },
     options: [
       { id: 'dispatch', label: '派遣清剿队', hint: `-${cost}矿物` },
       { id: 'ignore', label: '暂不处理' },
@@ -99,7 +101,9 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   const prod = netProduction(state)
 
   if (defId === 'trade') {
-    const { cost, gain } = tradeTerms(state)
+    // 优先用实例固化数值，保证与提示一致
+    const cost = instance.payload?.cost ?? tradeTerms(state).cost
+    const gain = instance.payload?.gain ?? tradeTerms(state).gain
     if (optionId === 'accept') {
       if (state.resources.mineral < cost) {
         return { logType: 'warning', logText: '贸易商摇摇头——你的矿物不够支付这笔交易。', changed: false }
@@ -120,7 +124,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
 
   if (defId === 'bug') {
     if (optionId === 'dispatch') {
-      const cost = scaledBy(prod.mineral, 800, 200)
+      const cost = instance.payload?.cost ?? scaledBy(prod.mineral, 800, 200)
       if (state.resources.mineral < cost) {
         return { logType: 'warning', logText: '你的矿物不足以组织清剿队。', changed: false }
       }

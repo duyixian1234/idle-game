@@ -36,6 +36,8 @@ export function isValidSave(raw: unknown): raw is GameState {
   if (typeof s.storyFlags !== 'object' || s.storyFlags === null) return false
   if (typeof s.tutorialStep !== 'number') return false
   if (!Array.isArray(s.log)) return false
+  if (typeof s.nextLogId !== 'number') return false
+  if (typeof s.playSeconds !== 'number') return false
   if (!Array.isArray(s.pendingEvents)) return false
   if (typeof s.nextEventId !== 'number' || typeof s.nextEventAt !== 'number') return false
   if (typeof s.lastTick !== 'number' || typeof s.createdAt !== 'number') return false

@@ -36,6 +36,10 @@ export function settleOffline(state: GameState, nowMs: number): OfflineResult {
     state.resources[k] += gains[k]
   }
   if (state.resources.energy < 0) state.resources.energy = 0
+  // 离线收益计入累计采集统计
+  if (gains.mineral > 0) {
+    state.stats.totalMineralEarned += gains.mineral
+  }
   state.lastTick = nowMs
   state.playSeconds += duration
 

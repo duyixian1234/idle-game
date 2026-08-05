@@ -2,7 +2,7 @@ import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { BUILDINGS, FACTIONS, MECHANICS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
 import { formatNumber } from '../engine/format'
-import { formatPlayTime } from '../engine/engine'
+import { formatPlayTime, NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
   ALLIANCE_COST,
@@ -139,7 +139,7 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
       <p class="ending-stats">派系图鉴：${escapeHtml(codex)} · NG+ 周目：${state.ngPlusLevel}</p>
       <div class="ending-actions">
         <button type="button" class="ending-btn primary" data-ending="infinite">进入无限模式</button>
-        <button type="button" class="ending-btn" data-ending="ngplus">开启 NG+（${formatNumber(state.resources.tech)} 科技点继承中）</button>
+        <button type="button" class="ending-btn" data-ending="ngplus">开启 NG+（继承 ${formatNumber(NG_PLUS_TECH_BASE * (state.ngPlusLevel + 1))} 科技点）</button>
         <button type="button" class="ending-btn ghost" data-ending="close">继续查看</button>
       </div>
     </div>`

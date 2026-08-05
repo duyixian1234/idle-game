@@ -48,6 +48,13 @@ describe('engine: 离线收益结算', () => {
     expect(r.gains.mineral).toBe(0)
   })
 
+  it('离线收益计入累计采集统计', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 2
+    settleOffline(s, 3600_000)
+    expect(s.stats.totalMineralEarned).toBeCloseTo(7200)
+  })
+
   it('离线时长格式化', () => {
     expect(formatDuration(45)).toBe('45秒')
     expect(formatDuration(3600)).toBe('1小时')
