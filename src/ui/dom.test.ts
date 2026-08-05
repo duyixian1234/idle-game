@@ -6,6 +6,7 @@ import {
   appendLog,
   buildLayout,
   renderBuildPanel,
+  renderDiplomacyPanel,
   renderLogInto,
   renderPendingEvents,
   renderPlanetBar,
@@ -318,5 +319,45 @@ describe('ui: 科技面板', () => {
     renderTechPanel(el, s)
     expect(el.querySelector<HTMLButtonElement>('[data-convert-tech]')!.disabled).toBe(true)
     expect(el.querySelector<HTMLButtonElement>('[data-convert-max]')!.disabled).toBe(true)
+  })
+})
+
+describe('ui: 外交面板', () => {
+  it('显示技术共享按钮（科技点成本），资源不足禁用', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.tech = 0
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="ferro:techshare"]')
+    expect(btn).toBeTruthy()
+    expect(btn!.textContent).toContain('技术共享')
+    expect(btn!.textContent).toContain('◎2万')
+    expect(btn!.disabled).toBe(true)
+  })
+
+  it('科技点充足时技术共享按钮可用', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.tech = 100_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="ferro:techshare"]')
+    expect(btn!.disabled).toBe(false)
+  })
+
+  it('威慑按钮显示科技点成本', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="vox:intimidate"]')
+    expect(btn!.textContent).toContain('◎1万')
   })
 })

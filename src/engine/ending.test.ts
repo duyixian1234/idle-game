@@ -200,6 +200,7 @@ describe('engine: NG+', () => {
     const s = createInitialState(0)
     s.resources.mineral = 1_000_000
     s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
     factionIntimidate(s, 'vox')
     expect(s.storyFlags.firstIntimidate).toBe(true)
   })

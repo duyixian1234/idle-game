@@ -1,5 +1,5 @@
 import { buyBuilding, checkPlanetUnlocks, convertMineralToTech, createInitialState, enterInfiniteMode, maxConvertibleTech, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
-import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './engine/diplomacy'
+import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from './engine/data'
 import { formatNumber } from './engine/format'
@@ -332,11 +332,13 @@ async function main(): Promise<void> {
       let result: { ok: boolean; reason?: string }
       if (action === 'trade') result = factionTrade(state, factionId)
       else if (action === 'alliance') result = factionAlliance(state, factionId)
+      else if (action === 'techshare') result = factionTechShare(state, factionId)
       else result = factionIntimidate(state, factionId)
       if (result.ok) {
         const f = state.factions[factionId]
         const actionText = action === 'trade' ? `与${def.name}达成贸易，好感 +6（当前 ${Math.floor(f.favor)}）。`
           : action === 'alliance' ? `与${def.name}正式结盟！星系统一的版图再近一步。`
+          : action === 'techshare' ? `向${def.name}共享技术情报，好感 +15（当前 ${Math.floor(f.favor)}）。`
           : `对${def.name}展示威慑，其军力下降，好感 -8（当前 ${Math.floor(f.favor)}）。`
         pushLog(state, action === 'alliance' ? 'reward' : 'system', actionText)
         sound.play(action === 'alliance' ? 'success' : 'click')

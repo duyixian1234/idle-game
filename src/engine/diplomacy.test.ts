@@ -4,14 +4,21 @@ import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
   canFactionAlliance,
+  canFactionTechShare,
   canFactionTrade,
   createFactions,
   factionAlliance,
   factionIntimidate,
+  factionTechShare,
   factionTrade,
   FAVOR_CAP,
   federationProgress,
+  INTIMIDATE_BASE_COST,
+  INTIMIDATE_COST_GROWTH,
+  intimidateCost,
   isFederationUnified,
+  TECH_SHARE_COST,
+  TECH_SHARE_FAVOR_GAIN,
   tradeCost,
 } from './diplomacy'
 
@@ -71,10 +78,11 @@ describe('engine: 外交行动', () => {
     expect(s.resources.mineral).toBe(1_000_000 - ALLIANCE_COST.mineral)
   })
 
-  it('威慑：降好感降威胁，成本递增', () => {
+  it('威慑：降好感降威胁，成本递增（含科技点）', () => {
     const s = createInitialState(0)
     s.resources.mineral = 1_000_000
     s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
     const f0 = s.factions.vox
     const favor0 = f0.favor
     const threat0 = f0.threat
@@ -82,6 +90,48 @@ describe('engine: 外交行动', () => {
     expect(f0.favor).toBe(favor0 - 8)
     expect(f0.threat).toBe(threat0 - 25)
     expect(f0.intimidateCount).toBe(1)
+    // 威慑含科技点成本
+    expect(intimidateCost(s, 'vox').tech).toBe(Math.floor(INTIMIDATE_BASE_COST.tech * INTIMIDATE_COST_GROWTH))
+    expect(s.resources.tech).toBe(100_000 - INTIMIDATE_BASE_COST.tech)
+  })
+
+  it('技术共享：2 万科技点换好感 +15', () => {
+    const s = createInitialState(0)
+    s.resources.tech = 100_000
+    const before = s.factions.ferro.favor
+    expect(canFactionTechShare(s, 'ferro')).toBe(true)
+    expect(factionTechShare(s, 'ferro')).toEqual({ ok: true })
+    expect(s.factions.ferro.favor).toBe(before + TECH_SHARE_FAVOR_GAIN)
+    expect(s.resources.tech).toBe(100_000 - TECH_SHARE_COST.tech)
+  })
+
+  it('技术共享：科技点不足失败且好感不变', () => {
+    const s = createInitialState(0)
+    const before = s.factions.ferro.favor
+    expect(factionTechShare(s, 'ferro')).toMatchObject({ ok: false, reason: '资源不足' })
+    expect(s.factions.ferro.favor).toBe(before)
+  })
+
+  it('技术共享：盟友不可再共享', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    s.factions.ferro.favor = 85
+    factionAlliance(s, 'ferro')
+    expect(factionTechShare(s, 'ferro')).toMatchObject({ ok: false })
+  })
+
+  it('技术共享好感可封顶推进统一联邦', () => {
+    const s = createInitialState(0)
+    s.resources.tech = 1_000_000
+    // 四个派系各共享一次：95 → 100
+    for (const id of Object.keys(s.factions)) {
+      s.factions[id].favor = 95
+      factionTechShare(s, id)
+    }
+    expect(s.factions.ferro.favor).toBe(FAVOR_CAP)
+    expect(isFederationUnified(s)).toBe(true)
   })
 
   it('盟友不可贸易/威慑', () => {

@@ -9,10 +9,12 @@ import {
   ALLIANCE_FAVOR_THRESHOLD,
   canFactionAlliance,
   canFactionIntimidate,
+  canFactionTechShare,
   canFactionTrade,
   factionsVisible,
   federationProgress,
   intimidateCost,
+  techShareCost,
   tradeCost,
 } from '../engine/diplomacy'
 import {
@@ -504,9 +506,11 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
     const f = state.factions[def.id]
     const tradeC = tradeCost(state, def.id)
     const intC = intimidateCost(state, def.id)
+    const shareC = techShareCost(state, def.id)
     const canTrade = canFactionTrade(state, def.id)
     const canAlliance = canFactionAlliance(state, def.id)
     const canIntimidate = canFactionIntimidate(state, def.id)
+    const canShare = canFactionTechShare(state, def.id)
 
     const item = document.createElement('div')
     item.className = 'build-item faction-item'
@@ -530,6 +534,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
         ${f.allied ? '' : `
           <button type="button" class="build-btn diplo-btn" data-diplomacy="${def.id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
             贸易 ${formatCost(tradeC)}
+          </button>
+          <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy="${def.id}:techshare" ${canShare ? '' : 'disabled'} title="分享技术情报，花费科技点直接提升好感">
+            技术共享 ${formatCost(shareC)}
           </button>
           <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${ALLIANCE_FAVOR_THRESHOLD} 后可结盟（消耗大量资源）">
             结盟 ${formatCost(ALLIANCE_COST)}
