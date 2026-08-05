@@ -889,6 +889,26 @@ body {
   .log-area {
     padding: 8px;
     font-size: 12px;
+    /* 日志区是叙事主体，窄屏下必须保底高度：45vh 面板会把它挤到几像素 */
+    min-height: 22vh;
+  }
+  /* 星球条改横向滚动：5 个 chip 换行会吃掉 ~3 行高度（320 下 103px），
+     横滑是移动端标准导航模式，把高度还给日志区 */
+  .planet-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .planet-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .planet-chip {
+    flex-shrink: 0;
+  }
+  /* 操作面板让出空间：45vh → 34vh（日志区 min-height 兜底，面板内滚动不受影响） */
+  .panel-body {
+    max-height: 34vh;
   }
   .build-item {
     flex-direction: column;
@@ -929,5 +949,29 @@ body {
   }
   .panel-body {
     padding: 8px;
+  }
+  /* 工具栏按钮收紧：320 下 5 个按钮换 3 行（98px），压到 2 行 */
+  .toolbar {
+    gap: 4px;
+    padding: 4px 6px;
+  }
+  .tool-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+}
+
+/* 矮屏兜底（移动端横屏/小高度）：面板压缩到最低限度，保住日志区 */
+@media (max-height: 480px) {
+  .panel-body {
+    min-height: 80px;
+    max-height: 20vh;
+  }
+  .log-area {
+    min-height: 18vh;
+  }
+  .status-line {
+    padding: 3px 8px;
+    font-size: 11px;
   }
 }
