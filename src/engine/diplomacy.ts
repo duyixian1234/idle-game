@@ -1,6 +1,6 @@
 import { FACTIONS } from './data'
 import type { FactionState, GameState, ResourceKey } from './types'
-import { RESOURCE_KEYS } from './engine'
+import { playMilestone, RESOURCE_KEYS } from './engine'
 
 /** 结盟所需好感阈值 */
 export const ALLIANCE_FAVOR_THRESHOLD = 80
@@ -134,6 +134,8 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   for (const k of RESOURCE_KEYS) state.resources[k] -= ALLIANCE_COST[k]
   f.allied = true
   f.favor = FAVOR_CAP
+  // 首次结盟叙事
+  playMilestone(state, 'firstAlliance')
   return { ok: true }
 }
 

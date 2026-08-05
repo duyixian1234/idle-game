@@ -4,6 +4,7 @@ import { resolveEvent } from './engine/events'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
+import { OPENING_SCENES } from './engine/story'
 import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import {
@@ -43,9 +44,9 @@ async function main(): Promise<void> {
   // 回归时补查一次星球解锁（离线期间可能已满足条件）
   checkPlanetUnlocks(state)
 
-  // 首次进入时补一条欢迎日志
+  // 首次进入时播放开局叙事序列
   if (state.log.length === 0) {
-    pushLog(state, 'story', '舷窗外是一颗灰褐色的荒芜星球。你的殖民舱已着陆，任务只有一个：让它活下去，然后让它繁荣。')
+    for (const scene of OPENING_SCENES) pushLog(state, 'story', scene)
   }
 
   const panels: Record<string, HTMLElement> = {}

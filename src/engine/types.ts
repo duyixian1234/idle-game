@@ -80,6 +80,8 @@ export interface GameState {
   planetStaySeconds: number
   /** 上次「风暴收获」触发时间戳（ms） */
   lastStormHarvestAt: number
+  /** 已播放的叙事标记（防重复触发） */
+  storyFlags: Record<string, boolean>
   /** 日志流（新消息在前） */
   log: LogEntry[]
   /** 待处理的随机事件实例 */

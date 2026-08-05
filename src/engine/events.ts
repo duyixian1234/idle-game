@@ -1,5 +1,6 @@
 import type { EventInstance, GameState } from './types'
 import { netProduction } from './engine'
+import { EVENT_STORIES } from './story'
 
 export interface RandomEventDef {
   id: string
@@ -52,18 +53,26 @@ function tradeTerms(state: GameState): { cost: number; gain: number } {
   }
 }
 
+/** 随机事件叙事（rng 可选一条） */
+export function eventStory(defId: string, rng: () => number = Math.random): string {
+  const pool = EVENT_STORIES[defId]
+  if (!pool || pool.length === 0) return ''
+  return pool[Math.floor(rng() * pool.length)]
+}
+
 /** 生成事件实例（交互类事件） */
-export function createEventInstance(state: GameState, defId: string): EventInstance {
+export function createEventInstance(state: GameState, defId: string, rng: () => number = Math.random): EventInstance {
   const uid = state.nextEventId
   state.nextEventId += 1
   const base: EventInstance = { uid, defId, title: '', desc: '', options: [], createdAt: state.lastTick, resolved: false }
 
   if (defId === 'trade') {
     const { cost, gain } = tradeTerms(state)
+    const story = eventStory('trade', rng)
     return {
       ...base,
       title: '贸易商抵达',
-      desc: `一艘挂着陌生旗帜的货船停靠在你的轨道港。船长愿意用 ${cost} 矿物交换 ${gain} 科技点。`,
+      desc: story || `一艘挂着陌生旗帜的货船停靠在你的轨道港。`,
       options: [
         { id: 'accept', label: '成交', hint: `-${cost}矿物 +${gain}科技` },
         { id: 'refuse', label: '拒绝' },
@@ -72,10 +81,11 @@ export function createEventInstance(state: GameState, defId: string): EventInsta
   }
   // bug
   const cost = scaledBy(netProduction(state).mineral, 800, 200)
+  const story = eventStory('bug', rng)
   return {
     ...base,
     title: '虫族警报',
-    desc: `殖民地下层监测到虫群啃食矿脉的迹象。若不处理，储量将被蚕食。派遣清剿队需要 ${cost} 矿物。`,
+    desc: story || `殖民地下层监测到虫群啃食矿脉的迹象。`,
     options: [
       { id: 'dispatch', label: '派遣清剿队', hint: `-${cost}矿物` },
       { id: 'ignore', label: '暂不处理' },
@@ -104,7 +114,8 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   if (defId === 'meteor') {
     const gain = scaledBy(prod.mineral, 300, 60)
     state.resources.mineral += gain
-    return { logType: 'reward', logText: `陨石雨过后，地表散落着稀有矿脉，采集到 ${gain} 矿物。`, changed: true }
+    const story = eventStory('meteor')
+    return { logType: 'reward', logText: `${story}采集到 ${gain} 矿物。`, changed: true }
   }
 
   if (defId === 'bug') {

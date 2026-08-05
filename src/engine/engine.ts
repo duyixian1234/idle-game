@@ -1,6 +1,7 @@
 import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
 import { createFactions } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
+import { MILESTONE_STORIES, PLANET_STORIES } from './story'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, LogEntry, LogType, ResourceKey } from './types'
 
@@ -27,6 +28,7 @@ export function createInitialState(nowMs: number): GameState {
     factions: createFactions(),
     planetStaySeconds: 0,
     lastStormHarvestAt: nowMs,
+    storyFlags: {},
     log: [],
     pendingEvents: [],
     nextEventId: 1,
@@ -256,7 +258,10 @@ export function buyBuilding(state: GameState, id: string): ActionResult {
   const cost = buildingCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  const wasEmpty = Object.values(state.buildings).every((c) => c <= 0)
   state.buildings[id] = (state.buildings[id] ?? 0) + 1
+  // 首次建造叙事
+  if (wasEmpty) playMilestone(state, 'firstBuild')
   return { ok: true }
 }
 
@@ -318,6 +323,8 @@ export function researchTech(state: GameState, id: string): ActionResult {
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.researched[id] = true
+  // 首次研发叙事
+  playMilestone(state, 'firstTech')
   return { ok: true }
 }
 
@@ -397,12 +404,25 @@ export function checkPlanetUnlocks(state: GameState): string[] {
     if (!planetRequirementsMet(state, def.id)) continue
     state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
     unlockedNow.push(def.id)
-    pushLog(state, 'story', `【星域广播】探测信号确认：「${def.name}」已进入可殖民范围。${def.desc}`)
+    pushLog(state, 'story', `【星域广播】探测信号确认：「${def.name}」已进入可殖民范围。`)
+    // 播放该星球的多段解锁叙事
+    const scenes = PLANET_STORIES[def.id] ?? []
+    for (const scene of scenes) pushLog(state, 'story', scene)
     if (def.id === 'orbital') {
       pushLog(state, 'story', '星域扫描捕获四个文明信号：铁卫同盟、圣光议会、天鹅贸易联盟、沃克斯矿业集团。外交频道已开放。')
+      playMilestone(state, 'orbitalUnlocked')
     }
   }
   return unlockedNow
+}
+
+/** 播放关键节点叙事（仅首次） */
+export function playMilestone(state: GameState, key: string): void {
+  if (state.storyFlags[key]) return
+  const text = MILESTONE_STORIES[key]
+  if (!text) return
+  state.storyFlags[key] = true
+  pushLog(state, 'story', text)
 }
 
 /** 切换当前星球（仅已解锁星球），切换后重置停留时长 */
