@@ -1,4 +1,5 @@
 import { BUILDINGS, LEVEL_PRODUCTION_BONUS, TECHS } from './data'
+import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, LogEntry, LogType, ResourceKey } from './types'
 
@@ -17,6 +18,9 @@ export function createInitialState(nowMs: number): GameState {
     upgrades: {},
     researched: {},
     log: [],
+    pendingEvents: [],
+    nextEventId: 1,
+    nextEventAt: nowMs + FIRST_EVENT_DELAY_SECONDS * 1000,
     lastTick: nowMs,
     createdAt: nowMs,
     nextLogId: 1,
@@ -254,9 +258,10 @@ export function researchTech(state: GameState, id: string): ActionResult {
 /**
  * 推进时间：按真实时间差结算资源产出。
  * 消耗能源的建筑按能源可得比例结算，能源不会为负。
+ * 到点触发随机事件（可注入 rng 以确定性测试）。
  * @param nowMs 当前时间戳（测试可注入）
  */
-export function tick(state: GameState, nowMs: number): GameState {
+export function tick(state: GameState, nowMs: number, rng: () => number = Math.random): GameState {
   const dtMs = Math.max(0, nowMs - state.lastTick)
   if (dtMs <= 0) return state
   const dt = dtMs / 1000
@@ -268,6 +273,17 @@ export function tick(state: GameState, nowMs: number): GameState {
   if (state.resources.energy < 0) state.resources.energy = 0
   state.lastTick = nowMs
   state.playSeconds += dt
+
+  // 随机事件：到点触发一次并安排下一次
+  if (nowMs >= state.nextEventAt) {
+    const outcomeText = triggerRandomEvent(state, rng)
+    scheduleNextEvent(state, nowMs, rng)
+    if (outcomeText) {
+      pushLog(state, 'event', outcomeText)
+    }
+  }
+  // 清理超时未处理的事件实例
+  pruneStaleEvents(state, nowMs)
   return state
 }
 

@@ -87,6 +87,30 @@ export function appendLog(el: HTMLElement, entry: LogEntry): void {
   el.prepend(div)
 }
 
+/** 渲染待处理随机事件卡片（置顶于日志区，可点击选项） */
+export function renderPendingEvents(el: HTMLElement, state: GameState): void {
+  // 移除旧的事件卡片容器
+  for (const old of Array.from(el.querySelectorAll('.event-stack'))) old.remove()
+  if (state.pendingEvents.length === 0) return
+
+  const stack = document.createElement('div')
+  stack.className = 'event-stack'
+  for (const ev of state.pendingEvents) {
+    const card = document.createElement('div')
+    card.className = 'event-card'
+    card.setAttribute('data-event', String(ev.uid))
+    const options = ev.options
+      .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
+      .join('')
+    card.innerHTML = `
+      <div class="event-title">${escapeHtml(ev.title)}</div>
+      <div class="event-desc">${escapeHtml(ev.desc)}</div>
+      <div class="event-options">${options}</div>`
+    stack.appendChild(card)
+  }
+  el.prepend(stack)
+}
+
 /** 渲染建造面板（含升级按钮与锁定态） */
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>): void {
   el.innerHTML = ''

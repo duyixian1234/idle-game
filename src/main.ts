@@ -1,4 +1,5 @@
 import { buyBuilding, createInitialState, netProduction, pushLog, researchTech, tick, upgradeBuilding } from './engine/engine'
+import { resolveEvent } from './engine/events'
 import { BUILDINGS, RESOURCE_META, TECHS } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
@@ -9,6 +10,7 @@ import {
   buildLayout,
   isActionFailure,
   renderBuildPanel,
+  renderPendingEvents,
   renderResources,
   renderStatusLine,
   renderTechPanel,
@@ -48,6 +50,7 @@ async function main(): Promise<void> {
     renderResources(els.resourceBar, state, netProduction(state))
     renderBuildPanel(panels['build'], state, BUILDINGS)
     renderTechPanel(panels['tech'], state)
+    renderPendingEvents(els.logEl, state)
     const activePlanet = '荒芜星 P-01'
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -106,6 +109,16 @@ async function main(): Promise<void> {
         render()
         void saveGame(state)
       }
+      return
+    }
+    const eventBtn = target.closest<HTMLElement>('[data-event-resolve]')
+    if (eventBtn) {
+      const [uidStr, optionId] = (eventBtn.dataset.eventResolve ?? ':').split(':')
+      const uid = Number(uidStr)
+      const outcome = resolveEvent(state, uid, optionId)
+      if (outcome.logText) pushLog(state, outcome.logType, outcome.logText)
+      render()
+      if (outcome.changed) void saveGame(state)
     }
   })
 

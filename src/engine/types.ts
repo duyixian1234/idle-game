@@ -12,6 +12,27 @@ export interface LogEntry {
   time: number
 }
 
+/** 随机事件选项 */
+export interface EventOption {
+  id: string
+  label: string
+  /** 按钮附加说明（如花费） */
+  hint?: string
+}
+
+/** 待处理的随机事件实例 */
+export interface EventInstance {
+  uid: number
+  defId: string
+  title: string
+  desc: string
+  options: EventOption[]
+  /** 创建时间戳（ms），用于超时清理 */
+  createdAt: number
+  /** 是否已处理 */
+  resolved: boolean
+}
+
 /** 存档 schema 版本 */
 export const SCHEMA_VERSION = 1
 
@@ -31,6 +52,12 @@ export interface GameState {
   researched: Record<string, boolean>
   /** 日志流（新消息在前） */
   log: LogEntry[]
+  /** 待处理的随机事件实例 */
+  pendingEvents: EventInstance[]
+  /** 下一条事件实例 id */
+  nextEventId: number
+  /** 下次随机事件触发时间戳（ms） */
+  nextEventAt: number
   /** 上次资源结算时间戳（ms），离线收益结算以此为准 */
   lastTick: number
   /** 游戏创建时间戳（ms） */
