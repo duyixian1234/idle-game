@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, netProduction } from '../engine/engine'
+import { createEventInstance } from '../engine/events'
 import { BUILDINGS } from '../engine/data'
-import { appendLog, buildLayout, renderBuildPanel, renderResources } from './dom'
+import { appendLog, buildLayout, renderBuildPanel, renderPendingEvents, renderResources } from './dom'
 
 describe('ui: 布局与冒烟', () => {
   it('buildLayout 生成资源条/日志区/操作面板', () => {
@@ -58,5 +59,26 @@ describe('ui: 布局与冒烟', () => {
     expect(lines).toHaveLength(2)
     expect(lines[0].textContent).toContain('B')
     expect(lines[0].classList.contains('log-story')).toBe(true)
+  })
+
+  it('事件卡片渲染在日志区且按钮携带解析数据（回归：委托位置 bug）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    const inst = createEventInstance(s, 'trade')
+    s.pendingEvents.push(inst)
+    renderPendingEvents(els.logEl, s)
+
+    // 卡片必须在日志区内，而非操作面板内
+    const card = els.logEl.querySelector<HTMLElement>('.event-card')
+    expect(card).toBeTruthy()
+    expect(els.panel.querySelector('.event-card')).toBeNull()
+
+    const acceptBtn = card!.querySelector<HTMLButtonElement>('[data-event-resolve]')
+    expect(acceptBtn).toBeTruthy()
+    expect(acceptBtn!.dataset.eventResolve).toBe(`${inst.uid}:accept`)
+    const refuseBtn = card!.querySelector<HTMLButtonElement>('[data-event-resolve]:last-child')
+    expect(refuseBtn!.dataset.eventResolve).toBe(`${inst.uid}:refuse`)
   })
 })

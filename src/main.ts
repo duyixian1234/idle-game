@@ -263,16 +263,6 @@ async function main(): Promise<void> {
       }
       return
     }
-    const eventBtn = target.closest<HTMLElement>('[data-event-resolve]')
-    if (eventBtn) {
-      const [uidStr, optionId] = (eventBtn.dataset.eventResolve ?? ':').split(':')
-      const uid = Number(uidStr)
-      const outcome = resolveEvent(state, uid, optionId)
-      if (outcome.logText) pushLog(state, outcome.logType, outcome.logText)
-      render()
-      if (outcome.changed) void saveGame(state)
-      return
-    }
     const diploBtn = target.closest<HTMLElement>('[data-diplomacy]')
     if (diploBtn) {
       const [factionId, action] = (diploBtn.dataset.diplomacy ?? ':').split(':')
@@ -295,6 +285,20 @@ async function main(): Promise<void> {
         void saveGame(state)
       }
     }
+  })
+
+  // 日志区事件委托：随机事件卡片按钮（成交/拒绝/派遣等）
+  // 注意：事件卡片渲染在日志区（.log-area），委托必须挂在这里而非操作面板
+  els.logEl.addEventListener('click', (e) => {
+    const eventBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-event-resolve]')
+    if (!eventBtn) return
+    const [uidStr, optionId] = (eventBtn.dataset.eventResolve ?? ':').split(':')
+    const uid = Number(uidStr)
+    const outcome = resolveEvent(state, uid, optionId)
+    if (outcome.logText) pushLog(state, outcome.logType, outcome.logText)
+    sound.play('click')
+    render()
+    if (outcome.changed) void saveGame(state)
   })
 
   // 游戏循环：按真实时间差推进
