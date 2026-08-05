@@ -254,18 +254,21 @@ async function main(): Promise<void> {
   // 建造/升级/科技/兑换/外交按钮事件委托（统一走动作注册表）
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
-    for (const [attr, actionId] of [
-      ['data-build', 'buy'],
-      ['data-upgrade', 'upgrade'],
-      ['data-research', 'research'],
-      ['data-upgrade-tech', 'upgradeTech'],
-      ['data-diplomacy', 'diplomacy'],
+    // 显式三元组 [data-attr, actionId, datasetKey]：
+    // dataset 键为 camelCase（data-upgrade-tech → dataset.upgradeTech），
+    // 不能靠 attr.slice(5) 推导（slice 得 kebab-case → undefined，升级科技静默失效）。
+    for (const [attr, actionId, dataKey] of [
+      ['data-build', 'buy', 'build'],
+      ['data-upgrade', 'upgrade', 'upgrade'],
+      ['data-research', 'research', 'research'],
+      ['data-upgrade-tech', 'upgradeTech', 'upgradeTech'],
+      ['data-diplomacy', 'diplomacy', 'diplomacy'],
     ] as const) {
       const btn = target.closest<HTMLElement>(`[${attr}]`)
       if (!btn) {
         continue
       }
-      dispatch(state, actionId, btn.dataset[attr.slice(5)] ?? '', deps)
+      dispatch(state, actionId, btn.dataset[dataKey] ?? '', deps)
       return
     }
     const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')
