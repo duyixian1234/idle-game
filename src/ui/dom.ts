@@ -431,7 +431,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
         continue
       }
       item.innerHTML = `${info}
-        <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'}>
+        <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁该科技（${formatCost(cost)}）">
           研发 ${formatCost(cost)}
         </button>`
       el.appendChild(item)
@@ -444,10 +444,10 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       continue
     }
 
-    // 可升级：显示升级按钮与下一级成本
+    // 可升级：显示升级按钮与下一级成本（语义明确为「单击升级」）
     item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出系数 +0.5">
-        升级 ${formatCost(cost)}
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +0.5（Lv.${level} → Lv.${level + 1}）">
+        升级 ▶ ${formatCost(cost)}
       </button>`
     el.appendChild(item)
   }

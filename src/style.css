@@ -307,11 +307,25 @@ body {
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 12px;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.06s ease;
 }
 
 .build-btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+  background-color: rgba(88, 166, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.build-btn:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: rgba(88, 166, 255, 0.16);
 }
 
 .build-btn:disabled {
@@ -327,6 +341,12 @@ body {
 .upgrade-btn:hover:not(:disabled) {
   border-color: var(--tech);
   color: var(--tech);
+  background-color: rgba(188, 140, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(188, 140, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.upgrade-btn:active:not(:disabled) {
+  background-color: rgba(188, 140, 255, 0.16);
 }
 
 .build-actions {
@@ -365,6 +385,30 @@ body {
 .tech-btn:hover:not(:disabled) {
   border-color: var(--tech);
   color: var(--tech);
+  background-color: rgba(188, 140, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(188, 140, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.tech-btn:active:not(:disabled) {
+  background-color: rgba(188, 140, 255, 0.16);
+}
+
+/* 科技升级按钮：hover 视觉比研发按钮更强，强调「单击升级」交互 */
+.upgrade-tech-btn {
+  border-color: #6b4f9e;
+}
+
+.upgrade-tech-btn:hover:not(:disabled) {
+  border-color: var(--tech);
+  color: #e6d5ff;
+  background-color: rgba(188, 140, 255, 0.14);
+  box-shadow: 0 0 0 2px rgba(188, 140, 255, 0.35), 0 0 14px rgba(188, 140, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
+.upgrade-tech-btn:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: rgba(188, 140, 255, 0.22);
 }
 
 .researched-badge {
