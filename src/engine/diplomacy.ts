@@ -17,15 +17,15 @@ export const TRADE_COST_GROWTH = 1.5
 /** 威慑：好感 -8，威胁 -25，成本随次数 ×1.8（含科技点，技术优势语义） */
 export const INTIMIDATE_FAVOR_LOSS = 8
 export const INTIMIDATE_THREAT_LOSS = 25
-export const INTIMIDATE_BASE_COST: Record<ResourceKey, number> = { mineral: 30_000, energy: 15_000, tech: 10_000 }
+export const INTIMIDATE_BASE_COST: Record<ResourceKey, number> = { mineral: 30_000, energy: 15_000, tech: 10_000, military: 0 }
 export const INTIMIDATE_COST_GROWTH = 1.8
 
 /** 结盟成本 */
-export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, energy: 50_000, tech: 20_000 }
+export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, energy: 50_000, tech: 20_000, military: 0 }
 
 /** 技术共享：花费科技点直接提升好感（纯科技点出口，与结盟成本同量级） */
 export const TECH_SHARE_FAVOR_GAIN = 15
-export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000 }
+export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000, military: 0 }
 
 /** 创建初始派系状态表 */
 export function createFactions(): Record<string, FactionState> {
