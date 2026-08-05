@@ -37,6 +37,53 @@ describe('engine: 存档序列化往返', () => {
     expect((migrated as unknown as Record<string, unknown>).researched).toBeUndefined()
   })
 
+  it('v2 旧档（三键资源、无军力字段）迁移为 v3：军力 0、永久加成/攻占为空', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 123
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 2
+    // 模拟 v2：resources 只有三键、无 permanentBonuses/conquest
+    const res3 = { mineral: raw.resources.mineral, energy: raw.resources.energy, tech: raw.resources.tech }
+    raw.resources = res3
+    delete (raw as Record<string, unknown>).permanentBonuses
+    delete (raw as Record<string, unknown>).conquest
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(3)
+    expect(migrated.resources).toEqual({ mineral: 123, energy: 0, tech: 0, military: 0 })
+    expect(migrated.permanentBonuses).toEqual({})
+    expect(migrated.conquest).toEqual({})
+    // 原值无损
+    expect(migrated.lastTick).toBe(s.lastTick)
+    expect(migrated.buildings).toEqual(s.buildings)
+  })
+
+  it('v1 旧档链式迁移直达 v3（v1→v2→v3）', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 1
+    ;(raw as Record<string, unknown>).researched = { nanoFab: true }
+    delete (raw as Record<string, unknown>).techLevels
+    delete (raw as Record<string, unknown>).permanentBonuses
+    delete (raw as Record<string, unknown>).conquest
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(3)
+    expect(migrated.techLevels).toEqual({ nanoFab: 1 })
+    expect(migrated.resources.military).toBe(0)
+    expect(migrated.permanentBonuses).toEqual({})
+    expect(migrated.conquest).toEqual({})
+  })
+
+  it('v3 存档序列化往返保留军力与区域字段', () => {
+    const s = createInitialState(0)
+    s.resources.military = 42
+    s.permanentBonuses.production = 0.1
+    s.conquest['outpost'] = { status: 'conquered' }
+    const restored = deserializeSave(serializeSave(s))
+    expect(restored.resources.military).toBe(42)
+    expect(restored.permanentBonuses).toEqual({ production: 0.1 })
+    expect(restored.conquest).toEqual({ outpost: { status: 'conquered' } })
+  })
+
   it('缺少 upgrades 字段的存档被判无效', () => {
     const s = createInitialState(0)
     const raw = { ...s }
