@@ -1,7 +1,5 @@
-import { buyBuilding, checkPlanetUnlocks, convertMineralToTech, createInitialState, enterInfiniteMode, maxConvertibleTechPoints, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
-import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from './engine/diplomacy'
-import { resolveEvent } from './engine/events'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from './engine/data'
+import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, netProduction, pushLog, startNewGamePlus, tick } from './engine/engine'
+import { BUILDINGS, PLANETS, RESOURCE_META } from './engine/data'
 import { formatNumber } from './engine/format'
 import { formatDuration, settleOffline } from './engine/offline'
 import { deserializeSave, serializeSave } from './engine/save'
@@ -13,7 +11,6 @@ import { SoundManager } from './audio'
 import {
   buildLayout,
   DEFAULT_LOG_DIRECTION,
-  isActionFailure,
   LOG_DIR_KEY,
   renderBuildPanel,
   renderDiplomacyPanel,
@@ -29,6 +26,8 @@ import {
   unlockRequirementText,
 } from './ui/dom'
 import type { LogDirection } from './ui/dom'
+import { dispatch } from './ui/actions'
+import type { ActionDeps } from './ui/actions'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
@@ -227,12 +226,18 @@ async function main(): Promise<void> {
     }
   })
 
-  // 星球切换事件委托
+  // 统一动作副作用依赖：渲染 / 保存 / 音效（见 actions.ts dispatch）
+  const deps: ActionDeps = {
+    render: () => render(),
+    save: () => void saveGame(state),
+    playSound: (name) => sound.play(name),
+  }
+
+  // 星球切换事件委托（未解锁星球：显示解锁条件）
   els.planetBar.addEventListener('click', (e) => {
     const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-planet]')
     if (!chip) return
     const id = chip.dataset.planet ?? ''
-    // 未解锁星球：显示解锁条件
     if (chip.classList.contains('locked')) {
       const def = PLANETS[id]
       if (def) {
@@ -241,128 +246,44 @@ async function main(): Promise<void> {
       }
       return
     }
-    const result = setActivePlanet(state, id)
-    if (!isActionFailure(result)) {
-      pushLog(state, 'system', `舰队坐标锁定：前往「${PLANETS[id].name}」。`)
-      render()
-      void saveGame(state)
-    }
+    dispatch(state, 'setPlanet', id, deps)
   })
 
-  // 建造/升级按钮事件委托
-  function applyTechConversion(s: GameState, amount: number): void {
-    const result = convertMineralToTech(s, amount)
-    if (isActionFailure(result)) {
-      pushLog(s, 'warning', `兑换失败：${result.reason}。`)
-      return
-    }
-    const { mineralSpent, techGained } = result.value ?? { mineralSpent: 0, techGained: 0 }
-    pushLog(s, 'system', `兑换完成：-${mineralSpent} 矿物，+${techGained} 科技点。`)
-    sound.play('click')
-    render()
-    void saveGame(s)
-  }
-
+  // 建造/升级/科技/兑换/外交按钮事件委托（统一走动作注册表）
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
-    const buyBtn = target.closest<HTMLElement>('[data-build]')
-    if (buyBtn) {
-      const id = buyBtn.dataset.build ?? ''
-      const result = buyBuilding(state, id)
-      if (!isActionFailure(result)) {
-        pushLog(state, 'system', `建造了 ${BUILDINGS[id].name}（第 ${state.buildings[id]} 台）。`)
-        sound.play('click')
-        render()
-        void saveGame(state)
+    for (const [attr, actionId] of [
+      ['data-build', 'buy'],
+      ['data-upgrade', 'upgrade'],
+      ['data-research', 'research'],
+      ['data-upgrade-tech', 'upgradeTech'],
+      ['data-diplomacy', 'diplomacy'],
+    ] as const) {
+      const btn = target.closest<HTMLElement>(`[${attr}]`)
+      if (!btn) {
+        continue
       }
-      return
-    }
-    const upBtn = target.closest<HTMLElement>('[data-upgrade]')
-    if (upBtn) {
-      const id = upBtn.dataset.upgrade ?? ''
-      const result = upgradeBuilding(state, id)
-      if (!isActionFailure(result)) {
-        pushLog(state, 'system', `${BUILDINGS[id].name} 升级至 Lv.${state.upgrades[id]}，产出提升。`)
-        sound.play('upgrade')
-        render()
-        void saveGame(state)
-      }
-      return
-    }
-    const researchBtn = target.closest<HTMLElement>('[data-research]')
-    if (researchBtn) {
-      const id = researchBtn.dataset.research ?? ''
-      const result = researchTech(state, id)
-      if (!isActionFailure(result)) {
-        pushLog(state, 'reward', `科技「${TECHS[id].name}」研发完成，新能力已生效。`)
-        sound.play('success')
-        render()
-        void saveGame(state)
-      }
-      return
-    }
-    const techUpBtn = target.closest<HTMLElement>('[data-upgrade-tech]')
-    if (techUpBtn) {
-      const id = techUpBtn.dataset.upgradeTech ?? ''
-      const result = upgradeTech(state, id)
-      if (!isActionFailure(result)) {
-        pushLog(state, 'reward', `科技「${TECHS[id].name}」升级至 Lv.${state.techLevels[id]}，产出提升。`)
-        sound.play('upgrade')
-        render()
-        void saveGame(state)
-      }
+      dispatch(state, actionId, btn.dataset[attr.slice(5)] ?? '', deps)
       return
     }
     const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')
     if (convertBtn) {
       const input = panels['tech'].querySelector<HTMLInputElement>('[data-exchange-input]')
-      const amount = Number(input?.value ?? 0)
-      applyTechConversion(state, amount)
+      dispatch(state, 'convert', Number(input?.value ?? 0), deps)
       return
     }
     const convertMaxBtn = target.closest<HTMLElement>('[data-convert-max]')
     if (convertMaxBtn) {
-      applyTechConversion(state, maxConvertibleTechPoints(state) * TECH_EXCHANGE_RATE)
-      return
-    }
-    const diploBtn = target.closest<HTMLElement>('[data-diplomacy]')
-    if (diploBtn) {
-      const [factionId, action] = (diploBtn.dataset.diplomacy ?? ':').split(':')
-      const def = FACTIONS[factionId]
-      let result: { ok: boolean; reason?: string }
-      if (action === 'trade') result = factionTrade(state, factionId)
-      else if (action === 'alliance') result = factionAlliance(state, factionId)
-      else if (action === 'techshare') result = factionTechShare(state, factionId)
-      else result = factionIntimidate(state, factionId)
-      if (result.ok) {
-        const f = state.factions[factionId]
-        const actionText = action === 'trade' ? `与${def.name}达成贸易，好感 +6（当前 ${Math.floor(f.favor)}）。`
-          : action === 'alliance' ? `与${def.name}正式结盟！星系统一的版图再近一步。`
-          : action === 'techshare' ? `向${def.name}共享技术情报，好感 +15（当前 ${Math.floor(f.favor)}）。`
-          : `对${def.name}展示威慑，其军力下降，好感 -8（当前 ${Math.floor(f.favor)}）。`
-        pushLog(state, action === 'alliance' ? 'reward' : 'system', actionText)
-        sound.play(action === 'alliance' ? 'success' : 'click')
-        if (isFederationUnified(state)) {
-          pushLog(state, 'story', '【星系统一联邦】四个派系已全部达成统一条件。旧时代的裂痕正在愈合……')
-        }
-        render()
-        void saveGame(state)
-      }
+      dispatch(state, 'convertMax', 0, deps)
     }
   })
 
   // 日志区事件委托：随机事件卡片按钮（成交/拒绝/派遣等）
-  // 注意：事件卡片渲染在日志区（.log-area），委托必须挂在这里而非操作面板
+  // 注意：事件卡片渲染在日志区（.log-area），点击委托必须挂在这里而非操作面板
   els.logEl.addEventListener('click', (e) => {
     const eventBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-event-resolve]')
     if (!eventBtn) return
-    const [uidStr, optionId] = (eventBtn.dataset.eventResolve ?? ':').split(':')
-    const uid = Number(uidStr)
-    const outcome = resolveEvent(state, uid, optionId)
-    if (outcome.logText) pushLog(state, outcome.logType, outcome.logText)
-    sound.play('click')
-    render()
-    if (outcome.changed) void saveGame(state)
+    dispatch(state, 'resolveEvent', eventBtn.dataset.eventResolve ?? '', deps)
   })
 
   // 游戏循环：按真实时间差推进
