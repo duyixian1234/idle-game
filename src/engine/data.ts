@@ -116,7 +116,9 @@ export const TECH_PER_LEVEL_BONUS = 0.5
 /**
  * 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)）。
  * 原 1.5（spec 决策）：平衡模拟显示满级需求仅 17 万、后期产能 6 分钟升完，
- * 调为 1.7 后满级需求 ≈ 131.7 万，升级成为通关期持续目标（ticket 05 确认）。
+ * 调为 1.7 后 5 项产出类科技全满级合计约 42.8 万科技点（base × ∑1.7^0..9 ≈ 286.5×base 逐项精算：
+ * planetDrill 2,861◎ / solarEfficiency 7,158◎ / computingBoost 17,191◎ / fusionCell 114,625◎ / nanoFab 286,565◎），
+ * 升级成为通关期持续目标（ticket 05 确认）。
  */
 export const TECH_UPGRADE_GROWTH = 1.7
 /** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
