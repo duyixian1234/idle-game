@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 引擎：陨石雨防护罩分支（余额足/不足、结果正确：扣科技点、损失减免）
 - [ ] 引擎：虫族警报神经干扰分支（余额足/不足、结果正确：扣科技点、免矿物清剿）

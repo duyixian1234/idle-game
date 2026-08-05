@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 引擎：威慑新成本含科技 1 万；余额不足校验覆盖三种资源
 - [ ] 引擎：技术共享 action 成功（-20,000 科技点，好感 +15）/ 余额不足拒绝

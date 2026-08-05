@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 引擎：`upgradeTech` 成功/余额不足/已满级拒绝，返回可读原因；Lv1 行为与旧 researchTech 等价
 - [ ] 引擎：生效系数按等级正确（基础 mult + 0.5×(lv−1)，Lv10 封顶），产出管线与科技点/矿物/能源累计均按新系数
