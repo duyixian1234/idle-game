@@ -25,12 +25,20 @@ import {
 } from './engine'
 
 describe('engine: 初始状态', () => {
-  it('三资源初始为 0，无建筑无升级', () => {
+  it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {
     const s = createInitialState(1000)
-    expect(s.resources).toEqual({ mineral: 0, energy: 0, tech: 0 })
+    expect(s.resources).toEqual({ mineral: 15, energy: 0, tech: 0 })
     expect(s.buildings).toEqual({})
     expect(s.upgrades).toEqual({})
     expect(s.lastTick).toBe(1000)
+  })
+
+  it('开局即可购买第一台采矿机（防死锁回归）', () => {
+    const s = createInitialState(1000)
+    expect(canAffordBuilding(s, 'miner')).toBe(true)
+    expect(buyBuilding(s, 'miner')).toEqual({ ok: true })
+    expect(s.resources.mineral).toBe(5)
+    expect(s.buildings.miner).toBe(1)
   })
 })
 
@@ -46,6 +54,7 @@ describe('engine: 建造建筑', () => {
 
   it('资源不足时失败并给出原因，状态不变', () => {
     const s = createInitialState(1000)
+    s.resources.mineral = 5 // 低于首价 10
     const r = buyBuilding(s, 'miner')
     expect(r).toMatchObject({ ok: false, reason: '资源不足' })
     expect(s.buildings.miner).toBeUndefined()

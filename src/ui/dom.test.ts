@@ -31,6 +31,7 @@ describe('ui: 布局与冒烟', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
     const s = createInitialState(0)
+    s.resources.mineral = 5 // 低于首价 10
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const btn = els.panel.querySelector<HTMLButtonElement>('[data-build="miner"]')
     expect(btn).toBeTruthy()

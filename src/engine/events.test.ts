@@ -173,9 +173,10 @@ describe('engine: 事件与产出协同', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
     s.nextEventAt = 5000
+    const mineralBefore = s.resources.mineral
     tick(s, 5000, seqRng([0.1, 0.5]))
     // 5 秒矿物产出 5（事件实例产生但结算照常）
-    expect(s.resources.mineral).toBeCloseTo(5)
+    expect(s.resources.mineral).toBeCloseTo(mineralBefore + 5)
     expect(s.pendingEvents).toHaveLength(1)
   })
 

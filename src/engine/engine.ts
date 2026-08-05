@@ -17,6 +17,9 @@ export function createInitialState(nowMs: number): GameState {
   for (const def of Object.values(PLANETS)) {
     planets[def.id] = { unlocked: def.id === 'barren' }
   }
+  const resources = zeroResources()
+  // 起始矿物补给：够买第一台采矿机（成本 10），避免开局死锁
+  resources.mineral = 15
   return {
     schemaVersion: SCHEMA_VERSION,
     phase: 'playing',
@@ -25,7 +28,7 @@ export function createInitialState(nowMs: number): GameState {
     factionCodex: [],
     permanentMult: 1,
     stats: { totalMineralEarned: 0 },
-    resources: zeroResources(),
+    resources,
     buildings: {},
     upgrades: {},
     researched: {},
