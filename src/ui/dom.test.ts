@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, netProduction, pushLog } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
-import { BUILDINGS, PLANETS } from '../engine/data'
+import { BUILDINGS, PLANETS, TECH_MAX_LEVEL } from '../engine/data'
 import {
   appendLog,
   buildLayout,
@@ -10,6 +10,7 @@ import {
   renderPendingEvents,
   renderPlanetBar,
   renderResources,
+  renderTechPanel,
   unlockRequirementText,
 } from './dom'
 
@@ -195,7 +196,7 @@ describe('ui: 布局与冒烟', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.buildings.miner = 1
-    s.researched.planetDrill = true
+    s.techLevels.planetDrill = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
     // 每台 1×1.5=1.5/s → 升级后 1.5×1.5=2.25/s；1 台总提升 +0.75/s
@@ -235,5 +236,67 @@ describe('ui: 布局与冒烟', () => {
     const drill = container.querySelector<HTMLElement>('[data-building="deepDrill"]')
     expect(drill!.classList.contains('locked')).toBe(true)
     expect(drill!.querySelector('.build-buy-preview')).toBeNull()
+  })
+})
+
+describe('ui: 科技面板', () => {
+  const panel = () => document.createElement('div')
+
+  it('未研发科技显示研发按钮，资源不足时禁用', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="planetDrill"]')
+    const btn = item!.querySelector<HTMLButtonElement>('[data-research="planetDrill"]')
+    expect(btn).toBeTruthy()
+    expect(btn!.disabled).toBe(true) // 初始资源不足
+    expect(item!.textContent).toContain('矿物产出 ×1.5')
+  })
+
+  it('已研发科技显示 Lv.1 与升级按钮、下一级效果', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 100_000
+    s.techLevels.planetDrill = 1
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="planetDrill"]')
+    expect(item!.textContent).toContain('Lv.1')
+    expect(item!.textContent).toContain('×1.5 → ×2')
+    const btn = item!.querySelector<HTMLButtonElement>('[data-upgrade-tech="planetDrill"]')
+    expect(btn).toBeTruthy()
+    expect(btn!.disabled).toBe(false)
+  })
+
+  it('资源不足时升级按钮禁用', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.techLevels.planetDrill = 1
+    renderTechPanel(el, s)
+    const btn = el.querySelector<HTMLButtonElement>('[data-upgrade-tech="planetDrill"]')
+    expect(btn).toBeTruthy()
+    expect(btn!.disabled).toBe(true)
+  })
+
+  it('满级科技显示 Lv.MAX 且无升级按钮', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.techLevels.planetDrill = TECH_MAX_LEVEL
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="planetDrill"]')
+    expect(item!.textContent).toContain('Lv.MAX')
+    expect(item!.textContent).toContain('✓ 生效中')
+    expect(item!.querySelector('[data-upgrade-tech]')).toBeNull()
+  })
+
+  it('解锁类科技（深层钻探）研发后无升级入口', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.techLevels.deepDrill = 1
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="deepDrill"]')
+    expect(item!.textContent).toContain('Lv.1')
+    expect(item!.textContent).toContain('✓ 生效中')
+    expect(item!.querySelector('[data-upgrade-tech]')).toBeNull()
   })
 })

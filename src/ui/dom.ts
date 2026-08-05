@@ -20,14 +20,18 @@ import {
   canAffordBuilding,
   canAffordUpgrade,
   canResearchTech,
+  canUpgradeTech,
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
   simulateProductionDelta,
   techCost,
+  techLevel,
+  techMultiplier,
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
+import { TECH_MAX_LEVEL } from '../engine/data'
 import type { ActionFailure } from '../engine/engine'
 
 export interface AppElements {
@@ -394,47 +398,73 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(TECHS)) {
+    const level = techLevel(state, def.id)
     const researched = isTechResearched(state, def.id)
     const met = techRequirementsMet(state, def.id)
-    const affordable = canResearchTech(state, def.id)
     const cost = techCost(state, def.id)
+    const upgradable = researched && def.effect.kind === 'production' && level < TECH_MAX_LEVEL
+    const canUp = canUpgradeTech(state, def.id)
+    const affordable = canResearchTech(state, def.id)
     const item = document.createElement('div')
     item.className = 'build-item tech-item'
     item.setAttribute('data-tech', def.id)
 
-    const effectText = def.effect.kind === 'unlockBuilding'
-      ? `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
-      : `${RESOURCE_META[def.effect.resource].name}产出 ×${def.effect.mult}`
+    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）
+    let effectText: string
+    if (def.effect.kind === 'unlockBuilding') {
+      effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
+    } else {
+      const cur = techMultiplier(def.effect, Math.max(1, level))
+      effectText = `${RESOURCE_META[def.effect.resource].name}产出 ×${formatMult(cur)}`
+      if (upgradable) {
+        const next = techMultiplier(def.effect, level + 1)
+        effectText += ` → ×${formatMult(next)}`
+      }
+    }
 
     const info = `
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(def.name)}
-          ${researched ? '<span class="build-count researched-badge">已研发</span>' : ''}
+          ${researched ? `<span class="build-count researched-badge">${level >= TECH_MAX_LEVEL ? 'Lv.MAX' : `Lv.${level}`}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
       </div>`
 
-    if (researched) {
+    if (!researched) {
+      if (!met) {
+        const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')
+        item.innerHTML = `${info}
+          <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>`
+        el.appendChild(item)
+        continue
+      }
+      item.innerHTML = `${info}
+        <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'}>
+          研发 ${formatCost(cost)}
+        </button>`
+      el.appendChild(item)
+      continue
+    }
+
+    if (!upgradable) {
       item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>`
       el.appendChild(item)
       continue
     }
 
-    if (!met) {
-      const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')
-      item.innerHTML = `${info}
-        <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>`
-      el.appendChild(item)
-      continue
-    }
-
+    // 可升级：显示升级按钮与下一级成本
     item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'}>
-        研发 ${formatCost(cost)}
+      <button type="button" class="build-btn tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出系数 +0.5">
+        升级 ${formatCost(cost)}
       </button>`
     el.appendChild(item)
   }
+}
+
+/** 系数格式化：整数去小数位，其余保留 1 位 */
+function formatMult(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10)
 }
 
 /** 好感度横条 */

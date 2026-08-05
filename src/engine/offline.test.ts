@@ -38,7 +38,7 @@ describe('engine: 离线收益结算', () => {
   it('科技系数作用于离线产出', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
-    s.researched.planetDrill = true
+    s.techLevels.planetDrill = 1
     const r = settleOffline(s, 3600_000)
     expect(r.gains.mineral).toBeCloseTo(3600 * 1.5)
   })

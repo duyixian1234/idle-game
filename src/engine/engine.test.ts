@@ -23,7 +23,9 @@ import {
   tick,
   upgradeBuilding,
   upgradeCost,
+  upgradeTech,
 } from './engine'
+import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './data'
 
 describe('engine: 初始状态', () => {
   it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {
@@ -164,7 +166,7 @@ describe('engine: simulateProductionDelta（预览口径）', () => {
   it('含科技加成：行星钻探 ×1.5 后买 1 台 +1.5/s', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
-    s.researched.planetDrill = true
+    s.techLevels.planetDrill = 1
     const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
     expect(buy.delta.mineral).toBe(1.5)
   })
@@ -309,7 +311,7 @@ describe('engine: 科技系统', () => {
     s.resources.mineral = 1000
     s.resources.tech = 100
     expect(researchTech(s, 'planetDrill')).toEqual({ ok: true })
-    expect(s.researched.planetDrill).toBe(true)
+    expect(s.techLevels.planetDrill).toBe(1)
     expect(s.resources.mineral).toBe(500)
     expect(s.resources.tech).toBe(90)
   })
@@ -318,7 +320,7 @@ describe('engine: 科技系统', () => {
     const s = createInitialState(0)
     s.buildings.miner = 2
     expect(netProduction(s).mineral).toBe(2)
-    s.researched.planetDrill = true
+    s.techLevels.planetDrill = 1
     expect(productionMultipliers(s).mineral).toBe(1.5)
     expect(netProduction(s).mineral).toBe(3)
   })
@@ -326,8 +328,8 @@ describe('engine: 科技系统', () => {
   it('多个产出科技累乘', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
-    s.researched.planetDrill = true
-    s.researched.nanoFab = true
+    s.techLevels.planetDrill = 1
+    s.techLevels.nanoFab = 1
     expect(netProduction(s).mineral).toBe(1 * 1.5 * 2)
   })
 
@@ -352,7 +354,7 @@ describe('engine: 科技系统', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100_000
     s.resources.tech = 10_000
-    s.researched.solarEfficiency = true
+    s.techLevels.solarEfficiency = 1
     expect(techRequirementsMet(s, 'fusionCell')).toBe(true)
     expect(researchTech(s, 'fusionCell')).toEqual({ ok: true })
   })
@@ -363,6 +365,80 @@ describe('engine: 科技系统', () => {
     s.resources.tech = 10_000
     researchTech(s, 'planetDrill')
     expect(researchTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '已研发' })
+  })
+
+  it('升级成功扣除成本并提升等级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    researchTech(s, 'planetDrill') // Lv1，花 10 科技点
+    expect(s.techLevels.planetDrill).toBe(1)
+    expect(s.resources.tech).toBe(9_990)
+    // 升级成本 = base × 1.5^level
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 750, tech: 15, energy: 0 })
+    expect(upgradeTech(s, 'planetDrill')).toEqual({ ok: true })
+    expect(s.techLevels.planetDrill).toBe(2)
+    expect(s.resources.mineral).toBe(100_000 - 500 - 750)
+    expect(s.resources.tech).toBe(9_990 - 15)
+  })
+
+  it('未研发科技不可升级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    expect(upgradeTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '尚未研发该科技' })
+  })
+
+  it('资源不足时升级失败且等级不变', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10
+    researchTech(s, 'planetDrill') // 科技点花光
+    expect(upgradeTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '资源不足' })
+    expect(s.techLevels.planetDrill).toBe(1)
+  })
+
+  it('满级后不可升级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000_000
+    s.resources.tech = 100_000_000
+    s.techLevels.planetDrill = TECH_MAX_LEVEL
+    expect(upgradeTech(s, 'planetDrill')).toMatchObject({ ok: false, reason: '已满级' })
+  })
+
+  it('解锁类科技不可升级', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 100_000
+    researchTech(s, 'deepDrill')
+    expect(isTechResearched(s, 'deepDrill')).toBe(true)
+    expect(upgradeTech(s, 'deepDrill')).toMatchObject({ ok: false, reason: '已满级' })
+  })
+
+  it('收益系数随等级线性提升（+0.5/级）并封顶 Lv10', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.techLevels.planetDrill = 1
+    expect(productionMultipliers(s).mineral).toBe(1.5)
+    s.techLevels.planetDrill = 2
+    expect(productionMultipliers(s).mineral).toBe(2.0)
+    s.techLevels.planetDrill = 10
+    expect(productionMultipliers(s).mineral).toBe(6.0)
+    expect(netProduction(s).mineral).toBe(6)
+  })
+
+  it('升级成本按 1.5 倍指数递增（Lv0 即基础成本）', () => {
+    const s = createInitialState(0)
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0 })
+    s.techLevels.planetDrill = 1
+    expect(techCost(s, 'planetDrill')).toEqual({ mineral: 750, tech: 15, energy: 0 })
+    s.techLevels.planetDrill = 9
+    const k = Math.pow(TECH_UPGRADE_GROWTH, 9)
+    expect(techCost(s, 'planetDrill')).toEqual({
+      mineral: Math.max(1, Math.floor(500 * k)),
+      tech: Math.max(1, Math.floor(10 * k)),
+      energy: 0,
+    })
   })
 
   it('解锁型科技：深层钻探解锁深层钻机建筑', () => {

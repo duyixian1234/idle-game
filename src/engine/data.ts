@@ -109,6 +109,13 @@ export interface TechDef {
   requires?: string[]
 }
 
+/** 科技等级上限（产出类科技，1 = 已研发） */
+export const TECH_MAX_LEVEL = 10
+/** 每级科技升级的产出系数增量（线性叠加：mult + 0.5×(lv−1)，与建筑升级口径一致） */
+export const TECH_PER_LEVEL_BONUS = 0.5
+/** 科技升级成本增长倍率（cost(lv) = base × 1.5^(lv−1)） */
+export const TECH_UPGRADE_GROWTH = 1.5
+
 /** 星球解锁条件 */
 export interface PlanetUnlock {
   resources: Partial<Record<ResourceKey, number>>

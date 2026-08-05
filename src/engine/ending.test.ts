@@ -84,7 +84,7 @@ describe('engine: NG+', () => {
     s.resources.energy = 300_000
     s.resources.tech = 10_000
     s.buildings.miner = 12
-    s.researched.planetDrill = true
+    s.techLevels.planetDrill = 1
     s.factions.ferro.allied = true
     s.factionCodex.push('ferro')
     return s
@@ -95,7 +95,7 @@ describe('engine: NG+', () => {
     startNewGamePlus(s, 5_000)
     expect(s.ngPlusLevel).toBe(1)
     expect(s.buildings).toEqual({})
-    expect(s.researched).toEqual({})
+    expect(s.techLevels).toEqual({})
     expect(s.resources.mineral).toBe(0)
     expect(s.resources.tech).toBe(NG_PLUS_TECH_BASE)
     expect(s.phase).toBe('playing')

@@ -1,4 +1,4 @@
-import { buyBuilding, checkPlanetUnlocks, createInitialState, enterInfiniteMode, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding } from './engine/engine'
+import { buyBuilding, checkPlanetUnlocks, createInitialState, enterInfiniteMode, netProduction, pushLog, researchTech, setActivePlanet, startNewGamePlus, tick, upgradeBuilding, upgradeTech } from './engine/engine'
 import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './engine/diplomacy'
 import { resolveEvent } from './engine/events'
 import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
@@ -283,6 +283,18 @@ async function main(): Promise<void> {
       if (!isActionFailure(result)) {
         pushLog(state, 'reward', `科技「${TECHS[id].name}」研发完成，新能力已生效。`)
         sound.play('success')
+        render()
+        void saveGame(state)
+      }
+      return
+    }
+    const techUpBtn = target.closest<HTMLElement>('[data-upgrade-tech]')
+    if (techUpBtn) {
+      const id = techUpBtn.dataset.upgradeTech ?? ''
+      const result = upgradeTech(state, id)
+      if (!isActionFailure(result)) {
+        pushLog(state, 'reward', `科技「${TECHS[id].name}」升级至 Lv.${state.techLevels[id]}，产出提升。`)
+        sound.play('upgrade')
         render()
         void saveGame(state)
       }

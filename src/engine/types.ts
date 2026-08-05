@@ -35,8 +35,8 @@ export interface EventInstance {
   payload?: Record<string, number>
 }
 
-/** 存档 schema 版本 */
-export const SCHEMA_VERSION = 1
+/** 存档 schema 版本（2：researched → techLevels 等级化） */
+export const SCHEMA_VERSION = 2
 
 /** 星球解锁状态 */
 export interface PlanetState {
@@ -91,8 +91,8 @@ export interface GameState {
   buildings: Record<string, number>
   /** 各建筑升级等级：buildingId -> level（0 起步，每级产出 +50%） */
   upgrades: Record<string, number>
-  /** 已研发科技：techId -> true */
-  researched: Record<string, boolean>
+  /** 各科技等级：techId -> level（0 = 未研发；产出类可升级至 TECH_MAX_LEVEL） */
+  techLevels: Record<string, number>
   /** 星球解锁状态：planetId -> PlanetState */
   planets: Record<string, PlanetState>
   /** 当前查看/生效的星球 */

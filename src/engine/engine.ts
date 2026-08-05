@@ -1,4 +1,14 @@
-import { BUILDINGS, FACTIONS, LEVEL_PRODUCTION_BONUS, PLANETS, TECHS } from './data'
+import {
+  BUILDINGS,
+  FACTIONS,
+  LEVEL_PRODUCTION_BONUS,
+  PLANETS,
+  TECHS,
+  TECH_MAX_LEVEL,
+  TECH_PER_LEVEL_BONUS,
+  TECH_UPGRADE_GROWTH,
+} from './data'
+import type { TechDef, TechEffectProduction } from './data'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { ENDING_SCENES, MILESTONE_STORIES, PLANET_STORIES } from './story'
@@ -31,7 +41,7 @@ export function createInitialState(nowMs: number): GameState {
     resources,
     buildings: {},
     upgrades: {},
-    researched: {},
+    techLevels: {},
     planets,
     activePlanet: 'barren',
     factions: createFactions(),
@@ -188,14 +198,23 @@ export function simulateProductionDelta(
   return { current, after, delta }
 }
 
-/** 各资源科技产出系数（已研发科技累乘） */
+/** 各资源科技产出系数（已研发科技按等级累乘） */
 export function productionMultipliers(state: GameState): Record<ResourceKey, number> {
   const m = { mineral: 1, energy: 1, tech: 1 }
   for (const def of Object.values(TECHS)) {
-    if (!state.researched[def.id] || def.effect.kind !== 'production') continue
-    m[def.effect.resource] *= def.effect.mult
+    const lv = techLevel(state, def.id)
+    if (lv <= 0 || def.effect.kind !== 'production') continue
+    m[def.effect.resource] *= techMultiplier(def.effect, lv)
   }
   return m
+}
+
+/**
+ * 科技生效系数：基础 mult + 0.5×(lv−1)，随等级线性提升（Lv1 即基础效果）。
+ * 仅 production 类科技有等级含义。
+ */
+export function techMultiplier(effect: TechEffectProduction, level: number): number {
+  return effect.mult + TECH_PER_LEVEL_BONUS * (level - 1)
 }
 
 /**
@@ -285,7 +304,7 @@ export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) return false
-  if (def.requiresTech && !def.requiresTech.every((t) => state.researched[t])) return false
+  if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) return false
   return true
 }
 
@@ -332,29 +351,45 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
 
 // ---- 科技系统 ----
 
-/** 科技研发成本（固定，不随状态增长） */
-export function techCost(_state: GameState, id: string): Record<ResourceKey, number> {
+/** 当前科技等级（0 = 未研发） */
+export function techLevel(state: GameState, id: string): number {
+  return state.techLevels[id] ?? 0
+}
+
+/** 是否已研发（level ≥ 1） */
+export function isTechResearched(state: GameState, id: string): boolean {
+  return techLevel(state, id) > 0
+}
+
+/** 是否可升级：产出类科技且未满级 */
+export function canTechUpgrade(def: TechDef, level: number): boolean {
+  return def.effect.kind === 'production' && level > 0 && level < TECH_MAX_LEVEL
+}
+
+/**
+ * 升到下一级的成本：base × 1.5^level（level 为当前等级，Lv0 即基础研发成本）。
+ * 研发（Lv0→1）与升级（Lv≥1→Lv+1）共用该成本函数。
+ */
+export function techCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = TECHS[id]
+  const level = techLevel(state, id)
+  const factor = Math.pow(TECH_UPGRADE_GROWTH, level)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
-    cost[key] = def?.cost[key] ?? 0
+    const base = def?.cost[key] ?? 0
+    cost[key] = base > 0 ? Math.max(1, Math.floor(base * factor)) : 0
   }
   return cost
 }
 
-export function isTechResearched(state: GameState, id: string): boolean {
-  return Boolean(state.researched[id])
-}
-
-/** 科技前置是否满足 */
 export function techRequirementsMet(state: GameState, id: string): boolean {
   const def = TECHS[id]
   if (!def) return false
   if (!def.requires) return true
-  return def.requires.every((t) => state.researched[t])
+  return def.requires.every((t) => techLevel(state, t) > 0)
 }
 
-/** 派生查询：当前是否研得起某科技（资源 + 前置） */
+/** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置） */
 export function canResearchTech(state: GameState, id: string): boolean {
   const def = TECHS[id]
   if (!def) return false
@@ -363,7 +398,16 @@ export function canResearchTech(state: GameState, id: string): boolean {
   return canAfford(state.resources, techCost(state, id))
 }
 
-/** 研发科技 */
+/** 派生查询：当前是否升得起某科技（已研发 + 可升级 + 资源） */
+export function canUpgradeTech(state: GameState, id: string): boolean {
+  const def = TECHS[id]
+  const level = techLevel(state, id)
+  if (!def) return false
+  if (!canTechUpgrade(def, level)) return false
+  return canAfford(state.resources, techCost(state, id))
+}
+
+/** 研发科技（Lv0→1） */
 export function researchTech(state: GameState, id: string): ActionResult {
   const def = TECHS[id]
   if (!def) return { ok: false, reason: '未知科技' }
@@ -375,9 +419,23 @@ export function researchTech(state: GameState, id: string): ActionResult {
   const cost = techCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
-  state.researched[id] = true
+  state.techLevels[id] = 1
   // 首次研发叙事
   playMilestone(state, 'firstTech')
+  return { ok: true }
+}
+
+/** 升级科技（Lv≥1 → Lv+1，仅产出类，Lv10 封顶） */
+export function upgradeTech(state: GameState, id: string): ActionResult {
+  const def = TECHS[id]
+  const level = techLevel(state, id)
+  if (!def) return { ok: false, reason: '未知科技' }
+  if (level <= 0) return { ok: false, reason: '尚未研发该科技' }
+  if (!canTechUpgrade(def, level)) return { ok: false, reason: '已满级' }
+  const cost = techCost(state, id)
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  state.techLevels[id] = level + 1
   return { ok: true }
 }
 
@@ -450,7 +508,7 @@ export function planetRequirementsMet(state: GameState, id: string): boolean {
   for (const k of RESOURCE_KEYS) {
     if ((req[k] ?? 0) > 0 && state.resources[k] < (req[k] ?? 0)) return false
   }
-  if (def.unlock.techs && !def.unlock.techs.every((t) => state.researched[t])) return false
+  if (def.unlock.techs && !def.unlock.techs.every((t) => techLevel(state, t) > 0)) return false
   return true
 }
 
@@ -562,7 +620,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.resources.tech = carryTech
   state.buildings = {}
   state.upgrades = {}
-  state.researched = {}
+  state.techLevels = {}
 
   // 星球重置为起点；派系好感重置（图鉴派系加成）
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
