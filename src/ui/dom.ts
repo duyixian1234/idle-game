@@ -1,6 +1,7 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef } from '../engine/data'
+import { formatNumber } from '../engine/format'
 import {
   buildingCost,
   canAffordBuilding,
@@ -187,15 +188,6 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
 
 export function renderStatusLine(el: HTMLElement, text: string): void {
   el.textContent = text
-}
-
-/** 大数字显示（01 基础版，04 升级为中文单位缩写） */
-export function formatNumber(n: number): string {
-  if (n < 10000) {
-    const r = Math.floor(n)
-    return r.toLocaleString('zh-CN')
-  }
-  return n.toLocaleString('zh-CN', { maximumFractionDigits: 1 })
 }
 
 function formatCost(cost: Record<ResourceKey, number>): string {

@@ -1,5 +1,7 @@
 import { buyBuilding, createInitialState, netProduction, pushLog, researchTech, tick, upgradeBuilding } from './engine/engine'
-import { BUILDINGS, TECHS } from './engine/data'
+import { BUILDINGS, RESOURCE_META, TECHS } from './engine/data'
+import { formatNumber } from './engine/format'
+import { formatDuration, settleOffline } from './engine/offline'
 import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import {
@@ -20,6 +22,18 @@ async function main(): Promise<void> {
   const els = buildLayout(container)
 
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
+
+  // 离线收益结算（首次进入或回归时）
+  const offline = settleOffline(state, Date.now())
+  if (offline.durationSeconds > 0) {
+    const gainsText = (['mineral', 'energy', 'tech'] as const)
+      .filter((k) => offline.gains[k] > 0)
+      .map((k) => `${RESOURCE_META[k].name} +${formatNumber(offline.gains[k])}`)
+      .join('、')
+    const capText = offline.capped ? '（已达 8 小时封顶）' : ''
+    pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
+  }
+
   // 首次进入时补一条欢迎日志
   if (state.log.length === 0) {
     pushLog(state, 'story', '舷窗外是一颗灰褐色的荒芜星球。你的殖民舱已着陆，任务只有一个：让它活下去，然后让它繁荣。')
