@@ -16,9 +16,9 @@ describe('mechanics: 机制表完整性', () => {
 
   it('none：无产出修正、无状态文本', () => {
     const s = createInitialState(0)
-    const nominal = { mineral: 5, energy: 5, tech: 5 }
+    const nominal = { mineral: 5, energy: 5, tech: 5, military: 0 }
     PLANET_MECHANICS.none.apply(s, nominal)
-    expect(nominal).toEqual({ mineral: 5, energy: 5, tech: 5 })
+    expect(nominal).toEqual({ mineral: 5, energy: 5, tech: 5, military: 0 })
     expect(PLANET_MECHANICS.none.describe(s)).toBe('')
   })
 })
@@ -27,7 +27,7 @@ describe('mechanics: 轨道工厂站（orbitalForge）', () => {
   it('apply：15% 矿物产能转化为科技点', () => {
     const s = createInitialState(0)
     s.planets.orbital.unlocked = true
-    const nominal = { mineral: 10, energy: 0, tech: 0 }
+    const nominal = { mineral: 10, energy: 0, tech: 0, military: 0 }
     PLANET_MECHANICS.orbitalForge.apply(s, nominal)
     expect(nominal.mineral).toBeCloseTo(8.5)
     expect(nominal.tech).toBeCloseTo(1.5)
@@ -35,7 +35,7 @@ describe('mechanics: 轨道工厂站（orbitalForge）', () => {
 
   it('apply：未解锁不转换', () => {
     const s = createInitialState(0)
-    const nominal = { mineral: 10, energy: 0, tech: 0 }
+    const nominal = { mineral: 10, energy: 0, tech: 0, military: 0 }
     PLANET_MECHANICS.orbitalForge.apply(s, nominal)
     expect(nominal.mineral).toBe(10)
     expect(nominal.tech).toBe(0)
@@ -58,7 +58,7 @@ describe('mechanics: 引力井衰减（gravityWell）', () => {
   it('apply：按系数折减全部产出', () => {
     const s = createInitialState(0)
     s.planetStaySeconds = 600 // 0.8
-    const nominal = { mineral: 10, energy: 4, tech: 0 }
+    const nominal = { mineral: 10, energy: 4, tech: 0, military: 0 }
     PLANET_MECHANICS.gravityWell.apply(s, nominal)
     expect(nominal.mineral).toBeCloseTo(8)
     expect(nominal.energy).toBeCloseTo(3.2)
@@ -75,7 +75,7 @@ describe('mechanics: 引力井衰减（gravityWell）', () => {
 describe('mechanics: 风暴批量生产（massProduction）', () => {
   it('apply：能源产出 ×1.5', () => {
     const s = createInitialState(0)
-    const nominal = { mineral: 0, energy: 4, tech: 0 }
+    const nominal = { mineral: 0, energy: 4, tech: 0, military: 0 }
     PLANET_MECHANICS.massProduction.apply(s, nominal)
     expect(nominal.energy).toBeCloseTo(6)
   })
@@ -113,7 +113,7 @@ describe('mechanics: 风暴批量生产（massProduction）', () => {
 describe('mechanics: 曲率时间加速（warpCore）', () => {
   it('apply：所有产出 ×3', () => {
     const s = createInitialState(0)
-    const nominal = { mineral: 2, energy: 3, tech: 4 }
+    const nominal = { mineral: 2, energy: 3, tech: 4, military: 0 }
     PLANET_MECHANICS.warpCore.apply(s, nominal)
     expect(nominal.mineral).toBeCloseTo(6)
     expect(nominal.energy).toBeCloseTo(9)

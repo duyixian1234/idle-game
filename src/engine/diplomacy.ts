@@ -50,7 +50,7 @@ function clampFavor(n: number): number {
 export function tradeCost(state: GameState, id: string): Record<ResourceKey, number> {
   const f = state.factions[id]
   const n = f?.tradeCount ?? 0
-  return { mineral: Math.floor(TRADE_BASE_COST * Math.pow(TRADE_COST_GROWTH, n)), energy: 0, tech: 0 }
+  return { mineral: Math.floor(TRADE_BASE_COST * Math.pow(TRADE_COST_GROWTH, n)), energy: 0, tech: 0, military: 0 }
 }
 
 /** 威慑成本（随次数递增，含科技点） */
@@ -62,6 +62,7 @@ export function intimidateCost(state: GameState, id: string): Record<ResourceKey
     mineral: Math.floor(INTIMIDATE_BASE_COST.mineral * mult),
     energy: Math.floor(INTIMIDATE_BASE_COST.energy * mult),
     tech: Math.floor(INTIMIDATE_BASE_COST.tech * mult),
+    military: 0,
   }
 }
 

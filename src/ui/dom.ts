@@ -1,5 +1,5 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
