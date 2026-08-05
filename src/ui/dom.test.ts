@@ -10,6 +10,7 @@ import {
   renderLogInto,
   renderPendingEvents,
   renderPlanetBar,
+  renderPlanetMechanic,
   renderResources,
   renderTechPanel,
   unlockRequirementText,
@@ -390,5 +391,29 @@ describe('ui: 事件科技分支', () => {
     expect(jamBtn).toBeTruthy()
     expect(jamBtn!.textContent).toContain('神经干扰')
     expect(jamBtn!.textContent).toContain('科技')
+  })
+})
+
+describe('ui: 星球机制状态条', () => {
+  it('渲染当前星球机制名称/描述/状态（文本来自 mechanics 唯一真源）', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.activePlanet = 'orbital'
+    renderPlanetMechanic(els.mechanicBar, s)
+    expect(els.mechanicBar.textContent).toContain('轨道工厂')
+    expect(els.mechanicBar.textContent).toContain('15%')
+    expect(els.mechanicBar.textContent).not.toContain('30%')
+  })
+
+  it('引力井状态条显示驻留进度', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.planets.ice = { unlocked: true }
+    s.activePlanet = 'ice'
+    s.planetStaySeconds = 600
+    renderPlanetMechanic(els.mechanicBar, s)
+    expect(els.mechanicBar.textContent).toContain('引力井')
+    expect(els.mechanicBar.textContent).toContain('80%')
   })
 })

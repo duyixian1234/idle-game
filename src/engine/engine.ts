@@ -12,6 +12,7 @@ import {
 import type { TechDef, TechEffectProduction } from './data'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
+import { PLANET_MECHANICS } from './mechanics'
 import { ENDING_SCENES, MILESTONE_STORIES, PLANET_STORIES } from './story'
 import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, LogEntry, LogType, ResourceKey } from './types'
@@ -137,7 +138,7 @@ export function productionReport(state: GameState): ProductionReport {
   const nominal = zeroResources()
   for (const key of RESOURCE_KEYS) nominal[key] = base[key] * techMult[key]
 
-  // 星球机制：轨道工厂站（将 30% 矿物产能转化为科技点）
+  // 星球机制：对名义产出的修正（规则见 mechanics.ts，引擎与 UI 共用同一真源）
   applyPlanetMechanics(state, nominal)
 
   // NG+ 永久产出加成
@@ -230,63 +231,19 @@ function settleEnergyRatio(state: GameState, energyProd: number, energyDemand: n
   return Math.min(1, pool / energyDemand)
 }
 
-/**
- * 当前星球机制对名义产出的修正。
- * - orbitalForge（轨道工厂站）：30% 矿物产能转化为科技点
- * - gravityWell（冰封星·霜落）：引力井衰减，驻留越久产出越低（封底 50%）
- * - massProduction（气态巨星·风暴之喉）：能源产出 ×1.5
- * - warpCore（母星·曙光）：曲率时间加速，所有产出 ×3
- */
+/** 当前星球机制的产出修正（规则集中在 mechanics.ts，唯一真源） */
 function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, number>): void {
-  const mech = PLANETS[state.activePlanet]?.mechanicId
-  if (!mech || mech === 'none') return
-  switch (mech) {
-    case 'orbitalForge': {
-      if (!state.planets.orbital?.unlocked) break
-      const converted = nominal.mineral * ORBITAL_FORGE_CONVERT_RATIO
-      nominal.mineral -= converted
-      nominal.tech += converted
-      break
-    }
-    case 'gravityWell': {
-      const stayMin = state.planetStaySeconds / 60
-      const mult = Math.max(0.5, 1 - stayMin * 0.02)
-      for (const k of RESOURCE_KEYS) nominal[k] *= mult
-      break
-    }
-    case 'massProduction': {
-      nominal.energy *= 1.5
-      break
-    }
-    case 'warpCore': {
-      for (const k of RESOURCE_KEYS) nominal[k] *= 3
-      break
-    }
-  }
+  const def = PLANETS[state.activePlanet]
+  if (!def) return
+  PLANET_MECHANICS[def.mechanicId].apply(state, nominal)
 }
 
-/** 风暴收获间隔（ms）：5 分钟 */
-export const STORM_HARVEST_INTERVAL_MS = 5 * 60_000
-
-/**
- * 轨道工厂站转换比例：30% → 15%（ticket 05 平衡调参）。
- * 原 30% 被矿物科技系数放大后科技点严重过剩（通关期可得量 ×32.7 倍于全经济需求），减半收敛。
- */
-export const ORBITAL_FORGE_CONVERT_RATIO = 0.15
-
-/** 风暴收获：驻留气态巨星时周期性凝聚风暴结晶（科技点） */
+/** 当前星球机制的周期副作用（风暴收获）；无机制或未到点时无操作 */
 function applyStormHarvest(state: GameState, nowMs: number): void {
-  if (state.activePlanet !== 'gas' || !state.planets.gas?.unlocked) return
-  if (nowMs - state.lastStormHarvestAt < STORM_HARVEST_INTERVAL_MS) return
-  const prod = netProduction(state)
-  const gain = Math.max(100, Math.floor(prod.tech * 60))
-  state.resources.tech += gain
-  state.lastStormHarvestAt = nowMs
-  pushLog(state, 'event', `风暴之喉的能量漩涡凝聚出风暴结晶，提炼出 ${formatInt(gain)} 科技点。`)
-}
-
-function formatInt(n: number): string {
-  return Math.floor(n).toLocaleString('zh-CN')
+  const def = PLANETS[state.activePlanet]
+  if (!def) return
+  const harvestText = PLANET_MECHANICS[def.mechanicId].harvest?.(state, nowMs, netProduction(state).tech) ?? null
+  if (harvestText) pushLog(state, 'event', harvestText)
 }
 
 export interface ActionFailure {

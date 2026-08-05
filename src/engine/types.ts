@@ -1,6 +1,9 @@
 /** 三种基础资源 */
 export type ResourceKey = 'mineral' | 'energy' | 'tech'
 
+/** 星球机制 id（与 PLANETS.mechanicId / PLANET_MECHANICS 联动） */
+export type MechanicId = 'none' | 'orbitalForge' | 'gravityWell' | 'massProduction' | 'warpCore'
+
 /** 日志消息类型（视觉区分） */
 export type LogType = 'system' | 'story' | 'event' | 'reward' | 'warning'
 

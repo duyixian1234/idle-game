@@ -1,6 +1,7 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, FACTIONS, MECHANICS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, PlanetDef } from '../engine/data'
+import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber } from '../engine/format'
 import { formatPlayTime, NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
@@ -198,27 +199,15 @@ export function unlockRequirementText(def: PlanetDef, state: GameState): string 
   return `解锁条件：${parts.length > 0 ? parts.join('，') : '已可解锁'}`
 }
 
-/** 渲染当前星球机制状态条 */
+/** 渲染当前星球机制状态条（规则与展示文本均来自 mechanics.ts 唯一真源） */
 export function renderPlanetMechanic(el: HTMLElement, state: GameState): void {
   const def = PLANETS[state.activePlanet]
   if (!def) {
     el.textContent = ''
     return
   }
-  const mech = MECHANICS[def.mechanicId] ?? MECHANICS.none
-  let status = ''
-  if (def.mechanicId === 'gravityWell') {
-    const stayMin = state.planetStaySeconds / 60
-    const mult = Math.max(0.5, 1 - stayMin * 0.02)
-    status = `驻留 ${stayMin.toFixed(1)} 分钟 · 产出系数 ${(mult * 100).toFixed(0)}%`
-  } else if (def.mechanicId === 'massProduction') {
-    const remain = Math.max(0, 5 * 60_000 - (Date.now() - state.lastStormHarvestAt))
-    status = `下次风暴收获 ${Math.ceil(remain / 1000)} 秒后`
-  } else if (def.mechanicId === 'warpCore') {
-    status = '时间流速 ×3'
-  } else if (def.mechanicId === 'orbitalForge') {
-    status = '矿物 30% → 科技点'
-  }
+  const mech = PLANET_MECHANICS[def.mechanicId] ?? PLANET_MECHANICS.none
+  const status = mech.describe(state)
   el.innerHTML = `<span class="mech-name">${escapeHtml(mech.name)}</span><span class="mech-desc">${escapeHtml(mech.desc)}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
 }
 

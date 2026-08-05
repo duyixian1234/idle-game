@@ -535,7 +535,7 @@ describe('engine: 星球系统', () => {
     expect(s.activePlanet).toBe('orbital')
   })
 
-  it('轨道工厂机制：30% 矿物产能转化为科技点', () => {
+  it('轨道工厂机制：15% 矿物产能转化为科技点', () => {
     const s = createInitialState(0)
     s.buildings.miner = 10 // 10 矿物/s
     const before = netProduction(s)
