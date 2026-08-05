@@ -23,7 +23,7 @@ import {
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
-  levelMultiplier,
+  simulateProductionDelta,
   techCost,
   techRequirementsMet,
   upgradeCost,
@@ -295,22 +295,42 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
   el.prepend(stack)
 }
 
-/** 升级预览：下一级每台各资源产出 当前 → 升级后 */
-export function upgradePreviewText(def: BuildingDef, level: number): string {
+/** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升 */
+function upgradePreviewText(state: GameState, def: BuildingDef): string {
+  const count = state.buildings[def.id] ?? 0
+  if (count <= 0) return ''
+  const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
+  // 每台当前真实净产出 = 再买一台的总增量（同一加成口径）
+  const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
   const parts: string[] = []
   for (const k of RESOURCE_KEYS) {
-    const unit = (def.produces[k] ?? 0)
-    if (unit <= 0) continue
-    const now = unit * levelMultiplier(level)
-    const next = unit * levelMultiplier(level + 1)
-    const delta = next - now
-    parts.push(`${RESOURCE_META[k].symbol} ${fmtRate(now)} → ${fmtRate(next)}/台（${delta >= 0 ? '+' : ''}${fmtRate(delta)}/台）`)
+    const total = up.delta[k]
+    if (total === 0) continue
+    const perNow = buy.delta[k]
+    const perNext = perNow + total / count
+    parts.push(`${RESOURCE_META[k].symbol} ${fmtRate(perNow)} → ${fmtRate(perNext)}/台（总 ${total > 0 ? '+' : ''}${fmtRate(total)}/s）`)
   }
-  return parts.join('，') || '无产出'
+  return parts.join('，') || '无产出变化'
+}
+
+/** 购买预览：购买 1 台后的真实产出提升（即每台净贡献，含能源消耗提示） */
+function buyPreviewText(state: GameState, def: BuildingDef): string {
+  const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
+  const parts: string[] = []
+  for (const k of RESOURCE_KEYS) {
+    const d = buy.delta[k]
+    if (d === 0) continue
+    parts.push(`${RESOURCE_META[k].symbol} ${d > 0 ? '+' : ''}${fmtRate(d)}/s`)
+  }
+  const consumes = (def.consumes && RESOURCE_KEYS.some((k) => (def.consumes![k] ?? 0) > 0))
+    ? ` · 耗 ${RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${fmtRate(def.consumes![k] ?? 0)}/s`).join(' ')}`
+    : ''
+  return `购买 1 台：${parts.join('，') || '无产出'}${consumes}`
 }
 
 function fmtRate(n: number): string {
-  const r = Math.round(n * 10) / 10
+  if (Math.abs(n) >= 100) return formatNumber(n)
+  const r = Math.round(n * 100) / 100
   return String(r)
 }
 
@@ -334,7 +354,6 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
           ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
-        ${count > 0 ? `<div class="build-upgrade-preview">升级预览：${upgradePreviewText(def, level)}</div>` : ''}
       </div>`
 
     if (!unlocked) {
@@ -355,6 +374,10 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     const upCost = upgradeCost(state, def.id)
     const canUp = canAffordUpgrade(state, def.id)
     item.innerHTML = `${info}
+      <div class="build-preview">
+        ${count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
+        <div class="build-buy-preview">${buyPreviewText(state, def)}</div>
+      </div>
       <div class="build-actions">
         <button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="建造">
           ${formatCost(buyCost)}

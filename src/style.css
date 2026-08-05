@@ -279,11 +279,22 @@ body {
   margin-top: 2px;
 }
 
-.build-upgrade-preview {
+.build-preview {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.build-upgrade-preview,
+.build-buy-preview {
   color: var(--tech);
   font-size: 12px;
   font-family: var(--font-mono);
-  margin-top: 4px;
+}
+
+.build-buy-preview {
+  color: var(--text-dim);
 }
 
 .build-btn {

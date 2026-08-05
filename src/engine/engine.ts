@@ -150,6 +150,44 @@ export function productionReport(state: GameState): ProductionReport {
   return { nominal, energyRatio }
 }
 
+export interface ProductionDelta {
+  /** 当前各资源真实净产出（含全部加成与能源折减） */
+  current: Record<ResourceKey, number>
+  /** 变更后的各资源真实净产出 */
+  after: Record<ResourceKey, number>
+  /** after - current */
+  delta: Record<ResourceKey, number>
+}
+
+/**
+ * 模拟建筑数量/等级变化后的真实产出差异。
+ * 复用 productionReport 全链路（数量 × 等级 × 科技 × 星球机制 × NG+，再按能源可得性折减），
+ * 不修改原 state、不扣除购买/升级成本（预览聚焦产出变化本身）。
+ * @param change.countDelta 数量变化（负值结果 clamp ≥0）
+ * @param change.levelDelta 等级变化（仅对已建造建筑有意义）
+ */
+export function simulateProductionDelta(
+  state: GameState,
+  change: { buildingId: string; countDelta?: number; levelDelta?: number },
+): ProductionDelta {
+  const current = productionReport(state).nominal
+  const sim: GameState = {
+    ...state,
+    buildings: { ...state.buildings },
+    upgrades: { ...state.upgrades },
+  }
+  if (change.countDelta) {
+    sim.buildings[change.buildingId] = Math.max(0, (sim.buildings[change.buildingId] ?? 0) + change.countDelta)
+  }
+  if (change.levelDelta) {
+    sim.upgrades[change.buildingId] = Math.max(0, (sim.upgrades[change.buildingId] ?? 0) + change.levelDelta)
+  }
+  const after = productionReport(sim).nominal
+  const delta = zeroResources()
+  for (const k of RESOURCE_KEYS) delta[k] = after[k] - current[k]
+  return { current, after, delta }
+}
+
 /** 各资源科技产出系数（已研发科技累乘） */
 export function productionMultipliers(state: GameState): Record<ResourceKey, number> {
   const m = { mineral: 1, energy: 1, tech: 1 }

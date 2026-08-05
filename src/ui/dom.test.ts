@@ -165,7 +165,7 @@ describe('ui: 布局与冒烟', () => {
     expect(text).toContain('科技点 500/2,000')
   })
 
-  it('建造面板展示升级预览（每台产出 当前→升级后）', () => {
+  it('建造面板展示升级预览（含全部加成的真实产出）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
@@ -173,9 +173,9 @@ describe('ui: 布局与冒烟', () => {
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
     expect(preview).toBeTruthy()
-    // 采矿机 1/s，0 级 → 1.5/s：每台 +0.5
-    expect(preview!.textContent).toContain('1 → 1.5/台')
-    expect(preview!.textContent).toContain('+0.5/台')
+    // 采矿机 1/s，0 级 → 1.5/s：每台 1 → 1.5，2 台总提升 +1/s
+    expect(preview!.textContent).toContain('◆ 1 → 1.5/台')
+    expect(preview!.textContent).toContain('总 +1/s')
   })
 
   it('升级后预览数值随等级变化（1 级 → 2 级 1.5→2/台）', () => {
@@ -186,14 +186,54 @@ describe('ui: 布局与冒烟', () => {
     s.upgrades.miner = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
-    expect(preview!.textContent).toContain('1.5 → 2/台')
+    expect(preview!.textContent).toContain('◆ 1.5 → 2/台')
+    expect(preview!.textContent).toContain('总 +0.5/s')
   })
 
-  it('未建造建筑不显示升级预览', () => {
+  it('升级预览含科技加成后的真实产出（行星钻探 矿物×1.5）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.researched.planetDrill = true
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
+    // 每台 1×1.5=1.5/s → 升级后 1.5×1.5=2.25/s；1 台总提升 +0.75/s
+    expect(preview!.textContent).toContain('◆ 1.5 → 2.25/台')
+    expect(preview!.textContent).toContain('总 +0.75/s')
+  })
+
+  it('未建造建筑不显示升级预览，但展示购买预览', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     expect(container.querySelector('[data-building="miner"] .build-upgrade-preview')).toBeNull()
+    const buy = container.querySelector<HTMLElement>('[data-building="miner"] .build-buy-preview')
+    expect(buy).toBeTruthy()
+    expect(buy!.textContent).toContain('购买 1 台：◆ +1/s')
+  })
+
+  it('购买预览包含能源消耗提示（精炼厂）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.solar = 1
+    s.buildings.refinery = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const buy = container.querySelector<HTMLElement>('[data-building="refinery"] .build-buy-preview')
+    // 能源充足（太阳能 1/s ≥ 需求 0.5/s）：每台 +3 矿物，提示额外耗能
+    expect(buy!.textContent).toContain('◆ +3/s')
+    expect(buy!.textContent).toContain('耗 ⚡0.5/s')
+  })
+
+  it('锁定建筑不显示购买预览（深层钻机未解锁科技）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const drill = container.querySelector<HTMLElement>('[data-building="deepDrill"]')
+    expect(drill!.classList.contains('locked')).toBe(true)
+    expect(drill!.querySelector('.build-buy-preview')).toBeNull()
   })
 })

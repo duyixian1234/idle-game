@@ -17,6 +17,7 @@ import {
   pushLog,
   researchTech,
   setActivePlanet,
+  simulateProductionDelta,
   techCost,
   techRequirementsMet,
   tick,
@@ -138,6 +139,83 @@ describe('engine: 建筑升级', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
     expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '资源不足' })
+  })
+})
+
+describe('engine: simulateProductionDelta（预览口径）', () => {
+  it('无加成：买 1 台 +1/s，升级 1 级 1 台 +0.5/s', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    expect(buy.delta.mineral).toBe(1)
+    const up = simulateProductionDelta(s, { buildingId: 'miner', levelDelta: 1 })
+    expect(up.delta.mineral).toBe(0.5)
+  })
+
+  it('多台升级总量线性：2 台 0 级升 1 级 +1/s', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 2
+    const up = simulateProductionDelta(s, { buildingId: 'miner', levelDelta: 1 })
+    expect(up.current.mineral).toBe(2)
+    expect(up.after.mineral).toBe(3)
+    expect(up.delta.mineral).toBe(1)
+  })
+
+  it('含科技加成：行星钻探 ×1.5 后买 1 台 +1.5/s', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.researched.planetDrill = true
+    const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    expect(buy.delta.mineral).toBe(1.5)
+  })
+
+  it('含 NG+ 永久加成：×1.15 后买 1 台 +1.15/s', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.permanentMult = 1.15
+    const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    expect(buy.delta.mineral).toBeCloseTo(1.15, 5)
+  })
+
+  it('含星球机制：曲率加速（母星）买 1 台 +3/s', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.planets.dawn.unlocked = true
+    setActivePlanet(s, 'dawn')
+    const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    expect(buy.delta.mineral).toBe(3)
+  })
+
+  it('含星球机制：轨道工厂将 30% 矿物转为科技点', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.planets.orbital.unlocked = true
+    setActivePlanet(s, 'orbital')
+    const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    expect(buy.delta.mineral).toBeCloseTo(0.7, 5)
+    expect(buy.delta.tech).toBeCloseTo(0.3, 5)
+  })
+
+  it('能源不足：买精炼厂不提升矿物产出（停产折减为 0）', () => {
+    const s = createInitialState(0)
+    s.buildings.refinery = 1
+    const buy = simulateProductionDelta(s, { buildingId: 'refinery', countDelta: 1 })
+    expect(buy.delta.mineral).toBe(0)
+  })
+
+  it('不修改原 state（预览为纯计算）', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
+    simulateProductionDelta(s, { buildingId: 'miner', levelDelta: 1 })
+    expect(s.buildings.miner).toBe(1)
+    expect(s.upgrades.miner).toBeUndefined()
+  })
+
+  it('负数量变化 clamp 到 0，产出无变化', () => {
+    const s = createInitialState(0)
+    const d = simulateProductionDelta(s, { buildingId: 'miner', countDelta: -1 })
+    expect(d.delta.mineral).toBe(0)
   })
 })
 
