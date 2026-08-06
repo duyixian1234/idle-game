@@ -162,6 +162,8 @@ export interface PlanetDef {
   unlock: PlanetUnlock
   /** 机制挂点：'none' 表示无机制；其余对应各星机制 id（08 落地） */
   mechanicId: MechanicId
+  /** 仅可由探索解锁（通关后派遣发现）；checkPlanetUnlocks/planetRequirementsMet 跳过 */
+  discoverOnly?: boolean
 }
 
 /** 星球定义表 */
@@ -378,10 +380,65 @@ export const CONQUESTS: Record<string, ConquestDef> = {
   },
 }
 
-// ---- 探索奖池（通关后派遣可发现；ticket 02 填充） ----
+// ---- 探索奖池（通关后派遣可发现） ----
 
 /** 探索势力池（通关后派遣可发现的新势力，探索发现即创建、参与联邦判定；与 FACTIONS 初始 4 家分离） */
-export const EXPLORE_FACTIONS: Record<string, FactionDef> = {}
+export const EXPLORE_FACTIONS: Record<string, FactionDef> = {
+  ashCommune: {
+    id: 'ashCommune',
+    name: '灰潮共同体',
+    desc: '在燃烧殆尽的星环残骸上重建文明的拾荒者联盟，交易价格格外灵活。',
+    initialFavor: 10,
+    initialThreat: 35,
+    tradeDiscount: 0.05,
+  },
+  ringOrder: {
+    id: 'ringOrder',
+    name: '星环修道会',
+    desc: '隐居于巨行星环带中的苦修者教团，不问世事，只观测星海。',
+    initialFavor: 15,
+    initialThreat: 25,
+  },
+  obsidianPact: {
+    id: 'obsidianPact',
+    name: '黑曜协议',
+    desc: '崇拜力量与掠夺的军事同盟，领地边缘永远徘徊着巡洋舰的阴影。',
+    initialFavor: 5,
+    initialThreat: 55,
+  },
+  nodeIntellect: {
+    id: 'nodeIntellect',
+    name: '节点智械',
+    desc: '由废弃旧联邦服务器群觉醒的集体智能，愿意用知识换取友谊。',
+    initialFavor: 10,
+    initialThreat: 40,
+    techShareCostMult: 0.5,
+  },
+}
 
 /** 探索天体池（通关后派遣可发现的新天体，discoverOnly：只能由探索解锁） */
-export const EXPLORE_PLANETS: Record<string, PlanetDef> = {}
+export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
+  logistics: {
+    id: 'logistics',
+    name: '星际物流港·枢纽',
+    desc: '横跨多条航道的自动化物流枢纽：科技点可折算能源，精炼厂能源缺口被科技盈余填平。',
+    unlock: { resources: {} },
+    mechanicId: 'logisticsHub',
+    discoverOnly: true,
+  },
+  outpost: {
+    id: 'outpost',
+    name: '殖民前哨·拓荒',
+    desc: '资源丰饶的前哨星球：矿物产出 +25%，但重型冶炼更耗能源。',
+    unlock: { resources: {} },
+    mechanicId: 'outpost',
+    discoverOnly: true,
+  },
+}
+
+/**
+ * 全部派系（初始 4 家 + 探索可发现 4 家）：
+ * 判定/成本/行动统一从这里取 def——探索势力发现后自动纳入外交与联邦体系。
+ * ⚠️ createFactions（初始状态）必须只用 FACTIONS：探索势力由派遣发现时运行时创建。
+ */
+export const ALL_FACTIONS: Record<string, FactionDef> = { ...FACTIONS, ...EXPLORE_FACTIONS }

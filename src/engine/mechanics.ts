@@ -1,5 +1,5 @@
 import { RESOURCE_KEYS } from './data'
-import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS } from './balance'
+import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS, LOGISTICS_TECH_ENERGY_RATIO, OUTPOST_MINERAL_MULT, OUTPOST_ENERGY_MULT } from './balance'
 import type { GameState, MechanicId, ResourceKey } from './types'
 
 /**
@@ -21,6 +21,12 @@ export interface PlanetMechanic {
   describe(state: GameState, nowMs?: number): string
   /** 周期副作用（如风暴收获），返回日志文本供引擎写入；无收获返回 null */
   harvest?(state: GameState, nowMs: number, techProd: number): string | null
+  /**
+   * 能源结算修正（只影响 productionReport 的能源缺口折减，不改变名义产出）：
+   * - poolBonus：能源可得池加成（物流港：科技点折算能源，科技盈余填平精炼厂缺口）
+   * - demandMult：能源需求倍率（殖民前哨：消费侧 ×1.2，更吃能源的取舍）
+   */
+  energyAdjust?(state: GameState): { poolBonus: number; demandMult: number }
 }
 
 /** 无机制：标准产出行星 */
@@ -117,6 +123,36 @@ const warpCore: PlanetMechanic = {
   },
 }
 
+/** 星际物流港·枢纽：科技点折算能源（每 1 科技点顶 LOGISTICS_TECH_ENERGY_RATIO 能源缺口） */
+const logisticsHub: PlanetMechanic = {
+  name: '物流枢纽',
+  desc: '科技点折算能源：科技盈余可填平精炼厂等建筑的能源缺口，能源不足打折幅度降低。',
+  apply() {
+    /* 产出无直接修正（折算作用于能源结算，见 energyAdjust） */
+  },
+  describe() {
+    return `科技点 → 能源 1:${1 / LOGISTICS_TECH_ENERGY_RATIO}`
+  },
+  energyAdjust(state) {
+    return { poolBonus: Math.max(0, state.resources.tech) * LOGISTICS_TECH_ENERGY_RATIO, demandMult: 1 }
+  },
+}
+
+/** 殖民前哨·拓荒：矿物产出 ×1.25，能源需求 ×1.2（矿多但更吃能源的取舍） */
+const outpost: PlanetMechanic = {
+  name: '殖民拓荒',
+  desc: '矿物产出 +25%，但重型冶炼消耗更多能源（能源需求 ×1.2）。',
+  apply(_state, nominal) {
+    nominal.mineral *= OUTPOST_MINERAL_MULT
+  },
+  describe() {
+    return `矿物 ×${OUTPOST_MINERAL_MULT} · 能耗 ×${OUTPOST_ENERGY_MULT}`
+  },
+  energyAdjust() {
+    return { poolBonus: 0, demandMult: OUTPOST_ENERGY_MULT }
+  },
+}
+
 /** 机制表：mechanicId → 机制实现（引擎与 UI 共用） */
 export const PLANET_MECHANICS: Record<MechanicId, PlanetMechanic> = {
   none,
@@ -124,4 +160,6 @@ export const PLANET_MECHANICS: Record<MechanicId, PlanetMechanic> = {
   gravityWell,
   massProduction,
   warpCore,
+  logisticsHub,
+  outpost,
 }

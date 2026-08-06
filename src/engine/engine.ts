@@ -1,6 +1,7 @@
 import {
   BUILDINGS,
   CONQUESTS,
+  EXPLORE_PLANETS,
   FACTIONS,
   PLANETS,
   RESOURCE_KEYS,
@@ -379,6 +380,8 @@ export function isPlanetUnlocked(state: GameState, id: string): boolean {
 export function planetRequirementsMet(state: GameState, id: string): boolean {
   const def = PLANETS[id]
   if (!def) return false
+  // discoverOnly 天体只能由探索解锁，不响应常规解锁条件
+  if (def.discoverOnly) return false
   const req = def.unlock.resources
   for (const k of RESOURCE_KEYS) {
     if ((req[k] ?? 0) > 0 && state.resources[k] < (req[k] ?? 0)) return false
@@ -395,6 +398,7 @@ export function checkPlanetUnlocks(state: GameState): string[] {
   const unlockedNow: string[] = []
   for (const def of Object.values(PLANETS)) {
     if (state.planets[def.id]?.unlocked) continue
+    if (def.discoverOnly) continue
     if (!planetRequirementsMet(state, def.id)) continue
     state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
     unlockedNow.push(def.id)
@@ -410,9 +414,10 @@ export function checkPlanetUnlocks(state: GameState): string[] {
   return unlockedNow
 }
 
-/** 切换当前星球（仅已解锁星球），切换后重置停留时长 */
+/** 切换当前星球（仅已解锁星球），切换后重置停留时长。
+ * discoverOnly 探索天体也接受（发现解锁后即可切换，见 EXPLORE_PLANETS）。 */
 export function setActivePlanet(state: GameState, id: string): ActionResult {
-  if (!PLANETS[id]) return { ok: false, reason: '未知星球' }
+  if (!PLANETS[id] && !EXPLORE_PLANETS[id]) return { ok: false, reason: '未知星球' }
   if (!state.planets[id]?.unlocked) return { ok: false, reason: '该星球尚未解锁' }
   if (state.activePlanet === id) return { ok: false, reason: '已在该星球' }
   state.activePlanet = id

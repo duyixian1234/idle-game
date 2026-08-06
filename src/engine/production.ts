@@ -1,4 +1,4 @@
-import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
+import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import type { TechEffectProduction } from './data'
 import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
@@ -156,19 +156,29 @@ export function techMultiplier(effect: TechEffectProduction, level: number): num
 
 /**
  * 计算能源可得比例：
- * 可用能源池 = 本期名义能源产出 + 当前能源余额（一次性可用，dt 内恒定）；
+ * 可用能源池 = 本期名义能源产出 + 当前能源余额（一次性可用，dt 内恒定）+ 机制池加成（物流港科技折算）；
+ * 需求 = 建筑能源消耗 × 机制需求倍率（殖民前哨 ×1.2）；
  * ratio = clamp(可用/需求, 0, 1)，需求为 0 时恒为 1。
  */
 function settleEnergyRatio(state: GameState, energyProd: number, energyDemand: number): number {
   if (energyDemand <= 0) return 1
-  const pool = Math.max(0, energyProd) + Math.max(0, state.resources.energy)
+  const def = activePlanetDef(state)
+  const mech = PLANET_MECHANICS[def?.mechanicId ?? 'none']
+  const adj = mech?.energyAdjust?.(state) ?? { poolBonus: 0, demandMult: 1 }
+  const demand = energyDemand * adj.demandMult
+  const pool = Math.max(0, energyProd) + Math.max(0, state.resources.energy) + adj.poolBonus
   if (pool <= 0) return 0
-  return Math.min(1, pool / energyDemand)
+  return Math.min(1, pool / demand)
+}
+
+/** 当前星球定义（PLANETS 或探索天体 EXPLORE_PLANETS——discoverOnly 天体机制同样生效） */
+function activePlanetDef(state: GameState): (typeof PLANETS)[string] | undefined {
+  return PLANETS[state.activePlanet] ?? EXPLORE_PLANETS[state.activePlanet]
 }
 
 /** 当前星球机制对名义产出的修正（规则集中在 mechanics.ts，唯一真源） */
 function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, number>): void {
-  const def = PLANETS[state.activePlanet]
+  const def = activePlanetDef(state)
   if (!def) return
   PLANET_MECHANICS[def.mechanicId].apply(state, nominal)
 }

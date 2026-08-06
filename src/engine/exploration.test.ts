@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, enterInfiniteMode, tick } from './engine'
+import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, setActivePlanet, tick } from './engine'
 import { expeditionCost, expeditionPool, isExploreAvailable, settleExpeditions, startExpedition } from './exploration'
 import { settleOffline } from './offline'
-import { EXPEDITION_DURATION_MS } from './balance'
+import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
+import { EXPEDITION_DURATION_MS, OUTPOST_ENERGY_MULT, OUTPOST_MINERAL_MULT } from './balance'
+import { productionReport } from './production'
 import type { ExpeditionState, GameState } from './types'
 
 /** 通关后状态：phase=ended、足量资源、足够兵力 */
@@ -157,25 +159,65 @@ describe('engine: 派遣结算（自动入账）', () => {
     expect(s.expeditions).toHaveLength(0)
   })
 
-  it('防御：池未定义时 faction 结果走「重新建立联系」分支（不崩）', () => {
+  it('faction 分支：发现 → 运行时创建派系（favor/threat 取 def 初值）+ 记录进度', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition({ result: { kind: 'faction', factionId: 'ashCommune' } }))
     const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
     expect(logs).toHaveLength(1)
-    expect(logs[0].text).toContain('重新建立与')
+    expect(logs[0].text).toContain('发现「灰潮共同体」')
+    expect(s.factions.ashCommune).toMatchObject({ favor: 10, threat: 35, allied: false, tradeCount: 0 })
+    expect(s.exploredFactions).toEqual(['ashCommune'])
     expect(s.stats.explorations).toBe(1)
+  })
+
+  it('planet 分支：发现 → 解锁天体（unlockedAt）+ 记录进度', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'logistics' } }))
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(logs).toHaveLength(1)
+    expect(logs[0].text).toContain('发现更佳的发展天体')
+    expect(s.planets.logistics).toEqual({ unlocked: true, unlockedAt: EXPEDITION_DURATION_MS })
+    expect(s.exploredPlanets).toEqual(['logistics'])
+    expect(s.stats.explorations).toBe(1)
+  })
+
+  it('重复发现已收录派系/天体：走确认分支不重复创建（幂等）', () => {
+    const s = endedState()
+    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35 })
+    s.exploredFactions = ['ashCommune']
+    s.expeditions.push(fakeExpedition({ result: { kind: 'faction', factionId: 'ashCommune' } }))
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(logs[0].text).toContain('重新建立与')
+    expect(Object.keys(s.factions)).toHaveLength(5) // 未新增
   })
 })
 
 describe('engine: 奖池（剔除制 + 权重）', () => {
-  it('空池（ticket 02 前）：候选只剩资源补偿，权重随已收集数变化', () => {
+  it('完整池：4 势力 w2 + 2 天体 w1 + 补偿 w6，剔除后重归一化', () => {
     const s = endedState()
-    expect(expeditionPool(s)).toEqual([{ kind: 'resource', weight: 6 }])
-    s.exploredFactions = ['a', 'b']
-    s.exploredPlanets = ['x']
-    expect(expeditionPool(s)).toEqual([{ kind: 'resource', weight: 3 }])
-    // 收集 4+ 后补偿权重封底 2
-    s.exploredFactions = ['a', 'b', 'c', 'd']
+    const pool = expeditionPool(s)
+    expect(pool).toHaveLength(7)
+    expect(pool.filter((e) => e.kind === 'faction')).toHaveLength(4)
+    expect(pool.filter((e) => e.kind === 'planet')).toHaveLength(2)
+    expect(pool.find((e) => e.kind === 'resource')?.weight).toBe(6)
+  })
+
+  it('剔除制：已发现势力/天体不再出现在候选', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder']
+    s.exploredPlanets = ['logistics']
+    const pool = expeditionPool(s)
+    expect(pool.filter((e) => e.id === 'ashCommune')).toHaveLength(0)
+    expect(pool.filter((e) => e.kind === 'faction')).toHaveLength(2)
+    expect(pool.filter((e) => e.kind === 'planet')).toHaveLength(1)
+    // 收集 3 个 → 补偿权重 = max(2, 6-3) = 3
+    expect(pool.find((e) => e.kind === 'resource')?.weight).toBe(3)
+  })
+
+  it('耗尽后：候选只剩资源补偿（w2），无收集品', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost']
     expect(expeditionPool(s)).toEqual([{ kind: 'resource', weight: 2 }])
   })
 })
@@ -208,5 +250,118 @@ describe('engine: 离线推进', () => {
     expect(s.phase).toBe('infinite')
     const r = startExpedition(s, 0)
     expect(r.ok).toBe(true)
+  })
+})
+
+describe('engine: 探索发现物（势力/天体）接入体系', () => {
+  it('联邦判定：发现新势力后已统一的联邦变回未统一；全部纳入后恢复统一', () => {
+    const s = endedState()
+    for (const id of Object.keys(s.factions)) s.factions[id].favor = 100
+    expect(isFederationUnified(s)).toBe(true)
+    expect(s.factions.ashCommune).toBeUndefined()
+    // 发现黑曜协议（favor 5）→ 联邦重新未统一（total 4→5）
+    s.factions.obsidianPact = createFactionState({ id: 'obsidianPact', name: '黑曜协议', desc: '', initialFavor: 5, initialThreat: 55 })
+    expect(isFederationUnified(s)).toBe(false)
+    // 全部纳入（favor 100）→ 恢复统一
+    s.factions.obsidianPact.favor = 100
+    expect(isFederationUnified(s)).toBe(true)
+  })
+
+  it('外交差异：灰潮共同体贸易再 -5%（与声望折扣乘法叠加）；其余势力不受影响', () => {
+    const s = endedState()
+    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35, tradeDiscount: 0.05 })
+    const base = tradeCost(s, 'ferro').mineral
+    const commune = tradeCost(s, 'ashCommune').mineral
+    expect(commune).toBe(Math.floor(base * (1 - 0.05)))
+    // 无 tradeDiscount 的探索势力与初始派系同价
+    s.factions.ringOrder = createFactionState({ id: 'ringOrder', name: '星环修道会', desc: '', initialFavor: 15, initialThreat: 25 })
+    expect(tradeCost(s, 'ringOrder').mineral).toBe(base)
+  })
+
+  it('外交差异：节点智械技术共享半价；其余势力全价', () => {
+    const s = endedState()
+    s.resources.tech = 100_000
+    s.factions.nodeIntellect = createFactionState({ id: 'nodeIntellect', name: '节点智械', desc: '', initialFavor: 10, initialThreat: 40, techShareCostMult: 0.5 })
+    expect(techShareCost('nodeIntellect').tech).toBe(10_000)
+    expect(techShareCost('ferro').tech).toBe(20_000)
+    const before = s.factions.nodeIntellect.favor
+    factionTechShare(s, 'nodeIntellect')
+    expect(s.resources.tech).toBe(100_000 - 10_000)
+    expect(s.factions.nodeIntellect.favor).toBe(before + 15)
+  })
+
+  it('探索发现天体可切 activePlanet（setActivePlanet 接受 discoverOnly 星球）', () => {
+    const s = endedState()
+    s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
+    const r = setActivePlanet(s, 'logistics')
+    expect(r.ok).toBe(true)
+    expect(s.activePlanet).toBe('logistics')
+  })
+
+  it('discoverOnly：不被 checkPlanetUnlocks 自动解锁（即使资源满足）', () => {
+    const s = endedState()
+    checkPlanetUnlocks(s)
+    expect(s.planets.logistics?.unlocked).toBeUndefined()
+    expect(s.planets.outpost?.unlocked).toBeUndefined()
+    // 探索解锁后可用
+    s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'outpost' } }))
+    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(s.planets.outpost?.unlocked).toBe(true)
+  })
+})
+
+describe('engine: 探索天体机制', () => {
+  /** 生产档：refinery 台数与 solar 台数可配（solar 少 → 能源缺口场景） */
+  function prodState(refineries: number, solars: number, tech?: Record<string, number>): GameState {
+    const s = endedState()
+    s.buildings.refinery = refineries
+    s.buildings.solar = solars
+    s.resources.energy = 0
+    if (tech) s.techLevels = { ...tech }
+    return s
+  }
+
+  it('logisticsHub：科技点折算能源，缺口场景 energyRatio 提升', () => {
+    // 缺口档：10 精炼厂（需求 5/s）vs 1 太阳能（产出 1/s）→ 无科技 ratio = 1/5 = 0.2
+    const base = productionReport(prodState(10, 1)).energyRatio
+    expect(base).toBeCloseTo(0.2, 6)
+    // 切物流港但无科技盈余 → 折算 0，ratio 不变
+    const noTech = prodState(10, 1)
+    noTech.planets.logistics = { unlocked: true, unlockedAt: 1000 }
+    noTech.activePlanet = 'logistics'
+    noTech.resources.tech = 0 // endedState 自带 100 万科技点，需显式清零测"无盈余"基线
+    expect(productionReport(noTech).energyRatio).toBeCloseTo(base, 6)
+    // 有 10 万科技盈余 → 池加成 5 万，ratio 拉满到 1
+    noTech.resources.tech = 100_000
+    expect(productionReport(noTech).energyRatio).toBe(1)
+  })
+
+  it('outpost：矿物 ×1.25（能源充足档），ratio 不变', () => {
+    const base = productionReport(prodState(10, 20)) // 20 太阳能 → 充足
+    expect(base.energyRatio).toBe(1)
+    const s = prodState(10, 20)
+    s.planets.outpost = { unlocked: true, unlockedAt: 1000 }
+    s.activePlanet = 'outpost'
+    const out = productionReport(s)
+    expect(out.energyRatio).toBe(1) // 需求 ×1.2 后仍充足
+    expect(out.nominal.mineral).toBeCloseTo(base.nominal.mineral * OUTPOST_MINERAL_MULT, 6)
+  })
+
+  it('outpost：能源缺口场景需求 ×1.2 → ratio 下降', () => {
+    const base = productionReport(prodState(10, 1))
+    expect(base.energyRatio).toBeCloseTo(0.2, 6)
+    const s = prodState(10, 1)
+    s.planets.outpost = { unlocked: true, unlockedAt: 1000 }
+    s.activePlanet = 'outpost'
+    const out = productionReport(s)
+    expect(out.energyRatio).toBeCloseTo(1 / (5 * OUTPOST_ENERGY_MULT), 6) // 1 / 6
+  })
+
+  it('outpost 机制独立于科技加成（×1.25 在科技乘数之上）', () => {
+    const s = prodState(10, 20, { planetDrill: 1 })
+    s.planets.outpost = { unlocked: true, unlockedAt: 1000 }
+    s.activePlanet = 'outpost'
+    // 10 精炼厂 × 3/s × 科技 1.5 × 前哨 1.25 = 56.25
+    expect(productionReport(s).nominal.mineral).toBeCloseTo(10 * 3 * 1.5 * OUTPOST_MINERAL_MULT, 6)
   })
 })

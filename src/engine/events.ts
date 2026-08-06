@@ -1,5 +1,5 @@
 import type { EventInstance, GameState, ResourceKey } from './types'
-import { FACTIONS } from './data'
+import { ALL_FACTIONS, FACTIONS } from './data'
 import {
   MEAN_EVENT_GAP_SECONDS,
   RAID_BUYOFF_FAVOR_GAIN,
@@ -48,18 +48,19 @@ export interface EventOutcome {
   changed: boolean
 }
 
-/** 当前威胁度最高的可骚扰派系（threat ≥ 当前骚扰阈值且未结盟；阈值随声望上移，硬上限 65）；无则 null */
+/** 当前威胁度最高的可骚扰派系（threat ≥ 当前骚扰阈值且未结盟；阈值随声望上移，硬上限 65）；无则 null。
+ * 遍历 ALL_FACTIONS（初始 + 探索发现，如高威胁的黑曜协议也是天然 raid 源）。 */
 export function raidableFaction(state: GameState): { id: string; name: string; threat: number } | null {
   const threshold = raidThreshold(state)
   let best: { id: string; threat: number } | null = null
-  for (const def of Object.values(FACTIONS)) {
+  for (const def of Object.values(ALL_FACTIONS)) {
     const f = state.factions[def.id]
     if (!f || f.allied) continue
     if (f.threat < threshold) continue
     if (!best || f.threat > best.threat) best = { id: def.id, threat: f.threat }
   }
   if (!best) return null
-  return { id: best.id, name: FACTIONS[best.id]?.name ?? best.id, threat: best.threat }
+  return { id: best.id, name: ALL_FACTIONS[best.id]?.name ?? best.id, threat: best.threat }
 }
 
 /**
@@ -308,7 +309,7 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
   const raidCount = Math.floor(durationSeconds / RAID_GAP_SECONDS)
   if (raidCount <= 0) return { logs, repelled: 0, mineralLost: 0, energyLost: 0 }
 
-  for (const def of Object.values(FACTIONS)) {
+  for (const def of Object.values(ALL_FACTIONS)) {
     const f = state.factions[def.id]
     if (!f || f.allied || f.threat < raidThreshold(state)) continue
     const terms = raidTerms(state, def.id)

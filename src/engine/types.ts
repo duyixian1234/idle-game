@@ -2,7 +2,7 @@
 export type ResourceKey = 'mineral' | 'energy' | 'tech' | 'military'
 
 /** 星球机制 id（与 PLANETS.mechanicId / PLANET_MECHANICS 联动） */
-export type MechanicId = 'none' | 'orbitalForge' | 'gravityWell' | 'massProduction' | 'warpCore'
+export type MechanicId = 'none' | 'orbitalForge' | 'gravityWell' | 'massProduction' | 'warpCore' | 'logisticsHub' | 'outpost'
 
 /** 日志消息类型（视觉区分） */
 export type LogType = 'system' | 'story' | 'event' | 'reward' | 'warning'
