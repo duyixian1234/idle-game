@@ -267,7 +267,7 @@ describe('ui: 布局与冒烟', () => {
     const s = createInitialState(0)
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const drill = container.querySelector<HTMLElement>('[data-building="deepDrill"]')
-    expect(drill!.classList.contains('locked')).toBe(true)
+    expect(drill!.hasAttribute('data-locked')).toBe(true)
     expect(drill!.querySelector('.build-buy-preview')).toBeNull()
   })
 })
@@ -1160,7 +1160,7 @@ describe('ui: 建造卡片（building-cards）', () => {
     const s = createInitialState(0)
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS)
     const drill = container.querySelector<HTMLElement>('[data-building="deepDrill"]')
-    expect(drill!.classList.contains('locked')).toBe(true)
+    expect(drill!.hasAttribute('data-locked')).toBe(true)
     expect(drill!.textContent).toContain('深层钻探')
     expect(drill!.querySelector('.build-buy-preview')).toBeNull()
     expect(drill!.querySelector('.build-actions')).toBeNull()
@@ -1187,7 +1187,7 @@ describe('ui: 建造卡片（building-cards）', () => {
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded: {} })
     // 民用区初始仅 refinery/deepDrill 锁定（lab 无前置、miner/solar 永开）→ 2 张，无折叠行
     expect(container.querySelector('[data-locked-collapse]')).toBeNull()
-    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(2)
   })
 
   it('锁定卡折叠：>3 张只展示前 3 + 折叠行；展开后全显；收起回到折叠', () => {
@@ -1202,10 +1202,10 @@ describe('ui: 建造卡片（building-cards）', () => {
     expect(collapse).toBeTruthy()
     expect(collapse!.textContent).toContain('还有 2 项未解锁')
     expect(collapse!.getAttribute('data-expanded')).toBe('false')
-    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(3)
+    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(3)
     // 展开态：全显 + 收起行
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: { interstellar: true } })
-    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(5)
+    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(5)
     const expanded = container.querySelector<HTMLElement>('[data-locked-collapse]')
     expect(expanded!.textContent).toContain('收起锁定项')
     expect(expanded!.getAttribute('data-expanded')).toBe('true')
@@ -1217,7 +1217,7 @@ describe('ui: 建造卡片（building-cards）', () => {
     const s = createInitialState(0)
     renderBuildPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s, MILITARY_BUILDINGS)
     expect(container.querySelector('[data-locked-collapse]')).toBeNull()
-    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(2)
   })
 
   it('军事面板卡片化：兵营/军港走卡片组件，攻占列表/军械科技区行式不受影响', () => {

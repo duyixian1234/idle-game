@@ -113,7 +113,7 @@ async function openSector(page: Page, save: Record<string, unknown>): Promise<vo
 
 /** 读取资源条数值（formatNumber 千分位逗号 → 纯数字） */
 async function readResource(page: Page, key: string): Promise<number> {
-  const text = await page.locator(`[data-resource="${key}"] .res-value`).textContent()
+  const text = await page.locator(`[data-resource="${key}"] [data-res-value]`).textContent()
   return Number((text ?? '0').replace(/,/g, ''))
 }
 
@@ -123,17 +123,17 @@ test('卡片主体点击建造×1：资源扣减 + 徽标变化 + 日志（miner
   save.buildings = {}
   await openSector(page, save)
 
-  // 卡片契约：data-build-card 存在、图标 use 引用 sprite
+  // 卡片契约：data-build-card 存在、图标 use 引用 sprite、未建徽标 ×0
   const card = page.locator('[data-build-card="miner"]')
   await expect(card).toBeVisible()
   await expect(card.locator('use')).toHaveAttribute('href', '#ic-miner')
-  await expect(card.locator('.build-count')).toContainText('×0')
+  await expect(card).toContainText('×0')
 
   const mineralBefore = await readResource(page, 'mineral')
-  // 点击卡片主体（非按钮区：名称/描述区域）
-  await card.locator('.build-name').click()
+  // 点击卡片主体（data-build-card 挂卡片根节点，几何中心落在信息区非按钮区）
+  await card.click()
   await expect(page.locator('[data-log]')).toContainText('建造了 采矿机')
-  await expect(card.locator('.build-count')).toContainText('×1')
+  await expect(card).toContainText('×1')
   const mineralAfter = await readResource(page, 'mineral')
   expect(mineralBefore - mineralAfter).toBeGreaterThanOrEqual(10)
 })
@@ -149,7 +149,7 @@ test('卡片主体点击升级×1：已建建筑升级（资源扣减 + Lv 徽�
   await expect(card.locator('[data-upgrade="miner"]')).toBeVisible()
 
   const mineralBefore = await readResource(page, 'mineral')
-  await card.locator('.build-name').click()
+  await card.click()
   await expect(page.locator('[data-log]')).toContainText('采矿机 升级至 Lv.1')
   await expect(card).toContainText('Lv.1')
   const mineralAfter = await readResource(page, 'mineral')
@@ -170,7 +170,7 @@ test('megastructure 卡片点击 → 终局抉择确认弹窗（infinite 档无�
   const card = page.locator('[data-build-card="ringSmelter"]')
   await expect(card).toBeVisible()
   // 未建终局抉择建筑：点击卡片主体 → 弹确认弹窗（不直接建造，互斥知情决策）
-  await card.locator('.build-name').click()
+  await card.click()
   await expect(page.locator('[data-overlay="megastructure"]')).toBeVisible()
   await expect(page.locator('[data-megastructure-modal]')).toContainText('终局抉择')
   await expect(page.locator('[data-megastructure-confirm="ringSmelter"]')).toBeVisible()
@@ -192,16 +192,16 @@ test('锁定卡折叠：>3 张折叠行 → 点击展开全显 → 再点收起�
   const collapse = section.locator('[data-locked-collapse]')
   await expect(collapse).toBeVisible()
   await expect(collapse).toContainText('还有 2 项未解锁')
-  await expect(section.locator('[data-build-card].locked')).toHaveCount(3)
+  await expect(section.locator('[data-build-card][data-locked]')).toHaveCount(3)
 
   // 展开：全显（5 张锁定卡）
   await collapse.click()
-  await expect(section.locator('[data-build-card].locked')).toHaveCount(5)
+  await expect(section.locator('[data-build-card][data-locked]')).toHaveCount(5)
   await expect(section.locator('[data-locked-collapse]')).toContainText('收起锁定项')
 
   // 再点收起：回折叠态
   await section.locator('[data-locked-collapse]').click()
-  await expect(section.locator('[data-build-card].locked')).toHaveCount(3)
+  await expect(section.locator('[data-build-card][data-locked]')).toHaveCount(3)
   await expect(section.locator('[data-locked-collapse]')).toContainText('还有 2 项未解锁')
 })
 
@@ -265,8 +265,8 @@ test.describe('移动端网格单列审计（复用 mobile.spec 审计模式）'
           }
         }
       }
-      // 网格列数（≤480px 单列铁律）
-      const grid = document.querySelector('.build-grid')
+      // 网格列数（≤480px 单列铁律；data-build-grid 语义化容器引用）
+      const grid = document.querySelector('[data-build-grid]')
       const cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0
       return { issues, cols }
     })

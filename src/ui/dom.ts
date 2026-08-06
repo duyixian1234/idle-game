@@ -376,7 +376,7 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
     const valueText = key === 'military' ? `${formatNumber(value)}/${formatNumber(militaryCap(state))}` : formatNumber(value)
     item.innerHTML = `<span class="res-symbol">${meta.symbol}</span>
       <span class="res-name">${meta.name}</span>
-      <span class="res-value">${valueText}</span>
+      <span class="res-value" data-res-value>${valueText}</span>
       <span class="res-rate">${rateText}</span>`
     el.appendChild(item)
   }
@@ -573,6 +573,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
 
   const grid = document.createElement('div')
   grid.className = 'build-grid'
+  grid.setAttribute('data-build-grid', '')
   for (const def of unlockedDefs) {
     grid.appendChild(renderBuildingCard(state, def, opts.flashId ?? null))
   }
@@ -661,13 +662,14 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   return card
 }
 
-/** 未解锁建造项卡片（灰化图标 + 解锁条件；点击无副作用由委托判定） */
+/** 未解锁建造项卡片（灰化图标 + 解锁条件；data-locked 语义化标记，点击无副作用由委托判定） */
 function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
   const unique = def.unique === true
   const card = document.createElement('div')
   card.className = 'build-card locked'
   card.setAttribute('data-building', def.id)
   card.setAttribute('data-build-card', def.id)
+  card.setAttribute('data-locked', '')
   if (unique) card.setAttribute('data-unique', '')
   // 锁定原因优先取引擎判定（通关/星球/满级科技/互斥/链式前置），缺省回退 requires 拼接
   const lockReason = buildingLockReason(state, def.id)
@@ -1018,12 +1020,12 @@ function renderArmsTech(el: HTMLElement, state: GameState, defs: TechDef[]): voi
 }
 
 /** 渲染军事面板（三段式）：军事建筑 / 攻占列表（含肃清进度）/ 军械科技 */
-export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
+export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
-  // 段 1：军事建筑（兵营/军港，含升级与 buy-max）
+  // 段 1：军事建筑（兵营/军港，含升级与 buy-max；卡片化，与民用同构；军事 tab 不启用锁定卡折叠）
   const buildSection = document.createElement('div')
   buildSection.className = 'military-section'
-  renderBuildPanel(buildSection, state, MILITARY_BUILDINGS)
+  renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)
   el.appendChild(buildSection)
   // 段 2：攻占列表（肃清进度 x/4）
   const conquestSection = document.createElement('div')

@@ -71,6 +71,11 @@ async function main(): Promise<void> {
   // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
   let justUpgradedId: string | null = null
   let justUpgradedUntil = 0
+  /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */
+  function flashUpgrade(id: string): void {
+    justUpgradedId = id
+    justUpgradedUntil = Date.now() + 1200
+  }
 
   // 本周目解锁成就数（unlockedInRound === 当前周目；声望同一口径，见 reputation.ts）
   function unlockedAchievementsThisRound(s: GameState): number {
@@ -121,7 +126,7 @@ async function main(): Promise<void> {
     renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
-    renderMilitaryPanel(panels['military'], state)
+    renderMilitaryPanel(panels['military'], state, { flashId })
     // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位）/ 设置（五组）
     renderArchivePanel(els.navPages.archive, state)
     renderExplorePage(els.navPages.explore, state)
@@ -573,10 +578,7 @@ async function main(): Promise<void> {
         }
       }
       // 单次升级（data-upgrade）：卡片短暂高亮（按钮 disabled 时不发 click，此处安全）
-      if (actionId === 'upgrade') {
-        justUpgradedId = String(payload)
-        justUpgradedUntil = Date.now() + 1200
-      }
+      if (actionId === 'upgrade') flashUpgrade(String(payload))
       dispatch(state, actionId, payload, deps)
       return
     }
@@ -640,10 +642,7 @@ async function main(): Promise<void> {
         openMegastructureModal(id)
         return
       }
-      if (act.kind === 'upgrade') {
-        justUpgradedId = id
-        justUpgradedUntil = Date.now() + 1200
-      }
+      if (act.kind === 'upgrade') flashUpgrade(id)
       dispatch(state, act.kind, id, deps)
       return
     }
