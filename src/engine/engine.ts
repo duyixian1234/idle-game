@@ -15,6 +15,7 @@ import { settleConquests } from './conquest'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
 import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
+import { checkAchievements } from './achievements'
 import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
@@ -329,6 +330,8 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   }
   // 结局判定
   checkEnding(state)
+  // 成就检查（放在结局判定后：federation 成就依赖 endingTriggered）
+  checkAchievements(state, nowMs)
   // 清理超时未处理的事件实例
   pruneStaleEvents(state, nowMs)
   return state
@@ -458,6 +461,11 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.buildings = {}
   state.upgrades = {}
   state.techLevels = {}
+
+  // 周目内统计重置（成就条件全部周目内口径：二周目重新积累声望）；
+  // achievements 图鉴保留（跨周目永久记录），unlockedInRound 不匹配 → 声望自动归零
+  state.stats = { totalMineralEarned: 0 }
+  state.playSeconds = 0
 
   // 星球重置为起点；派系好感重置（图鉴派系加成）
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}

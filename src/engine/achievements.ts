@@ -25,6 +25,13 @@ export interface AchievementDef {
   rewardTech?: number
   /** 声望点数（2-8，达成即得；总计略超 100 留容错，封顶在 reputation.ts） */
   rep: number
+  /**
+   * 是否周目内可重解锁（NG+ 重新积累）：
+   * - true（缺省）：unlockedInRound 不匹配时条件再满足 → 重解锁 + 重发奖励（收集类/联邦/周目成就）
+   * - false：一旦解锁永久（图鉴即终点）——storyFlags 驱动的叙事类（storyFlags 跨周目保留，
+   *   若可重解锁会令二周目开局白拿全部叙事成就）；conquestAll 同理
+   */
+  recurring?: boolean
 }
 
 /** 派系字段求和辅助（贸易/威慑/好感/结盟数——周目内口径，NG+ 后 factions 重置） */
@@ -154,6 +161,8 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     condition: (s) => Boolean(s.storyFlags.conquestAll),
     rewardMineral: 200_000,
     rep: 6,
+    // storyFlags 驱动：跨周目保留，永久类（否则二周目开局白拿）
+    recurring: false,
   },
 
   // ---- 收集类（state 派生，周目内口径）----
@@ -285,9 +294,11 @@ export function achievementUnlocked(state: GameState, def: AchievementDef): bool
 }
 
 /**
- * 检查并解锁新成就：条件满足且「未解锁 或 unlockedInRound ≠ 当前周目」→ 解锁 + 发奖励 + 日志。
+ * 检查并解锁新成就：条件满足且「未解锁 或（周目可重解锁且 unlockedInRound ≠ 当前周目）」→ 解锁 + 发奖励 + 日志。
  * - 首次解锁（unlockedAt 不存在）：发一次性资源奖励
- * - 二周目重解锁（图鉴已存在但本周目未解锁）：同样发奖励（NG+「重打但更强」的期望行为）
+ * - 永久类（叙事 storyFlags 驱动 或 recurring: false）：解锁一次即终点，永不重解锁
+ * - 周目可重解锁（收集类/联邦/周目成就）：unlockedInRound ≠ 当前周目时条件再满足 → 重解锁 + 重发奖励
+ *   （NG+「重打但更强」的期望行为）
  * - 回溯迁移路径不调用本函数（迁移直接设值、不发奖励，见 save.ts migrateV3ToV4）
  * @returns 本次新解锁的成就定义（测试断言用）
  */
@@ -296,7 +307,9 @@ export function checkAchievements(state: GameState, nowMs: number = Date.now()):
   for (const def of Object.values(ACHIEVEMENTS)) {
     if (!achievementUnlocked(state, def)) continue
     const cur = state.achievements[def.id]
-    if (cur && cur.unlockedInRound === state.ngPlusLevel) continue
+    // 永久类（storyFlags 驱动）：解锁过即跳过；周目类：本周目已解锁即跳过
+    const permanent = def.category === 'story' || def.recurring === false
+    if (cur && (permanent || cur.unlockedInRound === state.ngPlusLevel)) continue
     state.achievements[def.id] = { unlockedAt: nowMs, unlockedInRound: state.ngPlusLevel }
     if (def.rewardMineral) state.resources.mineral += def.rewardMineral
     if (def.rewardTech) state.resources.tech += def.rewardTech

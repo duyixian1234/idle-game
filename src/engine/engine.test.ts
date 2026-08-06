@@ -268,9 +268,9 @@ describe('engine: 时间推进与产出', () => {
   it('tick 按时间差结算矿物产出', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
-    buyBuilding(s, 'miner') // 花费 10，剩 90
+    buyBuilding(s, 'miner') // 花费 10，剩 90；首次建造触发 firstBuild 成就奖励 +500
     tick(s, 10_000) // 10 秒，1 台采矿机 => +10 矿物
-    expect(s.resources.mineral).toBeCloseTo(100)
+    expect(s.resources.mineral).toBeCloseTo(600) // 90 + 10 产出 + 500 成就奖励
     expect(s.lastTick).toBe(10_000)
   })
 
