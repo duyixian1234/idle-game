@@ -71,6 +71,8 @@ async function main(): Promise<void> {
     for (const conquestLog of offline.conquestLogs) {
       pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
     }
+    // 探索派遣离线到期：回归自动入账（结果日志播报，防静默）
+    for (const expLog of offline.expeditionLogs) pushLog(state, expLog.type, expLog.text)
   }
 
   // 回归时补查一次星球解锁（离线期间可能已满足条件）
@@ -224,6 +226,8 @@ async function main(): Promise<void> {
         for (const conquestLog of off.conquestLogs) {
           pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
         }
+        // 探索派遣离线到期：回归自动入账（结果日志播报，防静默）
+        for (const expLog of off.expeditionLogs) pushLog(state, expLog.type, expLog.text)
       }
       state.nextEventAt = Math.max(state.nextEventAt, Date.now() + 45_000)
       lastLogId = 0

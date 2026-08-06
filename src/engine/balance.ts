@@ -129,12 +129,14 @@ export const CONQUEST_DURATION_MS = 60 * 60_000
 export const EXPEDITION_DURATION_MS = 60 * 60_000
 /** 派遣固定军力消耗（兵力硬上限天然冷却；上限 100+200×军港，前期要攒、后期受单槽约束） */
 export const EXPEDITION_MILITARY_COST = 40
-/** 派遣矿物消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——初值，ticket 06 balance-sim 校准 */
+/** 派遣矿物消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——balance-sim 校准定稿（ticket 06） */
 export const EXPEDITION_MINERAL = { min: 3_000, factor: 300, cap: 150_000 }
-/** 派遣能源消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——初值，ticket 06 balance-sim 校准 */
+/** 派遣能源消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——balance-sim 校准定稿（ticket 06） */
 export const EXPEDITION_ENERGY = { min: 1_000, factor: 150, cap: 60_000 }
-/** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）——初值，ticket 06 balance-sim 校准 */
-export const EXPEDITION_COMPENSATE_RATIO = { mineral: 0.75, energy: 0.75, techPerMineral: 0.01 }
+/** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）。
+ * balance-sim 校准定稿（ticket 06，20 seed）：techPerMineral=0.005 → 耗尽后收益比 1.083×（锚点 1.1×）；
+ * t=0.01 时 1.416× 超标成印钞机（否决）。收集期（发现物贴现 faction 1.8×/planet 2.0×）均值 10.4 次收完、收益比 ~1.68×。 */
+export const EXPEDITION_COMPENSATE_RATIO = { mineral: 0.75, energy: 0.75, techPerMineral: 0.005 }
 /** 物流港机制：科技点折算能源折减（每 1 科技点顶 ENERGY 能源缺口，精炼厂能源不足打折幅度降低）——初值，ticket 06 balance-sim 校准 */
 export const LOGISTICS_TECH_ENERGY_RATIO = 0.5
 /** 殖民前哨机制：矿物产出倍率（能源消耗增大为取舍，见 OUTPOST_ENERGY_MULT） */
