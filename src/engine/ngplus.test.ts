@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState, startNewGamePlus, tick } from './engine'
 import { checkAchievements } from './achievements'
 import { reputation } from './reputation'
+import { previewNewGamePlus } from './ngplus'
+import { CONQUESTS } from './data'
 import type { GameState } from './types'
 
 function makeState(): GameState {
@@ -85,5 +87,80 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     tick(s, 2000)
     expect(s.resources.mineral).toBe(mineralBefore)
     expect(s.log.length).toBe(logCount) // 无新成就日志（产出不写日志）
+  })
+})
+
+describe('NG+ 预览与无限模式手动换周目（infinite-ngplus）', () => {
+  it('previewNewGamePlus 纯函数无副作用（调用前后 state 不变）', () => {
+    const s = makeState()
+    s.ngPlusLevel = 1
+    s.resources.mineral = 123
+    s.permanentBonuses = { production: 0.1 }
+    const clone = structuredClone(s)
+    const p = previewNewGamePlus(s)
+    expect(p.nextLevel).toBe(2)
+    expect(s).toEqual(clone)
+  })
+
+  it('预览值正确：nextLevel/carryTech/permanentMult/codex/permanentBonuses', () => {
+    const s = makeState()
+    s.ngPlusLevel = 1
+    const [a, b] = Object.keys(s.factions)
+    s.factionCodex.push(a)
+    s.factions[b].allied = true
+    s.permanentBonuses = { production: 0.25, militaryCap: 0.2 }
+    const p = previewNewGamePlus(s)
+    expect(p.nextLevel).toBe(2)
+    expect(p.carryTech).toBe(4_000) // 2000 × 2
+    expect(p.permanentMult).toBe(1.3) // 1 + 0.15 × 2
+    expect(p.codexFactions).toEqual([a, b]) // 现有 codex + 本周目已结盟派系
+    expect(p.permanentBonuses).toEqual({ production: 0.25, militaryCap: 0.2 })
+    expect(p.lost.alliedFactions).toEqual([b])
+  })
+
+  it('startNewGamePlus 在 phase=infinite 下调用：正确转换、图鉴保留、声望归零', () => {
+    const s = makeState()
+    s.phase = 'infinite'
+    s.endingTriggered = true
+    s.ngPlusLevel = 1
+    const [a, b] = Object.keys(s.factions)
+    s.factionCodex.push(a)
+    s.factions[b].allied = true
+    s.factions[b].favor = 100
+    const firstConquest = Object.keys(CONQUESTS)[0]
+    s.conquest[firstConquest] = { status: 'conquered' }
+    // 二周目开局即满足 ng2 成就（rep 5）+ 部分收集类成就已满足 → 声望 > 0，验证 NG+ 后归零
+    checkAchievements(s, 1000)
+    expect(reputation(s)).toBeGreaterThan(0)
+    s.stats.totalMineralEarned = 999
+    s.playSeconds = 123
+    s.resources.mineral = 50_000
+    s.resources.tech = 3_000
+
+    startNewGamePlus(s, 2000)
+
+    expect(s.phase).toBe('playing')
+    expect(s.endingTriggered).toBe(false)
+    expect(s.ngPlusLevel).toBe(2)
+    expect(s.permanentMult).toBe(1.3)
+    expect(s.resources.tech).toBe(4_000) // 继承科技点 2000 × 2
+    expect(s.resources.mineral).toBe(0)
+    expect(s.stats.totalMineralEarned).toBe(0)
+    expect(s.playSeconds).toBe(0)
+    // 区域攻占全部重置为 locked
+    for (const def of Object.values(CONQUESTS)) expect(s.conquest[def.id].status).toBe('locked')
+    // 成就图鉴保留（跨周目），声望归零（unlockedInRound 1 ≠ 2）
+    expect(s.achievements.ng2).toBeDefined()
+    expect(reputation(s)).toBe(0)
+    // 图鉴并入本周目已结盟派系
+    expect(s.factionCodex).toEqual([a, b])
+  })
+
+  it('契约回归：playing 下调用 startNewGamePlus 不崩溃（引擎不设守卫，UI 门控）', () => {
+    const s = makeState()
+    expect(() => startNewGamePlus(s, 1000)).not.toThrow()
+    expect(s.ngPlusLevel).toBe(1)
+    expect(s.phase).toBe('playing')
+    expect(s.resources.tech).toBe(2_000)
   })
 })

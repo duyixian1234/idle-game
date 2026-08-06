@@ -21,6 +21,9 @@ import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
 import { netProduction, productionReport, militaryCap } from './production'
+import { computeNgPlusInheritance, CODEX_FAVOR_BONUS } from './ngplus'
+// re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
+export { NG_PLUS_TECH_BASE, NG_PLUS_PERMANENT_BONUS, CODEX_FAVOR_BONUS } from './ngplus'
 
 export function createInitialState(nowMs: number): GameState {
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
@@ -398,13 +401,6 @@ export function setActivePlanet(state: GameState, id: string): ActionResult {
 
 // ---- 结局、无限模式与 NG+ ----
 
-/** NG+ 继承的科技点基数（随周目递增） */
-export const NG_PLUS_TECH_BASE = 2_000
-/** NG+ 每周目永久产出加成 */
-export const NG_PLUS_PERMANENT_BONUS = 0.15
-/** 图鉴派系在 NG+ 的初始好感加成 */
-export const CODEX_FAVOR_BONUS = 25
-
 /** 结局：星系统一联邦达成时触发演出（仅一次），返回是否触发 */
 export function checkEnding(state: GameState): boolean {
   if (state.endingTriggered) return false
@@ -442,17 +438,21 @@ export function eventGapScale(state: GameState): number {
   return state.phase === 'infinite' ? 0.5 : 1
 }
 
-/** 开启 NG+：携带科技点/派系图鉴/永久加成重开，资源与建筑重置 */
+/**
+ * 开启 NG+：携带科技点/派系图鉴/永久加成重开，资源与建筑重置。
+ * 契约（infinite-ngplus spec 定稿）：本函数**不设 phase 守卫**——playing/ended/infinite 均可调用；
+ * 入口合法性由 UI 门控（ended → 结局面板；infinite → 工具栏「开启新周目」）。
+ * 继承计算见 `computeNgPlusInheritance`（与 `previewNewGamePlus` 共享，保证预览与执行一致）。
+ */
 export function startNewGamePlus(state: GameState, nowMs: number): void {
-  state.ngPlusLevel += 1
-  state.permanentMult = 1 + NG_PLUS_PERMANENT_BONUS * state.ngPlusLevel
-  const carryTech = NG_PLUS_TECH_BASE * state.ngPlusLevel
+  const inh = computeNgPlusInheritance(state)
+  state.ngPlusLevel = inh.nextLevel
+  state.permanentMult = inh.permanentMult
+  const carryTech = inh.carryTech
 
-  // 记录已结盟派系（图鉴）
-  for (const def of Object.values(FACTIONS)) {
-    if (state.factions[def.id]?.allied && !state.factionCodex.includes(def.id)) {
-      state.factionCodex.push(def.id)
-    }
+  // 记录已结盟派系（图鉴）：computeNgPlusInheritance 已含本周目已结盟派系
+  for (const id of inh.codexFactions) {
+    if (!state.factionCodex.includes(id)) state.factionCodex.push(id)
   }
 
   // 重置资源与建筑，保留科技点继承
