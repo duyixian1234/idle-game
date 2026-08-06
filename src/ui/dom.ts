@@ -1,8 +1,10 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
-import type { BuildingDef, PlanetDef } from '../engine/data'
+import { BUILDINGS, CONQUESTS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import type { BuildingDef, ConquestDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
+import { formatDuration } from '../engine/offline'
+import { isConquestAvailable, conquestState } from '../engine/conquest'
 import { NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
@@ -402,6 +404,8 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(TECHS)) {
+    // 军械科技（unlockByConquest）显示于军事面板，不在科技面板重复出现
+    if (def.unlockByConquest) continue
     const level = techLevel(state, def.id)
     const researched = isTechResearched(state, def.id)
     const met = techRequirementsMet(state, def.id)
@@ -563,6 +567,139 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
 
 export function renderStatusLine(el: HTMLElement, text: string): void {
   el.textContent = text
+}
+
+// ---- 军事面板 ----
+
+/** 区域奖励预览文本 */
+function conquestRewardText(def: ConquestDef): string {
+  const parts: string[] = []
+  if (def.rewardMineral) parts.push(`${RESOURCE_META.mineral.symbol}${formatNumber(def.rewardMineral)}`)
+  if (def.rewardTech) parts.push(`${RESOURCE_META.tech.symbol}${formatNumber(def.rewardTech)}`)
+  if (def.bonus) {
+    parts.push(def.bonus.kind === 'production' ? `全产出 +${def.bonus.value * 100}%` : `军力上限 +${def.bonus.value * 100}%`)
+  }
+  if (def.unlockTech) parts.push('解锁军械科技')
+  return parts.join('、') || '无'
+}
+
+/** 攻占区域单行（守卫/奖励/状态/发起控件） */
+function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
+  const row = document.createElement('div')
+  row.className = 'build-item conquest-item'
+  const cs = conquestState(state, def.id)
+  const conquered = cs.status === 'conquered'
+  const ongoing = cs.startedAt != null
+  const available = isConquestAvailable(state, def.id)
+  const info = `
+    <div class="build-info">
+      <div class="build-name">
+        ${escapeHtml(def.name)}
+        ${conquered ? '<span class="build-count conquered-badge">已占领</span>' : ''}
+        ${ongoing ? '<span class="build-count ongoing-badge">攻占中</span>' : ''}
+      </div>
+      <div class="build-desc">${escapeHtml(def.desc)}</div>
+      <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}</div>
+    </div>`
+  if (conquered) {
+    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint conquered-hint">✓ 已肃清</span></div>`
+    return row
+  }
+  if (ongoing) {
+    const remainMs = Math.max(0, (cs.finishAt ?? 0) - Date.now())
+    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></div>`
+    return row
+  }
+  if (!available) {
+    const reason = state.planets[def.unlockPlanet]?.unlocked
+      ? def.afterEnding && state.phase === 'playing'
+        ? '通关后开放'
+        : '不可攻占'
+      : `需解锁「${PLANETS[def.unlockPlanet]?.name ?? def.unlockPlanet}」`
+    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(reason)}</span></div>`
+    return row
+  }
+  // 可发起：投入军力输入框（建议值 = 足额所需或当前军力）+ 攻占按钮
+  const maxInvest = Math.floor(state.resources.military)
+  const suggest = Math.max(1, Math.min(def.guard, maxInvest))
+  row.innerHTML = `${info}
+    <div class="build-actions conquest-actions">
+      <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="投入军力" />
+      <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="投入军力发起攻占，60 分钟后结算；投入达到守卫强度必成，不足则按比例成功率">
+        攻占 ⚔
+      </button>
+    </div>`
+  return row
+}
+
+/** 军械科技升级段（Lv1-5，攻占虫群前哨解锁） */
+function renderArmsTech(el: HTMLElement, state: GameState, defs: TechDef[]): void {
+  for (const def of defs) {
+    const level = techLevel(state, def.id)
+    const item = document.createElement('div')
+    item.className = 'build-item tech-item'
+    const info = `
+      <div class="build-info">
+        <div class="build-name">
+          ${escapeHtml(def.name)}
+          ${level > 0 ? `<span class="build-count researched-badge">Lv.${level}</span>` : ''}
+        </div>
+        <div class="build-desc">${escapeHtml(def.desc)}</div>
+      </div>`
+    if (level <= 0) {
+      item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint">🔒 攻占「虫群前哨」后解锁</span></div>`
+      el.appendChild(item)
+      continue
+    }
+    if (!canTechUpgrade(def, level)) {
+      item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级</span></div>`
+      el.appendChild(item)
+      continue
+    }
+    const cost = techCost(state, def.id)
+    const canUp = canUpgradeTech(state, def.id)
+    item.innerHTML = `${info}
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出系数 +0.5（Lv.${level} → Lv.${level + 1}）">
+        升级 ▶ ${formatCost(cost)}
+      </button>
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn max-btn" data-upgrade-tech-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级到满级或资源不足为止">
+        升满
+      </button>`
+    el.appendChild(item)
+  }
+}
+
+/** 渲染军事面板（三段式）：军事建筑 / 攻占列表（含肃清进度）/ 军械科技 */
+export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
+  el.innerHTML = ''
+  // 段 1：军事建筑（兵营/军港，含升级与 buy-max）
+  const buildSection = document.createElement('div')
+  buildSection.className = 'military-section'
+  renderBuildPanel(buildSection, state, MILITARY_BUILDINGS)
+  el.appendChild(buildSection)
+  // 段 2：攻占列表（肃清进度 x/4）
+  const conquestSection = document.createElement('div')
+  conquestSection.className = 'military-section'
+  const defs = Object.values(CONQUESTS)
+  const conqueredCount = defs.filter((d) => conquestState(state, d.id).status === 'conquered').length
+  const header = document.createElement('div')
+  header.className = 'conquest-header'
+  header.textContent = `肃清进度：${conqueredCount}/${defs.length}`
+  conquestSection.appendChild(header)
+  for (const def of defs) conquestSection.appendChild(renderConquestRow(def, state))
+  el.appendChild(conquestSection)
+  // 段 3：军械科技（unlockByConquest 类科技）
+  const arms = Object.values(TECHS).filter((t) => t.unlockByConquest)
+  if (arms.length > 0) {
+    const techSection = document.createElement('div')
+    techSection.className = 'military-section'
+    const techHeader = document.createElement('div')
+    techHeader.className = 'conquest-header'
+    techHeader.textContent = '军械科技'
+    techSection.appendChild(techHeader)
+    renderArmsTech(techSection, state, arms)
+    el.appendChild(techSection)
+  }
 }
 
 /** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */

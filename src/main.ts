@@ -1,5 +1,5 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
-import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
 import type { BulkPreview } from './engine/bulk'
@@ -22,6 +22,7 @@ import {
   renderDiplomacyPanel,
   renderEndingOverlay,
   renderLogInto,
+  renderMilitaryPanel,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -86,7 +87,7 @@ async function main(): Promise<void> {
     renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS)
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
-    renderBuildPanel(panels['military'], state, MILITARY_BUILDINGS)
+    renderMilitaryPanel(panels['military'], state)
     renderPendingEvents(els.logEl, state)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId
@@ -404,6 +405,15 @@ async function main(): Promise<void> {
     const convertMaxBtn = target.closest<HTMLElement>('[data-convert-max]')
     if (convertMaxBtn) {
       dispatch(state, 'convertMax', 0, deps)
+      return
+    }
+    // 攻占按钮：读取该区域投入输入框的值，payload "区域id:军力"
+    const conquestBtn = target.closest<HTMLElement>('[data-conquest]')
+    if (conquestBtn) {
+      const id = conquestBtn.dataset.conquest ?? ''
+      const input = panels['military'].querySelector<HTMLInputElement>(`[data-conquest-input="${id}"]`)
+      const invest = Number(input?.value ?? 0)
+      dispatch(state, 'conquest', `${id}:${invest}`, deps)
     }
   })
 

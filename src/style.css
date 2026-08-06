@@ -971,3 +971,73 @@ body {
     font-size: 11px;
   }
 }
+
+/* ---- 军事面板（ticket 06）---- */
+.military-section {
+  margin-bottom: 18px;
+}
+
+.conquest-header {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 12px 0 6px;
+  letter-spacing: 0.05em;
+}
+
+.conquest-item {
+  border-left: 2px solid #5a4a3a;
+}
+
+.conquest-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+.conquered-badge {
+  color: var(--good);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.ongoing-badge {
+  color: var(--accent);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.conquered-hint {
+  border-color: #3a5a3a;
+  color: var(--good);
+}
+
+.conquest-actions {
+  gap: 6px;
+}
+
+.conquest-input {
+  width: 110px;
+  background: #1a1f26;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.conquest-btn {
+  border-color: #5a4a3a;
+}
+
+.conquest-btn:hover:not(:disabled) {
+  border-color: #c8a050;
+  color: #c8a050;
+  background-color: rgba(200, 160, 80, 0.08);
+  box-shadow: 0 0 0 1px rgba(200, 160, 80, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.conquest-btn:active:not(:disabled) {
+  background-color: rgba(200, 160, 80, 0.16);
+}

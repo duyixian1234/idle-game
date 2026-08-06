@@ -12,6 +12,7 @@ import {
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderLogInto,
+  renderMilitaryPanel,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -551,5 +552,80 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     })
     const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
     expect(overlay.querySelector('.buy-max-warn')).toBeNull()
+  })
+})
+
+describe('ui: 军事面板', () => {
+  it('渲染军事建筑（兵营/军港）与肃清进度', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.planets.ice = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 100_000
+    s.resources.military = 100_000
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panel.querySelector('[data-build="barracks"]')).toBeTruthy()
+    expect(panel.querySelector('[data-build="militaryPort"]')).toBeTruthy()
+    expect(panel.textContent).toContain('肃清进度：0/4')
+    expect(panel.textContent).toContain('守卫 2,000⚔')
+  })
+
+  it('军事建筑不出现在建造面板（civil 分流）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const buildPanel = container.querySelector('[data-panel="build"]') as HTMLElement
+    expect(buildPanel.querySelector('[data-build="barracks"]')).toBeNull()
+    expect(buildPanel.querySelector('[data-build="miner"]')).toBeTruthy()
+  })
+
+  it('已占领区域显示已肃清标记且无可发起控件', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.planets.ice = { unlocked: true }
+    s.planets.gas = { unlocked: true }
+    s.resources.military = 100_000
+    s.conquest.outpost = { status: 'conquered' }
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panel.textContent).toContain('已占领')
+    expect(panel.textContent).toContain('肃清进度：1/4')
+    expect(panel.querySelector('[data-conquest="outpost"]')).toBeNull()
+    // 未攻占区域（船坞，gas 已解锁）仍有攻占输入框与按钮
+    expect(panel.querySelector('[data-conquest-input="shipyard"]')).toBeTruthy()
+    expect(panel.querySelector('[data-conquest="shipyard"]')).toBeTruthy()
+  })
+
+  it('军械科技：未解锁显示锁提示，解锁后显示升级按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panel.textContent).toContain('攻占「虫群前哨」后解锁')
+    // 解锁 Lv1 后显示升级按钮
+    s.techLevels.militaryTech = 1
+    s.resources.mineral = 1_000_000
+    s.resources.tech = 1_000_000
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    expect(panel.querySelector('[data-upgrade-tech="militaryTech"]')).toBeTruthy()
+  })
+
+  it('军械科技不在科技面板出现', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.techLevels.militaryTech = 1
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    const techPanel = container.querySelector('[data-panel="tech"]') as HTMLElement
+    expect(techPanel.querySelector('[data-tech="militaryTech"]')).toBeNull()
+    expect(techPanel.querySelector('[data-tech="planetDrill"]')).toBeTruthy()
   })
 })
