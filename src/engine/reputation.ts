@@ -14,11 +14,11 @@ export const REPUTATION_CAP = 100
 /** 骚扰阈值上移硬上限（55 + 10 = 65：铁卫 70/沃克斯 60 满声望仍骚扰，防御玩法永续） */
 export const RAID_THRESHOLD_BONUS_CAP = 10
 
-/** 当前声望（0-100，封顶） */
+/** 当前声望（0-100，封顶；achievements 可能缺失于迁移早期，容错） */
 export function reputation(state: GameState): number {
   let sum = 0
   for (const def of Object.values(ACHIEVEMENTS)) {
-    const cur = state.achievements[def.id]
+    const cur = state.achievements?.[def.id]
     if (cur && cur.unlockedInRound === state.ngPlusLevel) sum += def.rep
   }
   return Math.min(REPUTATION_CAP, sum)

@@ -132,7 +132,9 @@ function migrateV2ToV3(raw: Record<string, unknown>): Record<string, unknown> {
 function migrateV3ToV4(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
   const state = next as unknown as GameState
+  // 先初始化 achievements（成就条件如 militaryCap5k 会经 reputation 读 achievements，防迁移中 undefined）
   const achievements: Record<string, { unlockedAt: number; unlockedInRound: number }> = {}
+  next.achievements = achievements
   const round = state.ngPlusLevel ?? 0
   const now = Date.now()
   for (const def of Object.values(ACHIEVEMENTS)) {
@@ -140,7 +142,6 @@ function migrateV3ToV4(raw: Record<string, unknown>): Record<string, unknown> {
       achievements[def.id] = { unlockedAt: now, unlockedInRound: round }
     }
   }
-  next.achievements = achievements
   next.schemaVersion = SCHEMA_VERSION
   return next
 }
