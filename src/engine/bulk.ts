@@ -130,7 +130,7 @@ function loopTargetFor(_state: GameState, kind: BulkKind, id: string): LoopTarge
   if (kind === 'buildingUpgrade') {
     return {
       atCap: () => id === 'jumpgate',
-      capReason: 'maxLevel',
+      capReason: id === 'jumpgate' ? 'maxLevel' : 'resource',
       tryOnce: (s) => upgradeBuilding(s, id),
       levelOf: (s) => s.upgrades[id] ?? 0,
     }
