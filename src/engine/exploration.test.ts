@@ -12,6 +12,8 @@ import {
 } from './exploration'
 import { formatPercent } from './format'
 import { settleOffline } from './offline'
+import { checkAchievements } from './achievements'
+import { reputation } from './reputation'
 import { previewNewGamePlus } from './ngplus'
 import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
 import { EXPEDITION_DURATION_MS, OUTPOST_ENERGY_MULT, OUTPOST_MINERAL_MULT } from './balance'
@@ -334,6 +336,70 @@ describe('engine: 派遣结算（自动入账）', () => {
     s.expeditions.push(fakeExpedition({ id: 2, result: { kind: 'planet', planetId: 'rubbleBelt' } }))
     settleExpeditions(s, EXPEDITION_DURATION_MS)
     expect(s.planets.rubbleBelt.outputBonus).toBe(0.5)
+  })
+})
+
+describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
+  it('首次探索结算触发：storyFlags.deepSpace 置位 + 碑文叙事入日志', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition())
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(s.storyFlags.deepSpace).toBe(true)
+    expect(s.log.some((l) => l.text.includes('禁航航线'))).toBe(true)
+    expect(s.log.some((l) => l.text.includes('警世铭'))).toBe(true)
+    expect(logs).toHaveLength(1) // 探索返航日志照常返回（调用方 pushLog），碑文叙事由 playMilestone 直入 state.log
+  })
+
+  it('非首次不重复：flag 已置位再结算不触发', () => {
+    const s = endedState()
+    s.storyFlags.deepSpace = true
+    s.expeditions.push(fakeExpedition())
+    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(s.log.filter((l) => l.text.includes('警世铭'))).toHaveLength(0)
+  })
+
+  it('多笔同批结算仅第一笔触发（playMilestone 内部 storyFlags 防重复双保险）', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2 }))
+    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(s.log.filter((l) => l.text.includes('警世铭'))).toHaveLength(1)
+    expect(s.stats.explorations).toBe(2)
+  })
+
+  it('playing 阶段不触发（isExploreAvailable 守卫：防御性，正常流程无在途派遣）', () => {
+    const s = createInitialState(0)
+    s.expeditions.push(fakeExpedition())
+    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(s.storyFlags.deepSpace).toBeUndefined()
+  })
+
+  it('成就解锁：结算后 checkAchievements 发 2000 科技 + 3 声望（先清场隔离并发成就）', () => {
+    const s = endedState()
+    // 预置通关后已探索过：隔离 explorerFirst（stats.explorations ≥ 1，collect 周目类）在结算时并发解锁
+    s.stats.explorations = 1
+    // ended 状态满足 federation 成就条件（endingTriggered），预先解锁避免污染增量断言
+    checkAchievements(s, 1)
+    expect(s.achievements.federation).toBeTruthy()
+    expect(s.achievements.explorerFirst).toBeTruthy()
+    const repBefore = reputation(s) // federation 8 + explorerFirst 2 = 10
+    s.expeditions.push(fakeExpedition())
+    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const techAfterSettle = s.resources.tech // 含探索资源补偿入账（fakeExpedition +30）
+    const newly = checkAchievements(s, 2)
+    expect(newly.map((d) => d.id)).toEqual(['deepSpace']) // 精确集合：无其他并发成就
+    expect(s.achievements.deepSpace).toMatchObject({ unlockedAt: 2 })
+    expect(s.resources.tech).toBe(techAfterSettle + 2_000) // 增量仅成就奖励（隔离探索入账）
+    expect(reputation(s)).toBe(repBefore + 3)
+  })
+
+  it('离线路径：settleOffline 结算探索到期同样触发（探索离线推进语义一致）', () => {
+    const s = endedState()
+    s.lastTick = 0
+    s.expeditions.push(fakeExpedition())
+    const off = settleOffline(s, EXPEDITION_DURATION_MS)
+    expect(s.storyFlags.deepSpace).toBe(true)
+    expect(off.expeditionLogs).toHaveLength(1)
+    expect(s.log.some((l) => l.text.includes('警世铭'))).toBe(true)
   })
 })
 

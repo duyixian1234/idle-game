@@ -22,6 +22,7 @@ import {
 } from './balance'
 import { createFactionState } from './diplomacy'
 import { fleetPowered } from './fleet'
+import { playMilestone } from './story'
 import { militaryCap, netProduction } from './production'
 import { formatNumber, formatPercent } from './format'
 import { rollDomain } from './rng'
@@ -281,6 +282,12 @@ export function settleExpeditions(state: GameState, nowMs: number): ExpeditionLo
     exp.resolved = true
     state.stats.explorations = (state.stats.explorations ?? 0) + 1
     if (exp.escort) state.stats.escortedExpeditions = (state.stats.escortedExpeditions ?? 0) + 1
+    // 深空碑文叙事挂点（deepspace-unlock spec 方案 B）：通关后首次任意探索结算确定性触发。
+    // 本函数是探索结算唯一入口（在线 tick / 离线回归 / 自动探索离线循环三路调用）→ 天然全覆盖；
+    // playMilestone 内部 storyFlags 防重复 → 一次循环多笔结算仅第一笔生效（双保险）。
+    // isExploreAvailable 守卫落实「通关后」语义（正常流程 playing 无在途派遣，防御性校验）；
+    // 离线触发叙事、成就由回归后 tick checkAchievements 自然解锁（离线路径无 checkAchievements，行为有意如此）。
+    if (!state.storyFlags.deepSpace && isExploreAvailable(state)) playMilestone(state, 'deepSpace')
   }
   state.expeditions = state.expeditions.filter((e) => !e.resolved)
   return logs
