@@ -2,10 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { BUILDINGS, ALL_FACTIONS, EXPLORE_PLANETS } from '../engine/data'
 import { ICON_FALLBACK, ICONS, iconSpriteHtml, iconSymbolId, iconUse } from './icons'
 
+/** 一级导航 + 派遣图标 id（ui-redesign ticket 02：Q15 emoji→SVG） */
+const NAV_ICONS = ['nav-sector', 'nav-archive', 'nav-explore', 'nav-settings', 'dispatch'] as const
+
 describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
   it('每个建筑 id 都有对应 symbol', () => {
     for (const id of Object.keys(BUILDINGS)) {
       expect(ICONS[id], `缺少建筑图标：${id}`).toBeTruthy()
+    }
+  })
+
+  it('一级导航 + 派遣图标都有对应 symbol（ui-redesign ticket 02）', () => {
+    for (const id of NAV_ICONS) {
+      expect(ICONS[id], `缺少导航图标：${id}`).toBeTruthy()
     }
   })
 

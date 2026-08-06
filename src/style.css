@@ -151,6 +151,23 @@ body {
   font-size: 13px;
 }
 
+/* 一级导航 SVG 图标（ticket 02：emoji → SVG；颜色继承 nav-item 的 currentColor） */
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* 派遣按钮火箭图标（探索页，ending-btn 内 inline） */
+.dispatch-icon {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
 /* 角标红点（右上角绝对定位，数字 ≤99；无动画，规避 250ms 重建闪烁） */
 .nav-badge {
   position: absolute;

@@ -157,6 +157,32 @@ export const ICONS: Record<string, string> = {
   nodeIntellect: `
     <circle cx="12" cy="12" r="2.6"/>
     <path d="M12 4.5v4.9M12 14.6v4.9M4.5 12h4.9M14.6 12h4.9"/>`,
+  // ---- 一级导航（ui-redesign ticket 02：emoji → SVG；Q15 定案）----
+  // 星域 = 星座星图（三点连线）
+  'nav-sector': `
+    <circle cx="7" cy="8" r="1.6"/>
+    <circle cx="17" cy="6" r="1.2"/>
+    <circle cx="14" cy="16" r="1.8"/>
+    <path d="M8.3 9.3l5.3 5.4M9 7.4l6.8-1M13.6 14.8l2.2-6.9"/>`,
+  // 档案 = 档案夹（翻盖 + 内页线）
+  'nav-archive': `
+    <path d="M4 6.5h6l2 2.5h8v9.5H4z"/>
+    <path d="M8 12.5h8"/>`,
+  // 探索 = 雷达信标（中心点 + 十字扫描）
+  'nav-explore': `
+    <circle cx="12" cy="12" r="2"/>
+    <path d="M12 5v2.5M12 16.5V19M5 12h2.5M16.5 12H19"/>
+    <path d="M7.8 7.8l1.5 1.5M14.7 14.7l1.5 1.5M16.2 7.8l-1.5 1.5M9.3 14.7l-1.5 1.5"/>`,
+  // 设置 = 齿轮（8 齿 + 中心孔）
+  'nav-settings': `
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2"/>
+    <path d="M7.2 7.2l1.5 1.5M15.3 15.3l1.5 1.5M16.8 7.2l-1.5 1.5M8.7 15.3l-1.5 1.5"/>`,
+  // 派遣 = 火箭（机身 + 舷窗 + 尾焰）
+  dispatch: `
+    <path d="M12 3.5c1.8 2.2 2.6 4.2 2.6 6.2v3.3l-1.3 3h-2.6l-1.3-3V9.7c0-2 .8-4 2.6-6.2z"/>
+    <circle cx="12" cy="9.5" r="1"/>
+    <path d="M12 15.9v3.6M9.5 19.5h5"/>`,
   // ---- 兜底 ----
   // 未知 = 圆角方块 + 问号
   unknown: `

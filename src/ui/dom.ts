@@ -114,10 +114,10 @@ export function buildLayout(container: HTMLElement): AppElements {
       <section class="nav-page hidden" data-nav-page="settings" aria-label="设置"></section>
     </main>
     <footer class="nav-bar" aria-label="一级导航">
-      <button type="button" class="nav-item active" data-nav="sector">🪐<span class="nav-label">星域</span><span class="nav-badge hidden" data-nav-badge="sector"></span></button>
-      <button type="button" class="nav-item" data-nav="archive">🏛<span class="nav-label">档案</span><span class="nav-badge hidden" data-nav-badge="archive"></span></button>
-      <button type="button" class="nav-item" data-nav="explore">🚀<span class="nav-label">探索</span></button>
-      <button type="button" class="nav-item" data-nav="settings">⚙<span class="nav-label">设置</span></button>
+      <button type="button" class="nav-item active" data-nav="sector">${iconUse('nav-sector', 'nav-icon')}<span class="nav-label">星域</span><span class="nav-badge hidden" data-nav-badge="sector"></span></button>
+      <button type="button" class="nav-item" data-nav="archive">${iconUse('nav-archive', 'nav-icon')}<span class="nav-label">档案</span><span class="nav-badge hidden" data-nav-badge="archive"></span></button>
+      <button type="button" class="nav-item" data-nav="explore">${iconUse('nav-explore', 'nav-icon')}<span class="nav-label">探索</span></button>
+      <button type="button" class="nav-item" data-nav="settings">${iconUse('nav-settings', 'nav-icon')}<span class="nav-label">设置</span></button>
     </footer>
     <div class="ending-overlay hidden" data-overlay="ending" aria-label="结局"></div>
     <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
@@ -279,7 +279,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
         <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
         <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${cost.military} · 时长 60 分钟（离线照常推进）</div>
         <div class="explore-slot-actions">
-          <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">🚀 派遣</button>
+          <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">${iconUse('dispatch', 'dispatch-icon')} 派遣</button>
         </div>
       </div>`)
   }
