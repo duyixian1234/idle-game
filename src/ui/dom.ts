@@ -46,6 +46,7 @@ import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, sh
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
+import { iconSpriteHtml, iconUse } from './icons'
 
 /** 一级导航 id（B 架构 4 tab：星域 / 档案 / 探索 / 设置） */
 export type NavId = 'sector' | 'archive' | 'explore' | 'settings'
@@ -124,6 +125,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局抉择确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
+    ${iconSpriteHtml()}
   `
   const root = container
   const pages = ['sector', 'archive', 'explore', 'settings'] as const
@@ -285,7 +287,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       const text = RESOURCE_KEYS.filter((k) => o.values[k] > 0)
         .map((k) => `${RESOURCE_META[k].symbol} +${formatNumber(o.values[k])}/s`)
         .join(' · ')
-      return `<div class="explore-planet-output" data-planet-output="${o.planetId}">🪐 ${escapeHtml(o.name)}：${text}</div>`
+      return `<div class="explore-planet-output" data-planet-output="${o.planetId}">${iconUse(o.planetId, 'explore-icon')} ${escapeHtml(o.name)}：${text}</div>`
     })
     .join('')
   parts.push(`
@@ -522,84 +524,174 @@ function fmtRate(n: number): string {
   return String(r)
 }
 
-/** 渲染建造面板（含升级按钮与锁定态；唯一大件：唯一徽标 + 禁买满/升满 + 锁定原因语义化） */
-export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>): void {
+/** 建造面板渲染选项（building-cards：卡片化 + 锁定卡折叠） */
+export interface BuildPanelRenderOptions {
+  /** 分区 id：传入时启用锁定卡折叠（每区独立）；不传 = 不折叠（军事 tab 仅 2 建筑） */
+  zoneId?: string
+  /** 折叠展开态（UI 会话内存，不进存档；key = zoneId，刷新回默认收起） */
+  lockedExpanded?: Record<string, boolean>
+  /** 刚升级高亮 id（短暂窗口内卡片加 just-upgraded 类触发一次性动画，过期自动消失） */
+  flashId?: string | null
+}
+
+/** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局抉择弹窗 */
+export type BuildCardAction = { kind: 'upgrade' | 'buy' | 'megastructure' }
+
+/**
+ * 卡片主体点击的纯函数判定（main.ts 委托调用；可测 seam）：
+ * - 未解锁 / 满级 / 资源不足 / jumpgate 已建（无升级效果）→ null（无副作用）
+ * - 终局抉择建筑（megastructureValue）未建造 → megastructure（走确认弹窗）
+ * - count>0 且未满级 → upgrade；否则（未拥有）→ buy
+ */
+export function buildCardAction(state: GameState, id: string): BuildCardAction | null {
+  const def = BUILDINGS[id]
+  if (!def || !isBuildingUnlocked(state, id)) return null
+  const count = state.buildings[id] ?? 0
+  if (def.megastructureValue && count <= 0) return { kind: 'megastructure' }
+  const level = state.upgrades[id] ?? 0
+  const maxed = def.unique === true && def.maxLevel != null && level >= def.maxLevel
+  if (count > 0 && def.id !== 'jumpgate' && !maxed) {
+    return canAffordUpgrade(state, id) ? { kind: 'upgrade' } : null
+  }
+  if (count <= 0) {
+    return canAffordBuilding(state, id) ? { kind: 'buy' } : null
+  }
+  return null
+}
+
+/**
+ * 渲染建造面板（卡片网格，building-cards spec）：
+ * 每个建造项 = 图标 + 信息区（名称/徽标/描述/预览）+ 按钮组；未解锁建筑渲染锁定卡（灰化图标 + 解锁条件）。
+ * 存量契约原样保留：`data-building` 容器、`.build-count` 徽标、`.build-upgrade-preview`/`.build-buy-preview`、
+ * `data-build`/`data-upgrade`/`data-buy-max`/`data-upgrade-max` 按钮、锁定文案（buildingLockReason）。
+ */
+export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
-  for (const def of Object.values(defs)) {
-    const unique = def.unique === true
-    const count = state.buildings[def.id] ?? 0
-    const level = state.upgrades[def.id] ?? 0
-    const unlocked = isBuildingUnlocked(state, def.id)
-    const item = document.createElement('div')
-    item.className = 'build-item'
-    item.setAttribute('data-building', def.id)
-    if (unique) item.setAttribute('data-unique', '')
-    if (!unlocked) item.classList.add('locked')
+  const defList = Object.values(defs)
+  const unlockedDefs = defList.filter((d) => isBuildingUnlocked(state, d.id))
+  const lockedDefs = defList.filter((d) => !isBuildingUnlocked(state, d.id))
 
-    const info = `
-      <div class="build-info">
-        <div class="build-name">
-          ${escapeHtml(def.name)}
-          ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${count}</span>`}
-          ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
-        </div>
-        <div class="build-desc">${escapeHtml(def.desc)}</div>
-      </div>`
+  const grid = document.createElement('div')
+  grid.className = 'build-grid'
+  for (const def of unlockedDefs) {
+    grid.appendChild(renderBuildingCard(state, def, opts.flashId ?? null))
+  }
 
-    if (!unlocked) {
-      // 锁定原因优先取引擎判定（通关/星球/满级科技/互斥/链式前置），缺省回退 requires 拼接
-      const lockReason = buildingLockReason(state, def.id)
-      const reqParts = lockReason
-        ? [lockReason]
-        : [
-            ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
-            ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
-          ]
-      item.innerHTML = `${info}
-        <div class="build-lock">
-          <span class="lock-hint">${escapeHtml(reqParts.join('、'))}</span>
-        </div>`
-      el.appendChild(item)
-      continue
-    }
+  // 锁定卡折叠：启用折叠（zoneId）且 >3 张 → 只展示前 3 张 + 折叠行；否则全部展示
+  const zoneId = opts.zoneId
+  const expanded = zoneId ? Boolean(opts.lockedExpanded?.[zoneId]) : false
+  const showAllLocked = !zoneId || expanded || lockedDefs.length <= 3
+  const shownLocked = showAllLocked ? lockedDefs : lockedDefs.slice(0, 3)
+  for (const def of shownLocked) {
+    grid.appendChild(renderLockedCard(state, def))
+  }
+  el.appendChild(grid)
 
-    const buyCost = buildingCost(state, def.id)
-    const canBuy = canAffordBuilding(state, def.id)
-    const upCost = upgradeCost(state, def.id)
-    const canUp = canAffordUpgrade(state, def.id)
-    // unique 建筑按 maxLevel 封顶：满级后升级按钮替换为「已满级」提示（如船坞 Lv3）
-    const maxed = unique && def.maxLevel != null && level >= def.maxLevel
-    // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
-    const showBuy = !unique || count <= 0
-    const buyBtn = showBuy
-      ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? '建造（唯一大件，升级产出 ×2/级）' : '建造'}">
-          ${unique ? '建造 ' : ''}${formatCost(buyCost)}
-        </button>`
-      : ''
-    const buyMaxBtn = !unique
-      ? `<button type="button" class="build-btn max-btn" data-buy-max="${def.id}" ${canBuy ? '' : 'disabled'} title="一键买满：买到资源不足为止">
-          买满
-        </button>`
-      : ''
-    // 升级按钮组：jumpgate 无升级效果（上游 f0458b0 决策）、maxLevel 满级后替换为「已满级」提示（如船坞 Lv3）
-    const upgradeBtns = count > 0 && def.id !== 'jumpgate'
-      ? maxed
-        ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${def.maxLevel}）</span></div>`
-        : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
+  if (zoneId && lockedDefs.length > 3) {
+    const collapse = document.createElement('button')
+    collapse.type = 'button'
+    collapse.className = 'locked-collapse'
+    collapse.setAttribute('data-locked-collapse', zoneId)
+    collapse.setAttribute('data-expanded', expanded ? 'true' : 'false')
+    collapse.textContent = expanded ? '收起锁定项 ▴' : `还有 ${lockedDefs.length - 3} 项未解锁 ▾`
+    el.appendChild(collapse)
+  }
+}
+
+/** 已解锁建造项卡片（图标 + 信息 + 预览 + 按钮组） */
+function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string | null): HTMLElement {
+  const unique = def.unique === true
+  const count = state.buildings[def.id] ?? 0
+  const level = state.upgrades[def.id] ?? 0
+  const card = document.createElement('div')
+  card.className = `build-card${flashId === def.id ? ' just-upgraded' : ''}`
+  card.setAttribute('data-building', def.id)
+  card.setAttribute('data-build-card', def.id)
+  if (unique) card.setAttribute('data-unique', '')
+
+  const info = `
+    <div class="build-info">
+      <div class="build-name">
+        ${escapeHtml(def.name)}
+        ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${count}</span>`}
+        ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
+      </div>
+      <div class="build-desc">${escapeHtml(def.desc)}</div>
+    </div>`
+
+  const buyCost = buildingCost(state, def.id)
+  const canBuy = canAffordBuilding(state, def.id)
+  const upCost = upgradeCost(state, def.id)
+  const canUp = canAffordUpgrade(state, def.id)
+  // unique 建筑按 maxLevel 封顶：满级后升级按钮替换为「已满级」提示（如船坞 Lv3）
+  const maxed = unique && def.maxLevel != null && level >= def.maxLevel
+  // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
+  const showBuy = !unique || count <= 0
+  const buyBtn = showBuy
+    ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? '建造（唯一大件，升级产出 ×2/级）' : '建造'}">
+        ${unique ? '建造 ' : ''}${formatCost(buyCost)}
+      </button>`
+    : ''
+  const buyMaxBtn = !unique
+    ? `<button type="button" class="build-btn max-btn" data-buy-max="${def.id}" ${canBuy ? '' : 'disabled'} title="一键买满：买到资源不足为止">
+        买满
+      </button>`
+    : ''
+  // 升级按钮组：jumpgate 无升级效果（上游 f0458b0 决策）、maxLevel 满级后替换为「已满级」提示（如船坞 Lv3）
+  const upgradeBtns = count > 0 && def.id !== 'jumpgate'
+    ? maxed
+      ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${def.maxLevel}）</span></div>`
+      : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
           升级 ${formatCost(upCost)}
         </button>
         ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
           升满
         </button>`}`
-      : ''
-    item.innerHTML = `${info}
+    : ''
+  card.innerHTML = `
+    <div class="build-card-icon">${iconUse(def.id)}</div>
+    <div class="build-card-body">
+      ${info}
       <div class="build-preview">
         ${count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
         ${showBuy ? `<div class="build-buy-preview">${buyPreviewText(state, def)}</div>` : ''}
       </div>
-      <div class="build-actions">${buyBtn}${buyMaxBtn}${upgradeBtns}</div>`
-    el.appendChild(item)
-  }
+    </div>
+    <div class="build-actions">${buyBtn}${buyMaxBtn}${upgradeBtns}</div>`
+  return card
+}
+
+/** 未解锁建造项卡片（灰化图标 + 解锁条件；点击无副作用由委托判定） */
+function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
+  const unique = def.unique === true
+  const card = document.createElement('div')
+  card.className = 'build-card locked'
+  card.setAttribute('data-building', def.id)
+  card.setAttribute('data-build-card', def.id)
+  if (unique) card.setAttribute('data-unique', '')
+  // 锁定原因优先取引擎判定（通关/星球/满级科技/互斥/链式前置），缺省回退 requires 拼接
+  const lockReason = buildingLockReason(state, def.id)
+  const reqParts = lockReason
+    ? [lockReason]
+    : [
+        ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
+        ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
+      ]
+  card.innerHTML = `
+    <div class="build-card-icon">${iconUse(def.id)}</div>
+    <div class="build-card-body">
+      <div class="build-info">
+        <div class="build-name">
+          ${escapeHtml(def.name)}
+          ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : ''}
+        </div>
+        <div class="build-desc">${escapeHtml(def.desc)}</div>
+      </div>
+      <div class="build-lock">
+        <span class="lock-hint">${escapeHtml(reqParts.join('、'))}</span>
+      </div>
+    </div>`
+  return card
 }
 
 /** 渲染科技面板 */
@@ -742,7 +834,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
     item.innerHTML = `
       <div class="build-info faction-info">
         <div class="build-name">
-          ${escapeHtml(def.name)}
+          ${iconUse(def.id, 'faction-badge')}${escapeHtml(def.name)}
           ${f.allied ? '<span class="build-count allied-badge">已结盟</span>' : ''}
           ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
         </div>
@@ -964,7 +1056,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
 const JUMPGATE_EFFECT_TEXT = `派遣槽 +${JUMPGATE_SLOT_BONUS} · 天体收获倍率上限 ×${2 * JUMPGATE_HARVEST_MULT} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
 
 /** 星域页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 舰队管理区 + 终局抉择区块（三星系间集齐后出现） */
-export function renderInterstellarPanel(el: HTMLElement, state: GameState): void {
+export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   const section = document.createElement('div')
   section.className = 'interstellar-section'
   section.setAttribute('data-interstellar', '')
@@ -972,7 +1064,7 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState): void
   header.className = 'conquest-header'
   header.textContent = '星际工程'
   section.appendChild(header)
-  renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS)
+  renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS, { ...opts, zoneId: 'interstellar' })
   // 舰队管理区（船坞等级决定舰数上限；护卫舰维护费 = 能源支出开关）
   renderFleetSection(section, state)
   // 终局抉择：星港/恒星/智库各 ≥1 级后出现（互斥二选一）

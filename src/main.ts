@@ -16,6 +16,7 @@ import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
 import {
   buildLayout,
+  buildCardAction,
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
   renderArchivePanel,
@@ -65,6 +66,11 @@ async function main(): Promise<void> {
   // 角标差值 state：读即已读（进入对应页时快照到当前存量）
   let seenEventCount = 0
   let seenAchievementCount = 0
+  // 锁定卡折叠展开态（UI 会话状态，不进存档；key = 分区 id，刷新回默认收起，与 activePanelTab 同构）
+  const lockedExpanded: Record<string, boolean> = {}
+  // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
+  let justUpgradedId: string | null = null
+  let justUpgradedUntil = 0
 
   // 本周目解锁成就数（unlockedInRound === 当前周目；声望同一口径，见 reputation.ts）
   function unlockedAchievementsThisRound(s: GameState): number {
@@ -108,9 +114,11 @@ async function main(): Promise<void> {
     renderResources(els.resourceBar, state, netProduction(state))
     renderPlanetBar(els.planetBar, state)
     renderPlanetMechanic(els.mechanicBar, state)
-    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS)
+    // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
+    const flashId = Date.now() < justUpgradedUntil ? justUpgradedId : null
+    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded, flashId })
     // 星际工程分组（唯一大件 + 终局抉择区块）追加在建造面板内
-    renderInterstellarPanel(panels['build'], state)
+    renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state)
@@ -564,6 +572,11 @@ async function main(): Promise<void> {
           return
         }
       }
+      // 单次升级（data-upgrade）：卡片短暂高亮（按钮 disabled 时不发 click，此处安全）
+      if (actionId === 'upgrade') {
+        justUpgradedId = String(payload)
+        justUpgradedUntil = Date.now() + 1200
+      }
       dispatch(state, actionId, payload, deps)
       return
     }
@@ -605,6 +618,34 @@ async function main(): Promise<void> {
       const input = panels['military'].querySelector<HTMLInputElement>(`[data-conquest-input="${id}"]`)
       const invest = Number(input?.value ?? 0)
       dispatch(state, 'conquest', `${id}:${invest}`, deps)
+      return
+    }
+    // 锁定卡折叠行（data-locked-collapse）：展开/收起对应分区全部锁定卡（UI 内存态，250ms 重建不重置）
+    const collapseBtn = target.closest<HTMLElement>('[data-locked-collapse]')
+    if (collapseBtn) {
+      const zone = collapseBtn.dataset.lockedCollapse ?? ''
+      lockedExpanded[zone] = !lockedExpanded[zone]
+      render()
+      return
+    }
+    // 卡片主体点击（data-build-card，building-cards ticket 03）：按钮分支已在上方优先命中并 return，
+    // 此处为兜底——判定逻辑见 dom.buildCardAction（升级×1/建造×1/终局抉择弹窗；不可操作态 null 无副作用；
+    // Shift+卡片主体不触发买满，买满仍只走按钮）。
+    const card = target.closest<HTMLElement>('[data-build-card]')
+    if (card) {
+      const id = card.dataset.buildCard ?? ''
+      const act = buildCardAction(state, id)
+      if (!act) return
+      if (act.kind === 'megastructure') {
+        openMegastructureModal(id)
+        return
+      }
+      if (act.kind === 'upgrade') {
+        justUpgradedId = id
+        justUpgradedUntil = Date.now() + 1200
+      }
+      dispatch(state, act.kind, id, deps)
+      return
     }
   })
 

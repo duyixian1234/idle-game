@@ -460,6 +460,132 @@ body {
   font-size: 12px;
 }
 
+/* ---- 卡片化建造项（building-cards spec）---- */
+/* 网格：auto-fill 自适应为主 + 显式断点兜底（≤480 单列 / 480-700 两列 / ≥700 三列；容器封顶 860px，3 列即上限） */
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.build-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  /* 卡片主体可点击（升级×1/建造×1）：hover 边框高亮提示；hover 禁用 transition（250ms 全量重建防闪烁） */
+  cursor: pointer;
+}
+
+.build-card:hover {
+  border-color: #3d4650;
+}
+
+.build-card:active {
+  transform: translateY(1px);
+}
+
+/* 锁定卡：灰化 + 不可点（点击由委托判定无副作用） */
+.build-card.locked {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.build-card.locked:hover {
+  border-color: var(--border);
+}
+
+.build-card.locked:active {
+  transform: none;
+}
+
+/* 图标区：24px 网格内的线性图标；状态着色纯 CSS（锁定灰 / 默认前景） */
+.build-card-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.build-card-icon .icon {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
+.build-card.locked .build-card-icon {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* 信息区（卡片内部纵向排布，替代原横向 build-info 的布局职责） */
+.build-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+/* 刚升级高亮：一次性动画（仅当渲染时卡片带 just-upgraded 类触发；
+   窗口过期后渲染不带类 → 后续 250ms 重建不重放） */
+.build-card.just-upgraded {
+  animation: build-upgrade-flash 1.1s ease-out;
+}
+
+@keyframes build-upgrade-flash {
+  0% {
+    border-color: var(--good);
+    box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.35);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
+/* 锁定卡折叠行（每区 >3 张时出现；展开/收起切换，UI 内存态） */
+.locked-collapse {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-inset);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: none;
+}
+
+.locked-collapse:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 探索页天体徽标（产出型天体贡献行）与外交派系徽标（同一 SVG 资产，building-cards ticket 06） */
+.explore-icon {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: -2px;
+  color: var(--accent);
+}
+
+.faction-badge {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  vertical-align: -3px;
+  color: var(--accent);
+  margin-right: 5px;
+}
+
 .lock-hint {
   border: 1px dashed var(--border);
   border-radius: 4px;
@@ -1211,6 +1337,14 @@ body {
 /* ---- 响应式（窄屏） ----
    注意：不给 .build-btn 设 width:100%（会塞进不换行的 flex 行导致按钮行溢出视口，
    历史上移动端「按钮叠在一起无法游玩」即由此而来）；全宽/堆叠由各容器显式声明。 */
+
+/* 建造卡片网格断点：480-700px 两列（spec 决策：≤480 单列 / 480-700 2 列 / ≥700 3 列） */
+@media (max-width: 700px) {
+  .build-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 480px) {
   .resource-bar {
     gap: 4px;
@@ -1246,6 +1380,10 @@ body {
   .build-item {
     flex-direction: column;
     align-items: stretch;
+  }
+  /* 建造卡片 ≤480px 单列（延续 mobile-layout 铁律：按钮列式堆叠、不设 width:100% 于不换行 flex 行） */
+  .build-grid {
+    grid-template-columns: 1fr;
   }
   /* 建造/升级/买满/升满纵向堆叠，按钮撑满列宽（与外交/科技面板一致） */
   .build-actions {

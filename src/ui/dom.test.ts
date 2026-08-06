@@ -7,10 +7,12 @@ import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
 import { ACHIEVEMENTS, checkAchievements } from '../engine/achievements'
-import { BUILDINGS, INTERSTELLAR_BUILDINGS, PLANETS } from '../engine/data'
+import { BUILDINGS, CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MILITARY_BUILDINGS, PLANETS } from '../engine/data'
 import { TECH_MAX_LEVEL } from '../engine/balance'
+import { ICONS } from './icons'
 import {
   appendLog,
+  buildCardAction,
   buildLayout,
   renderArchivePanel,
   renderBuildPanel,
@@ -1113,5 +1115,199 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     renderMegastructureModal(overlay, s, 'jumpgate')
     expect(overlay.querySelector('[data-megastructure-confirm="jumpgate"]')).toBeTruthy()
     expect(overlay.textContent).toContain('离线')
+  })
+})
+
+describe('ui: 建造卡片（building-cards）', () => {
+  it('卡片渲染：data-build-card + 图标 use + 名称/徽标/预览/按钮组齐全', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    s.buildings.miner = 3
+    s.upgrades.miner = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS)
+    const card = container.querySelector<HTMLElement>('[data-building="miner"]')
+    expect(card).toBeTruthy()
+    // 卡片主体可点击契约
+    expect(card!.getAttribute('data-build-card')).toBe('miner')
+    // 图标 use 引用 sprite symbol（非 emoji/内联 path）
+    expect(card!.querySelector('use')?.getAttribute('href')).toBe('#ic-miner')
+    // 名称 + count 徽标 + 等级徽标
+    expect(card!.textContent).toContain('采矿机')
+    expect(card!.querySelector('.build-count')?.textContent).toContain('×3')
+    expect(card!.textContent).toContain('Lv.1')
+    // 预览与按钮组（存量契约）
+    expect(card!.querySelector('.build-upgrade-preview')).toBeTruthy()
+    expect(card!.querySelector('.build-buy-preview')).toBeTruthy()
+    expect(card!.querySelector('[data-upgrade="miner"]')).toBeTruthy()
+    expect(card!.querySelector('[data-upgrade-max="miner"]')).toBeTruthy()
+    expect(card!.querySelector('[data-buy-max="miner"]')).toBeTruthy()
+  })
+
+  it('sprite 容器随布局输出一次（卡片只复制 use 引用）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    expect(container.querySelector('.icon-sprite')?.querySelectorAll('symbol').length).toBe(Object.keys(ICONS).length)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, createInitialState(0), CIVIL_BUILDINGS)
+    // 重建面板不重复输出 symbol 定义
+    expect(container.querySelectorAll('.icon-sprite')).toHaveLength(1)
+  })
+
+  it('锁定卡：灰化 class + 解锁条件文案 + 无预览/按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS)
+    const drill = container.querySelector<HTMLElement>('[data-building="deepDrill"]')
+    expect(drill!.classList.contains('locked')).toBe(true)
+    expect(drill!.textContent).toContain('深层钻探')
+    expect(drill!.querySelector('.build-buy-preview')).toBeNull()
+    expect(drill!.querySelector('.build-actions')).toBeNull()
+    // 灰化：图标容器存在但颜色由 CSS 控制（无 JS 状态）
+    expect(drill!.querySelector('use')?.getAttribute('href')).toBe('#ic-deepDrill')
+  })
+
+  it('刚升级高亮：flashId 命中时卡片带 just-upgraded 类，未命中不带', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS, { flashId: 'miner' })
+    expect(container.querySelector('[data-building="miner"]')?.classList.contains('just-upgraded')).toBe(true)
+    expect(container.querySelector('[data-building="solar"]')?.classList.contains('just-upgraded')).toBe(false)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS, { flashId: null })
+    expect(container.querySelector('[data-building="miner"]')?.classList.contains('just-upgraded')).toBe(false)
+  })
+
+  it('锁定卡折叠：≤3 张全展示无折叠行', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded: {} })
+    // 民用区初始仅 refinery/deepDrill 锁定（lab 无前置、miner/solar 永开）→ 2 张，无折叠行
+    expect(container.querySelector('[data-locked-collapse]')).toBeNull()
+    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(2)
+  })
+
+  it('锁定卡折叠：>3 张只展示前 3 + 折叠行；展开后全显；收起回到折叠', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = 10
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: {} })
+    // 星际工程：星港已解锁（母星 + 深钻满级）→ 其余 5 个锁定 → 折叠行 + 前 3 张
+    const collapse = container.querySelector<HTMLElement>('[data-locked-collapse]')
+    expect(collapse).toBeTruthy()
+    expect(collapse!.textContent).toContain('还有 2 项未解锁')
+    expect(collapse!.getAttribute('data-expanded')).toBe('false')
+    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(3)
+    // 展开态：全显 + 收起行
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: { interstellar: true } })
+    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(5)
+    const expanded = container.querySelector<HTMLElement>('[data-locked-collapse]')
+    expect(expanded!.textContent).toContain('收起锁定项')
+    expect(expanded!.getAttribute('data-expanded')).toBe('true')
+  })
+
+  it('军事 tab 无折叠（不传 zoneId）：全部锁定卡展示', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderBuildPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s, MILITARY_BUILDINGS)
+    expect(container.querySelector('[data-locked-collapse]')).toBeNull()
+    expect(container.querySelectorAll('[data-build-card].locked')).toHaveLength(2)
+  })
+
+  it('军事面板卡片化：兵营/军港走卡片组件，攻占列表/军械科技区行式不受影响', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.planets.ice = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 100_000
+    s.resources.military = 100_000
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    // 军事建筑卡片化（与民用同构）
+    expect(panel.querySelector('[data-build-card="barracks"]')).toBeTruthy()
+    expect(panel.querySelector('[data-build-card="militaryPort"]')).toBeTruthy()
+    expect(panel.querySelector('[data-building="barracks"]')?.querySelector('use')?.getAttribute('href')).toBe('#ic-barracks')
+    // 攻占列表行式契约保留
+    expect(panel.querySelector('[data-conquest-input="outpost"]')).toBeTruthy()
+    expect(panel.querySelector('[data-conquest="outpost"]')).toBeTruthy()
+    // 军械科技区保留（未解锁锁定文案）
+    expect(panel.textContent).toContain('攻占「虫群前哨」后解锁')
+  })
+
+  it('探索页天体/派系徽标接入 SVG 资产（building-cards ticket 06）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.endingTriggered = true
+    s.resources.mineral = 10_000_000
+    s.resources.energy = 5_000_000
+    s.resources.military = 50_000
+    s.resources.tech = 1_000_000
+    // 已发现两个产出型天体
+    s.planets.rubbleBelt = { unlocked: true }
+    s.planets.heliumNebula = { unlocked: true }
+    s.planets.orbital = { unlocked: true } // factionsVisible 前置
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const rubble = page.querySelector<HTMLElement>('[data-planet-output="rubbleBelt"]')
+    expect(rubble).toBeTruthy()
+    expect(rubble!.querySelector('use')?.getAttribute('href')).toBe('#ic-rubbleBelt')
+    expect(page.querySelector('[data-planet-output="heliumNebula"]')?.querySelector('use')?.getAttribute('href')).toBe('#ic-heliumNebula')
+    // 未发现天体不渲染徽标
+    expect(page.querySelector('[data-planet-output="riftChasm"]')).toBeNull()
+
+    // 外交面板派系徽标：初始 4 家已登场；探索 4 家加入 state.factions 后渲染（8 家全部有 symbol）
+    for (const id of ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
+      s.factions[id] = { favor: 10, allied: false, tradeCount: 0, intimidateCount: 0, threat: 20 }
+    }
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const diplo = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
+    expect(diplo.querySelectorAll('[data-faction]')).toHaveLength(8)
+    for (const id of ['ferro', 'lumen', 'cygnus', 'vox', 'ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
+      expect(diplo.querySelector(`[data-faction="${id}"] use`)?.getAttribute('href')).toBe(`#ic-${id}`)
+    }
+  })
+
+  it('buildCardAction 判定：未解锁/满级/资源不足无副作用，其余分流正确', () => {
+    const s = createInitialState(0)
+    // 未解锁（深层钻机需科技）
+    expect(buildCardAction(s, 'deepDrill')).toBeNull()
+    // 未拥有且买得起 → buy
+    s.resources.mineral = 100
+    expect(buildCardAction(s, 'miner')).toEqual({ kind: 'buy' })
+    // 资源不足 → null
+    s.resources.mineral = 5
+    expect(buildCardAction(s, 'miner')).toBeNull()
+    // 已拥有且升得起 → upgrade
+    s.resources.mineral = 100
+    s.buildings.miner = 2
+    expect(buildCardAction(s, 'miner')).toEqual({ kind: 'upgrade' })
+    // 升不起 → null
+    s.resources.mineral = 1
+    expect(buildCardAction(s, 'miner')).toBeNull()
+    // jumpgate 已建（无升级效果）→ null
+    s.resources.mineral = 10 ** 12
+    s.phase = 'ended'
+    s.upgrades.deepDrill = 10
+    s.buildings.starportMine = 1
+    s.buildings.stellarArray = 1
+    s.buildings.thinkTank = 1
+    s.buildings.jumpgate = 1
+    expect(buildCardAction(s, 'jumpgate')).toBeNull()
+    // 终局抉择未建 → megastructure
+    s.buildings.ringSmelter = 0
+    expect(buildCardAction(s, 'ringSmelter')).toEqual({ kind: 'megastructure' })
+    // 已选冶炼场后枢纽锁定 → null
+    s.megastructureChoice = 'smelter'
+    expect(buildCardAction(s, 'jumpgate')).toBeNull()
   })
 })
