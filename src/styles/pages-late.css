@@ -1,3 +1,41 @@
+/* ---- 军事面板（ticket 06）---- */
+.military-section {
+  margin-bottom: 18px;
+}
+
+.conquest-header {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 12px 0 6px;
+  letter-spacing: 0.05em;
+}
+
+.conquest-item {
+  border-left: 2px solid #5a4a3a;
+}
+
+.conquest-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+.conquered-badge {
+  color: var(--good);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.ongoing-badge {
+  color: var(--accent);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.conquered-hint {
+  border-color: #3a5a3a;
+  color: var(--good);
 }
 
 /* ---- 档案面板（成就 + 声望）---- */

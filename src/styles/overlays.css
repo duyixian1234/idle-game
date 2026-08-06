@@ -1,3 +1,41 @@
+/* ---- 结局面板 / 一键买满 / 开启新周目 / 终局抉择 确认弹窗（共享遮罩与卡片体系） ---- */
+.ending-overlay,
+.buy-max-overlay,
+.ngplus-overlay,
+.megastructure-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.ending-overlay.hidden,
+.buy-max-overlay.hidden,
+.ngplus-overlay.hidden,
+.megastructure-overlay.hidden {
+  display: none;
+}
+
+.ending-card,
+.buy-max-card,
+.ngplus-card,
+.megastructure-card,
+.explore-card {
+  max-width: 560px;
+  width: 100%;
+  background: var(--bg-panel);
+  border: 1px solid var(--mineral);
+  border-radius: 10px;
+  padding: 28px 24px;
+  text-align: center;
+}
+
+/* 一键买满/开启新周目/终局抉择确认弹窗内部结构 */
 .buy-max-card,
 .ngplus-card,
 .megastructure-card {

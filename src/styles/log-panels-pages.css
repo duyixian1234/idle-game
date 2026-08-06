@@ -1,3 +1,39 @@
+/* ---- 星域页日志区（限高 25vh 可滚动，事件卡仍 prepend 顶部） ---- */
+/* 日志头部：ASCII 框式标题（Q9 定案：ASCII 装饰仅用于标题分隔/日志头部）。
+   头部由 buildLayout 一次性构建，不参与 250ms 重建 → 块状光标动画不被打断。 */
+.log-head {
+  flex-shrink: 0;
+  padding: 5px 12px 4px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--phosphor);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* 块状光标：终端手感（500ms step-end 瞬时明灭）；reduced-motion 下静止 */
+.log-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  margin-left: 6px;
+  background: var(--phosphor);
+  vertical-align: text-bottom;
+  animation: cursor-blink 500ms step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.log-area {
   flex-shrink: 0;
   max-height: 25vh;
   min-height: 120px;
@@ -789,41 +825,3 @@
   color: var(--bad);
 }
 
-/* ---- 结局面板 / 一键买满 / 开启新周目 / 终局抉择 确认弹窗（共享遮罩与卡片体系） ---- */
-.ending-overlay,
-.buy-max-overlay,
-.ngplus-overlay,
-.megastructure-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 50;
-  overflow-y: auto;
-}
-
-.ending-overlay.hidden,
-.buy-max-overlay.hidden,
-.ngplus-overlay.hidden,
-.megastructure-overlay.hidden {
-  display: none;
-}
-
-.ending-card,
-.buy-max-card,
-.ngplus-card,
-.megastructure-card,
-.explore-card {
-  max-width: 560px;
-  width: 100%;
-  background: var(--bg-panel);
-  border: 1px solid var(--mineral);
-  border-radius: 10px;
-  padding: 28px 24px;
-  text-align: center;
-}
-
-/* 一键买满/开启新周目/终局抉择确认弹窗内部结构 */
