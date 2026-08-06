@@ -110,89 +110,6 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
     </div>`
 }
 
-/** 当前生效的声望加成文本（无声望时显示解锁提示） */
-function reputationBonusText(b: ReputationBonuses): string {
-  const parts: string[] = []
-  if (b.tradeDiscount > 0) parts.push(`贸易折扣 ${formatPercent(b.tradeDiscount * 100)}`)
-  if (b.raidThresholdBonus > 0) parts.push(`骚扰阈值 ${formatPercent(55 + b.raidThresholdBonus)}`)
-  if (b.militaryCapBonus > 0) parts.push(`军力上限 +${formatPercent(b.militaryCapBonus * 100)}`)
-  if (b.conquestSuccessBonus > 0) parts.push(`攻占成功率 +${formatPercent(b.conquestSuccessBonus * 100)}`)
-  if (parts.length === 0) return '未解锁加成（声望 ≥20 解锁贸易折扣）'
-  return parts.join(' · ')
-}
-
-/** 渲染档案面板（第 5 面板）：星系统一声望 + 成就网格 + 本周目统计。纯展示，无交互按钮 */
-export function renderArchivePanel(el: HTMLElement, state: GameState): void {
-  el.innerHTML = ''
-  const rep = reputation(state)
-  const bonuses = reputationBonuses(state)
-
-  // 段 1：声望
-  const repSection = document.createElement('div')
-  repSection.className = 'military-section'
-  repSection.innerHTML = `
-    <div class="rep-card">
-    <div class="rep-title">星系统一声望 <span class="rep-value">${formatNumber(rep)} / ${formatNumber(100)}</span></div>
-      <div class="rep-bonuses">${escapeHtml(reputationBonusText(bonuses))}</div>
-      <div class="rep-hint">声望由成就解锁驱动，影响外交与军事，不直接改变产出。</div>
-    </div>`
-  el.appendChild(repSection)
-
-  // 段 2：成就网格（叙事 / 收集 / 终局 三组）
-  const groups: { key: string; title: string }[] = [
-    { key: 'story', title: '叙事里程碑' },
-    { key: 'collect', title: '收集目标' },
-    { key: 'finale', title: '终局传奇' },
-  ]
-  for (const g of groups) {
-    const defs = Object.values(ACHIEVEMENTS).filter((d) => d.category === g.key)
-    if (defs.length === 0) continue
-    const section = document.createElement('div')
-    section.className = 'military-section'
-    const header = document.createElement('div')
-    header.className = 'conquest-header'
-    const doneCount = defs.filter((d) => state.achievements[d.id]).length
-    header.textContent = `${g.title}（${formatNumber(doneCount)}/${formatNumber(defs.length)}）`
-    section.appendChild(header)
-    for (const def of defs) {
-      const unlocked = Boolean(state.achievements[def.id])
-      const item = document.createElement('div')
-      item.className = unlocked ? 'ach-item done' : 'ach-item locked'
-      const rewardParts: string[] = []
-      if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
-      if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
-      const rewardText = rewardParts.length > 0 ? ` · ${rewardParts.join('、')}` : ''
-      item.innerHTML = `
-        <div class="ach-name">${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)} <span class="ach-state">+${formatNumber(def.rep)} 声望</span></div>
-        <div class="ach-desc">${escapeHtml(def.desc)}</div>
-        <div class="ach-reward">奖励：${rewardText || '无'}</div>`
-      section.appendChild(item)
-    }
-    el.appendChild(section)
-  }
-
-  // 段 3：本周目统计
-  const statSection = document.createElement('div')
-  statSection.className = 'military-section'
-  const statHeader = document.createElement('div')
-  statHeader.className = 'conquest-header'
-  statHeader.textContent = '本周目统计'
-  statSection.appendChild(statHeader)
-  const tradeSum = Object.values(state.factions).reduce((a, f) => a + f.tradeCount, 0)
-  const intimiSum = Object.values(state.factions).reduce((a, f) => a + f.intimidateCount, 0)
-  const conquered = Object.values(state.conquest).filter((c) => c.status === 'conquered').length
-  const stats = document.createElement('div')
-  stats.className = 'rep-stats'
-  stats.innerHTML = `
-    <div>在线时长：${formatPlayTime(state.playSeconds)}</div>
-    <div>累计采集矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
-    <div>外交贸易：${formatNumber(tradeSum)} 次 · 威慑：${formatNumber(intimiSum)} 次</div>
-    <div>星域肃清：${formatNumber(conquered)}/${formatNumber(Object.keys(CONQUESTS).length)}</div>
-    <div>NG+ 周目：${formatNumber(state.ngPlusLevel)}</div>`
-  statSection.appendChild(stats)
-  el.appendChild(statSection)
-}
-
 /** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */export interface BuyMaxModalData {
   title: string
   summary: string
@@ -230,12 +147,6 @@ export function renderBuyMaxModal(el: HTMLElement, data: BuyMaxModalData): void 
         <button type="button" class="ending-btn ghost" data-buy-max-cancel>取消</button>
       </div>
     </div>`
-}
-
-function formatCost(cost: Record<ResourceKey, number>): string {
-  return RESOURCE_KEYS.filter((k) => cost[k] > 0)
-    .map((k) => `${RESOURCE_META[k].symbol}${formatNumber(cost[k])}`)
-    .join(' ')
 }
 
 /** 渲染「开启新周目」确认弹窗（双清单：将失去 / 将继承，继承为预览值） */
@@ -284,11 +195,5 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
         <button type="button" class="ending-btn ghost" data-ngplus-cancel>取消</button>
       </div>
     </div>`
-}
-
-function formatTime(ms: number): string {
-  const d = new Date(ms)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
