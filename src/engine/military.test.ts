@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buyBuilding, createInitialState, isBuildingUnlocked, researchTech, tick } from './engine'
+import { buyBuilding, createInitialState, isBuildingUnlocked, researchTech, tick, upgradeTech } from './engine'
 import { canBulkBuy, executeMaxBuy, previewMaxBuy } from './bulk'
 import { militaryCap, netProduction, productionReport } from './production'
 import { settleOffline } from './offline'
@@ -117,5 +117,51 @@ describe('engine: 生产报告含军力（回归）', () => {
     const r = productionReport(s)
     expect(r.nominal.military).toBe(0.5)
     expect(r.nominal.mineral).toBe(0)
+  })
+})
+
+describe('engine: 军械科技（军事线科技，Lv1-5）', () => {
+  it('攻占虫群前哨后解锁军械科技（Lv1），军力产出 ×1', () => {
+    const s = stateWithMilitary()
+    s.buildings.barracks = 1
+    // 攻占前无产出加成；模拟攻占解锁
+    s.techLevels.militaryTech = 1
+    expect(netProduction(s).military).toBe(0.5)
+    // 升级至 Lv2 → ×1.5
+    s.resources.mineral += 1_000_000
+    s.resources.tech += 1_000_000
+    expect(upgradeTech(s, 'militaryTech')).toEqual({ ok: true })
+    expect(s.techLevels.militaryTech).toBe(2)
+    expect(netProduction(s).military).toBe(0.75)
+  })
+
+  it('军械科技 Lv5 封顶（短升级线），Lv6 拒绝', () => {
+    const s = stateWithMilitary()
+    s.techLevels.militaryTech = 5
+    s.resources.mineral += 1_000_000
+    s.resources.tech += 1_000_000
+    expect(upgradeTech(s, 'militaryTech')).toEqual({ ok: false, reason: '已满级' })
+    expect(s.techLevels.militaryTech).toBe(5)
+  })
+
+  it('buy-max 升满军械科技停在 Lv5（不越界到 Lv10）', () => {
+    const s = stateWithMilitary()
+    s.techLevels.militaryTech = 1
+    s.resources.mineral += 1_000_000
+    s.resources.tech += 1_000_000
+    const p = previewMaxBuy(s, 'techUpgrade', 'militaryTech')
+    expect(p.count).toBe(4)
+    expect(p.targetLevel).toBe(5)
+    expect(p.stoppedReason).toBe('maxLevel')
+    const r = executeMaxBuy(s, 'techUpgrade', 'militaryTech')
+    expect(r.ok).toBe(true)
+    expect(s.techLevels.militaryTech).toBe(5)
+  })
+
+  it('生产科技（行星钻探 Lv10）封顶不受影响', () => {
+    const s = stateWithMilitary()
+    s.techLevels.planetDrill = 10
+    s.resources.mineral += 1_000_000
+    expect(upgradeTech(s, 'planetDrill')).toEqual({ ok: false, reason: '已满级' })
   })
 })

@@ -1,4 +1,4 @@
-import { BUILDINGS, RESOURCE_KEYS, TECH_MAX_LEVEL } from './data'
+import { BUILDINGS, RESOURCE_KEYS, TECHS, TECH_MAX_LEVEL } from './data'
 import { buyBuilding, isBuildingUnlocked, techLevel, upgradeBuilding, upgradeTech } from './engine'
 import { FAVOR_CAP, factionTechShare, factionTrade } from './diplomacy'
 import { zeroResources } from './core'
@@ -134,9 +134,9 @@ function loopTargetFor(_state: GameState, kind: BulkKind, id: string): LoopTarge
       levelOf: (s) => s.upgrades[id] ?? 0,
     }
   }
-  // techUpgrade
+  // techUpgrade（按科技自身 maxLevel 封顶，如军械科技 Lv5）
   return {
-    atCap: (s) => techLevel(s, id) >= TECH_MAX_LEVEL,
+    atCap: (s) => techLevel(s, id) >= (TECHS[id]?.maxLevel ?? TECH_MAX_LEVEL),
     capReason: 'maxLevel',
     tryOnce: (s) => upgradeTech(s, id),
     levelOf: (s) => techLevel(s, id),
@@ -217,5 +217,5 @@ export function canBulkBuy(state: GameState, kind: BulkKind, id: string): boolea
     return true
   }
   if (kind === 'buildingUpgrade') return (state.buildings[id] ?? 0) > 0
-  return techLevel(state, id) > 0 && techLevel(state, id) < TECH_MAX_LEVEL
+  return techLevel(state, id) > 0 && techLevel(state, id) < (TECHS[id]?.maxLevel ?? TECH_MAX_LEVEL)
 }

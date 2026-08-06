@@ -147,6 +147,10 @@ export interface TechDef {
   effect: TechEffect
   /** 前置科技 */
   requires?: string[]
+  /** 等级上限（缺省 TECH_MAX_LEVEL；军械科技等短升级线设 5） */
+  maxLevel?: number
+  /** 攻占区域后解锁（军事科技线；显示于军事面板而非科技面板） */
+  unlockByConquest?: string
 }
 
 /** 科技等级上限（产出类科技，1 = 已研发） */
@@ -306,6 +310,15 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 12000, tech: 1000 },
     effect: { kind: 'production', resource: 'mineral', mult: 2 },
     requires: ['planetDrill'],
+  },
+  militaryTech: {
+    id: 'militaryTech',
+    name: '军械科技',
+    desc: '改进护卫舰武器与装甲，军力产出提升（Lv1 ×1，每级 +0.5）。攻占「虫群前哨」后解锁。',
+    cost: { mineral: 20_000, tech: 2_000 },
+    effect: { kind: 'production', resource: 'military', mult: 1 },
+    maxLevel: 5,
+    unlockByConquest: 'outpost',
   },
 }
 

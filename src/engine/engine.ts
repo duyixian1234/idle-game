@@ -179,9 +179,9 @@ export function isTechResearched(state: GameState, id: string): boolean {
   return techLevel(state, id) > 0
 }
 
-/** 是否可升级：产出类科技且未满级 */
+/** 是否可升级：产出类科技且未满级（军械科技等短升级线按 def.maxLevel） */
 export function canTechUpgrade(def: TechDef, level: number): boolean {
-  return def.effect.kind === 'production' && level > 0 && level < TECH_MAX_LEVEL
+  return def.effect.kind === 'production' && level > 0 && level < (def.maxLevel ?? TECH_MAX_LEVEL)
 }
 
 /**
@@ -480,6 +480,10 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.pendingEvents = []
   state.nextEventId = 1
   state.lastStormHarvestAt = nowMs
+  // 区域攻占重置为全部 locked（永久加成已保留在 permanentBonuses，NG+ 继承）
+  const conquestReset: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}
+  for (const def of Object.values(CONQUESTS)) conquestReset[def.id] = { status: 'locked' }
+  state.conquest = conquestReset
   state.phase = 'playing'
   state.endingTriggered = false
   state.lastTick = nowMs

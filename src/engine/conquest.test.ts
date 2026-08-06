@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, enterInfiniteMode, tick } from './engine'
+import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
 import { isConquestAvailable, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
 import type { GameState } from './types'
@@ -112,5 +112,23 @@ describe('engine: 攻占系统（conquest）', () => {
     expect(off.conquestLogs.length).toBe(1)
     expect(off.conquestLogs[0]).toContain('捷报')
     expect(s.conquest.outpost.status).toBe('conquered')
+  })
+})
+
+describe('engine: NG+ 与区域继承', () => {
+  it('NG+ 重置区域攻占状态、保留永久加成；军力与军械科技重置', () => {
+    const s = conquestState()
+    s.permanentBonuses.production = 0.25
+    s.techLevels.militaryTech = 3
+    s.resources.military = 500
+    startNewGamePlus(s, 0)
+    // 区域全部重置为 locked
+    expect(s.conquest.outpost.status).toBe('locked')
+    expect(s.conquest.nest.status).toBe('locked')
+    // 永久加成保留（继承）
+    expect(s.permanentBonuses.production).toBe(0.25)
+    // 军力清零、军械科技重置
+    expect(s.resources.military).toBe(0)
+    expect(s.techLevels.militaryTech).toBeUndefined()
   })
 })
