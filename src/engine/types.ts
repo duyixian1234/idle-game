@@ -23,6 +23,91 @@ export interface EventOption {
   hint?: string
 }
 
+export type EventTheme = 'trade' | 'disaster' | 'security' | 'exploration' | 'investment'
+export type EventDecisionType = 'exchange' | 'collect' | 'defend' | 'ignore' | 'invest'
+export type EventRiskLevel = 'low' | 'medium' | 'high' | 'critical'
+export type EventPriority = 'normal' | 'urgent' | 'critical'
+export type EventHandlingMode = 'queue' | 'alert' | 'blocking'
+export type AutomationSource = 'manual' | 'automation'
+
+export interface EndlessChainState {
+  id: string
+  step: number
+  completed: boolean
+  result?: string
+}
+
+export interface EndlessEventState {
+  /** 当前无尽层数；由引擎推进，不依赖 UI。 */
+  layer: number
+  /** 当前阶段链进度。 */
+  stage: number
+  /** 最近连续未出现高风险事件的次数。 */
+  badLuck: number
+  /** 最近一次选择的事件族，避免组合池重复。 */
+  lastFamily?: string
+  chain?: EndlessChainState
+  bossDefeated: number
+}
+
+export interface EventAutomationRule {
+  id: string
+  optionId: string
+  priority: number
+  reason: string
+  maxRiskLevel?: EventRiskLevel
+  /** 规则允许的最低收益（按选项正向资源产出合计） */
+  minReward?: number
+  /** 规则冷却时间；同一规则命中后在此期间不会再次命中 */
+  cooldownMs?: number
+  resourceBudget?: Partial<Record<ResourceKey, number>>
+}
+
+export interface EventAutomationPolicy {
+  enabled: boolean
+  rules: EventAutomationRule[]
+  fallbackOptionId?: string
+  /** 类别级资源预算与风险阈值，规则字段可进一步收紧 */
+  resourceBudget?: Partial<Record<ResourceKey, number>>
+  maxRiskLevel?: EventRiskLevel
+  cooldownMs?: number
+}
+
+export interface EventAutomationAudit {
+  eventUid: number
+  category: string
+  source: AutomationSource
+  status: 'resolved' | 'paused' | 'failed'
+  optionId?: string
+  ruleId?: string
+  reason: string
+  time: number
+  /** 结算资源消耗/产出快照，供离线审计 */
+  deltas?: Record<string, number>
+  /** 失败或暂停的明确原因（与 reason 区分，便于筛选） */
+  failureReason?: string
+}
+
+export interface MigrationSummary {
+  fromSchemaVersion: number
+  toSchemaVersion: number
+  migratedEvents: number
+  unknownEvents: number
+  compensation: Record<string, number>
+  notes: string[]
+}
+
+export interface EventFormulaPart {
+  name: 'base' | 'stageLayer' | 'risk' | 'capability' | 'softCap'
+  value: number
+  multiplier?: number
+}
+
+export interface EventSettlement {
+  deltas: Record<string, number>
+  breakdown: EventFormulaPart[]
+}
+
 /** 待处理的随机事件实例 */
 export interface EventInstance {
   uid: number
@@ -34,12 +119,31 @@ export interface EventInstance {
   createdAt: number
   /** 是否已处理 */
   resolved: boolean
+  /** 统一事件契约版本；旧存档迁移时补齐 */
+  contractVersion?: number
+  theme?: EventTheme
+  decisionType?: EventDecisionType
+  riskLevel?: EventRiskLevel
+  priority?: EventPriority
+  handlingMode?: EventHandlingMode
+  migrationStatus?: 'migrated' | 'unknown'
+  migrationNote?: string
+  /** 无尽事件的组合元数据（旧事件缺省）。 */
+  family?: string
+  variantId?: string
+  tags?: string[]
+  isBoss?: boolean
+  chain?: { id: string; step: number; result?: string }
+  stageEligibility?: { min: number; max?: number }
+  endlessEligibility?: boolean
+  curveVersion?: number
+  settlement?: EventSettlement
   /** 实例创建时固化的数值（如事件成本/收益），保证提示与结算一致；raid 事件含 factionId（string） */
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations；7：+终局抉择 megastructureChoice；8：+舰队 fleet.count——由 save.ts 迁移链支撑） */
-export const SCHEMA_VERSION = 8
+/** 存档 schema 版本（保持 v8 兼容；无尽事件状态按可选字段迁移） */
+export const SCHEMA_VERSION = 9
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -184,8 +288,18 @@ export interface GameState {
   log: LogEntry[]
   /** 待处理的随机事件实例 */
   pendingEvents: EventInstance[]
+  /** 事件配置/曲线契约版本 */
+  eventConfigVersion: number
+  /** 按事件主题保存的自动处理策略 */
+  automationPolicies: Record<string, EventAutomationPolicy>
+  /** 自动处理审计记录与暂停通知依据 */
+  automationHistory: EventAutomationAudit[]
+  /** 迁移摘要；新档为空，旧档加载后保留以供 UI 与导出查看 */
+  migrationSummary?: MigrationSummary | null
   /** 下一条事件实例 id */
   nextEventId: number
+  /** 无尽模式事件池进度（v9 新增） */
+  endless: EndlessEventState
   /** 下次随机事件触发时间戳（ms） */
   nextEventAt: number
   /** 上次资源结算时间戳（ms），离线收益结算以此为准 */

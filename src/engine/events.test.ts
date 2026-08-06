@@ -2,7 +2,22 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
 import { netProduction } from './production'
 import { pushLog } from './core'
-import { applyEvent, createEventInstance, pruneStaleEvents, resolveEvent, scheduleNextEvent, triggerRandomEvent } from './events'
+import {
+  applyEvent,
+  autoResolvePendingEvents,
+  createEventInstance,
+  advanceEndlessLayer,
+  endlessEventPool,
+  evaluateEndlessCurve,
+  evaluateEventCurve,
+  EVENT_CONTRACT_VERSION,
+  pruneStaleEvents,
+  pickEndlessEventDef,
+  resolveEvent,
+  scheduleNextEvent,
+  tradeEventTerms,
+  triggerRandomEvent,
+} from './events'
 import { MEAN_EVENT_GAP_SECONDS } from './balance'
 
 /** 固定 rng 序列 */
@@ -54,6 +69,40 @@ describe('engine: 随机事件触发', () => {
 })
 
 describe('engine: 贸易商事件', () => {
+  it('使用统一事件契约和可解释曲线生成贸易条款', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    s.buildings.miner = 2
+    const inst = createEventInstance(s, 'trade')
+    expect(inst.contractVersion).toBe(EVENT_CONTRACT_VERSION)
+    expect(inst.theme).toBe('trade')
+    expect(inst.decisionType).toBe('exchange')
+    expect(inst.riskLevel).toBe('low')
+    expect(inst.payload?.curveVersion).toBe(EVENT_CONTRACT_VERSION)
+    expect(inst.settlement?.breakdown.map((part) => part.name)).toEqual(
+      expect.arrayContaining(['base', 'stageLayer', 'risk', 'capability']),
+    )
+    expect(inst.payload?.cost).toBe(tradeEventTerms(s).cost)
+  })
+
+  it('贸易曲线支持软上限并保留公式明细', () => {
+    const result = evaluateEventCurve(
+      { baseValue: 100, stageMultiplier: 2, layerMultiplier: 3, riskMultiplier: 1.5, capabilityModifier: 2, softCap: 500 },
+      { stage: 2, layer: 1 },
+    )
+    expect(result.value).toBe(500)
+    expect(result.breakdown.map((part) => part.name)).toEqual(['base', 'stageLayer', 'risk', 'capability', 'softCap'])
+  })
+
+  it('贸易结算返回统一资源变化和曲线明细', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const inst = createEventInstance(s, 'trade')
+    const outcome = applyEvent(s, inst, 'accept')
+    expect(outcome.deltas).toEqual({ mineral: -Number(inst.payload?.cost), tech: Number(inst.payload?.gain) })
+    expect(outcome.breakdown?.length).toBeGreaterThan(0)
+  })
+
   it('接受：扣矿物得科技点', () => {
     const s = createInitialState(0)
     s.resources.mineral = 10_000
@@ -120,6 +169,16 @@ describe('engine: 陨石雨事件', () => {
     expect(s.resources.mineral).toBe(100)
     expect(s.resources.tech).toBe(0)
   })
+
+  it('陨石雨结算返回统一资源变化', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const inst = createEventInstance(s, 'meteor')
+    const gain = Number(inst.payload?.gain)
+    const out = applyEvent(s, inst, 'collect')
+    expect(out.settlement?.deltas).toEqual({ mineral: gain })
+    expect(out.breakdown?.map((part) => part.name)).toContain('base')
+  })
 })
 
 describe('engine: 虫族警报事件', () => {
@@ -165,6 +224,163 @@ describe('engine: 虫族警报事件', () => {
     expect(outcome.logText).toContain('虫群啃食')
     expect(s.resources.mineral).toBeCloseTo(9000)
   })
+
+  it('虫族警报结算返回统一资源变化', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 50_000
+    const inst = createEventInstance(s, 'bug')
+    const cost = Number(inst.payload?.cost)
+    const out = applyEvent(s, inst, 'dispatch')
+    expect(out.settlement?.deltas).toEqual({ mineral: -cost })
+  })
+})
+
+describe('engine: 事件优先级与处理模式', () => {
+  it('高风险事件优先于普通事件，并带有 urgent/blocking 处理语义', () => {
+    const s = createInitialState(0)
+    s.factions.ferro.threat = 0
+    s.factions.vox.threat = 0
+    s.factions.cygnus.threat = 0
+    s.factions.lumen.threat = 0
+    triggerRandomEvent(s, () => 0.1) // trade
+    triggerRandomEvent(s, () => 0.9) // bug
+    expect(s.pendingEvents.map((event) => event.defId)).toEqual(['bug', 'trade'])
+    expect(s.pendingEvents[0].priority).toBe('urgent')
+    expect(s.pendingEvents[0].handlingMode).toBe('blocking')
+  })
+
+  describe('engine: 事件自动处理', () => {
+    it('低风险贸易按类别规则自动结算，并记录规则与原因', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 10_000
+      s.automationPolicies.trade = {
+        enabled: true,
+        rules: [{ id: 'accept-trade', optionId: 'accept', priority: 1, reason: '矿物储备充足' }],
+      }
+      const inst = createEventInstance(s, 'trade')
+      s.pendingEvents.push(inst)
+      const before = s.resources.mineral
+      const results = autoResolvePendingEvents(s)
+      expect(results).toHaveLength(1)
+      expect(s.pendingEvents).toHaveLength(0)
+      expect(s.resources.mineral).toBeLessThan(before)
+      expect(s.automationHistory[0]).toMatchObject({
+        eventUid: inst.uid,
+        category: 'trade',
+        status: 'resolved',
+        optionId: 'accept',
+        ruleId: 'accept-trade',
+        reason: '矿物储备充足',
+      })
+    })
+
+    it('高风险事件无可用规则时暂停并记录通知，不隐式选择选项', () => {
+      const s = createInitialState(0)
+      const inst = createEventInstance(s, 'bug')
+      s.pendingEvents.push(inst)
+      s.automationPolicies.security = { enabled: true, rules: [] }
+      const results = autoResolvePendingEvents(s)
+      expect(results[0].status).toBe('paused')
+      expect(s.pendingEvents).toHaveLength(1)
+      expect(s.automationHistory[0]).toMatchObject({ status: 'paused', reason: expect.stringContaining('没有可用规则') })
+    })
+
+    it('低风险无规则时使用安全 fallback，高风险 fallback 缺失仍暂停', () => {
+      const s = createInitialState(0)
+      s.automationPolicies.trade = { enabled: true, rules: [], fallbackOptionId: 'refuse' }
+      const trade = createEventInstance(s, 'trade')
+      s.pendingEvents.push(trade)
+      const low = autoResolvePendingEvents(s)
+      expect(low[0].status).toBe('resolved')
+      expect(s.pendingEvents).toHaveLength(0)
+    })
+
+    it('自动结算与手动 resolveEvent 使用相同结算结果', () => {
+      const auto = createInitialState(0)
+      auto.resources.mineral = 10_000
+      auto.automationPolicies.trade = {
+        enabled: true,
+        rules: [{ id: 'accept', optionId: 'accept', priority: 1, reason: 'test' }],
+      }
+      const autoInst = createEventInstance(auto, 'trade')
+      auto.pendingEvents.push(autoInst)
+      const autoResult = autoResolvePendingEvents(auto)[0].outcome
+
+      const manual = createInitialState(0)
+      manual.resources.mineral = 10_000
+      const manualInst = createEventInstance(manual, 'trade')
+      manual.pendingEvents.push(manualInst)
+      const manualResult = resolveEvent(manual, manualInst.uid, 'accept')
+      expect(autoResult?.deltas).toEqual(manualResult.deltas)
+      expect(auto.resources).toEqual(manual.resources)
+    })
+
+    it('规则支持收益阈值、类别预算和冷却', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 10_000
+      s.automationPolicies.trade = {
+        enabled: true,
+        resourceBudget: { mineral: 1_000 },
+        cooldownMs: 1_000,
+        rules: [{ id: 'accept', optionId: 'accept', priority: 1, reason: '预算内', minReward: 40 }],
+        fallbackOptionId: 'refuse',
+      }
+      const first = createEventInstance(s, 'trade')
+      s.pendingEvents.push(first)
+      expect(autoResolvePendingEvents(s, 100)[0].status).toBe('resolved')
+
+      const second = createEventInstance(s, 'trade')
+      s.pendingEvents.push(second)
+      const paused = autoResolvePendingEvents(s, 200)[0]
+      expect(paused.status).toBe('resolved')
+      expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'refuse', reason: '低风险安全 fallback' })
+    })
+
+    it('同优先级规则冲突时暂停而不是猜选项', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 10_000
+      s.automationPolicies.trade = {
+        enabled: true,
+        rules: [
+          { id: 'accept', optionId: 'accept', priority: 1, reason: '收益' },
+          { id: 'refuse', optionId: 'refuse', priority: 1, reason: '保守' },
+        ],
+      }
+      const inst = createEventInstance(s, 'trade')
+      s.pendingEvents.push(inst)
+      const result = autoResolvePendingEvents(s)[0]
+      expect(result.status).toBe('paused')
+      expect(s.pendingEvents).toHaveLength(1)
+      expect(s.automationHistory[0].reason).toContain('冲突')
+    })
+
+    it('自动审计记录实际资源消耗与产出', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 10_000
+      s.automationPolicies.trade = {
+        enabled: true,
+        rules: [{ id: 'accept', optionId: 'accept', priority: 1, reason: '审计' }],
+      }
+      const inst = createEventInstance(s, 'trade')
+      s.pendingEvents.push(inst)
+      autoResolvePendingEvents(s)
+      expect(s.automationHistory[0].deltas).toEqual({
+        mineral: -Number(inst.payload?.cost),
+        tech: Number(inst.payload?.gain),
+      })
+    })
+  })
+
+  it('舰队自动迎击返回统一结算结果而不是裸日志', () => {
+    const s = createInitialState(0)
+    s.resources.energy = 1_000_000
+    s.fleet.count = 3
+    s.buildings.militaryPort = 1
+    const result = triggerRandomEvent(s, () => 0.95)
+    expect(result?.settlement?.deltas).toEqual({ threat: -15 })
+    expect(result?.handlingMode).toBe('alert')
+    expect(s.pendingEvents).toHaveLength(0)
+  })
 })
 
 describe('engine: 事件解析与清理', () => {
@@ -184,6 +400,21 @@ describe('engine: 事件解析与清理', () => {
     resolveEvent(s, inst.uid, 'refuse')
     const again = resolveEvent(s, inst.uid, 'refuse')
     expect(again.changed).toBe(false)
+  })
+
+  it('手动结算与自动结算一样留下可审计历史', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const inst = createEventInstance(s, 'trade')
+    s.pendingEvents.push(inst)
+    resolveEvent(s, inst.uid, 'accept')
+    expect(s.automationHistory.at(-1)).toMatchObject({
+      eventUid: inst.uid,
+      source: 'manual',
+      status: 'resolved',
+      optionId: 'accept',
+      deltas: { mineral: -Number(inst.payload?.cost), tech: Number(inst.payload?.gain) },
+    })
   })
 
   it('虫族事件结算使用创建时固化成本（提示与扣费一致）', () => {
@@ -242,6 +473,47 @@ describe('engine: 事件与产出协同', () => {
     // 5 秒矿物产出 5（事件实例产生但结算照常）
     expect(s.resources.mineral).toBeCloseTo(mineralBefore + 5)
     expect(s.pendingEvents).toHaveLength(1)
+  })
+
+  describe('engine: 无尽事件池', () => {
+    it('无限模式组合基础事件与变体，并按层数开放首领', () => {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      expect(endlessEventPool(s).some((event) => event.id === 'trade')).toBe(true)
+      expect(endlessEventPool(s).some((event) => event.variantId === 'frontier')).toBe(true)
+      expect(endlessEventPool(s).some((event) => event.isBoss)).toBe(false)
+      advanceEndlessLayer(s, 3)
+      expect(endlessEventPool(s).some((event) => event.isBoss)).toBe(true)
+    })
+
+    it('连续低风险结果触发坏运气保护并优先给出高风险事件', () => {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      s.endless.badLuck = 3
+      const selected = pickEndlessEventDef(s, () => 0)
+      expect(['high', 'critical']).toContain(selected.riskLevel)
+    })
+
+    it('无尽曲线在软上限后仍增长但边际收益递减', () => {
+      const early = evaluateEndlessCurve(100, { layer: 5, softCap: 10_000 }).value
+      const late = evaluateEndlessCurve(100, { layer: 20, softCap: 10_000 }).value
+      const later = evaluateEndlessCurve(100, { layer: 21, softCap: 10_000 }).value
+      expect(late).toBeGreaterThan(early)
+      expect(later - late).toBeLessThan(late - evaluateEndlessCurve(100, { layer: 19, softCap: 10_000 }).value)
+    })
+
+    it('首领事件结算推进阶段链与无尽层数', () => {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      s.endless.layer = 3
+      s.resources.military = 100_000
+      const boss = createEventInstance(s, 'endless-overseer')
+      const outcome = applyEvent(s, boss, 'confront')
+      expect(outcome.changed).toBe(true)
+      expect(s.endless.layer).toBe(4)
+      expect(s.endless.bossDefeated).toBe(1)
+      expect(s.endless.chain?.completed).toBe(true)
+    })
   })
 
   it('净产出函数可独立使用', () => {

@@ -3,7 +3,7 @@ import { applyFleetMaintenance } from './fleet'
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
 import type { ExpeditionLog } from './exploration'
-import { settleOfflineRaids } from './events'
+import { autoResolvePendingEvents, settleOfflineRaids } from './events'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
@@ -62,6 +62,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
 
   // 离线骚扰结算：先产出后结算损失，损失封顶离线产出 30%（挂机永远净收益）
   const raids = settleOfflineRaids(state, duration, gains)
+  autoResolvePendingEvents(state, nowMs)
   // 离线期间攻占倒计时照常推进，回归时结算到期战报
   const conquestLogs = settleConquests(state, nowMs, rng)
   // 离线期间探索派遣倒计时照常推进，回归时自动入账（离线推进语义）

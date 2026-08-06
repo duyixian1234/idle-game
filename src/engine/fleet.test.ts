@@ -180,24 +180,24 @@ describe('engine: 造舰（ticket 03）——硬约束/上限拦截/持久化', 
   })
 })
 
-describe('engine: 存档 v7→v8 迁移（ticket 02）——fleet.count 补齐', () => {
-  it('v7 档（无 fleet）迁移为 v8：补 { count: 0 }、schemaVersion === 8', () => {
+describe('engine: 存档 v7→v9 迁移——fleet.count 与无尽状态补齐', () => {
+  it('v7 档（无 fleet）迁移为当前版本：补 { count: 0 }', () => {
     const s = fleetState()
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 7
     delete (raw as Record<string, unknown>).fleet
     const migrated = migrateSave(raw as unknown as GameState)
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.fleet).toEqual({ count: 0 })
     // 其余字段无损
     expect(migrated.buildings.dock).toBe(1)
   })
 
-  it('v8 档幂等：已有 fleet 保留原值', () => {
+  it('当前版本档幂等：已有 fleet 保留原值', () => {
     const s = fleetState()
     s.fleet.count = 2
     const migrated = migrateSave(JSON.parse(serializeSave(s)))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.fleet).toEqual({ count: 2 })
   })
 
@@ -208,10 +208,10 @@ describe('engine: 存档 v7→v8 迁移（ticket 02）——fleet.count 补齐',
     ;(raw as Record<string, unknown>).fleet = { count: 'x' }
     const migrated = migrateSave(raw as unknown as GameState)
     expect(migrated.fleet).toEqual({ count: 0 })
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
   })
 
-  it('v1 老档全链迁移至 8 且含 fleet', () => {
+  it('v1 老档全链迁移至当前版本且含 fleet', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 1

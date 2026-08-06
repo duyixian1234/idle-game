@@ -28,6 +28,7 @@ import {
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderEndingOverlay,
+  renderEventExplainability,
   renderExplorePage,
   renderInterstellarPanel,
   renderLogInto,
@@ -162,6 +163,7 @@ async function main(): Promise<void> {
     renderMilitaryPanel(panels['military'], state, { flashId })
     // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位）/ 设置（五组）
     renderArchivePanel(els.navPages.archive, state)
+    renderEventExplainability(els.navPages.archive, state)
     renderExplorePage(els.navPages.explore, state)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
@@ -305,6 +307,18 @@ async function main(): Promise<void> {
         })()
       }
     }
+  })
+
+  // 事件自动处理配置：保存当前类别的开关/规则；配置与引擎共享同一策略对象
+  els.navPages.archive.addEventListener('click', (e) => {
+    const save = (e.target as HTMLElement).closest<HTMLElement>('[data-automation-save]')
+    if (!save) return
+    const category = save.dataset.automationSave ?? ''
+    const enabled = els.navPages.archive.querySelector<HTMLInputElement>(`[data-automation-enabled="${category}"]`)?.checked ?? false
+    const maxRiskLevel = els.navPages.archive.querySelector<HTMLSelectElement>(`[data-automation-risk="${category}"]`)?.value || undefined
+    const cooldownMs = Number(els.navPages.archive.querySelector<HTMLInputElement>(`[data-automation-cooldown="${category}"]`)?.value ?? 0)
+    const current = state.automationPolicies[category] ?? { enabled: false, rules: [] }
+    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy: { ...current, enabled, maxRiskLevel, cooldownMs: Math.max(0, cooldownMs) } }), deps)
   })
   els.importFile.addEventListener('change', async (e) => {
     const input = e.target as HTMLInputElement

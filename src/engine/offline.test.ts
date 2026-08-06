@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { formatDuration, settleOffline } from './offline'
 import { OFFLINE_CAP_SECONDS } from './balance'
+import { createEventInstance } from './events'
 
 describe('engine: 离线收益结算', () => {
   it('按时间差结算产出', () => {
@@ -57,6 +58,20 @@ describe('engine: 离线收益结算', () => {
     s.buildings.miner = 2
     settleOffline(s, 3600_000)
     expect(s.stats.totalMineralEarned).toBeCloseTo(7200)
+  })
+
+  it('离线回归复用自动处理管线结算已排队低风险事件', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    s.automationPolicies.trade = {
+      enabled: true,
+      rules: [{ id: 'offline-trade', optionId: 'accept', priority: 1, reason: '离线预算允许' }],
+    }
+    const inst = createEventInstance(s, 'trade')
+    s.pendingEvents.push(inst)
+    settleOffline(s, 1_000)
+    expect(s.pendingEvents).toHaveLength(0)
+    expect(s.automationHistory[0]).toMatchObject({ source: 'automation', ruleId: 'offline-trade' })
   })
 
   it('离线时长格式化', () => {

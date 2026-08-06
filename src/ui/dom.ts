@@ -1,4 +1,4 @@
-import type { GameState, LogEntry, ResourceKey } from '../engine/types'
+import type { EventFormulaPart, GameState, LogEntry, ResourceKey } from '../engine/types'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
@@ -465,6 +465,12 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
     card.setAttribute('data-def', ev.defId)
     // data-event-card：语义化容器契约（E2E 断言不依赖 .event-card 类）
     card.setAttribute('data-event-card', '')
+    card.setAttribute('data-event-theme', ev.theme ?? ev.defId)
+    card.setAttribute('data-event-category', ev.theme ?? ev.defId)
+    card.setAttribute('data-event-risk', ev.riskLevel ?? 'low')
+    card.setAttribute('data-event-priority', ev.priority ?? 'normal')
+    card.setAttribute('data-event-handling', ev.handlingMode ?? 'queue')
+    if (ev.handlingMode === 'blocking' || ev.riskLevel === 'high' || ev.riskLevel === 'critical') card.setAttribute('data-event-blocked', '')
     const options = ev.options
       .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
       .join('')
@@ -485,18 +491,48 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
     }
     card.innerHTML = `
       <div class="event-title">${escapeHtml(ev.title)}</div>
+      <div data-event-meta>主题：${escapeHtml(ev.theme ?? ev.defId)} · 类别：${escapeHtml(ev.decisionType ?? 'exchange')} · 风险：${escapeHtml(ev.riskLevel ?? 'low')}</div>
+      ${ev.handlingMode === 'blocking' ? '<div data-event-pause>高风险事件已暂停自动处理，请选择一个选项。</div>' : ''}
       ${descHtml}
+      ${renderSettlementDetails(ev.settlement)}
       <div class="event-options">${options}</div>`
     if (typedFrom >= 0) {
       typewriters.push({ descEl: card.querySelector('[data-event-desc]') as HTMLElement, text: ev.desc, key: ev.uid, from: typedFrom })
     }
+
     stack.appendChild(card)
   }
+
   el.prepend(stack)
   // 卡片入 DOM 后再启动/续打 typewriter（计时器写实时节点）
   for (const tw of typewriters) {
     typewriter(tw.descEl, tw.text, tw.key, typed, tw.from)
   }
+}
+
+function renderSettlementDetails(settlement?: { deltas: Record<string, number>; breakdown: EventFormulaPart[] }): string {
+  if (!settlement) return ''
+  const names: Record<EventFormulaPart['name'], string> = { base: '基础值', stageLayer: '阶段/层数倍率', risk: '风险倍率', capability: '能力修正', softCap: '软上限' }
+  const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ×${part.multiplier}` : ''}</li>`).join('')
+  const deltas = Object.entries(settlement.deltas).map(([key, value]) => `${key} ${value >= 0 ? '+' : ''}${formatNumber(value)}`).join('、') || '待选择选项'
+  return `<details data-event-settlement><summary>查看结算明细</summary><div data-settlement-deltas>最终值：${escapeHtml(deltas)}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
+}
+
+/** 事件类别配置、暂停通知、历史与旧存档迁移摘要。 */
+export function renderEventExplainability(el: HTMLElement, state: GameState): void {
+  const categories = ['trade', 'disaster', 'security', 'exploration', 'investment']
+  const policyHtml = categories.map((category) => {
+    const policy = state.automationPolicies[category] ?? { enabled: false, rules: [] }
+    const rules = policy.rules.map((rule) => `<li data-automation-rule="${escapeHtml(rule.id)}">优先级 ${rule.priority}：${escapeHtml(rule.optionId)} · ${escapeHtml(rule.reason)}</li>`).join('') || '<li data-automation-empty>暂无规则</li>'
+    return `<article data-automation-category="${category}"><h3>${category}</h3><label><input type="checkbox" data-automation-enabled="${category}" ${policy.enabled ? 'checked' : ''}>启用自动处理</label><label>风险阈值<select data-automation-risk="${category}"><option value="">不限</option><option value="low" ${policy.maxRiskLevel === 'low' ? 'selected' : ''}>低</option><option value="medium" ${policy.maxRiskLevel === 'medium' ? 'selected' : ''}>中</option><option value="high" ${policy.maxRiskLevel === 'high' ? 'selected' : ''}>高</option><option value="critical" ${policy.maxRiskLevel === 'critical' ? 'selected' : ''}>极高</option></select></label><label>冷却 <input type="number" min="0" data-automation-cooldown="${category}" value="${policy.cooldownMs ?? 0}"></label><div data-automation-policy>预算：${Object.entries(policy.resourceBudget ?? {}).map(([k, v]) => `${k}≤${formatNumber(v)}`).join('、') || '无限制'} · 备用：${escapeHtml(policy.fallbackOptionId ?? '无')}</div><ul data-automation-rules>${rules}</ul><button type="button" data-automation-save="${category}">保存当前规则</button></article>`
+  }).join('')
+  const paused = state.automationHistory.filter((audit) => audit.status === 'paused')
+  const history = state.automationHistory.slice(-20).reverse().map((audit) => `<li data-event-history="${audit.eventUid}" data-history-source="${audit.source}">${audit.source === 'automation' ? '自动' : '手动'} · ${audit.category} · ${audit.optionId ?? '暂停'} · ${escapeHtml(audit.reason)}</li>`).join('') || '<li data-history-empty>暂无事件历史</li>'
+  const migrationSummary = state.migrationSummary
+    ? `<li data-migration-summary-count>版本 ${state.migrationSummary.fromSchemaVersion} → ${state.migrationSummary.toSchemaVersion}：已迁移 ${state.migrationSummary.migratedEvents} 个事件，未知 ${state.migrationSummary.unknownEvents} 个</li>${state.migrationSummary.notes.map((note) => `<li data-migration-note>${escapeHtml(note)}</li>`).join('')}`
+    : ''
+  const migrations = migrationSummary + state.pendingEvents.filter((event) => event.migrationStatus).map((event) => `<li data-migration-event="${event.uid}">${event.migrationStatus === 'migrated' ? '已迁移' : '未知事件'}：${escapeHtml(event.migrationNote ?? event.defId)}</li>`).join('') || '<li data-migration-empty>暂无迁移记录</li>'
+  el.insertAdjacentHTML('beforeend', `<section data-event-explainability><h2>事件可解释性</h2>${paused.length ? `<div data-pause-notice role="status">自动处理已暂停 ${paused.length} 个事件：${escapeHtml(paused[0].reason)}</div>` : ''}<div data-automation-config>${policyHtml}</div><section data-event-history><h3>事件历史</h3><ul>${history}</ul></section><section data-migration-summary><h3>迁移摘要</h3><ul>${migrations}</ul></section></section>`)
 }
 
 /** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。

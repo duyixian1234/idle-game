@@ -250,6 +250,7 @@ describe('actions: 注册表完整性', () => {
         'newGamePlus',
         'research',
         'resolveEvent',
+        'setAutomationPolicy',
         'setPlanet',
         'upgrade',
         'upgradeMax',

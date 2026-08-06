@@ -3,7 +3,7 @@ import { createInitialState, startNewGamePlus } from './engine'
 import { pushLog } from './core'
 import { reputation } from './reputation'
 import { deserializeSave, isValidSave, migrateSave, serializeSave } from './save'
-import { pickEventDef } from './events'
+import { createEventInstance, pickEventDef } from './events'
 import { settleConquests } from './conquest'
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
@@ -170,7 +170,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).nextExpeditionId
     ;(raw.stats as Record<string, unknown>).explorations = undefined
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
     expect(migrated.rngCounters).toEqual({})
@@ -194,7 +194,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     // v5 补齐必须生效：seed 在合法范围、rngCounters 空对象（否则 migrateV3ToV4 误标 5 跳级）
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
@@ -225,7 +225,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.techLevels).toEqual({ planetDrill: 1 })
     expect(migrated.resources.military).toBe(0)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
@@ -247,7 +247,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.seed).toBe(42)
     expect(migrated.rngCounters).toEqual({ event: 3 })
     expect(migrated.expeditions).toEqual([])
@@ -266,7 +266,7 @@ describe('engine: 存档序列化往返', () => {
     ]
     s.exploredFactions = ['ashCommune']
     const restored = deserializeSave(serializeSave(s))
-    expect(restored.schemaVersion).toBe(8)
+    expect(restored.schemaVersion).toBe(SCHEMA_VERSION)
     expect(restored.seed).toBe(42)
     expect(restored.expeditions).toHaveLength(1)
     expect(restored.exploredFactions).toEqual(['ashCommune'])
@@ -285,7 +285,7 @@ describe('engine: 存档序列化往返', () => {
     raw.schemaVersion = 6
     delete (raw as Record<string, unknown>).megastructureChoice
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(8)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.megastructureChoice).toBeNull()
     // 既有进度无损
     expect(migrated.resources.mineral).toBe(123_456)
@@ -358,6 +358,119 @@ describe('engine: 存档序列化往返', () => {
 
   it('createInitialState 产物直接通过 isValidSave', () => {
     expect(isValidSave(createInitialState(0))).toBe(true)
+  })
+
+  it('v8 旧档中的贸易事件按顺序迁移且保留固化进度', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const event = s.pendingEvents.push({
+      uid: 7,
+      defId: 'trade',
+      title: '贸易商抵达',
+      desc: '旧事件',
+      options: [{ id: 'accept', label: '成交' }],
+      createdAt: 0,
+      resolved: false,
+      payload: { cost: 500, gain: 20 },
+    })
+    expect(event).toBe(1)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 8
+    delete (raw as Record<string, unknown>).eventConfigVersion
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.eventConfigVersion).toBe(1)
+    expect(migrated.pendingEvents[0].payload?.cost).toBe(500)
+    expect(migrated.pendingEvents[0].contractVersion).toBe(1)
+    expect(migrated.pendingEvents[0].handlingMode).toBe('queue')
+    expect(migrated.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 })
+  })
+
+  it('旧档已知事件补齐处理模式，未知事件安全阻塞且保留迁移说明', () => {
+    const s = createInitialState(0)
+    s.pendingEvents.push({
+      uid: 1,
+      defId: 'meteor',
+      title: '陨石雨',
+      desc: '',
+      options: [],
+      createdAt: 0,
+      resolved: false,
+      payload: { gain: 300, shieldCost: 200 },
+    })
+    s.pendingEvents.push({
+      uid: 2,
+      defId: 'future-boss',
+      title: '未知',
+      desc: '',
+      options: [],
+      createdAt: 0,
+      resolved: false,
+    })
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 8
+    delete (raw as Record<string, unknown>).eventConfigVersion
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.pendingEvents[0].handlingMode).toBe('alert')
+    expect(migrated.pendingEvents[0].migrationStatus).toBe('migrated')
+    expect(migrated.pendingEvents[1].handlingMode).toBe('blocking')
+    expect(migrated.pendingEvents[1].migrationStatus).toBe('unknown')
+    expect(migrated.pendingEvents[1].migrationNote).toContain('future-boss')
+  })
+
+  it('旧档迁移补齐自动处理策略与审计历史，且不覆盖已有策略', () => {
+    const s = createInitialState(0)
+    s.automationPolicies.trade = {
+      enabled: true,
+      rules: [{ id: 'keep', optionId: 'refuse', priority: 1, reason: '保留' }],
+    }
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    const withPolicy = deserializeSave(JSON.stringify(raw))
+    expect(withPolicy.automationPolicies.trade.rules[0].id).toBe('keep')
+    delete (raw as Record<string, unknown>).automationPolicies
+    delete (raw as Record<string, unknown>).automationHistory
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.automationPolicies.trade).toBeDefined()
+    expect(migrated.automationHistory).toEqual([])
+    expect(migrated.automationPolicies.trade.rules).toEqual([])
+  })
+
+  it('旧档迁移生成稳定摘要、事件日志，并在再次导入时保持一致', () => {
+    const s = createInitialState(1234, 42)
+    s.pendingEvents.push({
+      uid: 1, defId: 'trade', title: '旧贸易', desc: '', options: [], createdAt: 0, resolved: false,
+      payload: { cost: 500, gain: 20 },
+    })
+    s.pendingEvents.push({
+      uid: 2, defId: 'future-boss', title: '未知', desc: '', options: [], createdAt: 0, resolved: false,
+    })
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    delete raw.eventConfigVersion
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.migrationSummary).toEqual({
+      fromSchemaVersion: 9,
+      toSchemaVersion: 9,
+      migratedEvents: 1,
+      unknownEvents: 1,
+      compensation: {},
+      notes: ['已迁移 1 个待处理事件', '1 个未知事件已安全暂停'],
+    })
+    expect(migrated.log[0]).toMatchObject({ type: 'system', time: 1234 })
+    expect(deserializeSave(serializeSave(migrated)).migrationSummary).toEqual(migrated.migrationSummary)
+  })
+
+  it('保存恢复后事件随机序列与待处理队列连续', () => {
+    const uninterrupted = createInitialState(0, 42)
+    const resumed = createInitialState(0, 42)
+    pickEventDef(uninterrupted)
+    pickEventDef(resumed)
+    resumed.pendingEvents.push(createEventInstance(resumed, 'trade', () => 0))
+    const restored = deserializeSave(serializeSave(resumed))
+    const nextA = pickEventDef(uninterrupted).id
+    const nextB = pickEventDef(restored).id
+    expect(nextB).toBe(nextA)
+    expect(restored.rngCounters).toEqual(uninterrupted.rngCounters)
+    expect(JSON.stringify(restored.pendingEvents)).toBe(JSON.stringify(resumed.pendingEvents))
   })
 
   it('迁移后确定性冒烟：v4 档迁移后引擎不传 rng 可稳定跑（无 undefined 崩溃）', () => {

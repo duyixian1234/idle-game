@@ -21,7 +21,7 @@ import { createFactions, federationProgress, isFederationUnified } from './diplo
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
-import { pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
+import { autoResolvePendingEvents, createDefaultAutomationPolicies, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
 import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { checkAchievements, endlessIIUnlocked } from './achievements'
@@ -82,7 +82,11 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     tutorialStep: 0,
     log: [],
     pendingEvents: [],
+    eventConfigVersion: 1,
+    automationPolicies: createDefaultAutomationPolicies(),
+    automationHistory: [],
     nextEventId: 1,
+    endless: { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 },
     nextEventAt: nowMs + FIRST_EVENT_DELAY_SECONDS * 1000,
     lastTick: nowMs,
     createdAt: nowMs,
@@ -447,6 +451,7 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
       pushLog(state, outcome.logType, outcome.logText)
     }
   }
+  autoResolvePendingEvents(state, nowMs)
   // 星球机制周期效果（风暴收获）
   applyStormHarvest(state, nowMs)
   // 星球解锁检查（满足条件播报叙事日志）
@@ -566,6 +571,7 @@ export function checkFederationPendingStory(state: GameState): void {
 export function enterInfiniteMode(state: GameState): void {
   if (state.phase !== 'ended') return
   state.phase = 'infinite'
+  state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
   pushLog(state, 'story', '联邦的旗帜在星海间展开。没有终点的旅程，本身就是答案。无限模式开启——殖民地日志将继续书写。')
   playMilestone(state, 'endless')
 }
@@ -642,6 +648,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
 
   state.pendingEvents = []
   state.nextEventId = 1
+  state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
   state.lastStormHarvestAt = nowMs
   // 区域攻占重置为全部 locked（永久加成已保留在 permanentBonuses，NG+ 继承）
   const conquestReset: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}

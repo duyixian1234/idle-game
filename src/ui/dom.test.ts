@@ -25,6 +25,7 @@ import {
   renderMilitaryPanel,
   renderNgPlusModal,
   renderPendingEvents,
+  renderEventExplainability,
   renderPlanetBar,
   renderPlanetMechanic,
   renderResources,
@@ -446,6 +447,44 @@ describe('ui: 事件科技分支', () => {
     expect(shieldBtn).toBeTruthy()
     expect(shieldBtn!.textContent).toContain('科技防护罩')
     expect(shieldBtn!.textContent).toContain('科技')
+  })
+
+  describe('ui: 事件可解释性', () => {
+    it('事件卡展示语义化主题、风险、阻塞状态与结算明细', () => {
+      const els = buildLayout(document.createElement('div'))
+      const s = createInitialState(0)
+      const inst = createEventInstance(s, 'bug')
+      inst.settlement = { deltas: { mineral: -10 }, breakdown: [{ name: 'base', value: 10 }, { name: 'risk', value: 1, multiplier: 1.5 }] }
+      s.pendingEvents.push(inst)
+      renderPendingEvents(els.logEl, s)
+      const card = els.logEl.querySelector<HTMLElement>('[data-event-card]')!
+      expect(card.dataset.eventTheme).toBe('security')
+      expect(card.dataset.eventRisk).toBe('high')
+      expect(card.hasAttribute('data-event-blocked')).toBe(true)
+      expect(card.querySelector('[data-event-settlement]')).toBeTruthy()
+      expect(card.querySelector('[data-settlement-part="risk"]')?.textContent).toContain('风险倍率')
+    })
+
+    it('档案页展示自动配置、暂停通知、历史和迁移摘要', () => {
+      const els = buildLayout(document.createElement('div'))
+      const s = createInitialState(0)
+      s.migrationSummary = {
+        fromSchemaVersion: 7,
+        toSchemaVersion: 8,
+        migratedEvents: 1,
+        unknownEvents: 0,
+        compensation: {},
+        notes: ['已迁移 1 个待处理事件'],
+      }
+      s.automationHistory.push({ eventUid: 1, category: 'security', source: 'automation', status: 'paused', reason: '规则冲突', time: 0 })
+      s.pendingEvents.push({ ...createEventInstance(s, 'trade'), migrationStatus: 'unknown', migrationNote: '未知事件已暂停' })
+      renderEventExplainability(els.navPages.archive, s)
+      expect(els.navPages.archive.querySelector('[data-automation-category="security"]')).toBeTruthy()
+      expect(els.navPages.archive.querySelector('[data-pause-notice]')?.textContent).toContain('规则冲突')
+      expect(els.navPages.archive.querySelector('[data-event-history] [data-history-source="automation"]')).toBeTruthy()
+      expect(els.navPages.archive.querySelector('[data-migration-summary-count]')?.textContent).toContain('已迁移 1 个事件')
+      expect(els.navPages.archive.querySelector('[data-migration-summary] [data-migration-event]')).toBeTruthy()
+    })
   })
 
   it('虫族警报卡片含神经干扰选项（hint 标科技成本）', () => {

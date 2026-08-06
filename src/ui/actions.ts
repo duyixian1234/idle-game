@@ -21,7 +21,7 @@ import { fleetMaintenance } from '../engine/fleet'
 import { startConquest } from '../engine/conquest'
 import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
-import type { GameState, LogType, ResourceKey } from '../engine/types'
+import type { EventAutomationPolicy, GameState, LogType, ResourceKey } from '../engine/types'
 import type { SoundName } from '../audio'
 import { isActionFailure } from './dom'
 
@@ -129,6 +129,25 @@ function diplomacyFeedback(state: GameState, _result: unknown, payload: string |
 }
 
 export const ACTIONS: Record<string, GameAction> = {
+  setAutomationPolicy: {
+    id: 'setAutomationPolicy',
+    run: (state, payload) => {
+      let input: { category: string; policy: EventAutomationPolicy }
+      try {
+        input = JSON.parse(String(payload)) as { category: string; policy: EventAutomationPolicy }
+      } catch {
+        return { ok: false, reason: '配置格式无效' }
+      }
+      if (!input.category || !input.policy || !Array.isArray(input.policy.rules)) return { ok: false, reason: '配置格式无效' }
+      state.automationPolicies[input.category] = { ...input.policy, rules: input.policy.rules.slice().sort((a, b) => b.priority - a.priority) }
+      return { ok: true, value: input.category }
+    },
+    feedback: (_state, _result, payload) => {
+      const input = JSON.parse(String(payload)) as { category: string }
+      return { logs: [{ type: 'system', text: `已保存 ${input.category} 类事件自动处理规则。` }] }
+    },
+    onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `自动处理配置失败：${reason}。` }] }),
+  },
   buy: {
     id: 'buy',
     run: (state, id) => buyBuilding(state, String(id)),

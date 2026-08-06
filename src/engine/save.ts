@@ -2,6 +2,7 @@ import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
 import { ACHIEVEMENTS, achievementUnlocked } from './achievements'
 import { randSeed } from './rng'
+import type { MigrationSummary } from './types'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -19,6 +20,10 @@ const SCHEMA_V6 = 6
 const SCHEMA_V7 = 7
 /** 首个支持舰队的 schema 版本（v7 基础上加 fleet.count，默认 0） */
 const SCHEMA_V8 = 8
+/** 首个支持无尽事件池状态的存档版本 */
+const SCHEMA_V9 = 9
+/** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
+const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
 const MIN_SUPPORTED_VERSION = 1
 
@@ -213,7 +218,7 @@ function migrateV6ToV7(raw: Record<string, unknown>): Record<string, unknown> {
 /**
  * v7 → v8：补齐舰队字段（fleet spec）。
  * - fleet 缺省 { count: 0 }（字段已有则幂等保留，count 非数值补 0）。
- * - ⚠️ 迁移链陷阱：schemaVersion 必须写死 SCHEMA_V8（不能用 SCHEMA_VERSION）——同 fixed-rng/exploration/interstellar 教训。
+ * - ⚠️ 迁移链陷阱：schemaVersion 必须写死 SCHEMA_V8（不能用 SCHEMA_VERSION）。
  */
 function migrateV7ToV8(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
@@ -222,7 +227,113 @@ function migrateV7ToV8(raw: Record<string, unknown>): Record<string, unknown> {
   } else if (typeof (next.fleet as { count?: unknown }).count !== 'number') {
     ;(next.fleet as { count: number }).count = 0
   }
+
   next.schemaVersion = SCHEMA_V8
+  return next
+}
+
+/** v8 → v9：补齐无尽事件池、阶段链与坏运气保护状态。 */
+function migrateV8ToV9(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const endless = isPlainObject(next.endless) ? { ...(next.endless as Record<string, unknown>) } : {}
+  if (typeof endless.layer !== 'number') endless.layer = 0
+  if (typeof endless.stage !== 'number') endless.stage = 0
+  if (typeof endless.badLuck !== 'number') endless.badLuck = 0
+  if (typeof endless.bossDefeated !== 'number') endless.bossDefeated = 0
+  next.endless = endless
+  next.migrationSourceVersion = SCHEMA_V8
+  next.schemaVersion = SCHEMA_V9
+  return next
+}
+
+/** 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。 */
+function migrateEventContract(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const fromSchemaVersion =
+    typeof next.migrationSourceVersion === 'number'
+      ? next.migrationSourceVersion
+      : typeof next.schemaVersion === 'number'
+        ? next.schemaVersion
+        : SCHEMA_VERSION
+  delete next.migrationSourceVersion
+  const hadContract = next.eventConfigVersion === EVENT_CONFIG_VERSION
+  next.eventConfigVersion = EVENT_CONFIG_VERSION
+  const defaultPolicies = {
+    trade: { enabled: false, rules: [] },
+    disaster: { enabled: false, rules: [] },
+    security: { enabled: false, rules: [] },
+    exploration: { enabled: false, rules: [] },
+    investment: { enabled: false, rules: [] },
+  }
+  next.automationPolicies = isPlainObject(next.automationPolicies)
+    ? { ...defaultPolicies, ...(next.automationPolicies as Record<string, unknown>) }
+    : defaultPolicies
+  next.automationHistory = Array.isArray(next.automationHistory) ? next.automationHistory : []
+  for (const [category, policy] of Object.entries(next.automationPolicies as Record<string, unknown>)) {
+    if (!isPlainObject(policy)) {
+      ;(next.automationPolicies as Record<string, unknown>)[category] = { enabled: false, rules: [] }
+      continue
+    }
+    const normalized = policy as Record<string, unknown>
+    normalized.enabled = typeof normalized.enabled === 'boolean' ? normalized.enabled : false
+    normalized.rules = Array.isArray(normalized.rules) ? normalized.rules : []
+  }
+  const pending = Array.isArray(next.pendingEvents) ? next.pendingEvents : []
+  next.pendingEvents = pending.map((item) => {
+    if (!isPlainObject(item)) return item
+    const event = { ...(item as Record<string, unknown>) }
+    if (hadContract && event.contractVersion === EVENT_CONFIG_VERSION) return event
+    if (typeof event.contractVersion !== 'number') event.contractVersion = EVENT_CONFIG_VERSION
+    const metadata: Record<string, Record<string, unknown>> = {
+      trade: { theme: 'trade', decisionType: 'exchange', riskLevel: 'low', priority: 'normal', handlingMode: 'queue' },
+      meteor: { theme: 'disaster', decisionType: 'collect', riskLevel: 'medium', priority: 'urgent', handlingMode: 'alert' },
+      bug: { theme: 'security', decisionType: 'defend', riskLevel: 'high', priority: 'urgent', handlingMode: 'blocking' },
+      raid: { theme: 'security', decisionType: 'defend', riskLevel: 'high', priority: 'urgent', handlingMode: 'blocking' },
+      'trade-frontier': { theme: 'trade', decisionType: 'exchange', riskLevel: 'medium', priority: 'urgent', handlingMode: 'alert', family: 'trade', variantId: 'frontier' },
+      'storm-surge': { theme: 'disaster', decisionType: 'collect', riskLevel: 'high', priority: 'urgent', handlingMode: 'alert', family: 'disaster', variantId: 'surge' },
+      'void-swarm': { theme: 'security', decisionType: 'defend', riskLevel: 'critical', priority: 'critical', handlingMode: 'blocking', family: 'security', variantId: 'void' },
+      'endless-overseer': { theme: 'security', decisionType: 'defend', riskLevel: 'critical', priority: 'critical', handlingMode: 'blocking', family: 'boss', variantId: 'overseer', isBoss: true },
+    }
+    const known = metadata[String(event.defId)]
+    if (known) {
+      for (const [key, value] of Object.entries(known)) if (event[key] == null) event[key] = value
+      event.migrationStatus = 'migrated'
+    } else {
+      event.priority = 'critical'
+      event.handlingMode = 'blocking'
+      event.migrationStatus = 'unknown'
+      event.migrationNote = `未知事件 ${String(event.defId)} 已安全暂停，需人工处理`
+    }
+    if (event.defId === 'trade' && isPlainObject(event.payload)) {
+      const payload = { ...(event.payload as Record<string, unknown>) }
+      if (typeof payload.curveVersion !== 'number') payload.curveVersion = EVENT_CONFIG_VERSION
+      event.payload = payload
+    }
+    return event
+  })
+  if (!hadContract) {
+    const migratedEvents = (next.pendingEvents as Array<Record<string, unknown>>).filter((event) => event.migrationStatus === 'migrated').length
+    const unknownEvents = (next.pendingEvents as Array<Record<string, unknown>>).filter((event) => event.migrationStatus === 'unknown').length
+    const summary: MigrationSummary = {
+      fromSchemaVersion,
+      toSchemaVersion: SCHEMA_VERSION,
+      migratedEvents,
+      unknownEvents,
+      compensation: {},
+      notes: [
+        migratedEvents > 0 ? `已迁移 ${migratedEvents} 个待处理事件` : '没有需要转换的待处理事件',
+        ...(unknownEvents > 0 ? [`${unknownEvents} 个未知事件已安全暂停`] : []),
+      ],
+    }
+    next.migrationSummary = summary
+    const log = Array.isArray(next.log) ? (next.log as Array<Record<string, unknown>>) : []
+    const nextLogId = typeof next.nextLogId === 'number' ? next.nextLogId : 1
+    const time = typeof next.lastTick === 'number' ? next.lastTick : 0
+    log.unshift({ id: nextLogId, type: 'system', text: `【存档迁移】${summary.notes.join('；')}。`, time })
+    next.log = log.slice(0, 200)
+    next.nextLogId = nextLogId + 1
+  }
+  next.schemaVersion = SCHEMA_V9
   return next
 }
 
@@ -251,6 +362,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V5) cur = migrateV5ToV6(cur)
   if (cur.schemaVersion === SCHEMA_V6) cur = migrateV6ToV7(cur)
   if (cur.schemaVersion === SCHEMA_V7) cur = migrateV7ToV8(cur)
+  if (cur.schemaVersion === SCHEMA_V8) cur = migrateV8ToV9(cur)
+  if (cur.schemaVersion === SCHEMA_V9) cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }
 
