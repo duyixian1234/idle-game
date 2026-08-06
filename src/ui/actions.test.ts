@@ -234,11 +234,12 @@ describe('actions: 一键买满（批量）', () => {
 })
 
 describe('actions: 注册表完整性', () => {
-  it('十三个动作全部注册', () => {
+  it('十四个动作全部注册', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
         'buyMax',
+        'conquest',
         'convert',
         'convertMax',
         'diplomacy',

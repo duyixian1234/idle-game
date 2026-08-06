@@ -61,6 +61,9 @@ async function main(): Promise<void> {
     const capText = offline.capped ? '（已达 8 小时封顶）' : ''
     pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
     for (const raidLog of offline.raidLogs) pushLog(state, 'warning', raidLog)
+    for (const conquestLog of offline.conquestLogs) {
+      pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+    }
   }
 
   // 回归时补查一次星球解锁（离线期间可能已满足条件）
@@ -187,6 +190,9 @@ async function main(): Promise<void> {
           .join('、')
         pushLog(state, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
         for (const raidLog of off.raidLogs) pushLog(state, 'warning', raidLog)
+        for (const conquestLog of off.conquestLogs) {
+          pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+        }
       }
       state.nextEventAt = Math.max(state.nextEventAt, Date.now() + 45_000)
       lastLogId = 0

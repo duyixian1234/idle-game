@@ -82,7 +82,9 @@ describe('engine: 存档序列化往返', () => {
     const restored = deserializeSave(serializeSave(s))
     expect(restored.resources.military).toBe(42)
     expect(restored.permanentBonuses).toEqual({ production: 0.1 })
-    expect(restored.conquest).toEqual({ outpost: { status: 'conquered' } })
+    expect(restored.conquest.outpost).toEqual({ status: 'conquered' })
+    // 其余区域保持初始 locked
+    expect(restored.conquest.shipyard.status).toBe('locked')
   })
 
   it('缺少 upgrades 字段的存档被判无效', () => {

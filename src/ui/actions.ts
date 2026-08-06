@@ -1,4 +1,4 @@
-import { BUILDINGS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from '../engine/data'
+import { BUILDINGS, CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from '../engine/data'
 import {
   buyBuilding,
   convertMineralToTech,
@@ -14,6 +14,8 @@ import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
+import { startConquest } from '../engine/conquest'
+import type { ConquestActionResult } from '../engine/conquest'
 import type { GameState, LogType, ResourceKey } from '../engine/types'
 import type { SoundName } from '../audio'
 import { isActionFailure } from './dom'
@@ -229,6 +231,28 @@ export const ACTIONS: Record<string, GameAction> = {
     feedback: (_state, _r, id) => {
       const name = PLANETS[String(id)]?.name ?? String(id)
       return { logs: [{ type: 'system', text: `舰队坐标锁定：前往「${name}」。` }] }
+    },
+  },
+  conquest: {
+    id: 'conquest',
+    // payload: "区域id:投入军力"（军力数量由 UI 输入/默认全投）
+    run: (state, payload) => {
+      const [id, invest] = String(payload).split(':')
+      return startConquest(state, id, Number(invest), Date.now())
+    },
+    feedback: (_state, result, payload) => {
+      const [id] = String(payload).split(':')
+      const name = CONQUESTS[id]?.name ?? id
+      const v = result as ConquestActionResult
+      if (v.ok) {
+        return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 60 分钟结算。` }], sound: 'upgrade' }
+      }
+      return { logs: [] }
+    },
+    onFailure: (_state, payload, reason) => {
+      const [id] = String(payload).split(':')
+      const name = CONQUESTS[id]?.name ?? id
+      return { logs: [{ type: 'warning', text: `攻占「${name}」失败：${reason}。` }] }
     },
   },
 }

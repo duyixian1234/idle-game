@@ -1,5 +1,6 @@
 import {
   BUILDINGS,
+  CONQUESTS,
   FACTIONS,
   PLANETS,
   RESOURCE_KEYS,
@@ -10,6 +11,7 @@ import {
 } from './data'
 import type { TechDef } from './data'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
+import { settleConquests } from './conquest'
 import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
 import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
@@ -24,6 +26,10 @@ export function createInitialState(nowMs: number): GameState {
   for (const def of Object.values(PLANETS)) {
     planets[def.id] = { unlocked: def.id === 'barren' }
   }
+  const conquest: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}
+  for (const def of Object.values(CONQUESTS)) {
+    conquest[def.id] = { status: 'locked' }
+  }
   const resources = zeroResources()
   // 起始矿物补给：够买第一台采矿机（成本 10），避免开局死锁
   resources.mineral = 15
@@ -35,7 +41,7 @@ export function createInitialState(nowMs: number): GameState {
     factionCodex: [],
     permanentMult: 1,
     permanentBonuses: {},
-    conquest: {},
+    conquest,
     stats: { totalMineralEarned: 0 },
     resources,
     buildings: {},
@@ -316,6 +322,10 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   checkPlanetUnlocks(state)
   // 统一前夕叙事（3/4 达成时）
   checkFederationPendingStory(state)
+  // 攻占结算（倒计时到期 → 成功/失败）
+  for (const conquestLog of settleConquests(state, nowMs, rng)) {
+    pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+  }
   // 结局判定
   checkEnding(state)
   // 清理超时未处理的事件实例

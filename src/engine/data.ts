@@ -231,8 +231,7 @@ export interface FactionDef {
 }
 
 /** 派系定义表（4 派系） */
-export const FACTIONS: Record<string, FactionDef> = {
-  ferro: {
+export const FACTIONS: Record<string, FactionDef> = {  ferro: {
     id: 'ferro',
     name: '铁卫同盟',
     desc: '控制着轨道防御网络的老牌军事集团。',
@@ -307,5 +306,77 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 12000, tech: 1000 },
     effect: { kind: 'production', resource: 'mineral', mult: 2 },
     requires: ['planetDrill'],
+  },
+}
+
+/** 攻占区域定义 */
+export interface ConquestDef {
+  id: string
+  name: string
+  desc: string
+  /** 守卫强度（军力）：成功率 = min(100%, 投入军力/守卫强度)，足额投入必成 */
+  guard: number
+  /** 攻占倒计时（真实时间，离线照常推进） */
+  durationMs: number
+  /** 前置星球（需已解锁） */
+  unlockPlanet: string
+  /** 通关后（无限模式）解锁 */
+  afterEnding?: boolean
+  /** 一次性奖励 */
+  rewardMineral?: number
+  rewardTech?: number
+  /** 永久全局加成（写入 permanentBonuses，NG+ 继承） */
+  bonus?: { kind: 'production' | 'militaryCap'; value: number }
+  /** 攻占后解锁的科技（军械科技线） */
+  unlockTech?: string
+}
+
+/** 攻占倒计时（分钟）：统一 60 分钟 */
+export const CONQUEST_DURATION_MS = 60 * 60_000
+
+/** 攻占区域定义表（4 区域，沿主线三段 + 通关后） */
+export const CONQUESTS: Record<string, ConquestDef> = {
+  outpost: {
+    id: 'outpost',
+    name: '虫群前哨',
+    desc: '冰封星轨道上的虫群前哨站。攻占后解锁「军械科技」线。',
+    guard: 2_000,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'ice',
+    rewardMineral: 50_000,
+    rewardTech: 5_000,
+    unlockTech: 'militaryTech',
+  },
+  shipyard: {
+    id: 'shipyard',
+    name: '废弃船坞',
+    desc: '漂荡在气态巨星外围的旧联邦船坞残骸，藏着舰队扩编的技术。',
+    guard: 8_000,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'gas',
+    rewardMineral: 200_000,
+    bonus: { kind: 'militaryCap', value: 0.2 },
+  },
+  wreckage: {
+    id: 'wreckage',
+    name: '星际残骸带',
+    desc: '母星战役留下的舰队坟场，回收残余产能结构可提升全局产出。',
+    guard: 30_000,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    rewardMineral: 1_000_000,
+    bonus: { kind: 'production', value: 0.1 },
+  },
+  nest: {
+    id: 'nest',
+    name: '虫群母巢',
+    desc: '星系黑暗深处的主巢穴。肃清它，虫灾将永远终结。',
+    guard: 100_000,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    afterEnding: true,
+    rewardMineral: 5_000_000,
+    rewardTech: 500_000,
+    bonus: { kind: 'production', value: 0.25 },
   },
 }

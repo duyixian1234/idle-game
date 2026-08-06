@@ -1,4 +1,5 @@
 import { militaryCap, productionReport } from './production'
+import { settleConquests } from './conquest'
 import { settleOfflineRaids } from './events'
 import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
@@ -17,6 +18,8 @@ export interface OfflineResult {
   gains: Record<ResourceKey, number>
   /** 离线骚扰结算日志（threat ≥55 派系；main 层 pushLog） */
   raidLogs: string[]
+  /** 离线期间攻占到期结算日志（main 层 pushLog） */
+  conquestLogs: string[]
 }
 
 /**
@@ -24,7 +27,7 @@ export interface OfflineResult {
  * 结算后 lastTick 更新为 nowMs，后续 tick 不会重复结算。
  * @param nowMs 当前时间戳（测试注入）
  */
-export function settleOffline(state: GameState, nowMs: number): OfflineResult {
+export function settleOffline(state: GameState, nowMs: number, rng: () => number = Math.random): OfflineResult {
   const raw = Math.max(0, (nowMs - state.lastTick) / 1000)
   const empty: OfflineResult = {
     durationSeconds: 0,
@@ -32,6 +35,7 @@ export function settleOffline(state: GameState, nowMs: number): OfflineResult {
     capped: false,
     gains: zeroResources(),
     raidLogs: [],
+    conquestLogs: [],
   }
   if (raw <= 0) return empty
 
@@ -46,6 +50,8 @@ export function settleOffline(state: GameState, nowMs: number): OfflineResult {
 
   // 离线骚扰结算：先产出后结算损失，损失封顶离线产出 30%（挂机永远净收益）
   const raids = settleOfflineRaids(state, duration, gains)
+  // 离线期间攻占倒计时照常推进，回归时结算到期战报
+  const conquestLogs = settleConquests(state, nowMs, rng)
 
   for (const k of Object.keys(gains) as ResourceKey[]) {
     state.resources[k] += gains[k]
@@ -65,6 +71,7 @@ export function settleOffline(state: GameState, nowMs: number): OfflineResult {
     capped: raw > OFFLINE_CAP_SECONDS,
     gains,
     raidLogs: raids.logs,
+    conquestLogs,
   }
 }
 
