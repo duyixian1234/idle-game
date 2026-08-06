@@ -1,0 +1,140 @@
+    border-left: 0;
+    border-right: 0;
+  }
+  .resource-bar {
+    gap: 4px;
+    padding: 6px 8px;
+  }
+  /* 机制条横向滚动（Q12 定案：tmux status 式，单指滑动；nowrap 不换行不挤日志区高度） */
+  .mechanic-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+    gap: 12px;
+  }
+  .mechanic-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .mechanic-bar .mech-desc {
+    flex: none;
+    max-width: 180px;
+  }
+  .resource {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+  .res-name {
+    display: none;
+  }
+  .log-area {
+    padding: 8px;
+    font-size: 12px;
+    /* 日志区是叙事主体，窄屏下必须保底高度：面板会把它挤到几像素 */
+    min-height: 18vh;
+  }
+  /* 星球条保持换行但压缩 chip：全部星球必须可见可点（横向滚动会把后 2-3 个
+     星球藏到屏外，用户误以为无法切换区域）。320 下 5 chip 两行排布 ~70px。 */
+  .planet-bar {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+  .planet-chip {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  /* 操作面板让出空间：45vh → 32vh（日志区 min-height 兜底，面板内滚动不受影响） */
+  .panel-body {
+    max-height: 32vh;
+  }
+  .build-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* 建造卡片 ≤480px 单列（延续 mobile-layout 铁律：按钮列式堆叠、不设 width:100% 于不换行 flex 行） */
+  .build-grid {
+    grid-template-columns: 1fr;
+  }
+  /* 建造/升级/买满/升满纵向堆叠，按钮撑满列宽（与外交/科技面板一致） */
+  .build-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .build-card .build-actions {
+    grid-template-columns: 1fr;
+  }
+  /* 外交操作同样显式纵向堆叠（不再依赖被移除的 width:100% 规则） */
+  .faction-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* 兑换行换行：输入框独占一行，按钮紧随其后 */
+  .exchange-row {
+    flex-wrap: wrap;
+  }
+  .exchange-input {
+    flex-basis: 100%;
+  }
+}
+
+/* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：资源条进一步收紧 */
+@media (max-width: 360px) {
+  .resource-bar {
+    gap: 3px;
+    padding: 5px 6px;
+  }
+  .resource {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .res-rate {
+    display: none;
+  }
+  .panel-body {
+    padding: 8px;
+  }
+  /* 设置页按钮收紧：320 下保持 tap target 可点（不设 width:100%，避免行溢出） */
+  .tool-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
+/* ---- 军事面板（ticket 06）---- */
+.military-section {
+  margin-bottom: 18px;
+}
+
+.conquest-header {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 12px 0 6px;
+  letter-spacing: 0.05em;
+}
+
+.conquest-item {
+  border-left: 2px solid #5a4a3a;
+}
+
+.conquest-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+.conquered-badge {
+  color: var(--good);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.ongoing-badge {
+  color: var(--accent);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.conquered-hint {
+  border-color: #3a5a3a;
+  color: var(--good);
