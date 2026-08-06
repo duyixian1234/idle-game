@@ -922,6 +922,127 @@ body {
   gap: 8px;
 }
 
+.event-auto-toggle {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.auto-handled-tag {
+  margin-left: 8px;
+  color: var(--good);
+  font-size: 10px;
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.log-auto-config {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  padding: 3px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.log-auto-config:hover {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+}
+
+.auto-config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.auto-config-overlay.hidden {
+  display: none;
+}
+
+.auto-config-card {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--mineral);
+  border-radius: 10px;
+}
+
+.auto-config-header,
+.auto-category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auto-config-header button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.auto-config-hint,
+.auto-category-row small {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.auto-category {
+  border-top: 1px solid var(--border);
+}
+
+.auto-category-row {
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.auto-category-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.auto-category-details {
+  display: grid;
+  gap: 8px;
+  padding: 0 0 12px;
+}
+
+.auto-category-details label {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.auto-category-details input,
+.auto-category-details select {
+  min-height: 32px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+}
+
 .event-option {
   background: var(--bg-inset);
   border: 1px solid var(--border);
@@ -1622,6 +1743,17 @@ body {
 }
 
 @media (max-width: 480px) {
+  .auto-config-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  .auto-config-card {
+    max-height: none;
+    max-width: none;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
   .resource-bar {
     gap: 4px;
     padding: 6px 8px;

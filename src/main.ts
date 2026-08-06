@@ -1,4 +1,5 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
+import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from './engine/events'
 import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
@@ -11,7 +12,7 @@ import { formatDuration, offlineCapSeconds, settleOffline } from './engine/offli
 import { deserializeSave, serializeSave } from './engine/save'
 import { OPENING_SCENES } from './engine/story'
 import { advanceTutorial, skipTutorial } from './engine/tutorial'
-import type { GameState } from './engine/types'
+import type { EventAutomationPolicy, EventRiskLevel, GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
 // 自托管 JetBrains Mono（Q4 定案）：woff2 打进 dist，font-display: swap，避免 Google Fonts 网络依赖
@@ -28,7 +29,7 @@ import {
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderEndingOverlay,
-  renderEventExplainability,
+  renderAutoConfigPanel,
   renderExplorePage,
   renderInterstellarPanel,
   renderLogInto,
@@ -105,6 +106,8 @@ async function main(): Promise<void> {
   // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
   let justUpgradedId: string | null = null
   let justUpgradedUntil = 0
+  let autoConfigOpen = false
+  let autoExpandedCategory: string | undefined
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */
   function flashUpgrade(id: string): void {
     justUpgradedId = id
@@ -163,7 +166,6 @@ async function main(): Promise<void> {
     renderMilitaryPanel(panels['military'], state, { flashId })
     // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位）/ 设置（五组）
     renderArchivePanel(els.navPages.archive, state)
-    renderEventExplainability(els.navPages.archive, state)
     renderExplorePage(els.navPages.explore, state)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
@@ -178,6 +180,8 @@ async function main(): Promise<void> {
       version: APP_VERSION,
     })
     renderPendingEvents(els.logEl, state, typedEvents)
+    renderAutoConfigPanel(els.autoConfigOverlay, state, autoExpandedCategory)
+    els.autoConfigOverlay.classList.toggle('hidden', !autoConfigOpen)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId
     lastLogId = renderLogInto(els.logEl, state, lastLogId, logDirection)
@@ -309,16 +313,69 @@ async function main(): Promise<void> {
     }
   })
 
-  // 事件自动处理配置：保存当前类别的开关/规则；配置与引擎共享同一策略对象
-  els.navPages.archive.addEventListener('click', (e) => {
-    const save = (e.target as HTMLElement).closest<HTMLElement>('[data-automation-save]')
-    if (!save) return
-    const category = save.dataset.automationSave ?? ''
-    const enabled = els.navPages.archive.querySelector<HTMLInputElement>(`[data-automation-enabled="${category}"]`)?.checked ?? false
-    const maxRiskLevel = els.navPages.archive.querySelector<HTMLSelectElement>(`[data-automation-risk="${category}"]`)?.value || undefined
-    const cooldownMs = Number(els.navPages.archive.querySelector<HTMLInputElement>(`[data-automation-cooldown="${category}"]`)?.value ?? 0)
+  els.logEl.addEventListener('click', (e) => {
+    const toggle = (e.target as HTMLElement).closest<HTMLInputElement>('[data-auto-quick-toggle]')
+    if (!toggle) return
+    const category = toggle.dataset.autoQuickToggle ?? ''
+    const current = state.automationPolicies[category]
+    const policy: EventAutomationPolicy = current
+      ? { ...current, enabled: toggle.checked }
+      : {
+          enabled: toggle.checked,
+          rules: [],
+          fallbackOptionId: DEFAULT_AUTOMATION_FALLBACK[category as keyof typeof DEFAULT_AUTOMATION_FALLBACK],
+          maxRiskLevel: DEFAULT_AUTOMATION_MAX_RISK[category as keyof typeof DEFAULT_AUTOMATION_MAX_RISK],
+        }
+    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
+  })
+  els.navPages.sector.addEventListener('click', (e) => {
+    const trigger = (e.target as HTMLElement).closest('[data-auto-config-trigger]')
+    if (trigger) {
+      autoConfigOpen = true
+      render()
+      return
+    }
+  })
+  els.autoConfigOverlay.addEventListener('click', (e) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-auto-cat-row]')
+    if (row && !(e.target as HTMLInputElement).matches('input')) {
+      autoExpandedCategory = autoExpandedCategory === row.dataset.autoCatRow ? undefined : row.dataset.autoCatRow
+      render()
+    }
+  })
+  els.autoConfigOverlay.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement
+    if (target === els.autoConfigOverlay || target.closest('[data-auto-config-close]')) {
+      autoConfigOpen = false
+      render()
+      return
+    }
+    if (target.closest('[data-auto-enabled], [data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')) return
+  })
+  function saveAutomationControl(target: HTMLInputElement | HTMLSelectElement): void {
+    const enabled = target.closest<HTMLInputElement>('[data-auto-enabled]')
+    const field = target.closest<HTMLInputElement | HTMLSelectElement>('[data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')
+    if (!enabled && !field) return
+    const category = (enabled?.dataset.autoEnabled ?? field?.dataset.autoRisk ?? field?.dataset.autoCooldown ?? field?.dataset.autoFallback ?? field?.dataset.autoBudget?.split(':')[0]) ?? ''
     const current = state.automationPolicies[category] ?? { enabled: false, rules: [] }
-    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy: { ...current, enabled, maxRiskLevel, cooldownMs: Math.max(0, cooldownMs) } }), deps)
+    const policy: EventAutomationPolicy = { ...current }
+    if (enabled) policy.enabled = enabled.checked
+    if (field?.dataset.autoRisk) policy.maxRiskLevel = (field.value || undefined) as EventRiskLevel | undefined
+    if (field?.dataset.autoCooldown) policy.cooldownMs = Math.max(0, Number(field.value || 0)) * 60_000 || undefined
+    if (field?.dataset.autoFallback) policy.fallbackOptionId = field.value || undefined
+    if (field?.dataset.autoBudget) {
+      const resource = field.dataset.autoBudget.split(':')[1] as 'mineral' | 'tech'
+      const budget = { ...(policy.resourceBudget ?? {}) }
+      const value = field.value.trim()
+      if (value === '') delete budget[resource]
+      else budget[resource] = Math.max(0, Number(value))
+      policy.resourceBudget = Object.keys(budget).length > 0 ? budget : undefined
+    }
+    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
+  }
+  els.autoConfigOverlay.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement | HTMLSelectElement
+    saveAutomationControl(target)
   })
   els.importFile.addEventListener('change', async (e) => {
     const input = e.target as HTMLInputElement
@@ -482,6 +539,10 @@ async function main(): Promise<void> {
     if (t.closest('[data-buy-max-cancel]')) closeBuyMaxModal()
   })
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && autoConfigOpen) {
+      autoConfigOpen = false
+      render()
+    }
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
     if (e.key === 'Escape' && !els.megastructureOverlay.classList.contains('hidden')) closeMegastructureModal()

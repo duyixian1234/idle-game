@@ -5,7 +5,7 @@ import { settleExpeditions } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
-import { zeroResources } from './core'
+import { pushLog, zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
 /** 离线收益封顶 8 小时——数值策略见 balance.ts OFFLINE_CAP_SECONDS（跃迁枢纽放宽至 12h，见 offlineCapSeconds） */
@@ -62,7 +62,10 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
 
   // 离线骚扰结算：先产出后结算损失，损失封顶离线产出 30%（挂机永远净收益）
   const raids = settleOfflineRaids(state, duration, gains)
-  autoResolvePendingEvents(state, nowMs)
+  const automationResults = autoResolvePendingEvents(state, nowMs)
+  for (const result of automationResults) {
+    if (result.outcome) pushLog(state, result.outcome.logType, result.outcome.logText, { autoHandled: result.status === 'resolved' })
+  }
   // 离线期间攻占倒计时照常推进，回归时结算到期战报
   const conquestLogs = settleConquests(state, nowMs, rng)
   // 离线期间探索派遣倒计时照常推进，回归时自动入账（离线推进语义）

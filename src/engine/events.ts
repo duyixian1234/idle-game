@@ -73,6 +73,22 @@ export interface AutomationResolution {
 
 const RISK_RANK: Record<EventRiskLevel, number> = { low: 0, medium: 1, high: 2, critical: 3 }
 
+export const DEFAULT_AUTOMATION_FALLBACK: Record<EventTheme, string | undefined> = {
+  trade: 'accept',
+  disaster: 'collect',
+  security: 'ignore',
+  exploration: undefined,
+  investment: undefined,
+}
+
+export const DEFAULT_AUTOMATION_MAX_RISK: Record<EventTheme, EventRiskLevel | undefined> = {
+  trade: 'medium',
+  disaster: 'high',
+  security: 'high',
+  exploration: undefined,
+  investment: undefined,
+}
+
 export function createDefaultAutomationPolicies(): Record<string, EventAutomationPolicy> {
   return {
     trade: { enabled: false, rules: [] },
@@ -709,6 +725,42 @@ function ruleEligible(state: GameState, instance: EventInstance, rule: EventAuto
   return true
 }
 
+export interface FallbackGateResult {
+  allowed: boolean
+  reason?: string
+}
+
+/** 类别级 fallback 的纯策略门；规则路径仍由 ruleEligible 保持原有语义。 */
+export function fallbackGate(
+  state: GameState,
+  instance: EventInstance,
+  optionId: string,
+  policy: EventAutomationPolicy,
+  nowMs = state.lastTick,
+): FallbackGateResult {
+  if (!instance.options.some((option) => option.id === optionId)) {
+    return { allowed: false, reason: `处理方式 ${optionId} 对当前事件不可用` }
+  }
+  const risk = instance.riskLevel ?? 'low'
+  if (policy.maxRiskLevel && RISK_RANK[risk] > RISK_RANK[policy.maxRiskLevel]) {
+    return { allowed: false, reason: `风险 ${risk} 超过类别上限 ${policy.maxRiskLevel}` }
+  }
+  const costs = optionCost(instance, optionId)
+  for (const [key, amount] of Object.entries(costs) as [ResourceKey, number][]) {
+    if ((state.resources[key] ?? 0) < amount) return { allowed: false, reason: `花费超过当前${key}余额` }
+    if (policy.resourceBudget?.[key] != null && amount > policy.resourceBudget[key]!) {
+      return { allowed: false, reason: '花费超过类别预算' }
+    }
+  }
+  const category = instance.theme ?? instance.defId
+  const last = [...state.automationHistory].reverse().find((audit) =>
+    audit.category === category && audit.source === 'automation' && audit.status === 'resolved')
+  if (last && policy.cooldownMs != null && nowMs - last.time < policy.cooldownMs) {
+    return { allowed: false, reason: '类别冷却中' }
+  }
+  return { allowed: true }
+}
+
 /** 预览选项的统一结算产出，不把预览结果写入游戏状态。 */
 function optionReward(state: GameState, instance: EventInstance, optionId: string): number {
   const snapshot = JSON.stringify(state)
@@ -730,7 +782,7 @@ function recordAutomation(
   state.automationHistory.push({ ...audit, eventUid: instance.uid, category: instance.theme ?? instance.defId, time: nowMs })
 }
 
-/** 按事件类别选择规则并复用 resolveEvent 结算；无可用高风险规则时保留事件并暂停通知。 */
+/** 按事件类别选择规则并复用 resolveEvent 结算；无可用策略时保留事件并暂停通知。 */
 export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTick): AutomationResolution[] {
   const results: AutomationResolution[] = []
   for (const instance of [...state.pendingEvents]) {
@@ -743,18 +795,24 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
     const top = topPriority == null ? [] : eligible.filter((candidate) => candidate.priority === topPriority)
     const conflicting = top.length > 1 && new Set(top.map((candidate) => candidate.optionId)).size > 1
     const rule = conflicting ? undefined : top[0]
-    const isLowRisk = (instance.riskLevel ?? 'low') === 'low'
-    const optionId = rule?.optionId ?? (isLowRisk ? policy.fallbackOptionId : undefined)
+    const optionId = rule?.optionId ?? policy.fallbackOptionId
+    const fallback = !rule && optionId ? fallbackGate(state, instance, optionId, policy, nowMs) : { allowed: true }
+    if (!rule && optionId && !fallback.allowed) {
+      recordAutomation(state, instance, { source: 'automation', status: 'paused', reason: fallback.reason!, failureReason: fallback.reason }, nowMs)
+      pushLog(state, 'warning', `自动处理暂停：${instance.title || instance.defId}。${fallback.reason}`)
+      results.push({ eventUid: instance.uid, status: 'paused', reason: fallback.reason! })
+      continue
+    }
     if (!optionId) {
       const reason = conflicting
         ? '规则冲突，无法安全选择选项'
-        : `没有可用规则，${instance.riskLevel ?? 'low'} 风险事件暂停等待人工处理`
+        : '没有可用规则或类别默认处理方式，暂停等待人工处理'
       recordAutomation(state, instance, { source: 'automation', status: 'paused', reason, failureReason: reason }, nowMs)
       pushLog(state, 'warning', `自动处理暂停：${instance.title || instance.defId}。${reason}`)
       results.push({ eventUid: instance.uid, status: 'paused', reason })
       continue
     }
-    const reason = rule?.reason ?? '低风险安全 fallback'
+    const reason = rule?.reason ?? '类别默认处理'
     const outcome = resolveEvent(state, instance.uid, optionId, { source: 'automation', ruleId: rule?.id, reason, nowMs })
     const status = outcome.changed || !rule ? 'resolved' : 'failed'
     if (status === 'failed') {

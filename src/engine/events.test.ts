@@ -7,6 +7,9 @@ import {
   autoResolvePendingEvents,
   bugTerms,
   createEventInstance,
+  DEFAULT_AUTOMATION_FALLBACK,
+  DEFAULT_AUTOMATION_MAX_RISK,
+  fallbackGate,
   advanceEndlessLayer,
   endlessEventPool,
   evaluateEndlessCurve,
@@ -27,6 +30,27 @@ function seqRng(values: number[]): () => number {
   let i = 0
   return () => values[i++ % values.length]
 }
+
+describe('engine: 类别 fallback 策略门', () => {
+  it('默认处理方式与风险上限固定', () => {
+    expect(DEFAULT_AUTOMATION_FALLBACK).toMatchObject({ trade: 'accept', disaster: 'collect', security: 'ignore' })
+    expect(DEFAULT_AUTOMATION_MAX_RISK).toMatchObject({ trade: 'medium', disaster: 'high', security: 'high' })
+    expect(DEFAULT_AUTOMATION_MAX_RISK.exploration).toBeUndefined()
+  })
+
+  it('风险、预算、选项和冷却门分别拦截 fallback', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const instance = createEventInstance(s, 'trade-frontier')
+    const base = { enabled: true, rules: [], fallbackOptionId: 'accept' as const }
+    expect(fallbackGate(s, instance, 'accept', { ...base, maxRiskLevel: 'low' }).reason).toContain('风险')
+    expect(fallbackGate(s, instance, 'accept', { ...base, resourceBudget: { mineral: 1 } }).reason).toContain('预算')
+    expect(fallbackGate(s, instance, 'missing', base).reason).toContain('不可用')
+    s.automationHistory.push({ eventUid: 99, category: 'trade', source: 'automation', status: 'resolved', optionId: 'accept', reason: 'test', time: 0 })
+    expect(fallbackGate(s, instance, 'accept', { ...base, cooldownMs: 1_000 }, 500).reason).toBe('类别冷却中')
+    expect(fallbackGate(s, instance, 'accept', { ...base, cooldownMs: 1_000 }, 1_001).allowed).toBe(true)
+  })
+})
 
 describe('engine: 随机事件触发', () => {
   it('到点后 tick 触发事件并安排下一次', () => {
@@ -369,8 +393,8 @@ describe('engine: 事件优先级与处理模式', () => {
       const second = createEventInstance(s, 'trade')
       s.pendingEvents.push(second)
       const paused = autoResolvePendingEvents(s, 200)[0]
-      expect(paused.status).toBe('resolved')
-      expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'refuse', reason: '低风险安全 fallback' })
+      expect(paused.status).toBe('paused')
+      expect(s.automationHistory.at(-1)).toMatchObject({ reason: '类别冷却中' })
     })
 
     it('同优先级规则冲突时暂停而不是猜选项', () => {

@@ -16,6 +16,7 @@ import {
   buildCardAction,
   buildLayout,
   renderArchivePanel,
+  renderAutoConfigPanel,
   renderBuildPanel,
   renderBuyMaxModal,
   renderDiplomacyPanel,
@@ -26,7 +27,6 @@ import {
   renderMilitaryPanel,
   renderNgPlusModal,
   renderPendingEvents,
-  renderEventExplainability,
   renderPlanetBar,
   renderPlanetMechanic,
   renderResources,
@@ -114,6 +114,34 @@ describe('ui: 布局与冒烟', () => {
     const lines = els.logEl.querySelectorAll('.log-line')
     expect(lines[0].textContent).toContain('B') // 新的在上
     expect(lines[1].textContent).toContain('A')
+  })
+
+  it('appendLog 标注自动处理日志，普通日志不标注', () => {
+    const els = buildLayout(document.createElement('div'))
+    appendLog(els.logEl, { id: 1, type: 'system', text: '自动结算', time: 1000, autoHandled: true }, 'newest-bottom')
+    appendLog(els.logEl, { id: 2, type: 'system', text: '手动结算', time: 1000 }, 'newest-bottom')
+    expect(els.logEl.querySelector('[data-auto-handled]')).toBeTruthy()
+    expect(els.logEl.querySelectorAll('[data-auto-handled]')).toHaveLength(1)
+    expect(els.logEl.textContent).toContain('已自动处理')
+  })
+
+  it('自动处理面板渲染五类、回填开关与展开控件', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.automationPolicies.trade = {
+      enabled: true,
+      rules: [],
+      fallbackOptionId: 'accept',
+      maxRiskLevel: 'medium',
+      cooldownMs: 120_000,
+      resourceBudget: { mineral: 500 },
+    }
+    renderAutoConfigPanel(els.autoConfigOverlay, s, 'trade')
+    expect(els.autoConfigOverlay.querySelectorAll('[data-auto-cat]')).toHaveLength(5)
+    expect(els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-auto-enabled="trade"]')?.checked).toBe(true)
+    expect(els.autoConfigOverlay.querySelector('[data-auto-details="trade"]')).toBeTruthy()
+    expect(els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-auto-cooldown="trade"]')?.value).toBe('2')
+    expect(els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-auto-budget="trade:mineral"]')?.value).toBe('500')
   })
 
   it('renderLogInto 增量渲染新增日志并返回游标', () => {
@@ -481,26 +509,6 @@ describe('ui: 事件科技分支', () => {
       expect(card.textContent).not.toContain('-7.38兆科技科技')
     })
 
-    it('档案页展示自动配置、暂停通知、历史和迁移摘要', () => {
-      const els = buildLayout(document.createElement('div'))
-      const s = createInitialState(0)
-      s.migrationSummary = {
-        fromSchemaVersion: 7,
-        toSchemaVersion: 8,
-        migratedEvents: 1,
-        unknownEvents: 0,
-        compensation: {},
-        notes: ['已迁移 1 个待处理事件'],
-      }
-      s.automationHistory.push({ eventUid: 1, category: 'security', source: 'automation', status: 'paused', reason: '规则冲突', time: 0 })
-      s.pendingEvents.push({ ...createEventInstance(s, 'trade'), migrationStatus: 'unknown', migrationNote: '未知事件已暂停' })
-      renderEventExplainability(els.navPages.archive, s)
-      expect(els.navPages.archive.querySelector('[data-automation-category="security"]')).toBeTruthy()
-      expect(els.navPages.archive.querySelector('[data-pause-notice]')?.textContent).toContain('规则冲突')
-      expect(els.navPages.archive.querySelector('[data-event-history] [data-history-source="automation"]')).toBeTruthy()
-      expect(els.navPages.archive.querySelector('[data-migration-summary-count]')?.textContent).toContain(`已迁移 ${formatNumber(1)} 个事件`)
-      expect(els.navPages.archive.querySelector('[data-migration-summary] [data-migration-event]')).toBeTruthy()
-    })
   })
 
   it('虫族警报卡片含神经干扰选项（hint 标科技成本）', () => {

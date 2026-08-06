@@ -1,4 +1,4 @@
-import type { EventFormulaPart, GameState, LogEntry, ResourceKey } from '../engine/types'
+import type { EventFormulaPart, EventTheme, GameState, LogEntry, ResourceKey } from '../engine/types'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
@@ -68,6 +68,7 @@ export interface AppElements {
   navPages: Record<NavId, HTMLElement>
   importFile: HTMLInputElement
   boot: HTMLElement
+  autoConfigOverlay: HTMLElement
 }
 
 const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
@@ -97,7 +98,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <main class="content">
       <section class="nav-page" data-nav-page="sector" aria-label="星域">
         <div class="mechanic-bar" data-mechanic aria-label="星球机制"></div>
-        <div class="log-head" aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></div>
+        <div class="log-head"><span aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></span><button type="button" class="log-auto-config" data-auto-config-trigger>自动处理</button></div>
         <div class="log-area" data-log aria-label="日志流"></div>
         <section class="panel" aria-label="操作面板">
           <div class="panel-tabs">
@@ -126,6 +127,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
     <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
     <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局抉择确认"></div>
+    <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="自动处理配置"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
     <div class="scanline" data-scanline aria-hidden="true"></div>
@@ -152,6 +154,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     navPages,
     importFile: container.querySelector('#import-file') as HTMLInputElement,
     boot: container.querySelector('[data-boot]') as HTMLElement,
+    autoConfigOverlay: container.querySelector('[data-auto-config-overlay]') as HTMLElement,
   }
 }
 
@@ -413,7 +416,8 @@ export function appendLog(el: HTMLElement, entry: LogEntry, dir: LogDirection): 
   const div = document.createElement('div')
   div.className = `log-line ${LOG_TYPE_CLASS[entry.type]}`
   div.setAttribute('data-log-line', '')
-  div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>`
+  if (entry.autoHandled) div.setAttribute('data-auto-handled', '')
+  div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>${entry.autoHandled ? '<span class="auto-handled-tag">已自动处理</span>' : ''}`
   if (dir === 'newest-bottom') {
     el.appendChild(div)
   } else {
@@ -494,13 +498,15 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
       descHtml = `<div class="event-desc" data-event-desc>${escapeHtml(done)}</div>`
       typedFrom = done.length
     }
+    const category = ev.theme ?? ev.defId
     card.innerHTML = `
       <div class="event-title">${escapeHtml(ev.title)}</div>
       <div data-event-meta>主题：${escapeHtml(ev.theme ?? ev.defId)} · 类别：${escapeHtml(ev.decisionType ?? 'exchange')} · 风险：${escapeHtml(ev.riskLevel ?? 'low')}</div>
       ${ev.handlingMode === 'blocking' ? '<div data-event-pause>高风险事件已暂停自动处理，请选择一个选项。</div>' : ''}
       ${descHtml}
       ${renderSettlementDetails(ev.settlement)}
-      <div class="event-options">${options}</div>`
+      <div class="event-options">${options}</div>
+      <label class="event-auto-toggle"><input type="checkbox" data-auto-quick-toggle="${escapeHtml(category)}" ${state.automationPolicies[category]?.enabled ? 'checked' : ''}>以后此类自动处理</label>`
     if (typedFrom >= 0) {
       typewriters.push({ descEl: card.querySelector('[data-event-desc]') as HTMLElement, text: ev.desc, key: ev.uid, from: typedFrom })
     }
@@ -538,21 +544,54 @@ function formatEventHint(hint: string): string {
   })
 }
 
-/** 事件类别配置、暂停通知、历史与旧存档迁移摘要。 */
-export function renderEventExplainability(el: HTMLElement, state: GameState): void {
-  const categories = ['trade', 'disaster', 'security', 'exploration', 'investment']
-  const policyHtml = categories.map((category) => {
-    const policy = state.automationPolicies[category] ?? { enabled: false, rules: [] }
-    const rules = policy.rules.map((rule) => `<li data-automation-rule="${escapeHtml(rule.id)}">优先级 ${rule.priority}：${escapeHtml(rule.optionId)} · ${escapeHtml(rule.reason)}</li>`).join('') || '<li data-automation-empty>暂无规则</li>'
-    return `<article data-automation-category="${category}"><h3>${category}</h3><label><input type="checkbox" data-automation-enabled="${category}" ${policy.enabled ? 'checked' : ''}>启用自动处理</label><label>风险阈值<select data-automation-risk="${category}"><option value="">不限</option><option value="low" ${policy.maxRiskLevel === 'low' ? 'selected' : ''}>低</option><option value="medium" ${policy.maxRiskLevel === 'medium' ? 'selected' : ''}>中</option><option value="high" ${policy.maxRiskLevel === 'high' ? 'selected' : ''}>高</option><option value="critical" ${policy.maxRiskLevel === 'critical' ? 'selected' : ''}>极高</option></select></label><label>冷却 <input type="number" min="0" data-automation-cooldown="${category}" value="${policy.cooldownMs ?? 0}"></label><div data-automation-policy>预算：${Object.entries(policy.resourceBudget ?? {}).map(([k, v]) => `${k}≤${formatNumber(v)}`).join('、') || '无限制'} · 备用：${escapeHtml(policy.fallbackOptionId ?? '无')}</div><ul data-automation-rules>${rules}</ul><button type="button" data-automation-save="${category}">保存当前规则</button></article>`
-  }).join('')
-  const paused = state.automationHistory.filter((audit) => audit.status === 'paused')
-  const history = state.automationHistory.slice(-20).reverse().map((audit) => `<li data-event-history="${audit.eventUid}" data-history-source="${audit.source}">${audit.source === 'automation' ? '自动' : '手动'} · ${audit.category} · ${audit.optionId ?? '暂停'} · ${escapeHtml(audit.reason)}</li>`).join('') || '<li data-history-empty>暂无事件历史</li>'
-  const migrationSummary = state.migrationSummary
-    ? `<li data-migration-summary-count>版本 ${state.migrationSummary.fromSchemaVersion} → ${state.migrationSummary.toSchemaVersion}：已迁移 ${formatNumber(state.migrationSummary.migratedEvents)} 个事件，未知 ${formatNumber(state.migrationSummary.unknownEvents)} 个</li>${state.migrationSummary.notes.map((note) => `<li data-migration-note>${escapeHtml(note)}</li>`).join('')}`
-    : ''
-  const migrations = migrationSummary + state.pendingEvents.filter((event) => event.migrationStatus).map((event) => `<li data-migration-event="${event.uid}">${event.migrationStatus === 'migrated' ? '已迁移' : '未知事件'}：${escapeHtml(event.migrationNote ?? event.defId)}</li>`).join('') || '<li data-migration-empty>暂无迁移记录</li>'
-  el.insertAdjacentHTML('beforeend', `<section data-event-explainability><h2>事件可解释性</h2>${paused.length ? `<div data-pause-notice role="status">自动处理已暂停 ${formatNumber(paused.length)} 个事件：${escapeHtml(paused[0].reason)}</div>` : ''}<div data-automation-config>${policyHtml}</div><section data-event-history><h3>事件历史</h3><ul>${history}</ul></section><section data-migration-summary><h3>迁移摘要</h3><ul>${migrations}</ul></section></section>`)
+const AUTO_CATEGORIES: Array<{ id: EventTheme; name: string; options: Array<{ id: string; label: string }> }> = [
+  { id: 'trade', name: '贸易', options: [{ id: 'accept', label: '自动成交' }, { id: 'refuse', label: '拒绝' }] },
+  { id: 'disaster', name: '灾害', options: [{ id: 'collect', label: '自动采集' }, { id: 'shield', label: '护盾' }] },
+  { id: 'security', name: '安保', options: [{ id: 'repel', label: '击退' }, { id: 'buyoff', label: '买平安' }, { id: 'dispatch', label: '清剿' }, { id: 'jam', label: '干扰' }, { id: 'ignore', label: '无视' }] },
+  { id: 'exploration', name: '探索', options: [] },
+  { id: 'investment', name: '投资', options: [] },
+]
+
+const RISK_LABELS: Array<{ id: string; label: string }> = [
+  { id: '', label: '不限' },
+  { id: 'low', label: '低' },
+  { id: 'medium', label: '中' },
+  { id: 'high', label: '高' },
+  { id: 'critical', label: '极高' },
+]
+
+function policySummary(category: typeof AUTO_CATEGORIES[number], policy: GameState['automationPolicies'][string] | undefined): string {
+  if (!policy?.enabled) return '已关闭'
+  const risk = policy.maxRiskLevel ? ` · 风险≤${RISK_LABELS.find((item) => item.id === policy.maxRiskLevel)?.label ?? policy.maxRiskLevel}` : ''
+  const option = policy.fallbackOptionId ? ` · ${category.options.find((item) => item.id === policy.fallbackOptionId)?.label ?? policy.fallbackOptionId}` : ''
+  return `已启用${risk}${option}`
+}
+
+/** 渲染日志页自动处理配置；展开类别由调用方持有的 UI 会话状态决定。 */
+export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expandedCategory?: string): void {
+  el.innerHTML = `
+    <div class="auto-config-card" data-auto-config-panel>
+      <div class="auto-config-header"><h2>自动处理</h2><button type="button" data-auto-config-close aria-label="关闭自动处理配置">×</button></div>
+      <p class="auto-config-hint">改动即时生效。自动处理仅在事件提供所选处理方式时执行，否则暂停等待人工处理。</p>
+      <div data-auto-categories>
+        ${AUTO_CATEGORIES.map((category) => {
+          const policy = state.automationPolicies[category.id]
+          const expanded = expandedCategory === category.id
+          const riskOptions = RISK_LABELS.map((risk) => `<option value="${risk.id}" ${policy?.maxRiskLevel === (risk.id || undefined) ? 'selected' : ''}>${risk.label}</option>`).join('')
+          const optionOptions = category.options.map((option) => `<option value="${option.id}" ${policy?.fallbackOptionId === option.id ? 'selected' : ''}>${option.label}</option>`).join('')
+          return `<article data-auto-cat="${category.id}" class="auto-category${expanded ? ' expanded' : ''}">
+            <div data-auto-cat-row="${category.id}" class="auto-category-row"><span><strong>${category.name}</strong><small data-auto-summary>${policySummary(category, policy)}</small></span><input type="checkbox" data-auto-enabled="${category.id}" ${policy?.enabled ? 'checked' : ''} aria-label="${category.name}自动处理"></div>
+            ${expanded ? `<div class="auto-category-details" data-auto-details="${category.id}">
+              <label>风险上限<select data-auto-risk="${category.id}">${riskOptions}</select></label>
+              <label>冷却（分钟，0=不限）<input type="number" min="0" data-auto-cooldown="${category.id}" value="${policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0}"></label>
+              <label>矿物预算（空=无限制）<input type="number" min="0" data-auto-budget="${category.id}:mineral" value="${policy?.resourceBudget?.mineral ?? ''}"></label>
+              <label>科技预算（空=无限制）<input type="number" min="0" data-auto-budget="${category.id}:tech" value="${policy?.resourceBudget?.tech ?? ''}"></label>
+              <label>处理方式<select data-auto-fallback="${category.id}" ${category.options.length === 0 ? 'disabled' : ''}>${optionOptions || '<option value="">暂无事件</option>'}</select></label>
+            </div>` : ''}
+          </article>`
+        }).join('')}
+      </div>
+    </div>`
 }
 
 /** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。

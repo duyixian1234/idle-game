@@ -13,6 +13,8 @@ export interface LogEntry {
   text: string
   /** 发生时间戳（ms） */
   time: number
+  /** 系统自动结算且未弹出事件卡 */
+  autoHandled?: boolean
 }
 
 /** 随机事件选项 */

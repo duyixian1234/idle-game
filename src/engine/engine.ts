@@ -449,10 +449,12 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
     const outcome = triggerRandomEvent(state, rng)
     scheduleNextEvent(state, nowMs, rng ?? streamFor(state), eventGapScale(state))
     if (outcome) {
-      pushLog(state, outcome.logType, outcome.logText)
+      pushLog(state, outcome.logType, outcome.logText, { autoHandled: true })
     }
   }
-  autoResolvePendingEvents(state, nowMs)
+  for (const result of autoResolvePendingEvents(state, nowMs)) {
+    if (result.outcome) pushLog(state, result.outcome.logType, result.outcome.logText, { autoHandled: result.status === 'resolved' })
+  }
   // 星球机制周期效果（风暴收获）
   applyStormHarvest(state, nowMs)
   // 星球解锁检查（满足条件播报叙事日志）

@@ -142,10 +142,7 @@ export const ACTIONS: Record<string, GameAction> = {
       state.automationPolicies[input.category] = { ...input.policy, rules: input.policy.rules.slice().sort((a, b) => b.priority - a.priority) }
       return { ok: true, value: input.category }
     },
-    feedback: (_state, _result, payload) => {
-      const input = JSON.parse(String(payload)) as { category: string }
-      return { logs: [{ type: 'system', text: `已保存 ${input.category} 类事件自动处理规则。` }] }
-    },
+    feedback: () => ({ logs: [], save: true }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `自动处理配置失败：${reason}。` }] }),
   },
   buy: {
