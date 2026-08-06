@@ -2,12 +2,13 @@ import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
-import { BUILDINGS, CONQUESTS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { isConquestAvailable, conquestState } from '../engine/conquest'
+import { expeditionCost, isExploreAvailable } from '../engine/exploration'
 import { NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
@@ -53,6 +54,7 @@ export interface AppElements {
   endingOverlay: HTMLElement
   buyMaxOverlay: HTMLElement
   ngplusOverlay: HTMLElement
+  exploreOverlay: HTMLElement
   toolbar: HTMLElement
   tutorial: HTMLElement
 }
@@ -98,6 +100,7 @@ export function buildLayout(container: HTMLElement): AppElements {
       <button type="button" class="tool-btn" data-tool="logdir">📜 排序</button>
       <button type="button" class="tool-btn" data-tool="export">导出存档</button>
       <button type="button" class="tool-btn" data-tool="import">导入存档</button>
+      <button type="button" class="tool-btn" data-explore style="display:none" title="派遣探索队前往偏远星区：有概率发现新势力/新天体">🚀 探索</button>
       <button type="button" class="tool-btn" data-ngplus style="display:none" title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
       <button type="button" class="tool-btn danger" data-tool="reset">重置</button>
       <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
@@ -106,6 +109,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="ending-overlay hidden" aria-label="结局"></div>
     <div class="buy-max-overlay hidden" aria-label="批量购买确认"></div>
     <div class="ngplus-overlay hidden" aria-label="开启新周目确认"></div>
+    <div class="explore-overlay hidden" aria-label="探索派遣"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
   `
   const root = container
@@ -120,6 +124,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     endingOverlay: container.querySelector('.ending-overlay') as HTMLElement,
     buyMaxOverlay: container.querySelector('.buy-max-overlay') as HTMLElement,
     ngplusOverlay: container.querySelector('.ngplus-overlay') as HTMLElement,
+    exploreOverlay: container.querySelector('.explore-overlay') as HTMLElement,
     toolbar: container.querySelector('.toolbar') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
   }
@@ -175,27 +180,77 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
     </div>`
 }
 
-/** 渲染星域总览条（锁定/已解锁/当前选中态） */
+/** 渲染探索派遣面板（通关后 ended/infinite；单槽状态行 + 消耗预览 + 派遣按钮） */
+export function renderExploreOverlay(el: HTMLElement, state: GameState, visible: boolean, nowMs: number = Date.now()): void {
+  if (!visible || !isExploreAvailable(state)) {
+    el.classList.add('hidden')
+    el.innerHTML = ''
+    return
+  }
+  el.classList.remove('hidden')
+  const ongoing = state.expeditions.find((e) => !e.resolved)
+  const cost = expeditionCost(state)
+  const affordMineral = state.resources.mineral >= cost.mineral
+  const affordEnergy = state.resources.energy >= cost.energy
+  const affordMilitary = state.resources.military >= cost.military
+  let reason = ''
+  if (ongoing) reason = '探索队在途中，需等待返航'
+  else if (!affordMineral) reason = '矿物不足'
+  else if (!affordEnergy) reason = '能源不足'
+  else if (!affordMilitary) reason = `军力不足（需 ${cost.military}⚔）`
+  const statusText = ongoing
+    ? `⏳ 探索队返航倒计时 ${formatDuration(Math.ceil(Math.max(0, (ongoing.finishAt ?? 0) - nowMs) / 1000))}`
+    : '探索槽空闲，可派遣'
+  const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
+  const discovered = state.exploredFactions.length + state.exploredPlanets.length
+  el.innerHTML = `
+    <div class="explore-card">
+      <h1 class="ending-title">派遣探索</h1>
+      <p class="ending-stats">通关后的新航路：有概率发现新的派系势力或发展天体，也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
+      <div class="explore-status">${escapeHtml(statusText)}</div>
+      <div class="explore-cost">
+        消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${cost.military} · 时长 60 分钟（离线照常推进）
+      </div>
+      <div class="explore-progress">已发现：${discovered} / ${totalPool}（势力 ${state.exploredFactions.length}/${Object.keys(EXPLORE_FACTIONS).length} · 天体 ${state.exploredPlanets.length}/${Object.keys(EXPLORE_PLANETS).length}）</div>
+      <div class="ending-actions">
+        <button type="button" class="ending-btn primary" data-explore-dispatch ${ongoing || !affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">
+          🚀 派遣探索
+        </button>
+        <button type="button" class="ending-btn ghost" data-explore-close>关闭</button>
+      </div>
+    </div>`
+}
+
+/** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜） */
 export function renderPlanetBar(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(PLANETS)) {
-    const unlocked = isPlanetUnlocked(state, def.id)
-    const active = state.activePlanet === def.id
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = `planet-chip${active ? ' active' : ''}`
-    btn.setAttribute('data-planet', def.id)
-    if (!unlocked) {
-      // 未解锁星球可点击：显示解锁条件（悬停 title + 点击日志）
-      btn.classList.add('locked')
-      btn.title = unlockRequirementText(def, state)
-      btn.textContent = `🔒 ${def.name}`
-    } else {
-      btn.title = active ? '当前星球' : `切换到 ${def.name}`
-      btn.textContent = `● ${def.name}`
-    }
-    el.appendChild(btn)
+    el.appendChild(renderPlanetChip(def, state))
   }
+  for (const def of Object.values(EXPLORE_PLANETS)) {
+    if (!state.planets[def.id]?.unlocked) continue
+    el.appendChild(renderPlanetChip(def, state))
+  }
+}
+
+/** 单个星球 chip（解锁态/锁定态） */
+function renderPlanetChip(def: PlanetDef, state: GameState): HTMLElement {
+  const unlocked = isPlanetUnlocked(state, def.id)
+  const active = state.activePlanet === def.id
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = `planet-chip${active ? ' active' : ''}`
+  btn.setAttribute('data-planet', def.id)
+  if (!unlocked) {
+    // 未解锁星球可点击：显示解锁条件（悬停 title + 点击日志）
+    btn.classList.add('locked')
+    btn.title = unlockRequirementText(def, state)
+    btn.textContent = `🔒 ${def.name}`
+  } else {
+    btn.title = active ? '当前星球' : `切换到 ${def.name}`
+    btn.textContent = `● ${def.name}`
+  }
+  return btn
 }
 
 /** 生成星球的解锁条件描述（含当前进度） */

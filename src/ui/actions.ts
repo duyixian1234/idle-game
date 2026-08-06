@@ -17,6 +17,7 @@ import { pushLog } from '../engine/core'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
 import { startConquest } from '../engine/conquest'
+import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
 import type { GameState, LogType, ResourceKey } from '../engine/types'
 import type { SoundName } from '../audio'
@@ -263,6 +264,13 @@ export const ACTIONS: Record<string, GameAction> = {
       const name = CONQUESTS[id]?.name ?? id
       return { logs: [{ type: 'warning', text: `攻占「${name}」失败：${reason}。` }] }
     },
+  },
+  explore: {
+    id: 'explore',
+    // 派遣探索队（结果出发时固化，回归自动入账；单槽）
+    run: (state) => startExpedition(state, Date.now()),
+    feedback: () => ({ logs: [{ type: 'story', text: '探索队启程：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。' }], sound: 'upgrade' }),
+    onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
   },
 }
 

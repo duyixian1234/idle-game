@@ -607,10 +607,11 @@ body {
   color: var(--bad);
 }
 
-/* ---- 结局面板 / 一键买满 / 开启新周目 确认弹窗（共享遮罩与卡片体系） ---- */
+/* ---- 结局面板 / 一键买满 / 开启新周目 / 探索派遣 确认弹窗（共享遮罩与卡片体系） ---- */
 .ending-overlay,
 .buy-max-overlay,
-.ngplus-overlay {
+.ngplus-overlay,
+.explore-overlay {
   position: fixed;
   inset: 0;
   background: rgba(5, 8, 12, 0.88);
@@ -624,13 +625,15 @@ body {
 
 .ending-overlay.hidden,
 .buy-max-overlay.hidden,
-.ngplus-overlay.hidden {
+.ngplus-overlay.hidden,
+.explore-overlay.hidden {
   display: none;
 }
 
 .ending-card,
 .buy-max-card,
-.ngplus-card {
+.ngplus-card,
+.explore-card {
   max-width: 560px;
   width: 100%;
   background: var(--bg-panel);
@@ -645,6 +648,32 @@ body {
 .ngplus-card {
   max-width: 440px;
   text-align: left;
+}
+
+/* 探索派遣面板内部结构 */
+.explore-card {
+  max-width: 440px;
+  text-align: left;
+}
+
+.explore-status {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  margin: 12px 0 8px;
+}
+
+.explore-cost {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin: 6px 0;
+}
+
+.explore-progress {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 6px 0 14px;
 }
 
 .ngplus-section-title {

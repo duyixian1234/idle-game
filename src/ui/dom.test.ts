@@ -15,6 +15,7 @@ import {
   renderBuildPanel,
   renderBuyMaxModal,
   renderDiplomacyPanel,
+  renderExploreOverlay,
   renderLogInto,
   renderMilitaryPanel,
   renderNgPlusModal,
@@ -714,5 +715,95 @@ describe('ui: 军事面板', () => {
     expect(el.textContent).toContain('全产出 +25%') // 永久加成（母巢）
     expect(el.querySelector('[data-ngplus-confirm]')).toBeTruthy()
     expect(el.querySelector('[data-ngplus-cancel]')).toBeTruthy()
+  })
+})
+
+describe('ui: 探索面板', () => {
+  function endedState(): ReturnType<typeof createInitialState> {
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.endingTriggered = true
+    s.resources.mineral = 10_000_000
+    s.resources.energy = 5_000_000
+    s.resources.military = 50_000
+    s.resources.tech = 1_000_000
+    return s
+  }
+
+  it('playing 阶段：面板隐藏（不可见）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = createInitialState(0)
+    renderExploreOverlay(els.exploreOverlay, s, true)
+    expect(els.exploreOverlay.classList.contains('hidden')).toBe(true)
+    expect(els.exploreOverlay.innerHTML).toBe('')
+  })
+
+  it('ended + 打开：显示状态行/消耗预览/派遣按钮（资源足够可用）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = endedState()
+    renderExploreOverlay(els.exploreOverlay, s, true, 0)
+    expect(els.exploreOverlay.classList.contains('hidden')).toBe(false)
+    expect(els.exploreOverlay.textContent).toContain('探索槽空闲')
+    expect(els.exploreOverlay.textContent).toContain('消耗')
+    expect(els.exploreOverlay.textContent).toContain('40')
+    expect(els.exploreOverlay.textContent).toContain('60 分钟')
+    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    expect(btn).toBeTruthy()
+    expect(btn?.disabled).toBe(false)
+  })
+
+  it('资源不足：派遣按钮禁用且 title 给原因', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = endedState()
+    s.resources.military = 10
+    renderExploreOverlay(els.exploreOverlay, s, true, 0)
+    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    expect(btn?.disabled).toBe(true)
+    expect(btn?.title).toContain('军力不足')
+  })
+
+  it('派遣进行中：显示倒计时 + 按钮禁用（单槽）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = endedState()
+    s.expeditions.push({ id: 1, startedAt: 0, finishAt: 3_600_000, cost: { mineral: 3000, energy: 1000, military: 40 }, result: { kind: 'resource', mineral: 0, tech: 0, energy: 0 }, resolved: false })
+    renderExploreOverlay(els.exploreOverlay, s, true, 60_000)
+    expect(els.exploreOverlay.textContent).toContain('返航倒计时')
+    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    expect(btn?.disabled).toBe(true)
+    expect(btn?.title).toContain('探索队在途中')
+  })
+
+  it('发现进度：显示已发现 x/6 与势力/天体拆分', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = endedState()
+    s.exploredFactions = ['ashCommune']
+    s.exploredPlanets = ['logistics']
+    renderExploreOverlay(els.exploreOverlay, s, true, 0)
+    expect(els.exploreOverlay.textContent).toContain('已发现：2 / 6')
+    expect(els.exploreOverlay.textContent).toContain('势力 1/4')
+    expect(els.exploreOverlay.textContent).toContain('天体 1/2')
+  })
+
+  it('星栏：探索天体仅在发现后显示', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = endedState()
+    renderPlanetBar(els.planetBar, s)
+    expect(els.planetBar.textContent).not.toContain('星际物流港')
+    s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
+    renderPlanetBar(els.planetBar, s)
+    expect(els.planetBar.textContent).toContain('星际物流港')
+  })
+
+  it('工具栏含 data-explore 按钮（显隐由 main 层控制）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    expect(els.toolbar.querySelector('[data-explore]')).toBeTruthy()
+    expect(els.toolbar.querySelector('[data-explore]')?.textContent).toContain('探索')
   })
 })

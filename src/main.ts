@@ -18,10 +18,12 @@ import {
   buildLayout,
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
+  renderArchivePanel,
   renderBuildPanel,
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderEndingOverlay,
+  renderExploreOverlay,
   renderLogInto,
   renderMilitaryPanel,
   renderNgPlusModal,
@@ -33,7 +35,6 @@ import {
   renderTechPanel,
   renderTutorial,
   unlockRequirementText,
-  renderArchivePanel,
 } from './ui/dom'
 import type { LogDirection } from './ui/dom'
 import { dispatch } from './ui/actions'
@@ -49,6 +50,8 @@ async function main(): Promise<void> {
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
   // 结局面板临时收起标记
   let endingDismissed = false
+  // 探索面板开关（通关后工具栏「探索」打开）
+  let exploreOpen = false
   // 音效管理
   const sound = new SoundManager()
   // 日志排序方向（偏好记忆），已渲染日志游标
@@ -102,6 +105,8 @@ async function main(): Promise<void> {
     }
     // 结局面板：ended 且未临时收起时显示
     renderEndingOverlay(els.endingOverlay, state, state.phase === 'ended' && !endingDismissed)
+    // 探索面板：通关后 + 用户打开时显示（倒计时由主循环 250ms 重建刷新）
+    renderExploreOverlay(els.exploreOverlay, state, exploreOpen)
     renderTutorial(els.tutorial, state)
     // 工具栏按钮状态
     const muteBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="mute"]')
@@ -117,6 +122,16 @@ async function main(): Promise<void> {
         ngBtn.title = `开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、×${p.permanentMult.toFixed(2)} 永久产出加成、${p.codexFactions.length} 个派系图鉴（需确认）`
       } else {
         ngBtn.style.display = 'none'
+      }
+    }
+    // 探索入口按钮：通关后（ended/infinite）可见，playing 隐藏
+    const exploreBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-explore]')
+    if (exploreBtn) {
+      if (state.phase === 'ended' || state.phase === 'infinite') {
+        exploreBtn.style.display = ''
+      } else {
+        exploreBtn.style.display = 'none'
+        exploreOpen = false
       }
     }
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
@@ -340,6 +355,10 @@ async function main(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
+    if (e.key === 'Escape' && !els.exploreOverlay.classList.contains('hidden')) {
+      exploreOpen = false
+      render()
+    }
   })
 
   // ---- 无限模式手动开启新周目（确认弹窗） ----
@@ -379,6 +398,33 @@ async function main(): Promise<void> {
   els.toolbar.addEventListener('click', (e) => {
     if (!(e.target as HTMLElement).closest('[data-ngplus]')) return
     openNgPlusModal()
+  })
+
+  // ---- 探索派遣面板 ----
+  // 工具栏「探索」入口：仅 ended/infinite 可见（render 控制显隐），打开即渲染面板
+  els.toolbar.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-explore]')) return
+    if (!(state.phase === 'ended' || state.phase === 'infinite')) return
+    exploreOpen = true
+    render()
+  })
+
+  els.exploreOverlay.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t === els.exploreOverlay) {
+      exploreOpen = false
+      render()
+      return
+    }
+    if (t.closest('[data-explore-close]')) {
+      exploreOpen = false
+      render()
+      return
+    }
+    if (t.closest('[data-explore-dispatch]')) {
+      // 派遣成功后面板保持打开（显示倒计时）；结果入账由 tick/offline 自动处理
+      dispatch(state, 'explore', '', deps)
+    }
   })
 
   // 星球切换事件委托（未解锁星球：显示解锁条件）
