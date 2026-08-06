@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-05
 
-**Status:** open
+**Status:** resolved
 
 - [ ] `dom.ts`：tab + panel-body + renderArchivePanel（escapeHtml 防注入）
 - [ ] `main.ts`：render() 注册；tab 初始化

@@ -1,4 +1,4 @@
-Status: ready-for-agent（grill 三轮 16 决策定稿，2026-08-06）
+Status: implemented（grill 三轮 16 决策定稿 → 7 ticket 全部实现，2026-08-06；338 vitest + 16 E2E + typecheck + build 全绿，9 原子提交 7425cba..64c7d9f）
 
 # Spec: 成就系统 + 声望系统
 
@@ -31,7 +31,8 @@ Status: ready-for-agent（grill 三轮 16 决策定稿，2026-08-06）
   - 终局类 5 个：联邦统一（`endingTriggered`，+8）、星海肃清（conquestAll，+6）、累计矿物 10 亿（+8）、二周目/三周目（`ngPlusLevel`，+5/+8）
   - 每项：id/name/desc/类别/条件谓词/reward（一次性资源，小奖为主终局大奖）/rep（声望 2-8 点）
 - **解锁状态模型**：`state.achievements: Record<string, { unlockedAt: number; unlockedInRound: number }>`——unlockedAt 存在 = 图鉴永久已解锁（跨周目）；unlockedInRound = 解锁时的周目。**声望 = 已解锁且 unlockedInRound === 当前 ngPlusLevel 的成就声望之和（封顶 100）**，纯派生不存档。
-- **checkAchievements(state)**：遍历定义，条件满足且「未解锁 或 unlockedInRound ≠ 当前周目」→ 更新 unlockedAt/unlockedInRound + 发一次性资源奖励 + pushLog（`reward` 类型 `【成就】「${name}」达成：+${rep} 声望${reward}。`）。tick 内调用（250ms 粒度足够，纯遍历开销可忽略）。二周目重解锁（unlockedInRound 不匹配）正常发奖励 + 声望——NG+「重打但更强」的期望行为。
+- **recurring 语义**：`checkAchievements` 对「永久类」与「周目可重解锁类」区分——叙事类（storyFlags 驱动，storyFlags 跨周目保留，若可重解锁会令二周目开局白拿全部叙事成就）与 `conquestAll`（同为 storyFlags 驱动）解锁一次即终点；收集类/联邦/周目成就（周目内状态驱动）在 unlockedInRound 不匹配且条件再满足时重解锁 + 重发奖励（NG+「重打但更强」）。
+- **checkAchievements(state)**：遍历定义，条件满足且（未解锁 或 周目类且 unlockedInRound ≠ 当前周目）→ 更新 unlockedAt/unlockedInRound + 发一次性资源奖励 + pushLog（`reward` 类型 `【成就】「${name}」达成：+${rep} 声望${reward}。`）。tick 内调用（置于 checkEnding 之后，federation 成就依赖 endingTriggered；250ms 粒度足够）。
 - **声望派生**（`src/engine/reputation.ts`）：`reputation(state)` 纯函数；`reputationBonuses(state)` 输出四件套，阶梯草案（实现期模拟定标，**不破硬上限 65**）：
   - rep 20 → 贸易折扣 5%
   - rep 40 → 骚扰阈值 +5（55→60）
@@ -43,7 +44,7 @@ Status: ready-for-agent（grill 三轮 16 决策定稿，2026-08-06）
   - 骚扰阈值：`events.ts raidableFaction()` 与 `settleOfflineRaids()` 判定阈值改为 `min(55 + bonus, 65)`
   - 军力上限：`production.ts militaryCap()` 乘数 `(1 + permanentBonuses.militaryCap + repMilitaryCapBonus)`
   - 攻占成功率：`conquest.ts settleConquests()` `min(1, invest/guard × (1 + bonus))`（足额投入仍必成）
-- **NG+ 语义**：`startNewGamePlus()` 保留 `achievements`（图鉴跨周目）；**重置 `stats.totalMineralEarned = 0` 与 `playSeconds = 0`**（周目内口径，结局统计显示本局；成就条件因此全部周目内语义，二周目自然重新积累）。`storyFlags` 保留（叙事类成就二周目不重解锁——期望行为）。
+- **NG+ 语义**：`startNewGamePlus()` 保留 `achievements`（图鉴跨周目）；**重置 `stats.totalMineralEarned = 0` 与 `playSeconds = 0`**（周目内口径，结局统计显示本局；成就条件因此全部周目内语义，二周目自然重新积累）。`storyFlags` 保留（叙事类成就二周目不重解锁——recurring 语义见上）。
 - **存档 v4**：`SCHEMA_VERSION` 3→4；SAVE_SCHEMA 加 `{ key: 'achievements', since: 4, check: isPlainObject }`；`migrateV3ToV4()`：achievements 默认空 + **回溯解锁**——遍历成就定义按派生条件判定（旧档 tradeCount/conquest/storyFlags 等历史值已在存档内），满足则设 `{ unlockedAt: Date.now(), unlockedInRound: 当前 ngPlusLevel }`，**不发资源奖励**（防「憋单等系统上线」刷双份）、声望随派生自动生效（Q12）。迁移链 v1→v2→v3→v4。`createInitialState` 加 `achievements: {}`。
 - **UI（第 5 面板「档案」）**：`dom.ts buildLayout` 加 `data-tab="archive"` 的 tab 按钮（**开局即开放**，与外交/军事的 orbital 前置不同）+ panel-body；`renderArchivePanel()`：声望条（当前/100 + 下一档加成预告）+ 成就网格（叙事/收集/终局三组，已解锁 ✓ / 锁定 🔒，含奖励与声望提示）+ 本周目统计（在线时长/累计矿物/贸易/威慑/攻占/肃清进度/周目）。纯展示面板无按钮 → 无需 main.ts 新增 action 委托。移动端复用 mobile.spec 审计。
 

@@ -8,7 +8,7 @@
 
 **Blocked by:** 02, 03
 
-**Status:** open
+**Status:** resolved
 
 - [ ] 四处接线（每处独立小函数，reputationBonuses 注入）
 - [ ] 测试：贸易折扣进成本且 buy-max 预演/执行一致；骚扰阈值 55→65 封顶、铁卫(70)满声望仍骚扰、离线结算同口径；军力上限叠加 permanentBonuses；成功率薄投受益足额必成

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** open
+**Status:** resolved
 
 - [ ] `src/engine/reputation.ts`：reputation + reputationBonuses + 阶梯表（阈值表集中常量，便于模拟调参）
 - [ ] `src/engine/reputation.test.ts`：封顶 100 / unlockedInRound 过滤 / 阶梯插值 / 硬上限

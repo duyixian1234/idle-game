@@ -4,7 +4,7 @@
 
 **Blocked by:** 01-06
 
-**Status:** open
+**Status:** resolved
 
 - [ ] 模拟脚本定标（一次性）
 - [ ] 全量 vitest + typecheck + build + E2E（含 mobile.spec）

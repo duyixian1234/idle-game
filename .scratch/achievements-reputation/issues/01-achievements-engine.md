@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** open
+**Status:** resolved（7425cba）
 
 - [ ] `src/engine/types.ts`：GameState 加 `achievements: Record<string, AchievementState>`；定义 AchievementState
 - [ ] `src/engine/achievements.ts`：AchievementDef（id/name/desc/category/condition(state)/rewardMineral/rewardTech/rep）+ ACHIEVEMENTS 表（26 个，文案中文）

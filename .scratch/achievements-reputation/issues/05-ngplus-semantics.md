@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 04
 
-**Status:** open
+**Status:** resolved
 
 - [ ] `startNewGamePlus` 重置 stats/playSeconds、保留 achievements
 - [ ] `tick()` 末尾调 `checkAchievements`（解锁日志走 reward 类型）

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01, 02
 
-**Status:** open
+**Status:** resolved
 
 - [ ] `types.ts` SCHEMA_VERSION = 4；`save.ts` SAVE_SCHEMA + migrateV3ToV4 + migrateSave 链
 - [ ] `engine.ts` createInitialState 加 achievements: {}
