@@ -9,9 +9,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：29 个、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：31 个、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(29)
+    expect(defs).toHaveLength(31)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -128,11 +128,11 @@ describe('achievements', () => {
     // 部分收集：只发现 1 势力 → 不达标
     s.exploredFactions = ['ashCommune']
     expect(checkAchievements(s).map((d) => d.id)).not.toContain('explorerComplete')
-    // 全收集：4 势力 + 2 天体
+    // 全收集：4 势力 + 5 天体
     s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
     s.exploredPlanets = ['logistics']
     expect(checkAchievements(s).map((d) => d.id)).not.toContain('explorerComplete')
-    s.exploredPlanets = ['logistics', 'outpost']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
     expect(checkAchievements(s).map((d) => d.id)).toContain('explorerComplete')
     // 奖励发放 + rep 3
     const def = ACHIEVEMENTS.explorerComplete

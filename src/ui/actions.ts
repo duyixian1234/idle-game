@@ -267,8 +267,12 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   explore: {
     id: 'explore',
-    // 派遣探索队（结果出发时固化，回归自动入账；单槽）
-    run: (state) => startExpedition(state, Date.now()),
+    // 派遣探索队（结果出发时固化，回归自动入账；多槽）。payload = 槽位号 1|2|3（UI data-explore-dispatch），缺省按第 1 槽
+    run: (state, payload) => {
+      const slotNo = Number(payload || '1')
+      const slotIndex = Math.max(0, slotNo - 1)
+      return startExpedition(state, Date.now(), undefined, slotIndex)
+    },
     feedback: () => ({ logs: [{ type: 'story', text: '探索队启程：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。' }], sound: 'upgrade' }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
   },

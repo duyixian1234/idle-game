@@ -201,9 +201,10 @@ export function isTechResearched(state: GameState, id: string): boolean {
   return techLevel(state, id) > 0
 }
 
-/** 是否可升级：产出类科技且未满级（军械科技等短升级线按 def.maxLevel） */
+/** 是否可升级：产出类/探索类科技且未满级（军械科技等短升级线按 def.maxLevel；探索科技 Lv1-5 提供收获倍率） */
 export function canTechUpgrade(def: TechDef, level: number): boolean {
-  return def.effect.kind === 'production' && level > 0 && level < (def.maxLevel ?? TECH_MAX_LEVEL)
+  const upgradable = def.effect.kind === 'production' || def.effect.kind === 'exploration'
+  return upgradable && level > 0 && level < (def.maxLevel ?? TECH_MAX_LEVEL)
 }
 
 /**

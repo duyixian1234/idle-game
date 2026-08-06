@@ -59,15 +59,16 @@ export function tradeCost(state: GameState, id: string): Record<ResourceKey, num
   }
 }
 
-/** 威慑成本（随次数递增，含科技点） */
+/** 威慑成本（随次数递增，含科技点；探索势力专属 intimidateCostMult 折扣，如黑曜协议 0.75 = 威慑成本 -25%） */
 export function intimidateCost(state: GameState, id: string): Record<ResourceKey, number> {
   const f = state.factions[id]
   const n = f?.intimidateCount ?? 0
   const mult = Math.pow(INTIMIDATE_COST_GROWTH, n)
+  const defMult = ALL_FACTIONS[id]?.intimidateCostMult ?? 1
   return {
-    mineral: Math.floor(INTIMIDATE_BASE_COST.mineral * mult),
-    energy: Math.floor(INTIMIDATE_BASE_COST.energy * mult),
-    tech: Math.floor(INTIMIDATE_BASE_COST.tech * mult),
+    mineral: Math.floor(INTIMIDATE_BASE_COST.mineral * mult * defMult),
+    energy: Math.floor(INTIMIDATE_BASE_COST.energy * mult * defMult),
+    tech: Math.floor(INTIMIDATE_BASE_COST.tech * mult * defMult),
     military: 0,
   }
 }

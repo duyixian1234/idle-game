@@ -319,11 +319,24 @@ describe('actions: 探索派遣', () => {
     expect(calls).toEqual(['render'])
   })
 
-  it('explore 单槽：已有进行中派遣时拒绝', () => {
+  it('explore 多槽：1 槽（无科技）满员时拒绝；槽位 payload 生效（第 2 槽成本 ×2）', () => {
     const s = endedState()
     s.expeditions.push({ id: 1, startedAt: 0, finishAt: 3_600_000, cost: { mineral: 1, energy: 1, military: 1 }, result: { kind: 'resource', mineral: 0, tech: 0, energy: 0 }, resolved: false })
     dispatch(s, 'explore', '', fakeDeps().deps)
     expect(s.expeditions).toHaveLength(1)
-    expect(s.log[0].text).toContain('派遣探索失败：已有一支探索队在途中')
+    expect(s.log[0].text).toContain('派遣探索失败：全部探索信道已占用，需等待返航')
+    // 槽位 payload：深空导航阵列解锁 2 槽后，payload "2" 出发 → 军事点 ×2（80）
+    const s2 = endedState()
+    s2.techLevels.deepSpaceNav = 1
+    const militaryBefore = s2.resources.military
+    dispatch(s2, 'explore', '2', fakeDeps().deps)
+    expect(s2.expeditions).toHaveLength(1)
+    expect(s2.resources.military).toBe(militaryBefore - 80)
+    // 缺省 payload 按第 1 槽（×1 = 40）
+    const s3 = endedState()
+    s3.techLevels.deepSpaceNav = 1
+    const mb3 = s3.resources.military
+    dispatch(s3, 'explore', '', fakeDeps().deps)
+    expect(s3.resources.military).toBe(mb3 - 40)
   })
 })

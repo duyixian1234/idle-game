@@ -453,14 +453,16 @@ async function main(): Promise<void> {
 
   // ---- 探索页（一级 tab）：NG+ 终局卡 + 派遣 ----
   // data-ngplus：infinite 下终局卡「开启新周目」→ 确认弹窗
-  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理）
+  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理；值 = 槽位号 1|2|3）
   els.navPages.explore.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('[data-ngplus]')) {
       openNgPlusModal()
       return
     }
-    if ((e.target as HTMLElement).closest('[data-explore-dispatch]')) {
-      dispatch(state, 'explore', '', deps)
+    const dispatchBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-dispatch]')
+    if (dispatchBtn) {
+      const slotNo = dispatchBtn.dataset.exploreDispatch ?? '1'
+      dispatch(state, 'explore', slotNo, deps)
     }
   })
 

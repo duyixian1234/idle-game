@@ -125,14 +125,24 @@ export const CONQUEST_DURATION_MS = 60 * 60_000
 
 // ---- 探索（通关后派遣） ----
 
-/** 派遣时长（ms）：60 分钟（复用攻占倒计时语义，离线照常推进） */
+/** 派遣时长（ms）：60 分钟（复用攻占倒计时语义，离线照常推进；时间自由度由多槽承担，本值不动） */
 export const EXPEDITION_DURATION_MS = 60 * 60_000
-/** 派遣固定军力消耗（兵力硬上限天然冷却；上限 100+200×军港，前期要攒、后期受单槽约束） */
-export const EXPEDITION_MILITARY_COST = 40
+/** 派遣军力消耗 = min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)——退役固定常量 EXPEDITION_MILITARY_COST=40，见 exploration.ts expeditionMilitaryCost */
+export const EXPEDITION_MILITARY_PCT = 0.02
+export const EXPEDITION_MILITARY_CAP = 1000
+/** 派遣矿物/能源消耗 cap 随周目缩放倍率：cap × EXPEDITION_CAP_GROWTH^ngPlusLevel（0 周目 15万/6万 → 5 周目 114万/45万 → 10 周目 865万/346万），min/factor 不动（balance-sim 锚点保持） */
+export const EXPEDITION_CAP_GROWTH = 1.5
 /** 派遣矿物消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——balance-sim 校准定稿（ticket 06） */
 export const EXPEDITION_MINERAL = { min: 3_000, factor: 300, cap: 150_000 }
 /** 派遣能源消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——balance-sim 校准定稿（ticket 06） */
 export const EXPEDITION_ENERGY = { min: 1_000, factor: 150, cap: 60_000 }
+/** 重复发现已收录势力的好感增益（封顶 FAVOR_CAP=100） */
+export const EXPEDITION_REPEAT_FAVOR_GAIN = 5
+/** 重复发现已收录天体的产出增益步进/上限（每 +10%，封顶 +50%） */
+export const EXPEDITION_OUTPUT_BONUS_STEP = 0.1
+export const EXPEDITION_OUTPUT_BONUS_CAP = 0.5
+/** 探索收获倍率每级科技加成：1 + PCT × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0（只作用于 resource 分支补偿） */
+export const EXPLORATION_TECH_HARVEST_PCT = 0.1
 /** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）。
  * balance-sim 校准定稿（ticket 06，20 seed）：techPerMineral=0.005 → 耗尽后收益比 1.083×（锚点 1.1×）；
  * t=0.01 时 1.416× 超标成印钞机（否决）。收集期（发现物贴现 faction 1.8×/planet 2.0×）均值 10.4 次收完、收益比 ~1.68×。 */

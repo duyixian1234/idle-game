@@ -38,17 +38,31 @@ export interface ProductionReport {
   energyRatio: number
 }
 
+/** 探索产出型天体的每秒贡献明细（UI 展示用，与 productionReport 同口径） */
+export interface ExplorePlanetOutput {
+  planetId: string
+  name: string
+  /** 各资源当前每秒贡献（0 值键省略语义为 0） */
+  values: Record<ResourceKey, number>
+}
+
 /** 各资源每秒产出（含等级加成）；能源消耗建筑的产出按能源可得性打折 */
 export function netProduction(state: GameState): Record<ResourceKey, number> {
   return productionReport(state).nominal
 }
 
 /**
- * 完整生产报告：
- * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
- * 精炼厂类建筑的产出按 可用能源/需求 比例折减，能源不会扣成负数。
+ * 建筑管线名义产出（共享基数）：
+ * 数量 × 等级加成 → 科技系数 → 星球机制修正（机制后、含科技、不含天体产出与 NG+）。
+ * productionReport 与 explorePlanetOutputs 共用——保证天体产出比例基数「无递归」且 UI 明细与引擎同一真源。
  */
-export function productionReport(state: GameState): ProductionReport {
+interface PipelineNominal {
+  techMult: Record<ResourceKey, number>
+  nominal: Record<ResourceKey, number>
+  energyDemand: number
+}
+
+function pipelineNominal(state: GameState): PipelineNominal {
   const base = zeroResources()
   let energyDemand = 0
   for (const [id, count] of Object.entries(state.buildings)) {
@@ -70,6 +84,21 @@ export function productionReport(state: GameState): ProductionReport {
 
   // 星球机制：轨道工厂站（将 15% 矿物产能转化为科技点）
   applyPlanetMechanics(state, nominal)
+  return { techMult, nominal, energyDemand }
+}
+
+/**
+ * 完整生产报告：
+ * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
+ * 精炼厂类建筑的产出按 可用能源/需求 比例折减，能源不会扣成负数。
+ */
+export function productionReport(state: GameState): ProductionReport {
+  const { techMult, nominal, energyDemand } = pipelineNominal(state)
+
+  // 探索产出型天体独立产出（加入点：机制后、permMult 前）：
+  // 基础值吃科技倍率（不吃 activePlanet 机制——产出型不参与切换）；比例部分基于机制后名义（无递归：基数为建筑管线产出）；
+  // 整体随后与建筑产出一同 ×permMult → 占比恒 2%/2%/1%（×1+outputBonus）；无 consumes，不参与能源折减、不受军力截断。
+  applyExplorePlanetOutput(state, techMult, nominal)
 
   // NG+ 永久产出加成 × 区域永久加成（permanentBonuses['production'] 累计，随存档持久化）
   const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
@@ -95,6 +124,26 @@ export function productionReport(state: GameState): ProductionReport {
   const room = militaryCap(state) - state.resources.military
   nominal.military = Math.max(0, Math.min(nominal.military, room))
   return { nominal, energyRatio }
+}
+
+/** 探索产出型天体当前每秒贡献明细（UI data-planet-output 单一真源，与 productionReport 同口径含 permMult） */
+export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
+  const { techMult, nominal } = pipelineNominal(state)
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  const out: ExplorePlanetOutput[] = []
+  for (const [id, ps] of Object.entries(state.planets)) {
+    if (!ps?.unlocked) continue
+    const def = EXPLORE_PLANETS[id]
+    if (!def?.output) continue
+    const bonus = 1 + (ps.outputBonus ?? 0)
+    const values = zeroResources()
+    for (const key of RESOURCE_KEYS) {
+      const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
+      if (base !== 0) values[key] = base * bonus * permMult
+    }
+    out.push({ planetId: id, name: def.name, values })
+  }
+  return out
 }
 
 export interface ProductionDelta {
@@ -181,4 +230,25 @@ function applyPlanetMechanics(state: GameState, nominal: Record<ResourceKey, num
   const def = activePlanetDef(state)
   if (!def) return
   PLANET_MECHANICS[def.mechanicId].apply(state, nominal)
+}
+
+/**
+ * 探索产出型天体的独立产出（恒定挂载，不随 activePlanet 切换）：
+ * planetOutput[key] = (def.output[key] × techMult[key] + def.outputPct[key] × mechNominal[key]) × (1 + outputBonus)
+ * - 快照 mechNominal（机制后建筑名义产出）作比例基数 → 多天体并存无递归；
+ * - 比例挂钩保证占比随主基地规模永续恒定（~1-2%），后期不贬值；
+ * - 无 consumes → 不参与能源折减；产出型天体无 military 键 → 不受军力截断。
+ */
+function applyExplorePlanetOutput(state: GameState, techMult: Record<ResourceKey, number>, nominal: Record<ResourceKey, number>): void {
+  const mechNominal = { ...nominal }
+  for (const [id, ps] of Object.entries(state.planets)) {
+    if (!ps?.unlocked) continue
+    const def = EXPLORE_PLANETS[id]
+    if (!def?.output) continue
+    const bonus = 1 + (ps.outputBonus ?? 0)
+    for (const key of RESOURCE_KEYS) {
+      const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * mechNominal[key]
+      if (base !== 0) nominal[key] += base * bonus
+    }
+  }
 }

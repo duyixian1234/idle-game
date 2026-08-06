@@ -766,6 +766,109 @@ body {
   margin: 6px 0 14px;
 }
 
+/* 探索深空信道列表（多槽，1/2/3） */
+.explore-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.explore-slot {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.explore-slot[data-expedition-locked] {
+  opacity: 0.55;
+}
+
+.explore-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.explore-slot-name {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.explore-slot-state {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.explore-slot-state.idle {
+  color: var(--accent);
+}
+
+.explore-slot-state.active {
+  color: var(--mineral);
+}
+
+.explore-slot-state.locked {
+  color: var(--text-dim);
+}
+
+.explore-slot-timer {
+  color: var(--mineral);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.explore-slot-cost {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+.explore-slot-hint {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.explore-slot-actions {
+  margin-top: 8px;
+}
+
+.explore-slot-actions .ending-btn {
+  width: 100%;
+}
+
+/* 探索产出型天体贡献行 */
+.explore-planet-outputs {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.explore-planet-output {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+/* 派系特性徽标（探索势力专属：贸易折扣/共享半价/威慑折扣） */
+.faction-perk {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+
 .ngplus-section-title {
   color: var(--text-dim);
   font-size: 12px;

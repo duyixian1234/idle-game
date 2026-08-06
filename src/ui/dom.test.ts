@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
+import { createFactionState } from '../engine/diplomacy'
 import { previewMaxBuy } from '../engine/bulk'
 import { previewNewGamePlus } from '../engine/ngplus'
 import { netProduction } from '../engine/production'
@@ -387,6 +388,65 @@ describe('ui: 外交面板', () => {
     const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="vox:intimidate"]')
     expect(btn!.textContent).toContain('◎1万')
   })
+
+  it('探索势力发现后进入外交面板：8 家全发现渲染 8 条目，未发现不渲染', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 1_000_000
+    const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
+    renderDiplomacyPanel(panel, s)
+    expect(panel.querySelectorAll('[data-faction]')).toHaveLength(4) // 未发现探索势力不渲染
+    expect(panel.querySelector('[data-faction="ashCommune"]')).toBeNull()
+    // 发现 4 家探索势力 → 8 条目
+    for (const id of ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
+      s.factions[id] = createFactionState({ id, name: id, desc: '', initialFavor: 10, initialThreat: 30 })
+    }
+    renderDiplomacyPanel(panel, s)
+    expect(panel.querySelectorAll('[data-faction]')).toHaveLength(8)
+  })
+
+  it('特性徽标：星环修道会贸易折扣 -8%、黑曜协议威慑折扣 -25%、节点智械共享半价、灰潮共同体贸易折扣 -5%', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    for (const id of ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
+      s.factions[id] = createFactionState({ id, name: id, desc: '', initialFavor: 10, initialThreat: 30 })
+    }
+    const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
+    renderDiplomacyPanel(panel, s)
+    const perks = (fid: string) => {
+      const item = panel.querySelector<HTMLElement>(`[data-faction="${fid}"]`)
+      return [...(item?.querySelectorAll('[data-faction-perk]') ?? [])].map((x) => x.textContent ?? '')
+    }
+    expect(perks('ringOrder')).toContain('贸易折扣 -8%')
+    expect(perks('obsidianPact')).toContain('威慑折扣 -25%')
+    expect(perks('nodeIntellect')).toContain('共享半价')
+    expect(perks('ashCommune')).toContain('贸易折扣 -5%')
+    // 初始 4 家无特性徽标
+    expect(perks('ferro')).toEqual([])
+  })
+
+  it('威慑成本对黑曜协议 ×0.75（intimidateCost 含特性折扣）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
+    s.factions.obsidianPact = createFactionState({ id: 'obsidianPact', name: '黑曜协议', desc: '', initialFavor: 5, initialThreat: 55, intimidateCostMult: 0.75 })
+    renderDiplomacyPanel(panel, s)
+    const btn = panel.querySelector<HTMLButtonElement>('[data-diplomacy="obsidianPact:intimidate"]')
+    // 基础威慑：矿 3万 / 能 1.5万 / 科 1万 → ×0.75 = 2.25万 / 1.125万 / 7,500
+    expect(btn!.textContent).toContain('◆2.25万')
+    expect(btn!.textContent).toContain('◎7,500')
+  })
 })
 
 describe('ui: 事件科技分支', () => {
@@ -766,24 +826,43 @@ describe('ui: 探索页', () => {
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s)
     expect(page.textContent).toContain('通关后解锁探索')
-    expect(page.textContent).toContain('单槽派遣探索队')
+    expect(page.textContent).toContain('多信道派遣探索队')
     expect(page.textContent).toContain('完成「星系统一联邦」结局')
     expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
   })
 
-  it('ended：页面直接渲染派遣面板（状态行/消耗预览/派遣按钮可用）', () => {
+  it('ended：深空信道列表渲染（3 槽：无科技 1 空闲 + 2 锁定），消耗预览/派遣按钮可用', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    expect(page.textContent).toContain('探索槽空闲')
+    expect(page.textContent).toContain('深空信道 1')
     expect(page.textContent).toContain('消耗')
     expect(page.textContent).toContain('40')
     expect(page.textContent).toContain('60 分钟')
-    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    expect(page.querySelector('[data-expedition-slot="1"]')).toBeTruthy()
+    expect(page.querySelector('[data-expedition-locked]')).toBeTruthy() // 信道 2/3 锁定
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch="1"]')
     expect(btn).toBeTruthy()
     expect(btn?.disabled).toBe(false)
+    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeNull() // 锁定槽无派遣按钮
+  })
+
+  it('3 槽科技解锁：三个信道全部空闲可派遣，槽位成本 ×1/×2/×3', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.techLevels.deepSpaceNav = 1
+    s.techLevels.interstellarRelay = 1
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector('[data-expedition-locked]')).toBeNull()
+    expect(page.querySelectorAll('[data-explore-dispatch]')).toHaveLength(3)
+    // 槽 1/2/3 军事点 = 40/80/120
+    expect(page.textContent).toContain('⚔40')
+    expect(page.textContent).toContain('⚔80')
+    expect(page.textContent).toContain('⚔120')
   })
 
   it('资源不足：派遣按钮禁用且 title 给原因', () => {
@@ -793,12 +872,12 @@ describe('ui: 探索页', () => {
     s.resources.military = 10
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch="1"]')
     expect(btn?.disabled).toBe(true)
     expect(btn?.title).toContain('军力不足')
   })
 
-  it('派遣进行中：显示倒计时 + 按钮禁用（单槽）', () => {
+  it('派遣进行中：该信道显示倒计时（data-expedition-timer），不再有派遣按钮', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -806,12 +885,13 @@ describe('ui: 探索页', () => {
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 60_000)
     expect(page.textContent).toContain('返航倒计时')
-    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
-    expect(btn?.disabled).toBe(true)
-    expect(btn?.title).toContain('探索队在途中')
+    expect(page.querySelector('[data-expedition-timer]')).toBeTruthy()
+    expect(page.querySelector('[data-expedition-slot="1"]')?.textContent).toContain('派遣中')
+    // 信道 1 派遣中无按钮；锁定信道无按钮
+    expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
   })
 
-  it('发现进度：显示已发现 x/6 与势力/天体拆分', () => {
+  it('发现进度：显示已发现 x/9 与势力/天体拆分（4 势力 + 5 天体）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -819,9 +899,24 @@ describe('ui: 探索页', () => {
     s.exploredPlanets = ['logistics']
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    expect(page.textContent).toContain('已发现：2 / 6')
+    expect(page.textContent).toContain('已发现：2 / 9')
     expect(page.textContent).toContain('势力 1/4')
-    expect(page.textContent).toContain('天体 1/2')
+    expect(page.textContent).toContain('天体 1/5')
+  })
+
+  it('产出型天体发现后：渲染贡献行（data-planet-output 显示基础+比例+增益实时值）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.miner = 100 // 建筑矿物 100/s → 碎星矿带比例部分 2/s
+    s.planets.rubbleBelt = { unlocked: true, unlockedAt: 1000, outputBonus: 0.1 }
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const row = page.querySelector<HTMLElement>('[data-planet-output="rubbleBelt"]')
+    expect(row).toBeTruthy()
+    expect(row!.textContent).toContain('碎星矿带')
+    // 基础 2×1（无科技）×1.1 + 比例 100×2%×1.1 = 2.2 + 2.2 = 4.4 → UI 取整显示 +4/s
+    expect(row!.textContent).toContain('◆ +4/s')
   })
 
   it('星栏：探索天体仅在发现后显示', () => {

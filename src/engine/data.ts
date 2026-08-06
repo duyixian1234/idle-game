@@ -128,7 +128,12 @@ export interface TechEffectUnlock {
   buildingId: string
 }
 
-export type TechEffect = TechEffectProduction | TechEffectUnlock
+/** 科技效果：探索（深空信道槽位解锁，Lv≥1 生效；无数值效果，门控由 explorationSlots 派生） */
+export interface TechEffectExploration {
+  kind: 'exploration'
+}
+
+export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration
 
 export interface TechDef {
   id: string
@@ -164,6 +169,10 @@ export interface PlanetDef {
   mechanicId: MechanicId
   /** 仅可由探索解锁（通关后派遣发现）；checkPlanetUnlocks/planetRequirementsMet 跳过 */
   discoverOnly?: boolean
+  /** 探索产出型天体的基础产出（每秒，吃科技倍率 techMult；不吃 activePlanet 机制——产出型不参与切换） */
+  output?: Partial<Record<ResourceKey, number>>
+  /** 探索产出型天体的比例挂钩产出（主基地机制后名义产出的比例，如 mineral: 0.02 = 建筑管线矿物产出的 2%；占比随主基地规模永续恒定） */
+  outputPct?: Partial<Record<ResourceKey, number>>
 }
 
 /** 星球定义表 */
@@ -218,6 +227,8 @@ export interface FactionDef {
   tradeDiscount?: number
   /** 技术共享成本倍率（如 0.5 = 科技点半价；探索势力专属，可缺省） */
   techShareCostMult?: number
+  /** 威慑成本倍率（如 0.75 = 威慑成本 -25%；探索势力专属，可缺省） */
+  intimidateCostMult?: number
 }
 
 /** 派系定义表（4 派系） */
@@ -306,6 +317,22 @@ export const TECHS: Record<string, TechDef> = {
     effect: { kind: 'production', resource: 'military', mult: 1 },
     maxLevel: 5,
     unlockByConquest: 'outpost',
+  },
+  deepSpaceNav: {
+    id: 'deepSpaceNav',
+    name: '深空导航阵列',
+    desc: '校准跨星区航路的深空基准站：Lv1 解锁第 2 探索信道，每级探索收获 +10%。',
+    cost: { mineral: 50_000, tech: 5_000 },
+    effect: { kind: 'exploration' },
+    maxLevel: 5,
+  },
+  interstellarRelay: {
+    id: 'interstellarRelay',
+    name: '星际通信中继',
+    desc: '中继星海的通信网络：Lv1 解锁第 3 探索信道，每级探索收获 +10%。',
+    cost: { mineral: 200_000, tech: 20_000 },
+    effect: { kind: 'exploration' },
+    maxLevel: 5,
   },
 }
 
@@ -398,6 +425,7 @@ export const EXPLORE_FACTIONS: Record<string, FactionDef> = {
     desc: '隐居于巨行星环带中的苦修者教团，不问世事，只观测星海。',
     initialFavor: 15,
     initialThreat: 25,
+    tradeDiscount: 0.08,
   },
   obsidianPact: {
     id: 'obsidianPact',
@@ -405,6 +433,7 @@ export const EXPLORE_FACTIONS: Record<string, FactionDef> = {
     desc: '崇拜力量与掠夺的军事同盟，领地边缘永远徘徊着巡洋舰的阴影。',
     initialFavor: 5,
     initialThreat: 55,
+    intimidateCostMult: 0.75,
   },
   nodeIntellect: {
     id: 'nodeIntellect',
@@ -433,6 +462,36 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
     unlock: { resources: {} },
     mechanicId: 'outpost',
     discoverOnly: true,
+  },
+  rubbleBelt: {
+    id: 'rubbleBelt',
+    name: '碎星矿带',
+    desc: '撞击碎屑环绕的矿脉带：基础矿物产出 +2/s，且随主基地矿物产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    unlock: { resources: {} },
+    mechanicId: 'none',
+    discoverOnly: true,
+    output: { mineral: 2 },
+    outputPct: { mineral: 0.02 },
+  },
+  heliumNebula: {
+    id: 'heliumNebula',
+    name: '氦闪气云',
+    desc: '濒临氦闪的恒星残云：基础能源产出 +1.5/s，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    unlock: { resources: {} },
+    mechanicId: 'none',
+    discoverOnly: true,
+    output: { energy: 1.5 },
+    outputPct: { energy: 0.02 },
+  },
+  riftChasm: {
+    id: 'riftChasm',
+    name: '深空裂谷',
+    desc: '横贯黑暗星区的巨大裂谷：基础矿物 +1/s、科技 +0.4/s，且随主基地矿物/科技产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    unlock: { resources: {} },
+    mechanicId: 'none',
+    discoverOnly: true,
+    output: { mineral: 1, tech: 0.4 },
+    outputPct: { mineral: 0.01, tech: 0.01 },
   },
 }
 

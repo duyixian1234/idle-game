@@ -47,8 +47,8 @@ export interface NgPlusLost {
   playSeconds: number
   /** 已发现的探索势力/天体数（NG+ 重置，派遣中任务静默丢弃） */
   exploredCount: number
-  /** 是否存在派遣中任务（NG+ 将静默丢弃不退款） */
-  expeditionOngoing: boolean
+  /** 派遣中探索队数量（NG+ 将静默丢弃不退款；多槽下数量化） */
+  activeExpeditions: number
 }
 
 /** 确认弹窗预览契约（纯数据，无方法） */
@@ -98,7 +98,7 @@ export function previewNewGamePlus(state: GameState): NgPlusPreview {
       totalMineralEarned: state.stats.totalMineralEarned,
       playSeconds: state.playSeconds,
       exploredCount: state.exploredFactions.length + state.exploredPlanets.length,
-      expeditionOngoing: state.expeditions.some((e) => !e.resolved),
+      activeExpeditions: state.expeditions.filter((e) => !e.resolved).length,
     },
   }
 }

@@ -59,6 +59,8 @@ export interface ConquestState {
 export interface PlanetState {
   unlocked: boolean
   unlockedAt?: number
+  /** 探索产出型天体的产出增益（重复发现 +0.1 封顶 0.5；可选字段，`?? 0` 容错——零迁移，schemaVersion 保持 6） */
+  outputBonus?: number
 }
 
 /** 派系外交状态 */

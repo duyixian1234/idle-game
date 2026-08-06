@@ -2,13 +2,13 @@ import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
-import { BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
-import type { BuildingDef, ConquestDef, PlanetDef, TechDef } from '../engine/data'
+import { ALL_FACTIONS, BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import type { BuildingDef, ConquestDef, FactionDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { isConquestAvailable, conquestState } from '../engine/conquest'
-import { expeditionCost, isExploreAvailable } from '../engine/exploration'
+import { expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
 import { NG_PLUS_TECH_BASE } from '../engine/engine'
 import { previewNewGamePlus } from '../engine/ngplus'
 import type { NgPlusPreview } from '../engine/ngplus'
@@ -39,7 +39,7 @@ import {
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
-import { simulateProductionDelta, techMultiplier, militaryCap } from '../engine/production'
+import { explorePlanetOutputs, simulateProductionDelta, techMultiplier, militaryCap } from '../engine/production'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
@@ -194,7 +194,8 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
 /** 渲染探索页（一级 tab 内嵌）：
  *  ① NG+ 终局卡：phase==='infinite' 时顶部显示「开启新周目」入口（data-ngplus 契约，与结局面板入口并存）
  *  ② 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
- *  ③ 派遣面板：ended/infinite 直接页面渲染（原 explore-overlay 内容平移，dispatch 保留 data-explore-dispatch 契约） */
+ *  ③ 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3）+
+ *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径） */
 export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now()): void {
   el.innerHTML = ''
   const parts: string[] = []
@@ -216,42 +217,71 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       <div class="explore-locked">
         <div class="explore-lock-icon">🔒</div>
         <div class="explore-lock-title">通关后解锁探索</div>
-        <div class="explore-lock-desc">单槽派遣探索队（60 分钟 / 离线照常推进，不可取消）：有概率发现新的派系势力与天体，也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</div>
+        <div class="explore-lock-desc">多信道派遣探索队（每路 60 分钟 / 离线照常推进，不可取消）：有概率发现新的派系势力、发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</div>
         <div class="explore-lock-hint">解锁条件：完成「星系统一联邦」结局（统一全部派系）</div>
       </div>`)
     el.innerHTML = parts.join('')
     return
   }
-  // ③ 派遣面板
-  const ongoing = state.expeditions.find((e) => !e.resolved)
-  const cost = expeditionCost(state)
-  const affordMineral = state.resources.mineral >= cost.mineral
-  const affordEnergy = state.resources.energy >= cost.energy
-  const affordMilitary = state.resources.military >= cost.military
-  let reason = ''
-  if (ongoing) reason = '探索队在途中，需等待返航'
-  else if (!affordMineral) reason = '矿物不足'
-  else if (!affordEnergy) reason = '能源不足'
-  else if (!affordMilitary) reason = `军力不足（需 ${cost.military}⚔）`
-  const statusText = ongoing
-    ? `⏳ 探索队返航倒计时 ${formatDuration(Math.ceil(Math.max(0, (ongoing.finishAt ?? 0) - nowMs) / 1000))}`
-    : '探索槽空闲，可派遣'
+  // ③ 派遣面板：深空信道列表
+  const slots = explorationSlots(state)
+  const ongoing = state.expeditions.filter((e) => !e.resolved)
   const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
   const discovered = state.exploredFactions.length + state.exploredPlanets.length
+  const slotCards: string[] = []
+  for (let i = 0; i < 3; i++) {
+    const slotNo = i + 1
+    if (i >= slots) {
+      const need = i === 1 ? '深空导航阵列 Lv1（科技）' : '星际通信中继 Lv1（科技）'
+      slotCards.push(`
+        <div class="explore-slot" data-expedition-slot="${slotNo}" data-expedition-locked>
+          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state locked">🔒 未解锁</span></div>
+          <div class="explore-slot-hint">解锁需求：${need}</div>
+        </div>`)
+      continue
+    }
+    const exp = ongoing[i]
+    if (exp) {
+      const remain = Math.max(0, exp.finishAt - nowMs)
+      slotCards.push(`
+        <div class="explore-slot" data-expedition-slot="${slotNo}">
+          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中</span></div>
+          <div class="explore-slot-timer" data-expedition-timer>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
+        </div>`)
+      continue
+    }
+    const cost = expeditionCost(state, i)
+    const affordMineral = state.resources.mineral >= cost.mineral
+    const affordEnergy = state.resources.energy >= cost.energy
+    const affordMilitary = state.resources.military >= cost.military
+    let reason = ''
+    if (!affordMineral) reason = '矿物不足'
+    else if (!affordEnergy) reason = '能源不足'
+    else if (!affordMilitary) reason = `军力不足（需 ${cost.military}⚔）`
+    slotCards.push(`
+      <div class="explore-slot" data-expedition-slot="${slotNo}">
+        <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
+        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${cost.military} · 时长 60 分钟（离线照常推进）</div>
+        <div class="explore-slot-actions">
+          <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">🚀 派遣</button>
+        </div>
+      </div>`)
+  }
+  const outputRows = explorePlanetOutputs(state)
+    .map((o) => {
+      const text = RESOURCE_KEYS.filter((k) => o.values[k] > 0)
+        .map((k) => `${RESOURCE_META[k].symbol} +${formatNumber(o.values[k])}/s`)
+        .join(' · ')
+      return `<div class="explore-planet-output" data-planet-output="${o.planetId}">🪐 ${escapeHtml(o.name)}：${text}</div>`
+    })
+    .join('')
   parts.push(`
     <div class="explore-card">
       <h1 class="ending-title">派遣探索</h1>
-      <p class="ending-stats">通关后的新航路：有概率发现新的派系势力或发展天体，也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
-      <div class="explore-status">${escapeHtml(statusText)}</div>
-      <div class="explore-cost">
-        消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${cost.military} · 时长 60 分钟（离线照常推进）
-      </div>
+      <p class="ending-stats">通关后的新航路：深空信道并行派遣，有概率发现新的派系势力或发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
       <div class="explore-progress">已发现：${discovered} / ${totalPool}（势力 ${state.exploredFactions.length}/${Object.keys(EXPLORE_FACTIONS).length} · 天体 ${state.exploredPlanets.length}/${Object.keys(EXPLORE_PLANETS).length}）</div>
-      <div class="ending-actions">
-        <button type="button" class="ending-btn primary" data-explore-dispatch ${ongoing || !affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">
-          🚀 派遣探索
-        </button>
-      </div>
+      <div class="explore-slots">${slotCards.join('')}</div>
+      ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
     </div>`)
   el.innerHTML = parts.join('')
 }
@@ -521,10 +551,12 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     item.className = 'build-item tech-item'
     item.setAttribute('data-tech', def.id)
 
-    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）
+    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁
     let effectText: string
     if (def.effect.kind === 'unlockBuilding') {
       effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
+    } else if (def.effect.kind === 'exploration') {
+      effectText = level >= 1 ? '探索信道已解锁' : '解锁第 2/3 探索信道'
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${RESOURCE_META[def.effect.resource].name}产出 ×${formatMult(cur)}`
@@ -602,7 +634,16 @@ function renderFavorBar(favor: number): string {
   return `<span class="favor-bar"><span class="favor-filled">${'█'.repeat(filled)}</span><span class="favor-empty">${'░'.repeat(empty)}</span></span>`
 }
 
-/** 渲染外交面板 */
+/** 派系特性徽标文案（探索势力专属特性：贸易折扣/共享半价/威慑折扣；无特性返回空数组不渲染） */
+function factionPerkLabels(def: FactionDef): string[] {
+  const labels: string[] = []
+  if (def.tradeDiscount) labels.push(`贸易折扣 -${Math.round(def.tradeDiscount * 100)}%`)
+  if (def.techShareCostMult) labels.push(def.techShareCostMult <= 0.6 ? '共享半价' : `技术共享 ×${def.techShareCostMult}`)
+  if (def.intimidateCostMult) labels.push(`威慑折扣 -${Math.round((1 - def.intimidateCostMult) * 100)}%`)
+  return labels
+}
+
+/** 渲染外交面板：遍历运行时全部已发现势力（初始 4 家 + 探索发现的势力；未发现的探索势力不渲染） */
 export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   if (!factionsVisible(state)) {
@@ -615,8 +656,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
   header.textContent = `星系统一联邦：${prog.satisfied}/${prog.total} 派系达成统一条件`
   el.appendChild(header)
 
-  for (const def of Object.values(FACTIONS)) {
+  for (const def of Object.values(ALL_FACTIONS)) {
     const f = state.factions[def.id]
+    if (!f) continue // 探索势力未发现前不渲染（发现即创建 state → 自动登场）
     const tradeC = tradeCost(state, def.id)
     const intC = intimidateCost(state, def.id)
     const shareC = TECH_SHARE_COST
@@ -624,6 +666,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
     const canAlliance = canFactionAlliance(state, def.id)
     const canIntimidate = canFactionIntimidate(state, def.id)
     const canShare = canFactionTechShare(state, def.id)
+    const perks = factionPerkLabels(def)
 
     const item = document.createElement('div')
     item.className = 'build-item faction-item'
@@ -633,6 +676,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
         <div class="build-name">
           ${escapeHtml(def.name)}
           ${f.allied ? '<span class="build-count allied-badge">已结盟</span>' : ''}
+          ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
         <div class="favor-row">
@@ -1000,6 +1044,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
         <tr><th>科技</th><td>${techText}</td></tr>
         <tr><th>派系</th><td>${facText}</td></tr>
         <tr><th>攻占</th><td>${lost.conquered}/${Object.keys(CONQUESTS).length} 区域</td></tr>
+        <tr><th>探索</th><td>${lost.exploredCount} 个发现物 · ${lost.activeExpeditions} 支探索队（派遣中，将失去）</td></tr>
         <tr><th>声望</th><td>${lost.reputation}</td></tr>
         <tr><th>统计</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
       </table>
