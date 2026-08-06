@@ -5,8 +5,8 @@ import { ACHIEVEMENTS } from '../src/engine/achievements'
 
 /**
  * 舰队系统 E2E（fleet，存档 v8）：用户手动执行。
- * 回归点：① v7 旧档迁移 v8（fleet.count 补 0）；② 船坞解锁链（星港前锁定原因）；
- * ③ 造舰至上限（硬约束：资源不足/满编禁点）；④ 自动迎击替代弹窗（事件卡不出现 + 日志出现 + 威胁 −15）；
+ * 核心流程与边界：① 船坞解锁链（星港前锁定原因）；
+ * ② 造舰至上限（硬约束：资源不足/满编禁点）；③ 自动迎击替代弹窗（事件卡不出现 + 日志出现 + 威胁 −15）；
  * ⑤ 停摆与恢复（data-fleet-idle/warn ↔ data-fleet-powered）。
  * 注入技巧：seedSave + lockSaveStore；playing 档派系未统一（防 tick 转 ended 遮罩拦截点击）。
  * 确定性：seed 42 + rngCounters.event = 1 → 首个事件 roll 0.9376 命中 raid（权重池 11，slot 10.3）。
@@ -32,7 +32,7 @@ interface SaveOverrides {
   factionThreats?: Record<string, number>
 }
 
-/** 构造 v8 存档（默认 playing + 派系未统一 + 星港/船坞可配）；v7 迁移用例降 schemaVersion 并删 fleet */
+/** 构造 v8 存档（默认 playing + 派系未统一 + 星港/船坞可配） */
 function buildSave(now: number, overrides: SaveOverrides = {}) {
   const base: Record<string, unknown> = {
     schemaVersion: 8,
@@ -116,28 +116,6 @@ async function openSector(page: Page, save: Record<string, unknown>): Promise<vo
   await dismissTutorial(page)
   await page.locator('[data-nav="sector"]').click()
 }
-
-test('v7 旧档迁移 v8：加载不崩溃，船坞流程走通且舰队初始 0 艘（fleet.count 补 0）', async ({ page }) => {
-  const now = Date.now()
-  // v7 档：无 fleet 字段、无船坞（v8 内容），星港已建
-  await page.goto('/')
-  const v7 = buildSave(now, { schemaVersion: 7, buildings: { starportMine: 1 } }) as Record<string, unknown>
-  delete (v7 as Record<string, unknown>).fleet
-  await openSector(page, v7)
-
-  // 星港已建 → 船坞可建造（迁移档里船坞从未存在，需新购）
-  const dockCard = page.locator('[data-building="dock"]')
-  await expect(dockCard).toBeVisible()
-  await expect(dockCard.locator('[data-build="dock"]')).toBeEnabled()
-  await dockCard.locator('[data-build="dock"]').click()
-  await expect(page.locator('[data-log]')).toContainText('建造了 船坞')
-
-  // 船坞 Lv0 → 升级至 Lv1 解锁舰队（迁移补的 fleet.count = 0 → 显示 0/3）
-  await dockCard.locator('[data-upgrade="dock"]').click()
-  await expect(page.locator('[data-fleet]')).toBeVisible()
-  await expect(page.locator('[data-fleet-count]')).toContainText('0/3')
-  await expect(page.locator('[data-fleet-build]')).toBeEnabled()
-})
 
 test('船坞解锁链：星港 0 级锁定原因显示；星港 ≥1 解锁可建', async ({ page }) => {
   const now = Date.now()

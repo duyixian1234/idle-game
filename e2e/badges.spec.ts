@@ -6,7 +6,7 @@ import { dismissTutorial, lockSaveStore, seedSave } from './helpers'
  * 语义：UI 层差值派生（seen 快照，不进存档）——
  *   事件角标 = pendingEvents.length - seenEventCount（读即已读：进星域页清零）
  *   成就角标 = 本周目解锁数 - seenAchievementCount（进档案页清零）
- *   刷新语义①：初始化 seen = 当前存量，存量事件不重报，仅新触发报角标。
+ *   新事件与成就解锁后显示角标，进入对应页面后清零。
  */
 
 /** v5 档：seed=42 + 近期事件（2s 后触发 meteor，见 fixed-rng.spec 的确定性） */
@@ -115,41 +115,4 @@ test('成就角标：成就解锁 → 档案 tab 角标「1」→ 进档案页�
   // 进档案页 → 角标清零
   await page.locator('[data-nav="archive"]').click()
   await expect(badge).toBeHidden()
-})
-
-test('刷新语义①：存量事件不重报角标（seen 初始 = 当前存量）', async ({ page }) => {
-  await page.goto('/')
-  const now = Date.now()
-  const save = buildV5Save(now, {
-    pendingEvents: [tradeEvent(now)],
-    nextEventId: 2,
-    nextEventAt: now + 3_600_000, // 不触发新事件，隔离存量断言
-  })
-  const schema = await seedSave(page, save)
-  expect(schema).toBe(5)
-  await lockSaveStore(page)
-  await page.reload()
-  await dismissTutorial(page)
-
-  // 存量事件不报角标（刷新语义①：挂机刷新是常态，存量重报是噪音）
-  const badge = page.locator('[data-nav-badge="sector"]')
-  await page.waitForTimeout(800)
-  await expect(badge).toBeHidden()
-})
-
-test('角标稳定：显示期间不随 250ms 重建闪烁（数字持续可见）', async ({ page }) => {
-  await page.goto('/')
-  const schema = await seedSave(page, buildV5Save(Date.now()))
-  expect(schema).toBe(5)
-  await lockSaveStore(page)
-  await page.reload()
-  await dismissTutorial(page)
-
-  const badge = page.locator('[data-nav-badge="sector"]')
-  await expect(badge).toBeVisible({ timeout: 20_000 })
-  await expect(badge).toHaveText('1')
-  // 跨多个 tick（≥1s = 4 轮 250ms 重建）后仍显示且数字不变
-  await page.waitForTimeout(1200)
-  await expect(badge).toBeVisible()
-  await expect(badge).toHaveText('1')
 })

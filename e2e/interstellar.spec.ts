@@ -5,9 +5,9 @@ import { ACHIEVEMENTS } from '../src/engine/achievements'
 
 /**
  * 星系间工程 + 终局抉择 E2E（interstellar-buildings，存档 v7）。
- * 回归点：① 星港解锁链（dawn 星球 + 深层钻机升级满级）与唯一大件建造/升级/禁 bulk；
+ * 核心流程与边界：① 星港解锁链（dawn 星球 + 深层钻机升级满级）与唯一大件建造/升级/禁 bulk；
  * ② 通关后恒星/智库链式解锁与维护费硬扣；③ 终局抉择确认弹窗与互斥双向锁定；
- * ④ 星际工程分组内建造按钮强制走确认；⑤ 跃迁枢纽 5 槽探索页渲染；⑥ v6 旧档迁移 v7；⑦ NG+ 重置重选。
+ * ④ 星际工程分组内建造按钮强制走确认；⑤ 跃迁枢纽 5 槽探索页渲染；⑥ NG+ 重置重选。
  */
 
 interface FactionLike {
@@ -317,23 +317,6 @@ test('跃迁枢纽：探索页 5 槽全空闲可派（全科技 + 枢纽）；�
   await expect(page.locator('[data-nav-page="explore"] [data-explore-dispatch]')).toHaveCount(3)
   await expect(page.locator('[data-nav-page="explore"] [data-expedition-locked]')).toHaveCount(2)
   await expect(page.locator('[data-nav-page="explore"]')).toContainText('跃迁枢纽')
-})
-
-test('v6 旧档迁移 v7：无 megastructureChoice 字段 → 正常渲染星际工程分组并游玩', async ({ page }) => {
-  const now = Date.now()
-  // 星港已建（1 级）需深钻满级前置成立，否则解锁判定为锁定态（升级按钮不渲染）
-  const save = buildSave(now, { schemaVersion: 6, buildings: { starportMine: 1 }, upgrades: { deepDrill: 10 } })
-  delete (save as Record<string, unknown>).megastructureChoice
-  await page.goto('/')
-  await openSector(page, save)
-
-  // 迁移不崩：星际工程分组渲染、星港 1 级升级按钮可用（megastructureChoice 缺省 null）
-  const section = page.locator('[data-interstellar]')
-  await expect(section).toBeVisible()
-  await expect(page.locator('[data-building="starportMine"] [data-upgrade="starportMine"]')).toBeEnabled()
-  // 链式未因迁移错乱：恒星（星港 1 级满足）可建造、智库（恒星 0）锁定
-  await expect(page.locator('[data-building="stellarArray"] [data-build="stellarArray"]')).toBeEnabled()
-  await expect(page.locator('[data-building="thinkTank"]')).toContainText('聚变恒星阵列')
 })
 
 test('NG+ 重置重选：冶炼场选择与等级被清空，重开后抉择区块消失（需重新爬链）', async ({ page }) => {

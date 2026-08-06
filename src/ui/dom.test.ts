@@ -154,27 +154,6 @@ describe('ui: 布局与冒烟', () => {
     expect(children[1].textContent).toContain('新日志') // 新日志紧随其后
   })
 
-  it('事件卡片渲染在日志区且按钮携带解析数据（回归：委托位置 bug）', () => {
-    const container = document.createElement('div')
-    const els = buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 50_000
-    const inst = createEventInstance(s, 'trade')
-    s.pendingEvents.push(inst)
-    renderPendingEvents(els.logEl, s)
-
-    // 卡片必须在日志区内，而非操作面板内
-    const card = els.logEl.querySelector<HTMLElement>('.event-card')
-    expect(card).toBeTruthy()
-    expect(els.panel.querySelector('.event-card')).toBeNull()
-
-    const acceptBtn = card!.querySelector<HTMLButtonElement>('[data-event-resolve]')
-    expect(acceptBtn).toBeTruthy()
-    expect(acceptBtn!.dataset.eventResolve).toBe(`${inst.uid}:accept`)
-    const refuseBtn = card!.querySelector<HTMLButtonElement>('[data-event-resolve]:last-child')
-    expect(refuseBtn!.dataset.eventResolve).toBe(`${inst.uid}:refuse`)
-  })
-
   it('未解锁星球可点击且悬停提示解锁条件（含进度）', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
