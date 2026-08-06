@@ -530,7 +530,7 @@ function renderSettlementDetails(settlement?: { deltas: Record<string, number>; 
 
 /** 格式化旧存档中已持久化的事件选项提示，避免绕过事件生成器的 formatter。 */
 function formatEventHint(hint: string): string {
-  return hint.replace(/([+-]?)(\d+(?:\.\d+)?)(?=(矿物|能源|科技点|科技|军力|好感|威胁|⚔|%|\/s|\/秒))/g, (_match, sign: string, digits: string, unit: string) => {
+  return hint.replace(/([+-]?)(\d+(?:\.\d+)?)(矿物|能源|科技点|科技|军力|好感|威胁|⚔|%|\/s|\/秒)/g, (_match, sign: string, digits: string, unit: string) => {
     const value = Number(`${sign}${digits}`)
     if (unit === '%') return formatPercent(value)
     if (unit === '/s' || unit === '/秒') return formatRate(value, sign === '+')

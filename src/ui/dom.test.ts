@@ -477,6 +477,8 @@ describe('ui: 事件科技分支', () => {
       const card = els.logEl.querySelector<HTMLElement>('[data-event-card]')!
       expect(card.textContent).toContain('-484.05兆矿物')
       expect(card.textContent).toContain('-7.38兆科技')
+      expect(card.textContent).not.toContain('-484.05兆矿物矿物')
+      expect(card.textContent).not.toContain('-7.38兆科技科技')
     })
 
     it('档案页展示自动配置、暂停通知、历史和迁移摘要', () => {
