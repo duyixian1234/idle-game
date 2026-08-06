@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { dismissTutorial, lockSaveStore, seedSave } from './helpers'
 import { ACHIEVEMENTS } from '../src/engine/achievements'
+import { BIG_UNITS } from '../src/engine/format'
 
 /**
  * 卡片化建造项 + SVG 图标 E2E（building-cards，存档 v8）：用户手动执行。
@@ -111,15 +112,26 @@ async function openSector(page: Page, save: Record<string, unknown>): Promise<vo
   await page.locator('[data-nav="sector"]').click()
 }
 
-/** 读取资源条数值（formatNumber 千分位逗号 → 纯数字） */
+/** 解析资源条数值：formatNumber 对 ≥1 万用中文单位（'100万'），需换算回纯数字 */
+function parseResourceNumber(text: string): number {
+  const t = text.trim().replace(/,/g, '')
+  for (let i = BIG_UNITS.length - 1; i > 0; i--) {
+    const unit = BIG_UNITS[i]
+    if (t.endsWith(unit)) return Number(t.slice(0, -unit.length)) * Math.pow(10, i * 4)
+  }
+  return Number(t)
+}
+
+/** 读取资源条数值（中文单位/千分位 → 纯数字） */
 async function readResource(page: Page, key: string): Promise<number> {
   const text = await page.locator(`[data-resource="${key}"] [data-res-value]`).textContent()
-  return Number((text ?? '0').replace(/,/g, ''))
+  return parseResourceNumber(text ?? '0')
 }
 
 test('卡片主体点击建造×1：资源扣减 + 徽标变化 + 日志（miner 未建）', async ({ page }) => {
   const now = Date.now()
-  const save = buildSave(now)
+  // mineral 设 <1 万：formatNumber 走千分位整数（中文单位 3 位有效数字下 10 扣减不可分辨）
+  const save = buildSave(now, { resources: { mineral: 5_000, energy: 500_000, tech: 100_000, military: 50_000 } })
   save.buildings = {}
   await openSector(page, save)
 
@@ -140,7 +152,8 @@ test('卡片主体点击建造×1：资源扣减 + 徽标变化 + 日志（miner
 
 test('卡片主体点击升级×1：已建建筑升级（资源扣减 + Lv 徽标）', async ({ page }) => {
   const now = Date.now()
-  const save = buildSave(now, { buildings: { miner: 2 }, resources: { mineral: 100_000, energy: 500_000, tech: 100_000, military: 50_000 } })
+  // mineral 设 <1 万：formatNumber 走千分位整数（中文单位在 3 位有效数字下扣减差值不可精确解析）
+  const save = buildSave(now, { buildings: { miner: 2 }, resources: { mineral: 5_000, energy: 500_000, tech: 100_000, military: 50_000 } })
   await openSector(page, save)
 
   const card = page.locator('[data-build-card="miner"]')

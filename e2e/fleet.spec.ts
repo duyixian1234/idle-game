@@ -143,8 +143,11 @@ test('船坞解锁链：星港 0 级锁定原因显示；星港 ≥1 解锁可�
   const now = Date.now()
 
   // ① 星港未建：船坞卡片锁定原因「需先建造：星港矿场」，无建造按钮
+  // 卡片化后星际工程区 6 张锁定卡折叠（只显前 3），船坞在折叠区 → 先展开再断言
   await page.goto('/')
   await openSector(page, buildSave(now))
+  const stellarCollapse = page.locator('[data-locked-collapse="interstellar"]')
+  if (await stellarCollapse.isVisible().catch(() => false)) await stellarCollapse.click()
   await expect(page.locator('[data-building="dock"]')).toContainText('星港矿场')
   await expect(page.locator('[data-building="dock"] [data-build="dock"]')).toHaveCount(0)
   // 舰队管理区同时显示锁定原因
