@@ -72,6 +72,8 @@ async function main(): Promise<void> {
   let seenAchievementCount = 0
   // 锁定卡折叠展开态（UI 会话状态，不进存档；key = 分区 id，刷新回默认收起，与 activePanelTab 同构）
   const lockedExpanded: Record<string, boolean> = {}
+  // 事件卡 typewriter 进度表（ticket 04）：key = 事件 uid → partial/full 文本；跨 250ms 重建续打
+  const typedEvents = new Map<number | string, string>()
   // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
   let justUpgradedId: string | null = null
   let justUpgradedUntil = 0
@@ -146,7 +148,7 @@ async function main(): Promise<void> {
       statusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
       version: APP_VERSION,
     })
-    renderPendingEvents(els.logEl, state)
+    renderPendingEvents(els.logEl, state, typedEvents)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId
     lastLogId = renderLogInto(els.logEl, state, lastLogId, logDirection)

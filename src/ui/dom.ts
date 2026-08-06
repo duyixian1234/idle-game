@@ -47,6 +47,7 @@ import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
 import { iconSpriteHtml, iconUse } from './icons'
+import { typewriter, type TypedEvents } from './typewriter'
 
 /** 一级导航 id（B 架构 4 tab：星域 / 档案 / 探索 / 设置） */
 export type NavId = 'sector' | 'archive' | 'explore' | 'settings'
@@ -95,6 +96,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <main class="content">
       <section class="nav-page" data-nav-page="sector" aria-label="星域">
         <div class="mechanic-bar" aria-label="星球机制"></div>
+        <div class="log-head" aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></div>
         <div class="log-area" data-log aria-label="日志流"></div>
         <section class="panel" aria-label="操作面板">
           <div class="panel-tabs">
@@ -421,14 +423,19 @@ export function renderLogInto(el: HTMLElement, state: GameState, fromId: number,
   return pending.length > 0 ? state.nextLogId - 1 : fromId
 }
 
-/** 渲染待处理随机事件卡片（置顶于日志区，可点击选项） */
-export function renderPendingEvents(el: HTMLElement, state: GameState): void {
+/**
+ * 渲染待处理随机事件卡片（置顶于日志区，可点击选项）。
+ * 事件卡描述 = 一次性叙事文本：首挂走 typewriter 逐字揭示（跨 250ms 重建续打，
+ * 进度存 typed 表）；reduced-motion 直接全量渲染。typewriter 后重建不再重放。
+ */
+export function renderPendingEvents(el: HTMLElement, state: GameState, typed: TypedEvents = new Map()): void {
   // 移除旧的事件卡片容器
   for (const old of Array.from(el.querySelectorAll('.event-stack'))) old.remove()
   if (state.pendingEvents.length === 0) return
 
   const stack = document.createElement('div')
   stack.className = 'event-stack'
+  const typewriters: Array<{ descEl: HTMLElement; text: string; key: number; from: number }> = []
   for (const ev of state.pendingEvents) {
     const card = document.createElement('div')
     card.className = 'event-card'
@@ -440,13 +447,35 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
     const options = ev.options
       .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
       .join('')
+    // 描述：typewriter 进度表驱动——未开始 → 空容器 + 首打；已打字（partial）→ 渲染当前进度 + 续打；已打满 → 全量渲染
+    const done = typed.get(ev.uid)
+    let descHtml: string
+    let typedFrom = 0
+    if (done === undefined) {
+      typed.set(ev.uid, '')
+      descHtml = `<div class="event-desc" data-event-desc>${escapeHtml(ev.desc)}</div>`
+      typedFrom = 0
+    } else if (done === ev.desc) {
+      descHtml = `<div class="event-desc" data-event-desc>${escapeHtml(ev.desc)}</div>`
+      typedFrom = -1 // 已完成：不再启动 typewriter
+    } else {
+      descHtml = `<div class="event-desc" data-event-desc>${escapeHtml(done)}</div>`
+      typedFrom = done.length
+    }
     card.innerHTML = `
       <div class="event-title">${escapeHtml(ev.title)}</div>
-      <div class="event-desc">${escapeHtml(ev.desc)}</div>
+      ${descHtml}
       <div class="event-options">${options}</div>`
+    if (typedFrom >= 0) {
+      typewriters.push({ descEl: card.querySelector('[data-event-desc]') as HTMLElement, text: ev.desc, key: ev.uid, from: typedFrom })
+    }
     stack.appendChild(card)
   }
   el.prepend(stack)
+  // 卡片入 DOM 后再启动/续打 typewriter（计时器写实时节点）
+  for (const tw of typewriters) {
+    typewriter(tw.descEl, tw.text, tw.key, typed, tw.from)
+  }
 }
 
 /** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。

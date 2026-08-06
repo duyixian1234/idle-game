@@ -310,6 +310,40 @@ body {
 }
 
 /* ---- 星域页日志区（限高 25vh 可滚动，事件卡仍 prepend 顶部） ---- */
+/* 日志头部：ASCII 框式标题（Q9 定案：ASCII 装饰仅用于标题分隔/日志头部）。
+   头部由 buildLayout 一次性构建，不参与 250ms 重建 → 块状光标动画不被打断。 */
+.log-head {
+  flex-shrink: 0;
+  padding: 5px 12px 4px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--phosphor);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* 块状光标：终端手感（500ms step-end 瞬时明灭）；reduced-motion 下静止 */
+.log-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  margin-left: 6px;
+  background: var(--phosphor);
+  vertical-align: text-bottom;
+  animation: cursor-blink 500ms step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 .log-area {
   flex-shrink: 0;
   max-height: 25vh;
