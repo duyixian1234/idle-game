@@ -474,7 +474,10 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
     card.setAttribute('data-event-handling', ev.handlingMode ?? 'queue')
     if (ev.handlingMode === 'blocking' || ev.riskLevel === 'high' || ev.riskLevel === 'critical') card.setAttribute('data-event-blocked', '')
     const options = ev.options
-      .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
+      .map((o) => {
+        const hint = o.hint ? formatEventHint(o.hint) : ''
+        return `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(hint)}">${escapeHtml(o.label)}${hint ? ` <span class="event-hint">${escapeHtml(hint)}</span>` : ''}</button>`
+      })
       .join('')
     // 描述：typewriter 进度表驱动——未开始 → 空容器 + 首打；已打字（partial）→ 渲染当前进度 + 续打；已打满 → 全量渲染
     const done = typed.get(ev.uid)
@@ -523,6 +526,16 @@ function renderSettlementDetails(settlement?: { deltas: Record<string, number>; 
     return `${label} ${value > 0 ? '+' : ''}${formatNumber(value)}${unit}`
   }).join('、') || '待选择选项'
   return `<details data-event-settlement><summary>查看结算明细</summary><div data-settlement-deltas>最终值：${escapeHtml(deltas)}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
+}
+
+/** 格式化旧存档中已持久化的事件选项提示，避免绕过事件生成器的 formatter。 */
+function formatEventHint(hint: string): string {
+  return hint.replace(/([+-]?)(\d+(?:\.\d+)?)(?=(矿物|能源|科技点|科技|军力|好感|威胁|⚔|%|\/s|\/秒))/g, (_match, sign: string, digits: string, unit: string) => {
+    const value = Number(`${sign}${digits}`)
+    if (unit === '%') return formatPercent(value)
+    if (unit === '/s' || unit === '/秒') return formatRate(value, sign === '+')
+    return `${formatNumber(value)}${unit}`
+  })
 }
 
 /** 事件类别配置、暂停通知、历史与旧存档迁移摘要。 */

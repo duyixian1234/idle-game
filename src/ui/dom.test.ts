@@ -466,6 +466,19 @@ describe('ui: 事件科技分支', () => {
       expect(card.querySelector('[data-settlement-part="risk"]')?.textContent).toContain('风险倍率')
     })
 
+    it('旧存档事件提示中的原始大数也使用统一格式', () => {
+      const els = buildLayout(document.createElement('div'))
+      const s = createInitialState(0)
+      const inst = createEventInstance(s, 'bug')
+      inst.options[0].hint = '-484053553152000矿物'
+      inst.options[1].hint = '-7379873280000科技'
+      s.pendingEvents.push(inst)
+      renderPendingEvents(els.logEl, s)
+      const card = els.logEl.querySelector<HTMLElement>('[data-event-card]')!
+      expect(card.textContent).toContain('-484.05兆矿物')
+      expect(card.textContent).toContain('-7.38兆科技')
+    })
+
     it('档案页展示自动配置、暂停通知、历史和迁移摘要', () => {
       const els = buildLayout(document.createElement('div'))
       const s = createInitialState(0)
