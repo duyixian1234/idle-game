@@ -125,6 +125,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局抉择确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
+    <div class="scanline" data-scanline aria-hidden="true"></div>
     ${iconSpriteHtml()}
   `
   const root = container

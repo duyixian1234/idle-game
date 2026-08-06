@@ -14,6 +14,10 @@ import { advanceTutorial, skipTutorial } from './engine/tutorial'
 import type { GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
+// 自托管 JetBrains Mono（Q4 定案）：woff2 打进 dist，font-display: swap，避免 Google Fonts 网络依赖
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
+import '@fontsource/jetbrains-mono/700.css'
 import {
   buildLayout,
   buildCardAction,
