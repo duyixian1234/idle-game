@@ -301,14 +301,48 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   explore: {
     id: 'explore',
-    // 派遣探索队（结果出发时固化，回归自动入账；多槽）。payload = 槽位号 1|2|3（UI data-explore-dispatch），缺省按第 1 槽
+    // 派遣探索队（结果出发时固化，回归自动入账；多槽）。payload = "槽位号[:护航0|1]"（UI data-explore-dispatch 值 = 槽位号 1|2|3，
+    // 护航状态由 main 层从 data-escort-toggle 读取拼接；缺省按第 1 槽无护航）
     run: (state, payload) => {
-      const slotNo = Number(payload || '1')
+      const [slotText, escortText] = String(payload).split(':')
+      const slotNo = Number(slotText || '1')
       const slotIndex = Math.max(0, slotNo - 1)
-      return startExpedition(state, Date.now(), undefined, slotIndex)
+      return startExpedition(state, Date.now(), undefined, slotIndex, escortText === '1')
     },
-    feedback: () => ({ logs: [{ type: 'story', text: '探索队启程：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。' }], sound: 'upgrade' }),
+    feedback: (_state, result) => {
+      const v = result as { ok: true; value?: { escort?: boolean } }
+      const escortText = v.value?.escort ? '（护航编队）' : ''
+      return { logs: [{ type: 'story', text: `探索队启程${escortText}：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。` }], sound: 'upgrade' }
+    },
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
+  },
+  setAutoExplore: {
+    id: 'setAutoExplore',
+    // 自动探索设置（fleet-dock-10）：payload = JSON { enabled?: boolean; escort?: boolean }，更新 state.autoExplore（存档 v11 字段）
+    run: (state, payload) => {
+      let input: { enabled?: boolean; escort?: boolean }
+      try {
+        input = JSON.parse(String(payload)) as { enabled?: boolean; escort?: boolean }
+      } catch {
+        return { ok: false, reason: '配置格式无效' }
+      }
+      const auto = state.autoExplore ?? { enabled: false, escort: false }
+      if (input.enabled != null) auto.enabled = input.enabled
+      if (input.escort != null) auto.escort = input.escort
+      state.autoExplore = auto
+      if (input.enabled) state.autoExplore.pausedAt = undefined
+      return { ok: true, value: { enabled: auto.enabled, escort: auto.escort } }
+    },
+    feedback: (_state, result) => {
+      const v = (result as { ok: true; value: { enabled: boolean; escort: boolean } }).value
+      const logs: ActionLog[] = [
+        v.enabled
+          ? { type: 'system', text: `自动探索已开启${v.escort ? '（带护航）' : ''}：空信道自动续派，离线同样续派。` }
+          : { type: 'system', text: '自动探索已关闭。' },
+      ]
+      return { logs, sound: 'click' }
+    },
+    onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `自动探索设置失败：${reason}。` }] }),
   },
   fleetBuild: {
     id: 'fleetBuild',

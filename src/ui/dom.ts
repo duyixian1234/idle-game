@@ -2,10 +2,10 @@ import type { GameState } from '../engine/types'
 import { EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
-import { formatNumber, formatRate } from '../engine/format'
+import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
-import { EXPEDITION_DURATION_MS } from '../engine/balance'
+import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
+import { EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { isPlanetUnlocked } from '../engine/engine'
 import { explorePlanetOutputs, militaryCap } from '../engine/production'
 import type { ActionFailure } from '../engine/engine'
@@ -20,11 +20,16 @@ export type { LogDirection } from './log'
 
 export { renderBootOverlay, renderEndingOverlay, renderTutorial } from './overlays'
 
-/** 渲染探索页（一级 tab 内嵌）：
+/**
+ * 渲染探索页（一级 tab 内嵌）：
  *  ① 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
- *  ② 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3）+
- *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径） */
-export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now()): void {
+ *  ② 自动探索控制面板（data-auto-explore 系列）：全局开关 + 护航勾选 + 能源/轮预览 + 暂停态
+ *  ③ 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3；
+ *     护航勾选 data-escort-toggle + 费用/倍率预览 data-escort-*；停摆禁用并提示）+
+ *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径）
+ * @param escortChecked 手动派遣护航勾选状态（main 层跨渲染记忆的 UI 偏好，不污染存档）
+ */
+export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now(), escortChecked: ReadonlySet<number> = new Set()): void {
   el.innerHTML = ''
   const parts: string[] = []
   // ① 锁定占位：通关前告知终局玩法存在
@@ -44,6 +49,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
   const ongoing = state.expeditions.filter((e) => !e.resolved)
   const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
   const discovered = state.exploredFactions.length + state.exploredPlanets.length
+  const fleetReady = canEscort(state)
   const slotCards: string[] = []
   // 展示上限 5 槽（1 基础 + 2 科技 + 跃迁枢纽 +2，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
   const SLOT_CAP = 5
@@ -69,7 +75,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       const ratio = 1 - remain / EXPEDITION_DURATION_MS
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}">
-          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中</span></div>
+          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中${exp.escort ? '（护航）' : ''}</span></div>
           <div class="explore-slot-timer" data-expedition-timer><span data-expedition-progress>${renderAsciiBar(ratio, 16)}</span>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
         </div>`)
       continue
@@ -82,15 +88,41 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     if (!affordMineral) reason = '矿物不足'
     else if (!affordEnergy) reason = '能源不足'
     else if (!affordMilitary) reason = `军力不足（需 ${formatNumber(cost.military)}⚔）`
+    // 手动护航选项：舰队运转才可用（停摆禁用 + 提示）；勾选后显示总远征费与加成倍率预览
+    const checked = escortChecked.has(slotNo)
+    const escortDisabled = !fleetReady
+    const fee = escortFee(state)
+    const mult = escortHarvestMult(state)
+    const escortBlock = `
+      <div class="explore-slot-escort" data-escort-option>
+        <label class="escort-toggle-label">
+          <input type="checkbox" data-escort-toggle="${slotNo}" ${checked ? 'checked' : ''} ${escortDisabled ? 'disabled' : ''}>
+          护航编队（每艘 +${formatPercent(FLEET_HARVEST_PCT_PER_SHIP * 100)} 收获倍率）
+        </label>
+        ${escortDisabled ? '<span class="escort-warn" data-escort-disabled>舰队能源不足，护航不可用</span>' : ''}
+        ${fleetReady ? `<div class="explore-slot-escort-preview" data-escort-preview>护航消耗 ${formatNumber(fee)} 能源/轮 · 当前倍率 ${formatMultiplier(mult)}</div>` : ''}
+      </div>`
     slotCards.push(`
       <div class="explore-slot" data-expedition-slot="${slotNo}">
         <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
         <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 60 分钟（离线照常推进）</div>
+        ${escortBlock}
         <div class="explore-slot-actions">
           <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">${iconUse('dispatch', 'dispatch-icon')} 派遣</button>
         </div>
       </div>`)
   }
+  // 自动探索控制面板（data-auto-explore 系列）：全局开关 + 护航勾选（默认关）+ 能源/轮预览 + 暂停态
+  const auto = state.autoExplore
+  const autoEscortDisabled = !auto.enabled || !fleetReady
+  const autoPanel = `
+    <div class="explore-auto" data-auto-explore>
+      <div class="explore-auto-title">自动探索</div>
+      <label class="escort-toggle-label"><input type="checkbox" data-auto-explore-toggle ${auto.enabled ? 'checked' : ''}> 开启（空信道自动续派，离线同样续派）</label>
+      <label class="escort-toggle-label"><input type="checkbox" data-auto-escort ${auto.escort ? 'checked' : ''} ${autoEscortDisabled ? 'disabled' : ''}> 自动护航</label>
+      <span class="explore-auto-cost" data-auto-escort-cost>自动护航预计消耗 ${formatNumber(escortFee(state))} 能源/轮</span>
+      ${auto.pausedAt != null ? '<span class="escort-warn" data-auto-explore-paused>资源不足，自动探索暂停（资源恢复后自动继续）</span>' : ''}
+    </div>`
   const outputRows = explorePlanetOutputs(state)
     .map((o) => {
       const text = RESOURCE_KEYS.filter((k) => o.values[k] > 0)
@@ -104,6 +136,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       <h1 class="ending-title">派遣探索</h1>
       <p class="ending-stats">通关后的新航路：深空信道并行派遣，有概率发现新的派系势力或发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
       <div class="explore-progress">已发现：${formatNumber(discovered)} / ${formatNumber(totalPool)}（势力 ${formatNumber(state.exploredFactions.length)}/${formatNumber(Object.keys(EXPLORE_FACTIONS).length)} · 天体 ${formatNumber(state.exploredPlanets.length)}/${formatNumber(Object.keys(EXPLORE_PLANETS).length)}）</div>
+      ${autoPanel}
       <div class="explore-slots">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
     </div>`)

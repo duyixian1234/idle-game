@@ -2,16 +2,17 @@ import { FLEET_POWER_TECH_PER_LEVEL, SHIP_BUY_COST_BASE, SHIP_BUY_ENERGY, SHIP_G
 import type { GameState } from './types'
 
 /**
- * 舰队深层模块（fleet spec）：第一个「能源持续消耗」的主动途径。
- * - 船坞（dock，unique 大件 Lv1-3）等级决定舰队规模上限（显式表 DOCK_SHIP_CAP，非等差）；
+ * 舰队深层模块（fleet spec + fleet-dock-10）：第一个「能源持续消耗」的主动途径。
+ * - 船坞（dock，unique 大件 Lv1-10）等级决定舰队规模上限（显式表 DOCK_SHIP_CAP，非等差）；
+ *   Lv1 解锁 3 艘、此后每级 +2，Lv10 = 24 艘——骚扰强度固定不缩放，舰队成型 = 骚扰自动退场（减压阀闭环）；
  * - 护卫舰逐艘成本/维护边际递增（几何级数 ×SHIP_GROWTH），规模 = 能源支出的可调开关；
  * - 舰队战力 = 舰数 × 基础 × 军械科技倍率；powered 为派生状态（能源 ≥ 总维护费），停摆归零；
  * - 软降级：能源不足不扣费、舰队停摆（自动迎击失效），恢复供能自动重启。
  * 零域依赖（仅 balance/types）：引擎/事件/离线/UI 反向引用本模块，依赖图无环。
  */
 
-/** 舰数上限显式表：船坞等级 → 舰数上限（船坞 0 级 = 无舰队；非等差，显式定标） */
-export const DOCK_SHIP_CAP: Record<number, number> = { 1: 3, 2: 6, 3: 10 }
+/** 舰数上限显式表：船坞等级 → 舰数上限（船坞 0 级 = 无舰队；非等差，显式定标；Lv1 = 3 艘、此后每级 +2） */
+export const DOCK_SHIP_CAP: Record<number, number> = { 1: 3, 2: 6, 3: 10, 4: 12, 5: 14, 6: 16, 7: 18, 8: 20, 9: 22, 10: 24 }
 
 /** 船坞当前等级（未建 = 0；unique 建筑 count 恒 1，等级走 upgrades） */
 export function dockLevel(state: GameState): number {

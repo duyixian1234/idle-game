@@ -144,8 +144,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v10 新增虫群强度倍率；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 10
+/** 存档 schema 版本（v11 新增自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 11
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -192,6 +192,16 @@ export interface GameStats {
   totalMineralEarned: number
   /** 累计完成探索派遣次数（周目内口径，NG+ 重置；探索成就用） */
   explorations: number
+  /** 累计完成护航远征次数（周目内口径，NG+ 重置；「编队护航」成就谓词同源；v11 可选字段，`?? 0` 容错） */
+  escortedExpeditions?: number
+}
+
+/** 自动探索设置（v11 新增，NG+ 重置为默认关）：enabled 全局开关 / escort 是否带护航（默认关）；
+ * pausedAt = 资源不足暂停的时间戳（不持久化语义，重启后首 tick 重试，幂等） */
+export interface AutoExploreState {
+  enabled: boolean
+  escort: boolean
+  pausedAt?: number
 }
 
 /** 探索结果（出发时固化，防 SL：回归只入账不重抽）：发现势力 / 发现天体 / 资源补偿 */
@@ -200,7 +210,7 @@ export type ExpeditionResult =
   | { kind: 'planet'; planetId: string }
   | { kind: 'resource'; mineral: number; tech: number; energy: number }
 
-/** 探索派遣状态（单槽：同时最多 1 支；出发时固化结果，回归自动入账后移除） */
+/** 探索派遣状态（多槽：同时最多 explorationSlots 支；出发时固化结果，回归自动入账后移除） */
 export interface ExpeditionState {
   /** 派遣 id（存档递增，nextExpeditionId） */
   id: number
@@ -214,6 +224,8 @@ export interface ExpeditionState {
   result: ExpeditionResult
   /** 是否已入账（入账后从 expeditions 移除） */
   resolved: boolean
+  /** 是否护航远征（v11 新增：出发时固化；成就/日志口径，旧档缺省 false，`?? false` 容错） */
+  escort?: boolean
 }
 
 /** 成就解锁状态（图鉴跨周目 + 声望周目内双语义） */
@@ -248,6 +260,8 @@ export interface GameState {
   megastructureChoice: 'smelter' | 'jumpgate' | null
   /** 舰队状态（v8 新增）：周目内，NG+ 归零；船坞等级派生自 buildings/upgrades.dock，不重复存档；powered 为派生状态（每 tick 判定），不存档 */
   fleet: { count: number }
+  /** 自动探索设置（v11 新增）：enabled/escort 随存档持久化；NG+ 重置为默认关 */
+  autoExplore: AutoExploreState
   /** 虫群强度倍率（v10 新增）：放任后累计，任意处理路径重置为 1 */
   bugEscalation: number
   /** 累计统计 */

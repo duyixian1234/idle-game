@@ -194,10 +194,10 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   dock: {
     id: 'dock',
     name: '船坞',
-    desc: `泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv${formatNumber(1)} ${formatNumber(3)} 艘 / Lv${formatNumber(2)} ${formatNumber(6)} 艘 / Lv${formatNumber(3)} ${formatNumber(10)} 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。`,
+    desc: `泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv${formatNumber(1)} 解锁 ${formatNumber(3)} 艘，此后每级 +${formatNumber(2)} 艘，Lv${formatNumber(10)} 达 ${formatNumber(24)} 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。`,
     category: 'interstellar',
     unique: true,
-    maxLevel: 3,
+    maxLevel: 10,
     baseCost: { mineral: 20_000_000, tech: 500_000 },
     costGrowth: 2,
     produces: {},

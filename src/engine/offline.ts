@@ -1,7 +1,7 @@
 import { applyMaintenance, militaryCap, productionReport } from './production'
 import { applyFleetMaintenance } from './fleet'
 import { settleConquests } from './conquest'
-import { settleExpeditions } from './exploration'
+import { settleExpeditions, settleOfflineAutoExplore } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
@@ -70,6 +70,8 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   const conquestLogs = settleConquests(state, nowMs, rng)
   // 离线期间探索派遣倒计时照常推进，回归时自动入账（离线推进语义）
   const expeditionLogs = settleExpeditions(state, nowMs)
+  // 自动探索离线续派：每 60min 结算 → 自动续派循环（含护航费扣减与结果固化，rng 走 explore 域持久化计数器）
+  const autoExploreLogs = settleOfflineAutoExplore(state, nowMs, duration)
 
   for (const k of Object.keys(gains) as ResourceKey[]) {
     state.resources[k] += gains[k]
@@ -95,7 +97,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
     gains,
     raidLogs: raids.logs,
     conquestLogs,
-    expeditionLogs,
+    expeditionLogs: [...expeditionLogs, ...autoExploreLogs],
   }
 }
 

@@ -235,7 +235,7 @@ describe('actions: 一键买满（批量）', () => {
 })
 
 describe('actions: 注册表完整性', () => {
-  it('十八个动作全部注册', () => {
+  it('十九个动作全部注册（含 setAutoExplore）', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
@@ -251,6 +251,7 @@ describe('actions: 注册表完整性', () => {
         'newGamePlus',
         'research',
         'resolveEvent',
+        'setAutoExplore',
         'setAutomationPolicy',
         'setPlanet',
         'upgrade',

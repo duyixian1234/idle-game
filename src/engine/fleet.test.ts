@@ -21,12 +21,12 @@ function fleetState(): GameState {
   return s
 }
 
-describe('engine: 舰队数据模型（ticket 01）——船坞/舰数上限/纯函数族', () => {
-  it('INTERSTELLAR_BUILDINGS 含船坞；DOCK_SHIP_CAP 显式表（1:3 / 2:6 / 3:10，非等差）', () => {
+describe('engine: 舰队数据模型（ticket 01 + fleet-dock-10）——船坞/舰数上限/纯函数族', () => {
+  it('INTERSTELLAR_BUILDINGS 含船坞；DOCK_SHIP_CAP 显式表 10 级（Lv1 3 艘、此后每级 +2，Lv10 = 24 艘）', () => {
     expect(INTERSTELLAR_BUILDINGS.dock).toBeDefined()
     expect(INTERSTELLAR_BUILDINGS.dock.unique).toBe(true)
-    expect(INTERSTELLAR_BUILDINGS.dock.maxLevel).toBe(3)
-    expect(DOCK_SHIP_CAP).toEqual({ 1: 3, 2: 6, 3: 10 })
+    expect(INTERSTELLAR_BUILDINGS.dock.maxLevel).toBe(10)
+    expect(DOCK_SHIP_CAP).toEqual({ 1: 3, 2: 6, 3: 10, 4: 12, 5: 14, 6: 16, 7: 18, 8: 20, 9: 22, 10: 24 })
   })
 
   it('船坞解锁链：星港 0 锁定（含原因）/ ≥1 解锁；通关前可建（不要求 requiresEnded）', () => {
@@ -43,19 +43,31 @@ describe('engine: 舰队数据模型（ticket 01）——船坞/舰数上限/纯
     expect(s.buildings.dock).toBe(1)
   })
 
-  it('船坞 maxLevel 3 封顶：Lv3 后升级拒绝；升级成本 unique 公式 baseCost × 2^level', () => {
+  it('船坞 maxLevel 10 封顶：Lv10 后升级拒绝；升级成本 unique 公式 baseCost × 2^level（Lv10 总投入 = 20M×(2^10−1)）', () => {
     const s = fleetState()
     expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: true })
     expect(s.upgrades.dock).toBe(1)
     expect(s.resources.mineral).toBe(500_000_000 - 20_000_000)
-    s.upgrades.dock = 3
+    // Lv1→Lv2 成本 = 2000 万 × 2^1 = 4000 万
+    const beforeLv2 = s.resources.mineral
+    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: true })
+    expect(s.resources.mineral).toBe(beforeLv2 - 40_000_000)
+    // Lv9→Lv10 成本 = 2000 万 × 2^9 = 102.4 亿矿物 + 500,000 × 2^9 = 2.56 亿科技（终局期可负担）
+    s.upgrades.dock = 9
+    s.resources.mineral = 20_000_000_000
+    s.resources.tech = 10_000_000_000
+    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: true })
+    expect(s.upgrades.dock).toBe(10)
+    expect(s.resources.mineral).toBe(20_000_000_000 - 20_000_000 * 512)
+    expect(s.resources.tech).toBe(10_000_000_000 - 500_000 * 512)
+    // Lv10 封顶：拒绝且状态不变
     const before = s.resources.mineral
-    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: false, reason: '已达最高等级（Lv.3.00）' })
+    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: false, reason: '已达最高等级（Lv.10.00）' })
     expect(s.resources.mineral).toBe(before)
-    expect(s.upgrades.dock).toBe(3)
+    expect(s.upgrades.dock).toBe(10)
   })
 
-  it('舰数上限派生：船坞 0 级 0 艘 / Lv1 3 艘 / Lv2 6 艘 / Lv3 10 艘', () => {
+  it('舰数上限派生：船坞 0 级 0 艘 / Lv1 3 艘 / Lv2 6 艘 / Lv3 10 艘 / Lv10 24 艘（每级 +2 线性可读）', () => {
     const s = fleetState()
     // fleetState 船坞已建但 Lv0 → 上限 0（需升级解锁舰队）
     expect(dockLevel(s)).toBe(0)
@@ -66,6 +78,17 @@ describe('engine: 舰队数据模型（ticket 01）——船坞/舰数上限/纯
     expect(shipCap(s)).toBe(6)
     s.upgrades.dock = 3
     expect(shipCap(s)).toBe(10)
+    s.upgrades.dock = 4
+    expect(shipCap(s)).toBe(12)
+    s.upgrades.dock = 6
+    expect(shipCap(s)).toBe(16)
+    s.upgrades.dock = 8
+    expect(shipCap(s)).toBe(20)
+    s.upgrades.dock = 10
+    expect(shipCap(s)).toBe(24)
+    // 越界容错：超等级按 0 处理（与旧档 Lv3 行为一致——表未定义键不膨胀）
+    s.upgrades.dock = 11
+    expect(shipCap(s)).toBe(0)
   })
 
   it('船坞未建：dockLevel 0、上限 0', () => {

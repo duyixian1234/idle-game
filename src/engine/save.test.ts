@@ -449,8 +449,8 @@ describe('engine: 存档序列化往返', () => {
     delete raw.eventConfigVersion
     const migrated = deserializeSave(JSON.stringify(raw))
     expect(migrated.migrationSummary).toEqual({
-      fromSchemaVersion: 10,
-      toSchemaVersion: 10,
+      fromSchemaVersion: SCHEMA_VERSION,
+      toSchemaVersion: SCHEMA_VERSION,
       migratedEvents: 1,
       unknownEvents: 1,
       compensation: {},

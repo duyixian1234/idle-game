@@ -1,5 +1,6 @@
 import { pushLog } from './core'
 import { militaryCap } from './production'
+import { dockLevel } from './fleet'
 import type { GameState } from './types'
 import { formatNumber } from './format'
 import { EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
@@ -53,7 +54,7 @@ export function endlessIIUnlocked(s: GameState): boolean {
   return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
 }
 
-/** 成就定义表（31 个：叙事 12 + 收集 14 + 终局 5；文案实现期定稿） */
+/** 成就定义表（33 个：叙事 12 + 收集 16 + 终局 5；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -313,6 +314,28 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     },
     rewardMineral: 50_000,
     rep: 3, // 声望 cap 溢出接受（图鉴价值为主，spec Q12）
+  },
+
+  // ---- 舰队类（fleet-dock-10：护航/船坞长线目标，周目重解锁）----
+  escortFirst: {
+    id: 'escortFirst',
+    name: '编队护航',
+    desc: '首次带舰队完成护航远征，让钢铁之翼为探索开路。',
+    category: 'collect',
+    // 谓词与结算口径同源（settleExpeditions 对护航派遣计 stats.escortedExpeditions，无硬编码漂移）
+    condition: (s) => (s.stats.escortedExpeditions ?? 0) >= 1,
+    rewardMineral: 100_000,
+    rep: 4,
+  },
+  dockLord: {
+    id: 'dockLord',
+    name: '星海霸主',
+    desc: '将船坞升至 Lv.10，舰队规模上限达到 24 艘——星海尽在麾下。',
+    category: 'collect',
+    // 谓词与船坞数值同源（dockLevel 派生自 DOCK_SHIP_CAP 显式表，无硬编码漂移）
+    condition: (s) => dockLevel(s) >= 10,
+    rewardMineral: 500_000,
+    rep: 8,
   },
 
   // ---- 终局类 ----

@@ -23,8 +23,10 @@ const SCHEMA_V7 = 7
 const SCHEMA_V8 = 8
 /** 首个支持无尽事件池状态的存档版本 */
 const SCHEMA_V9 = 9
-/** 首个支持虫群强度倍率的存档版本 */
+/** 首个支持虫群强度倍率的存档版本（bug-defense 占用） */
 const SCHEMA_V10 = 10
+/** 首个支持自动探索设置的存档版本（fleet-dock-10 占用；v10 已被 bug-defense 占用，协调顺延至 v11） */
+const SCHEMA_V11 = 11
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -79,6 +81,14 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'megastructureChoice', since: 7, check: (v) => v === null || v === 'smelter' || v === 'jumpgate' },
   { key: 'fleet', since: 8, check: (v) => isPlainObject(v) && typeof (v as { count?: unknown }).count === 'number' },
   { key: 'bugEscalation', since: SCHEMA_V10, check: isNumber },
+  {
+    key: 'autoExplore',
+    since: SCHEMA_V11,
+    check: (v) =>
+      isPlainObject(v) &&
+      typeof (v as { enabled?: unknown }).enabled === 'boolean' &&
+      typeof (v as { escort?: unknown }).escort === 'boolean',
+  },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -259,7 +269,30 @@ function migrateV9ToV10(raw: Record<string, unknown>): Record<string, unknown> {
   return next
 }
 
-/** 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。 */
+/** v10 → v11：补齐自动探索设置（fleet-dock-10），默认 { enabled: false, escort: false }（旧档默认关）。
+ * 幂等：字段已存在则保留（enabled/escort 非布尔补默认值）；在途派遣补 escort 标记（`?? false` 容错双保险）。 */
+function migrateV10ToV11(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const auto = isPlainObject(next.autoExplore) ? { ...(next.autoExplore as Record<string, unknown>) } : {}
+  if (typeof auto.enabled !== 'boolean') auto.enabled = false
+  if (typeof auto.escort !== 'boolean') auto.escort = false
+  next.autoExplore = auto
+  // 旧档在途派遣均为无护航（护航为 v11 新机制）：补 escort 标记，幂等
+  if (Array.isArray(next.expeditions)) {
+    next.expeditions = (next.expeditions as Array<Record<string, unknown>>).map((exp) =>
+      isPlainObject(exp) && typeof (exp as { escort?: unknown }).escort !== 'boolean' ? { ...exp, escort: false } : exp,
+    )
+  }
+  next.schemaVersion = SCHEMA_V11
+  return next
+}
+
+/**
+ * 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。
+ * 幂等（hadContract 检查）：eventConfigVersion 已达标 → 只归一化默认策略，不写迁移摘要。
+ * ⚠️ 主 schema 版本不动（进入版本保留）——调用链见 migrateSave（先版本迁移后事件迁移，
+ * v1-v10 链式迁移后进入；v11 档幂等跳过事件处理）。
+ */
 function migrateEventContract(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
   const fromSchemaVersion =
@@ -347,7 +380,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
     next.log = log.slice(0, 200)
     next.nextLogId = nextLogId + 1
   }
-  next.schemaVersion = SCHEMA_V10
+  // 主 schema 版本保留进入值（事件契约迁移不改主版本；版本迁移链在 migrateSave 内先完成）
   return next
 }
 
@@ -360,7 +393,11 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
  * - v5 存档（无探索字段）→ 转 v6 → 转 v7 → 转 v8
  * - v6 存档（无终局抉择字段）→ 转 v7 → 转 v8
  * - v7 存档（无舰队字段）→ 转 v8
- * - 已是当前版本：原样返回
+ * - v8 存档（无无尽状态字段）→ 转 v9
+ * - v9 存档（无虫群强度倍率字段）→ 转 v10
+ * - v10 存档（无自动探索字段）→ 转 v11
+ * - 任意版本最后过事件契约迁移（幂等：eventConfigVersion 达标则跳过事件处理，主 schema 版本不变）
+ * - 已是当前版本：事件迁移幂等跳过，原样返回
  *
  * loadGame（IndexedDB 加载路径）与 deserializeSave（导入路径）共用此入口，
  * 保证两条路径行为一致——老玩家升级 v2 后存档自动迁移（fix：线上崩溃
@@ -378,7 +415,9 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V7) cur = migrateV7ToV8(cur)
   if (cur.schemaVersion === SCHEMA_V8) cur = migrateV8ToV9(cur)
   if (cur.schemaVersion === SCHEMA_V9) cur = migrateV9ToV10(cur)
-  if (cur.schemaVersion === SCHEMA_V10) cur = migrateEventContract(cur)
+  if (cur.schemaVersion === SCHEMA_V10) cur = migrateV10ToV11(cur)
+  // 事件契约迁移对任意进入版本执行：v1-v10 链式迁移后必已 ≥ v10，v11 档幂等跳过（migrateEventContract 不改主版本）
+  cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }
 

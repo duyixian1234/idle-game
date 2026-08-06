@@ -170,9 +170,9 @@ async function main(): Promise<void> {
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state, { flashId })
-    // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位）/ 设置（五组）
+    // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位 + 护航/自动探索）/ 设置（五组）
     renderArchivePanel(els.navPages.archive, state)
-    renderExplorePage(els.navPages.explore, state)
+    renderExplorePage(els.navPages.explore, state, Date.now(), exploreEscortChecked)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -625,13 +625,42 @@ async function main(): Promise<void> {
     }
   })
 
-  // ---- 探索页（一级 tab）：派遣 ----
-  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理；值 = 槽位号 1|2|3）
+  // ---- 探索页（一级 tab）：派遣 + 自动探索 ----
+  // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
+  const exploreEscortChecked = new Set<number>()
+  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理；值 = 槽位号 1|2|3，
+  // 护航状态从同槽 data-escort-toggle 读取拼接为 "slot:0|1"）
   els.navPages.explore.addEventListener('click', (e) => {
     const dispatchBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-dispatch]')
     if (dispatchBtn) {
       const slotNo = dispatchBtn.dataset.exploreDispatch ?? '1'
-      dispatch(state, 'explore', slotNo, deps)
+      const slotCard = dispatchBtn.closest<HTMLElement>('[data-expedition-slot]')
+      const escortToggle = slotCard?.querySelector<HTMLInputElement>('[data-escort-toggle]')
+      const escortFlag = escortToggle?.checked ? '1' : '0'
+      dispatch(state, 'explore', `${slotNo}:${escortFlag}`, deps)
+    }
+  })
+  // 手动护航勾选（change）：更新跨渲染勾选集合并重渲染（预览数据在渲染时实时计算）
+  els.navPages.explore.addEventListener('change', (e) => {
+    const target = e.target as HTMLElement
+    const escortToggle = target.closest<HTMLInputElement>('[data-escort-toggle]')
+    if (escortToggle) {
+      const slotNo = Number(escortToggle.dataset.escortToggle ?? '0')
+      if (escortToggle.checked) exploreEscortChecked.add(slotNo)
+      else exploreEscortChecked.delete(slotNo)
+      render()
+      return
+    }
+    // 自动探索开关（data-auto-explore-toggle）→ 持久化到存档 v11 字段
+    const autoToggle = target.closest<HTMLInputElement>('[data-auto-explore-toggle]')
+    if (autoToggle) {
+      dispatch(state, 'setAutoExplore', JSON.stringify({ enabled: autoToggle.checked }), deps)
+      return
+    }
+    // 自动探索护航勾选（data-auto-escort）→ 持久化
+    const autoEscort = target.closest<HTMLInputElement>('[data-auto-escort]')
+    if (autoEscort) {
+      dispatch(state, 'setAutoExplore', JSON.stringify({ escort: autoEscort.checked }), deps)
     }
   })
 

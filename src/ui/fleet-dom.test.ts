@@ -96,16 +96,16 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     expect(btn.title).toContain('矿物不足')
   })
 
-  it('船坞 Lv3 满级：船坞卡升级按钮替换为「已满级」，舰数上限 10', () => {
+  it('船坞 Lv10 满级：船坞卡升级按钮替换为「已满级」，舰数上限 24', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = fleetReadyState()
-    s.upgrades.dock = 3
+    s.upgrades.dock = 10
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
     const dockCard = panel.querySelector('[data-building="dock"]')
     expect(dockCard?.querySelector('[data-upgrade="dock"]')).toBeNull()
     expect(dockCard?.textContent).toContain('已满级')
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(10)}艘`)
+    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(24)}艘`)
   })
 })

@@ -11,6 +11,8 @@ import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, JUMPGATE
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
+import { escortHarvestMult } from '../engine/exploration'
+import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
 import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, factionsVisible, federationProgress, intimidateCost, tradeCost } from '../engine/diplomacy'
 import type { LogDirection } from './log'
@@ -685,6 +687,8 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
     : `<button type="button" class="build-btn" data-fleet-build disabled title="已达舰数上限">建造护卫舰</button>`
   // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 1.5×）
   const techNote = techLv > 0 ? `（含军械科技 Lv.${formatNumber(techLv)} ${formatMultiplier(1 + 0.1 * techLv)}）` : ''
+  // 护航加成说明（fleet-dock-10）：每艘 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 舰数（探索页护航远征共用）
+  const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每艘 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%）` : ''
   body.innerHTML = `
     <div class="build-info">
       <div class="build-name">
@@ -697,6 +701,7 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
         <span data-fleet-maintenance>维护费 ${formatRate(-maint)} 能源</span>
         ${count > 0 && !powered ? '（停摆中未扣费）' : ''}
         · <span data-fleet-power>战力 ${formatNumber(power)}${techNote}</span>
+        ${escortNote ? ` · <span data-fleet-escort>${escortNote}</span>` : ''}
       </div>
     </div>
     ${idleWarn}

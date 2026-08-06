@@ -19,7 +19,7 @@ import {
 } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
-import { settleExpeditions } from './exploration'
+import { autoExploreDispatch, settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
 import { autoResolvePendingEvents, createDefaultAutomationPolicies, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
@@ -61,6 +61,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     conquest,
     megastructureChoice: null,
     fleet: { count: 0 },
+    autoExplore: { enabled: false, escort: false },
     bugEscalation: 1,
     stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
@@ -470,6 +471,10 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   for (const expLog of settleExpeditions(state, nowMs)) {
     pushLog(state, expLog.type, expLog.text)
   }
+  // 自动探索续派（fleet-dock-10）：结算后补位空槽；资源不足自动暂停、恢复自动继续
+  for (const autoLog of autoExploreDispatch(state, nowMs)) {
+    pushLog(state, autoLog.type, autoLog.text)
+  }
   // 结局判定
   checkEnding(state)
   // 永恒殖民叙事挂点（endlessii-unlock spec：条件与成就谓词同源引用，防数值漂移；
@@ -624,6 +629,8 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   // 舰队重置：护卫舰随星际工程一并归零（新周目从零规划，遗产体系不膨胀）
   state.fleet = { count: 0 }
   state.bugEscalation = 1
+  // 自动探索重置为默认关（fleet-dock-10：舰队随周目归零 → 护航自然失效；开关与护航偏好一并归零，新周目重新开启）
+  state.autoExplore = { enabled: false, escort: false }
 
   // 探索重置：派遣中任务随 NG+ 静默丢弃不退款（决策 Q18）、发现进度清零、派遣 id 归 1
   state.expeditions = []

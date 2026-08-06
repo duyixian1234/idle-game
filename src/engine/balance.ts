@@ -247,3 +247,16 @@ export const SHIP_BUY_ENERGY = 200_000
 export const SHIP_MAINT_BASE = 25
 /** 军械科技每级舰队战力加成（+10%/级，满级 Lv5 = ×1.5 基础） */
 export const FLEET_POWER_TECH_PER_LEVEL = 0.1
+
+// ---- 舰队护航远征（fleet-dock-10：溢出能源 → 探索收益的转换器）----
+
+/** 护航单艘远征费锚点：单艘费 = 能源净产出 × 该秒数（锚定当期产出，能源膨胀时这笔开销同步膨胀，取舍永不失效） */
+export const ESCORT_ENERGY_SECONDS = 10
+/** 护航每艘收获倍率：+1%/艘（满编 24 艘 = +24%，与科技收获倍率乘法叠加，只作用 resource 分支补偿） */
+export const FLEET_HARVEST_PCT_PER_SHIP = 0.01
+/** 护航专属返还率（balance-sim 定标）：返还锚定（基础成本 + 远征费）；
+ * energy 分支压低（投入能源却返还能源无意义），mineral/tech 分支突出（海量投入 → 海量回报）。
+ * 非护航沿用 EXPEDITION_COMPENSATE_RATIO。 */
+export const ESCORT_COMPENSATE_RATIO = { mineral: 0.75, energy: 0.2, techPerMineral: 0.02 }
+/** 自动探索暂停后重试冷却（ms）：资源不足暂停后每隔该时长重试一次（防每 tick 日志刷屏） */
+export const AUTO_EXPLORE_RETRY_MS = 60_000
