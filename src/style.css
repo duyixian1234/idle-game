@@ -933,15 +933,16 @@ body {
   color: var(--text-dim);
 }
 
-.favor-bar {
+/* ASCII 进度条组件（Q14 定案）：█ 填充（语义绿）/ ░ 空余（低饱和边框色） */
+.ascii-bar {
   letter-spacing: 1px;
 }
 
-.favor-filled {
+.ascii-filled {
   color: var(--good);
 }
 
-.favor-empty {
+.ascii-empty {
   color: var(--border);
 }
 

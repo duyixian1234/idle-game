@@ -23,7 +23,7 @@ import {
   intimidateCost,
   tradeCost,
 } from '../engine/diplomacy'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST } from '../engine/balance'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, EXPEDITION_DURATION_MS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST } from '../engine/balance'
 import {
   buildingCost,
   buildingLockReason,
@@ -261,10 +261,11 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     const exp = ongoing[i]
     if (exp) {
       const remain = Math.max(0, exp.finishAt - nowMs)
+      const ratio = 1 - remain / EXPEDITION_DURATION_MS
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}">
           <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中</span></div>
-          <div class="explore-slot-timer" data-expedition-timer>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
+          <div class="explore-slot-timer" data-expedition-timer><span data-expedition-progress>${renderAsciiBar(ratio, 16)}</span>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
         </div>`)
       continue
     }
@@ -819,11 +820,18 @@ function formatMult(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10)
 }
 
-/** 好感度横条 */
+/** ASCII 进度条（Q14 定案）：█ 填充 + ░ 空余，纯文本零 DOM 成本；
+ *  宿主 data-progress 供 E2E 断言（含 █/░ 字符）。ratio clamp 0~1。 */
+export function renderAsciiBar(ratio: number, width = 20): string {
+  const clamped = Math.max(0, Math.min(1, ratio))
+  const filled = Math.round(clamped * width)
+  const empty = width - filled
+  return `<span class="ascii-bar" data-progress><span class="ascii-filled">${'█'.repeat(filled)}</span><span class="ascii-empty">${'░'.repeat(empty)}</span></span>`
+}
+
+/** 好感度横条（收敛到通用 ASCII 进度条组件，行为等价） */
 function renderFavorBar(favor: number): string {
-  const filled = Math.round((favor / 100) * 10)
-  const empty = 10 - filled
-  return `<span class="favor-bar"><span class="favor-filled">${'█'.repeat(filled)}</span><span class="favor-empty">${'░'.repeat(empty)}</span></span>`
+  return renderAsciiBar(favor / 100, 10)
 }
 
 /** 派系特性徽标文案（探索势力专属特性：贸易折扣/共享半价/威慑折扣；无特性返回空数组不渲染） */
@@ -987,7 +995,8 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   }
   if (ongoing) {
     const remainMs = Math.max(0, (cs.finishAt ?? 0) - Date.now())
-    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></div>`
+    const ratio = 1 - remainMs / CONQUEST_DURATION_MS
+    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></span></div>`
     return row
   }
   if (!available) {
