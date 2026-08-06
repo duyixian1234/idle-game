@@ -3,6 +3,7 @@ import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } f
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
 import type { BulkPreview } from './engine/bulk'
+import { previewNewGamePlus } from './engine/ngplus'
 import { formatNumber } from './engine/format'
 import { netProduction } from './engine/production'
 import { pushLog } from './engine/core'
@@ -23,6 +24,7 @@ import {
   renderEndingOverlay,
   renderLogInto,
   renderMilitaryPanel,
+  renderNgPlusModal,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -106,6 +108,17 @@ async function main(): Promise<void> {
     if (muteBtn) muteBtn.textContent = sound.isMuted() ? '🔇 已静音' : '🔊 静音'
     const dirBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="logdir"]')
     if (dirBtn) dirBtn.textContent = logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
+    // 无限模式专用「开启新周目」按钮：仅 phase === 'infinite' 可见（其余时刻隐藏，保持通关门槛）
+    const ngBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-ngplus]')
+    if (ngBtn) {
+      if (state.phase === 'infinite') {
+        const p = previewNewGamePlus(state)
+        ngBtn.style.display = ''
+        ngBtn.title = `开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、×${p.permanentMult.toFixed(2)} 永久产出加成、${p.codexFactions.length} 个派系图鉴（需确认）`
+      } else {
+        ngBtn.style.display = 'none'
+      }
+    }
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -326,6 +339,46 @@ async function main(): Promise<void> {
   })
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
+    if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
+  })
+
+  // ---- 无限模式手动开启新周目（确认弹窗） ----
+  // 语义与结局面板「开启 NG+」完全一致；仅 phase === 'infinite' 时工具栏按钮可见
+  function closeNgPlusModal(): void {
+    els.ngplusOverlay.classList.add('hidden')
+  }
+
+  function openNgPlusModal(): void {
+    const preview = previewNewGamePlus(state)
+    renderNgPlusModal(els.ngplusOverlay, state, preview)
+    els.ngplusOverlay.classList.remove('hidden')
+  }
+
+  els.ngplusOverlay.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t === els.ngplusOverlay) {
+      closeNgPlusModal()
+      return
+    }
+    if (t.closest('[data-ngplus-cancel]')) {
+      closeNgPlusModal()
+      return
+    }
+    if (t.closest('[data-ngplus-confirm]')) {
+      closeNgPlusModal()
+      // 与结局面板 NG+ 分支一致的手动序列（startNewGamePlus 内部已 push【NG+ 第 N 周目】日志）
+      startNewGamePlus(state, Date.now())
+      lastLogId = 0
+      els.logEl.innerHTML = ''
+      render()
+      void saveGame(state)
+    }
+  })
+
+  // 工具栏「开启新周目」入口（按钮可见性由 render 按 phase 控制）
+  els.toolbar.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-ngplus]')) return
+    openNgPlusModal()
   })
 
   // 星球切换事件委托（未解锁星球：显示解锁条件）

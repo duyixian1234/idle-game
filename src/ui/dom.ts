@@ -42,6 +42,7 @@ import { simulateProductionDelta, techMultiplier, militaryCap } from '../engine/
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
+import type { NgPlusPreview } from '../engine/ngplus'
 
 export interface AppElements {
   root: HTMLElement
@@ -53,6 +54,7 @@ export interface AppElements {
   statusLine: HTMLElement
   endingOverlay: HTMLElement
   buyMaxOverlay: HTMLElement
+  ngplusOverlay: HTMLElement
   toolbar: HTMLElement
   tutorial: HTMLElement
 }
@@ -98,12 +100,14 @@ export function buildLayout(container: HTMLElement): AppElements {
       <button type="button" class="tool-btn" data-tool="logdir">📜 排序</button>
       <button type="button" class="tool-btn" data-tool="export">导出存档</button>
       <button type="button" class="tool-btn" data-tool="import">导入存档</button>
+      <button type="button" class="tool-btn" data-ngplus style="display:none" title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
       <button type="button" class="tool-btn danger" data-tool="reset">重置</button>
       <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
     </footer>
     <div class="status-line"></div>
     <div class="ending-overlay hidden" aria-label="结局"></div>
     <div class="buy-max-overlay hidden" aria-label="批量购买确认"></div>
+    <div class="ngplus-overlay hidden" aria-label="开启新周目确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
   `
   const root = container
@@ -117,6 +121,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     statusLine: container.querySelector('.status-line') as HTMLElement,
     endingOverlay: container.querySelector('.ending-overlay') as HTMLElement,
     buyMaxOverlay: container.querySelector('.buy-max-overlay') as HTMLElement,
+    ngplusOverlay: container.querySelector('.ngplus-overlay') as HTMLElement,
     toolbar: container.querySelector('.toolbar') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
   }
@@ -833,6 +838,52 @@ function formatCost(cost: Record<ResourceKey, number>): string {
   return RESOURCE_KEYS.filter((k) => cost[k] > 0)
     .map((k) => `${RESOURCE_META[k].symbol}${formatNumber(cost[k])}`)
     .join(' ')
+}
+
+/** 渲染「开启新周目」确认弹窗（双清单：将失去 / 将继承，继承为预览值） */
+export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: NgPlusPreview): void {
+  const { lost } = preview
+  // 将失去（本周目内清零）
+  const resText = lost.resources.map((k) => `${RESOURCE_META[k].symbol}${formatNumber(state.resources[k])}`).join('、') || '无'
+  const bldText = lost.buildings.map((id) => `${BUILDINGS[id]?.name ?? id} ×${state.buildings[id]}`).join('、') || '无'
+  const techText = lost.techs.map((id) => `${TECHS[id]?.name ?? id} Lv.${state.techLevels[id]}`).join('、') || '无'
+  const facText = lost.alliedFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
+  // 将继承（NG+ 后生效，预览值）
+  const codexText = preview.codexFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
+  const bonusText =
+    Object.entries(preview.permanentBonuses)
+      .map(([k, v]) => `${k === 'production' ? '全产出' : '军力上限'} +${Math.round(v * 100)}%`)
+      .join('、') || '无'
+  const achCount = Object.keys(state.achievements).length
+  el.innerHTML = `
+    <div class="ngplus-card">
+      <div class="buy-max-title">开启新周目</div>
+      <div class="buy-max-summary">第 ${state.ngPlusLevel} 周目 → 第 ${preview.nextLevel} 周目。此操作不可逆。</div>
+      <div class="ngplus-section-title">将失去（本周目）</div>
+      <table class="buy-max-table">
+        <tr><th>资源</th><td>${resText}</td></tr>
+        <tr><th>建筑</th><td>${bldText}</td></tr>
+        <tr><th>科技</th><td>${techText}</td></tr>
+        <tr><th>派系</th><td>${facText}</td></tr>
+        <tr><th>攻占</th><td>${lost.conquered}/${Object.keys(CONQUESTS).length} 区域</td></tr>
+        <tr><th>声望</th><td>${lost.reputation}</td></tr>
+        <tr><th>统计</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
+      </table>
+      <div class="ngplus-section-title">将继承</div>
+      <table class="buy-max-table">
+        <tr><th>周目</th><td>第 ${preview.nextLevel} 周目</td></tr>
+        <tr><th>产出加成</th><td>×${preview.permanentMult.toFixed(2)}</td></tr>
+        <tr><th>科技点</th><td>${formatNumber(preview.carryTech)}</td></tr>
+        <tr><th>图鉴派系</th><td>${escapeHtml(codexText)}（初始好感 +25）</td></tr>
+        <tr><th>永久加成</th><td>${bonusText}</td></tr>
+        <tr><th>成就图鉴</th><td>${achCount} 个（跨周目保留）</td></tr>
+      </table>
+      <div class="buy-max-warn">⚠ 确认后无法撤销：本周目资源、建筑、科技、派系好感、攻占进度与声望将全部清零。</div>
+      <div class="buy-max-actions">
+        <button type="button" class="ending-btn primary" data-ngplus-confirm>开启新周目</button>
+        <button type="button" class="ending-btn ghost" data-ngplus-cancel>取消</button>
+      </div>
+    </div>`
 }
 
 function formatTime(ms: number): string {

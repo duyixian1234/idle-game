@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { previewMaxBuy } from '../engine/bulk'
+import { previewNewGamePlus } from '../engine/ngplus'
 import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
@@ -15,6 +16,7 @@ import {
   renderDiplomacyPanel,
   renderLogInto,
   renderMilitaryPanel,
+  renderNgPlusModal,
   renderPendingEvents,
   renderPlanetBar,
   renderPlanetMechanic,
@@ -680,5 +682,36 @@ describe('ui: 军事面板', () => {
     expect(panel.textContent).toContain('骚扰阈值 65')
     expect(panel.textContent).toContain('军力上限 +20%')
     expect(panel.textContent).toContain('攻占成功率 +15%')
+  })
+
+  it('工具栏「开启新周目」按钮存在且初始隐藏（仅 infinite 由 render 显示）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const btn = container.querySelector<HTMLButtonElement>('[data-ngplus]')
+    expect(btn).toBeTruthy()
+    expect(btn!.textContent).toContain('开启新周目')
+    expect(btn!.style.display).toBe('none')
+  })
+
+  it('renderNgPlusModal 渲染双清单（将失去/将继承）与确认按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.ngPlusLevel = 1
+    s.resources.mineral = 100
+    s.buildings.miner = 3
+    s.permanentBonuses = { production: 0.25 }
+    const preview = previewNewGamePlus(s)
+    const el = container.querySelector('.ngplus-overlay') as HTMLElement
+    renderNgPlusModal(el, s, preview)
+    expect(el.textContent).toContain('将失去（本周目）')
+    expect(el.textContent).toContain('将继承')
+    expect(el.textContent).toContain('采矿机 ×3')
+    expect(el.textContent).toContain('4,000') // 继承科技点 2000×2
+    expect(el.textContent).toContain('1.30') // 永久产出加成 ×1.30
+    expect(el.textContent).toContain('全产出 +25%') // 永久加成（母巢）
+    expect(el.querySelector('[data-ngplus-confirm]')).toBeTruthy()
+    expect(el.querySelector('[data-ngplus-cancel]')).toBeTruthy()
   })
 })

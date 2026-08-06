@@ -234,7 +234,7 @@ describe('actions: 一键买满（批量）', () => {
 })
 
 describe('actions: 注册表完整性', () => {
-  it('十四个动作全部注册', () => {
+  it('十五个动作全部注册', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
@@ -244,6 +244,7 @@ describe('actions: 注册表完整性', () => {
         'convertMax',
         'diplomacy',
         'diplomacyMax',
+        'newGamePlus',
         'research',
         'resolveEvent',
         'setPlanet',
@@ -261,5 +262,24 @@ describe('actions: 注册表完整性', () => {
     dispatch(s, 'nope', '', deps)
     expect(s.log).toHaveLength(0)
     expect(calls).toEqual([])
+  })
+})
+
+describe('actions: 无限模式开启新周目', () => {
+  it('newGamePlus 在 infinite 下：周目+1、回到 playing、无重复日志、渲染+保存', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.endingTriggered = true
+    s.ngPlusLevel = 1
+    s.resources.mineral = 50_000
+    const { deps, calls } = fakeDeps()
+    dispatch(s, 'newGamePlus', '', deps)
+    expect(s.ngPlusLevel).toBe(2)
+    expect(s.phase).toBe('playing')
+    expect(s.endingTriggered).toBe(false)
+    expect(s.resources.mineral).toBe(0)
+    // 【NG+ 第 N 周目】由 startNewGamePlus 内部 push（feedback 不重复）
+    expect(s.log[0].text).toContain('【NG+ 第 2 周目】')
+    expect(calls).toEqual(['render', 'save']) // 无音效、无额外日志
   })
 })
