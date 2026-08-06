@@ -51,7 +51,8 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     desc: '建造第一台采矿机，让钻头第一次咬进 P-01 的地壳。',
     category: 'story',
     condition: (s) => Boolean(s.storyFlags.firstBuild),
-    rewardMineral: 500,
+    // 平衡模拟定标：R=500 开局跳至 15 台采矿机（构成经济支柱），R=50 仅 4 台（温和小奖）
+    rewardMineral: 50,
     rep: 2,
   },
   firstTech: {
