@@ -7,7 +7,7 @@ import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
 import { ACHIEVEMENTS, checkAchievements } from '../engine/achievements'
-import { BUILDINGS, PLANETS } from '../engine/data'
+import { BUILDINGS, INTERSTELLAR_BUILDINGS, PLANETS } from '../engine/data'
 import { TECH_MAX_LEVEL } from '../engine/balance'
 import {
   appendLog,
@@ -669,7 +669,10 @@ describe('ui: 军事面板', () => {
     expect(panel.querySelector('[data-upgrade="barracks"]')?.getAttribute('title')).toContain('产出 +50%')
     expect(panel.querySelector('[data-upgrade="militaryPort"]')?.getAttribute('title')).toContain('容量 +50%')
     expect(panel.querySelector('[data-building="militaryPort"]')?.textContent).toContain('军力容量 300 → 400')
-    expect(panel.querySelector('[data-upgrade="jumpgate"]')).toBeNull()
+
+    const interstellar = document.createElement('div')
+    renderBuildPanel(interstellar, { ...s, phase: 'ended', buildings: { ...s.buildings, starportMine: 1, stellarArray: 1, thinkTank: 1, jumpgate: 1 }, megastructureChoice: 'jumpgate' }, INTERSTELLAR_BUILDINGS)
+    expect(interstellar.querySelector('[data-building="jumpgate"] [data-upgrade="jumpgate"]')).toBeNull()
   })
 
   it('军事建筑不出现在建造面板（civil 分流）', () => {
