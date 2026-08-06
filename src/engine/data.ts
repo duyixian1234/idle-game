@@ -1,5 +1,6 @@
 import type { MechanicId, ResourceKey } from './types'
 import { CONQUEST_DURATION_MS } from './balance'
+import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 
 /** 资源显示元信息 */
 export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string }> = {
@@ -123,7 +124,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   starportMine: {
     id: 'starportMine',
     name: '星港矿场',
-    desc: '横跨小行星带的巨型输送港，整颗星体被剥开、熔炼、装船。唯一大件，升级产出 ×2/级（终局冲刺加速器）。',
+    desc: `横跨小行星带的巨型输送港，整颗星体被剥开、熔炼、装船。唯一大件，升级产出 ${formatMultiplier(2)}/级（终局冲刺加速器）。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -136,7 +137,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   stellarArray: {
     id: 'stellarArray',
     name: '聚变恒星阵列',
-    desc: '捕获整颗恒星辐射的戴森阵列骨架，能源产出跃迁；以矿物维持聚变反应（维护费随等级 ×2/级，硬扣不因能源不足打折）。',
+    desc: `捕获整颗恒星辐射的戴森阵列骨架，能源产出跃迁；以矿物维持聚变反应（维护费随等级 ${formatMultiplier(2)}/级，硬扣不因能源不足打折）。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -150,7 +151,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   thinkTank: {
     id: 'thinkTank',
     name: '星海智库',
-    desc: '汇聚全星系数千文明遗产的思维星云，科技产出跃迁。唯一大件，升级产出 ×2/级。',
+    desc: `汇聚全星系数千文明遗产的思维星云，科技产出跃迁。唯一大件，升级产出 ${formatMultiplier(2)}/级。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -163,7 +164,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   ringSmelter: {
     id: 'ringSmelter',
     name: '星环冶炼场',
-    desc: '环绕母星赤道的巨型冶炼环：全局产出 ×2^level（矿/能源/科技全吃）。高耗能 100 能源/s × level，能源不足时产能按现有结算打折。终局抉择「建设」路线。',
+    desc: `环绕母星赤道的巨型冶炼环：全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）。高耗能 ${formatRate(100, false)} ×等级，能源不足时产能按现有结算打折。终局抉择「建设」路线。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -179,7 +180,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   jumpgate: {
     id: 'jumpgate',
     name: '跃迁枢纽',
-    desc: '贯通星海航道的跃迁门：派遣槽 +2、天体收获倍率上限 ×4、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。',
+    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(2)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。`,
     category: 'interstellar',
     unique: true,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
@@ -193,7 +194,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   dock: {
     id: 'dock',
     name: '船坞',
-    desc: '泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv1 3 艘 / Lv2 6 艘 / Lv3 10 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。',
+    desc: `泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv${formatNumber(1)} ${formatNumber(3)} 艘 / Lv${formatNumber(2)} ${formatNumber(6)} 艘 / Lv${formatNumber(3)} ${formatNumber(10)} 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 3,
@@ -377,21 +378,21 @@ export const TECHS: Record<string, TechDef> = {
   planetDrill: {
     id: 'planetDrill',
     name: '行星钻探',
-    desc: '深入行星地壳，矿物产出 ×1.5。',
+    desc: `深入行星地壳，矿物产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 500, tech: 10 },
     effect: { kind: 'production', resource: 'mineral', mult: 1.5 },
   },
   solarEfficiency: {
     id: 'solarEfficiency',
     name: '太阳能效率',
-    desc: '优化光伏材料，能源产出 ×1.5。',
+    desc: `优化光伏材料，能源产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 900, tech: 25 },
     effect: { kind: 'production', resource: 'energy', mult: 1.5 },
   },
   computingBoost: {
     id: 'computingBoost',
     name: '计算加速',
-    desc: '升级量子计算核心，科技点产出 ×1.5。',
+    desc: `升级量子计算核心，科技点产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 1400, tech: 60 },
     effect: { kind: 'production', resource: 'tech', mult: 1.5 },
   },
@@ -405,7 +406,7 @@ export const TECHS: Record<string, TechDef> = {
   fusionCell: {
     id: 'fusionCell',
     name: '聚变电池',
-    desc: '核聚变储能技术，能源产出 ×2.5。',
+    desc: `核聚变储能技术，能源产出 ${formatMultiplier(2.5)}。`,
     cost: { mineral: 6000, tech: 400 },
     effect: { kind: 'production', resource: 'energy', mult: 2.5 },
     requires: ['solarEfficiency'],
@@ -413,7 +414,7 @@ export const TECHS: Record<string, TechDef> = {
   nanoFab: {
     id: 'nanoFab',
     name: '纳米制造',
-    desc: '纳米级矿物重组，矿物产出 ×2。',
+    desc: `纳米级矿物重组，矿物产出 ${formatMultiplier(2)}。`,
     cost: { mineral: 12000, tech: 1000 },
     effect: { kind: 'production', resource: 'mineral', mult: 2 },
     requires: ['planetDrill'],
@@ -421,7 +422,7 @@ export const TECHS: Record<string, TechDef> = {
   militaryTech: {
     id: 'militaryTech',
     name: '军械科技',
-    desc: '改进护卫舰武器与装甲，军力产出提升（Lv1 ×1，每级 +0.5）。攻占「虫群前哨」后解锁。',
+    desc: `改进护卫舰武器与装甲，军力产出提升（Lv${formatNumber(1)} ${formatMultiplier(1)}，每级 +${formatNumber(0.5)}）。攻占「虫群前哨」后解锁。`,
     cost: { mineral: 20_000, tech: 2_000 },
     effect: { kind: 'production', resource: 'military', mult: 1 },
     maxLevel: 5,
@@ -430,7 +431,7 @@ export const TECHS: Record<string, TechDef> = {
   deepSpaceNav: {
     id: 'deepSpaceNav',
     name: '深空导航阵列',
-    desc: '校准跨星区航路的深空基准站：Lv1 解锁第 2 探索信道，每级探索收获 +10%。',
+    desc: `校准跨星区航路的深空基准站：Lv${formatNumber(1)} 解锁第 ${formatNumber(2)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
     cost: { mineral: 50_000, tech: 5_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,
@@ -438,7 +439,7 @@ export const TECHS: Record<string, TechDef> = {
   interstellarRelay: {
     id: 'interstellarRelay',
     name: '星际通信中继',
-    desc: '中继星海的通信网络：Lv1 解锁第 3 探索信道，每级探索收获 +10%。',
+    desc: `中继星海的通信网络：Lv${formatNumber(1)} 解锁第 ${formatNumber(3)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
     cost: { mineral: 200_000, tech: 20_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,
@@ -567,7 +568,7 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   outpost: {
     id: 'outpost',
     name: '殖民前哨·拓荒',
-    desc: '资源丰饶的前哨星球：矿物产出 +25%，但重型冶炼更耗能源。',
+    desc: `资源丰饶的前哨星球：矿物产出 +${formatPercent(25)}，但重型冶炼更耗能源。`,
     unlock: { resources: {} },
     mechanicId: 'outpost',
     discoverOnly: true,
@@ -575,7 +576,7 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   rubbleBelt: {
     id: 'rubbleBelt',
     name: '碎星矿带',
-    desc: '撞击碎屑环绕的矿脉带：基础矿物产出 +2/s，且随主基地矿物产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    desc: `撞击碎屑环绕的矿脉带：基础矿物产出 ${formatRate(2)}，且随主基地矿物产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,
@@ -585,7 +586,7 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   heliumNebula: {
     id: 'heliumNebula',
     name: '氦闪气云',
-    desc: '濒临氦闪的恒星残云：基础能源产出 +1.5/s，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    desc: `濒临氦闪的恒星残云：基础能源产出 ${formatRate(1.5)}，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,
@@ -595,7 +596,7 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   riftChasm: {
     id: 'riftChasm',
     name: '深空裂谷',
-    desc: '横贯黑暗星区的巨大裂谷：基础矿物 +1/s、科技 +0.4/s，且随主基地矿物/科技产能等比增长（产出型天体，恒定挂载不随星球切换）。',
+    desc: `横贯黑暗星区的巨大裂谷：基础矿物 ${formatRate(1)}、科技 ${formatRate(0.4)}，且随主基地矿物/科技产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,

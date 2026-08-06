@@ -43,7 +43,7 @@ describe('mechanics: 轨道工厂站（orbitalForge）', () => {
 
   it('describe 显示 15%（与规则同一真源，不再出现过期的 30%）', () => {
     const s = createInitialState(0)
-    expect(PLANET_MECHANICS.orbitalForge.describe(s)).toBe('矿物 15% → 科技点')
+    expect(PLANET_MECHANICS.orbitalForge.describe(s)).toBe('矿物 15.00% → 科技点')
   })
 })
 
@@ -68,7 +68,7 @@ describe('mechanics: 引力井衰减（gravityWell）', () => {
     const s = createInitialState(0)
     s.planetStaySeconds = 600
     expect(PLANET_MECHANICS.gravityWell.describe(s)).toContain('驻留 10.0 分钟')
-    expect(PLANET_MECHANICS.gravityWell.describe(s)).toContain('80%')
+    expect(PLANET_MECHANICS.gravityWell.describe(s)).toContain('80.00%')
   })
 })
 
@@ -84,7 +84,7 @@ describe('mechanics: 风暴批量生产（massProduction）', () => {
     const s = createInitialState(0)
     s.lastStormHarvestAt = 0
     const text = PLANET_MECHANICS.massProduction.harvest!(s, STORM_HARVEST_INTERVAL_MS + 1, 1)
-    expect(text).toContain('100 科技点') // max(100, floor(1×60))
+    expect(text).toContain('100.00 科技点') // max(100, floor(1×60))
     expect(s.resources.tech).toBe(100)
     expect(s.lastStormHarvestAt).toBe(STORM_HARVEST_INTERVAL_MS + 1)
   })
@@ -122,6 +122,6 @@ describe('mechanics: 曲率时间加速（warpCore）', () => {
 
   it('describe 显示时间流速 ×3', () => {
     const s = createInitialState(0)
-    expect(PLANET_MECHANICS.warpCore.describe(s)).toContain('×3')
+    expect(PLANET_MECHANICS.warpCore.describe(s)).toContain('3.00倍')
   })
 })

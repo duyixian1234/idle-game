@@ -50,7 +50,7 @@ describe('engine: 舰队数据模型（ticket 01）——船坞/舰数上限/纯
     expect(s.resources.mineral).toBe(500_000_000 - 20_000_000)
     s.upgrades.dock = 3
     const before = s.resources.mineral
-    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: false, reason: '已达最高等级（Lv.3）' })
+    expect(upgradeBuilding(s, 'dock')).toMatchObject({ ok: false, reason: '已达最高等级（Lv.3.00）' })
     expect(s.resources.mineral).toBe(before)
     expect(s.upgrades.dock).toBe(3)
   })
@@ -159,7 +159,7 @@ describe('engine: 造舰（ticket 03）——硬约束/上限拦截/持久化', 
     const s = fleetState()
     s.upgrades.dock = 1
     s.fleet.count = 3
-    expect(buyShip(s)).toMatchObject({ ok: false, reason: '已达船坞舰数上限（3 艘）' })
+    expect(buyShip(s)).toMatchObject({ ok: false, reason: '已达船坞舰数上限（3.00 艘）' })
     expect(s.fleet.count).toBe(3)
   })
 

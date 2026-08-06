@@ -81,7 +81,7 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
       s.upgrades[id] = 9
       expect(upgradeBuilding(s, id)).toMatchObject({ ok: true })
       expect(s.upgrades[id]).toBe(10)
-      expect(upgradeBuilding(s, id)).toEqual({ ok: false, reason: '已达最高等级（Lv.10）' })
+      expect(upgradeBuilding(s, id)).toEqual({ ok: false, reason: '已达最高等级（Lv.10.00）' })
       expect(s.upgrades[id]).toBe(10)
     }
   })

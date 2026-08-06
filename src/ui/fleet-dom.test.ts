@@ -38,7 +38,7 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     s.upgrades.dock = 0
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain('0/0')
+    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(0)}艘`)
     expect((panel.querySelector('[data-fleet-build]') as HTMLButtonElement).disabled).toBe(true)
     expect(panel.querySelector('[data-fleet-build]')?.textContent).toContain('建造护卫舰')
   })
@@ -49,7 +49,7 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const s = fleetReadyState()
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain('0/3')
+    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(3)}艘`)
     expect((panel.querySelector('[data-fleet-build]') as HTMLButtonElement).disabled).toBe(false)
     expect(panel.querySelector('[data-fleet-maintenance]')?.textContent).toContain('0')
   })
@@ -61,7 +61,7 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     s.fleet.count = 3
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain('3/3')
+    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(3)}艘/${formatNumber(3)}艘`)
     const btn = panel.querySelector('[data-fleet-build]') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
     expect(btn.title).toContain('上限')
@@ -106,6 +106,6 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const dockCard = panel.querySelector('[data-building="dock"]')
     expect(dockCard?.querySelector('[data-upgrade="dock"]')).toBeNull()
     expect(dockCard?.textContent).toContain('已满级')
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain('0/10')
+    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(10)}艘`)
   })
 })

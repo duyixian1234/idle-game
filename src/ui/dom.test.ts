@@ -9,6 +9,7 @@ import { createEventInstance } from '../engine/events'
 import { ACHIEVEMENTS, checkAchievements } from '../engine/achievements'
 import { BUILDINGS, CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MILITARY_BUILDINGS, PLANETS } from '../engine/data'
 import { TECH_MAX_LEVEL } from '../engine/balance'
+import { formatMultiplier, formatNumber, formatPercent } from '../engine/format'
 import { ICONS } from './icons'
 import {
   appendLog,
@@ -67,9 +68,9 @@ describe('ui: 布局与冒烟', () => {
     expect(items).toHaveLength(4)
     expect(items[0].textContent).toContain('矿物')
     expect(items[0].textContent).toContain('5,000')
-    expect(items[0].textContent).toContain('+1.0/s')
+    expect(items[0].textContent).toContain('+1.00/秒')
     expect(items[3].textContent).toContain('军力')
-    expect(items[3].textContent).toContain('0/100')
+    expect(items[3].textContent).toContain(`${formatNumber(0)}⚔/${formatNumber(100)}⚔`)
   })
 
   it('建造面板展示建筑与成本，资源不足时按钮禁用', () => {
@@ -166,7 +167,7 @@ describe('ui: 布局与冒烟', () => {
     expect(orbital!.disabled).toBe(false) // 可点击查看条件
     expect(orbital!.classList.contains('locked')).toBe(true)
     expect(orbital!.title).toContain('矿物')
-    expect(orbital!.title).toContain('1.2万/5万')
+    expect(orbital!.title).toContain(`${formatNumber(12_000)}/${formatNumber(50_000)}`)
   })
 
   it('unlockRequirementText 输出条件与进度', () => {
@@ -175,8 +176,8 @@ describe('ui: 布局与冒烟', () => {
     s.resources.tech = 500
     const ice = PLANETS['ice']
     const text = unlockRequirementText(ice, s)
-    expect(text).toContain('矿物 3万/20万')
-    expect(text).toContain('科技点 500/2,000')
+    expect(text).toContain(`矿物 ${formatNumber(30_000)}/${formatNumber(200_000)}`)
+    expect(text).toContain(`科技点 ${formatNumber(500)}/${formatNumber(2_000)}`)
   })
 
   it('建造面板展示升级预览（含全部加成的真实产出）', () => {
@@ -188,8 +189,8 @@ describe('ui: 布局与冒烟', () => {
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
     expect(preview).toBeTruthy()
     // 采矿机 1/s，0 级 → 1.5/s：每台 1 → 1.5，2 台总提升 +1/s
-    expect(preview!.textContent).toContain('◆ 1 → 1.5/台')
-    expect(preview!.textContent).toContain('总 +1/s')
+    expect(preview!.textContent).toContain('◆ +1.00/秒 → +1.50/秒/台')
+    expect(preview!.textContent).toContain('总 +1.00/秒')
   })
 
   it('升级后预览数值随等级变化（1 级 → 2 级 1.5→2/台）', () => {
@@ -200,8 +201,8 @@ describe('ui: 布局与冒烟', () => {
     s.upgrades.miner = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
-    expect(preview!.textContent).toContain('◆ 1.5 → 2/台')
-    expect(preview!.textContent).toContain('总 +0.5/s')
+    expect(preview!.textContent).toContain('◆ +1.50/秒 → +2.00/秒/台')
+    expect(preview!.textContent).toContain('总 +0.50/秒')
   })
 
   it('升级预览含科技加成后的真实产出（行星钻探 矿物×1.5）', () => {
@@ -213,8 +214,8 @@ describe('ui: 布局与冒烟', () => {
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
     // 每台 1×1.5=1.5/s → 升级后 1.5×1.5=2.25/s；1 台总提升 +0.75/s
-    expect(preview!.textContent).toContain('◆ 1.5 → 2.25/台')
-    expect(preview!.textContent).toContain('总 +0.75/s')
+    expect(preview!.textContent).toContain('◆ +1.50/秒 → +2.25/秒/台')
+    expect(preview!.textContent).toContain('总 +0.75/秒')
   })
 
   it('未建造建筑不显示升级预览，但展示购买预览', () => {
@@ -225,7 +226,7 @@ describe('ui: 布局与冒烟', () => {
     expect(container.querySelector('[data-building="miner"] .build-upgrade-preview')).toBeNull()
     const buy = container.querySelector<HTMLElement>('[data-building="miner"] .build-buy-preview')
     expect(buy).toBeTruthy()
-    expect(buy!.textContent).toContain('购买 1 台：◆ +1/s')
+    expect(buy!.textContent).toContain(`购买 ${formatNumber(1)} 台：◆ +1.00/秒`)
   })
 
   it('购买预览包含能源消耗提示（精炼厂）', () => {
@@ -237,8 +238,8 @@ describe('ui: 布局与冒烟', () => {
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const buy = container.querySelector<HTMLElement>('[data-building="refinery"] .build-buy-preview')
     // 能源充足（太阳能 1/s ≥ 需求 0.5/s）：每台 +3 矿物，提示额外耗能
-    expect(buy!.textContent).toContain('◆ +3/s')
-    expect(buy!.textContent).toContain('耗 ⚡0.5/s')
+    expect(buy!.textContent).toContain('◆ +3.00/秒')
+    expect(buy!.textContent).toContain('耗 ⚡0.50/秒')
   })
 
   it('锁定建筑不显示购买预览（深层钻机未解锁科技）', () => {
@@ -263,7 +264,7 @@ describe('ui: 科技面板', () => {
     const btn = item!.querySelector<HTMLButtonElement>('[data-research="planetDrill"]')
     expect(btn).toBeTruthy()
     expect(btn!.disabled).toBe(true) // 初始资源不足
-    expect(item!.textContent).toContain('矿物产出 ×1.5')
+    expect(item!.textContent).toContain(`矿物产出 ${formatMultiplier(1.5)}`)
   })
 
   it('已研发科技显示 Lv.1 与升级按钮、下一级效果', () => {
@@ -275,7 +276,7 @@ describe('ui: 科技面板', () => {
     renderTechPanel(el, s)
     const item = el.querySelector<HTMLElement>('[data-tech="planetDrill"]')
     expect(item!.textContent).toContain('Lv.1')
-    expect(item!.textContent).toContain('×1.5 → ×2')
+    expect(item!.textContent).toContain(`${formatMultiplier(1.5)} → ${formatMultiplier(2)}`)
     const btn = item!.querySelector<HTMLButtonElement>('[data-upgrade-tech="planetDrill"]')
     expect(btn).toBeTruthy()
     expect(btn!.disabled).toBe(false)
@@ -318,7 +319,7 @@ describe('ui: 科技面板', () => {
     const s = createInitialState(0)
     s.resources.mineral = 500
     renderTechPanel(el, s)
-    expect(el.textContent).toContain('100 矿物 → 1 科技点')
+    expect(el.textContent).toContain(`${formatNumber(100)} 矿物 → ${formatNumber(1)} 科技点`)
     expect(el.querySelector('[data-exchange-input]')).toBeTruthy()
     expect(el.querySelector<HTMLButtonElement>('[data-convert-tech]')!.disabled).toBe(false)
     expect(el.querySelector<HTMLButtonElement>('[data-convert-max]')!.disabled).toBe(false)
@@ -345,7 +346,7 @@ describe('ui: 外交面板', () => {
     const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="ferro:techshare"]')
     expect(btn).toBeTruthy()
     expect(btn!.textContent).toContain('技术共享')
-    expect(btn!.textContent).toContain('◎2万')
+    expect(btn!.textContent).toContain(`◎${formatNumber(20_000)}`)
     expect(btn!.disabled).toBe(true)
   })
 
@@ -370,7 +371,7 @@ describe('ui: 外交面板', () => {
     s.resources.tech = 100_000
     renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
     const btn = container.querySelector<HTMLButtonElement>('[data-diplomacy="vox:intimidate"]')
-    expect(btn!.textContent).toContain('◎1万')
+    expect(btn!.textContent).toContain(`◎${formatNumber(10_000)}`)
   })
 
   it('探索势力发现后进入外交面板：8 家全发现渲染 8 条目，未发现不渲染', () => {
@@ -407,10 +408,10 @@ describe('ui: 外交面板', () => {
       const item = panel.querySelector<HTMLElement>(`[data-faction="${fid}"]`)
       return [...(item?.querySelectorAll('[data-faction-perk]') ?? [])].map((x) => x.textContent ?? '')
     }
-    expect(perks('ringOrder')).toContain('贸易折扣 -8%')
-    expect(perks('obsidianPact')).toContain('威慑折扣 -25%')
+    expect(perks('ringOrder')).toContain(`贸易折扣 -${formatPercent(8)}`)
+    expect(perks('obsidianPact')).toContain(`威慑折扣 -${formatPercent(25)}`)
     expect(perks('nodeIntellect')).toContain('共享半价')
-    expect(perks('ashCommune')).toContain('贸易折扣 -5%')
+    expect(perks('ashCommune')).toContain(`贸易折扣 -${formatPercent(5)}`)
     // 初始 4 家无特性徽标
     expect(perks('ferro')).toEqual([])
   })
@@ -482,7 +483,7 @@ describe('ui: 事件科技分支', () => {
       expect(els.navPages.archive.querySelector('[data-automation-category="security"]')).toBeTruthy()
       expect(els.navPages.archive.querySelector('[data-pause-notice]')?.textContent).toContain('规则冲突')
       expect(els.navPages.archive.querySelector('[data-event-history] [data-history-source="automation"]')).toBeTruthy()
-      expect(els.navPages.archive.querySelector('[data-migration-summary-count]')?.textContent).toContain('已迁移 1 个事件')
+      expect(els.navPages.archive.querySelector('[data-migration-summary-count]')?.textContent).toContain(`已迁移 ${formatNumber(1)} 个事件`)
       expect(els.navPages.archive.querySelector('[data-migration-summary] [data-migration-event]')).toBeTruthy()
     })
   })
@@ -510,7 +511,7 @@ describe('ui: 星球机制状态条', () => {
     s.activePlanet = 'orbital'
     renderPlanetMechanic(els.mechanicBar, s)
     expect(els.mechanicBar.textContent).toContain('轨道工厂')
-    expect(els.mechanicBar.textContent).toContain('15%')
+    expect(els.mechanicBar.textContent).toContain('15.00%')
     expect(els.mechanicBar.textContent).not.toContain('30%')
   })
 
@@ -522,7 +523,7 @@ describe('ui: 星球机制状态条', () => {
     s.planetStaySeconds = 600
     renderPlanetMechanic(els.mechanicBar, s)
     expect(els.mechanicBar.textContent).toContain('引力井')
-    expect(els.mechanicBar.textContent).toContain('80%')
+    expect(els.mechanicBar.textContent).toContain('80.00%')
   })
 })
 
@@ -636,8 +637,8 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     })
     const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
     expect(overlay.textContent).toContain('能源平衡')
-    expect(overlay.textContent).toContain('最多可驱动 2 台')
-    expect(overlay.textContent).toContain('本次将买 4 台')
+    expect(overlay.textContent).toContain(`最多可驱动 ${formatNumber(2)} 台`)
+    expect(overlay.textContent).toContain(`本次将买 ${formatNumber(4)} 台`)
   })
 
   it('无警示时弹窗不渲染警示行', () => {
@@ -670,8 +671,8 @@ describe('ui: 军事面板', () => {
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
     expect(panel.querySelector('[data-build="barracks"]')).toBeTruthy()
     expect(panel.querySelector('[data-build="militaryPort"]')).toBeTruthy()
-    expect(panel.textContent).toContain('肃清进度：0/4')
-    expect(panel.textContent).toContain('守卫 2,000⚔')
+    expect(panel.textContent).toContain(`肃清进度：${formatNumber(0)}/${formatNumber(4)}`)
+    expect(panel.textContent).toContain(`守卫 ${formatNumber(2_000)}⚔`)
   })
 
   it('军事升级入口展示兵营产出与军港容量效果，跃迁枢纽无升级入口', () => {
@@ -686,9 +687,9 @@ describe('ui: 军事面板', () => {
     s.resources.tech = 1_000_000
     renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
-    expect(panel.querySelector('[data-upgrade="barracks"]')?.getAttribute('title')).toContain('产出 +50%')
-    expect(panel.querySelector('[data-upgrade="militaryPort"]')?.getAttribute('title')).toContain('容量 +50%')
-    expect(panel.querySelector('[data-building="militaryPort"]')?.textContent).toContain('军力容量 300 → 400')
+    expect(panel.querySelector('[data-upgrade="barracks"]')?.getAttribute('title')).toContain(`产出 +${formatPercent(50)}`)
+    expect(panel.querySelector('[data-upgrade="militaryPort"]')?.getAttribute('title')).toContain(`容量 +${formatPercent(50)}`)
+    expect(panel.querySelector('[data-building="militaryPort"]')?.textContent).toContain(`军力容量 ${formatNumber(300)} → ${formatNumber(400)}`)
 
     const interstellar = document.createElement('div')
     renderBuildPanel(interstellar, { ...s, phase: 'ended', buildings: { ...s.buildings, starportMine: 1, stellarArray: 1, thinkTank: 1, jumpgate: 1 }, megastructureChoice: 'jumpgate' }, INTERSTELLAR_BUILDINGS)
@@ -717,7 +718,7 @@ describe('ui: 军事面板', () => {
     renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
     expect(panel.textContent).toContain('已占领')
-    expect(panel.textContent).toContain('肃清进度：1/4')
+    expect(panel.textContent).toContain(`肃清进度：${formatNumber(1)}/${formatNumber(4)}`)
     expect(panel.querySelector('[data-conquest="outpost"]')).toBeNull()
     // 未攻占区域（船坞，gas 已解锁）仍有攻占输入框与按钮
     expect(panel.querySelector('[data-conquest-input="shipyard"]')).toBeTruthy()
@@ -763,7 +764,7 @@ describe('ui: 军事面板', () => {
     const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
     // 声望条
     expect(panel.textContent).toContain('声望')
-    expect(panel.textContent).toContain('4 / 100')
+    expect(panel.textContent).toContain(`${formatNumber(4)} / ${formatNumber(100)}`)
     // 三组标题
     expect(panel.textContent).toContain('叙事里程碑')
     expect(panel.textContent).toContain('收集目标')
@@ -796,10 +797,10 @@ describe('ui: 军事面板', () => {
     }
     renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
     const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
-    expect(panel.textContent).toContain('贸易折扣 15%')
+    expect(panel.textContent).toContain(`贸易折扣 ${formatPercent(15)}`)
     expect(panel.textContent).toContain('骚扰阈值 65')
-    expect(panel.textContent).toContain('军力上限 +20%')
-    expect(panel.textContent).toContain('攻占成功率 +15%')
+    expect(panel.textContent).toContain(`军力上限 +${formatPercent(20)}`)
+    expect(panel.textContent).toContain(`攻占成功率 +${formatPercent(15)}`)
   })
 
   it('探索页：infinite 终局卡渲染「开启新周目」（data-ngplus 契约）', () => {
@@ -814,7 +815,7 @@ describe('ui: 军事面板', () => {
     const btn = page.querySelector<HTMLButtonElement>('[data-ngplus]')
     expect(btn).toBeTruthy()
     expect(btn!.textContent).toContain('开启新周目')
-    expect(page.textContent).toContain('第 1 周目')
+    expect(page.textContent).toContain(`第 ${formatNumber(1)} 周目`)
   })
 
   it('探索页：playing 下无 NG+ 终局卡（无 data-ngplus）', () => {
@@ -843,8 +844,8 @@ describe('ui: 军事面板', () => {
     expect(el.textContent).toContain('将继承')
     expect(el.textContent).toContain('采矿机 ×3')
     expect(el.textContent).toContain('4,000') // 继承科技点 2000×2
-    expect(el.textContent).toContain('1.30') // 永久产出加成 ×1.30
-    expect(el.textContent).toContain('全产出 +25%') // 永久加成（母巢）
+    expect(el.textContent).toContain(formatMultiplier(1.3))
+    expect(el.textContent).toContain(`全产出 +${formatPercent(25)}`) // 永久加成（母巢）
     expect(el.querySelector('[data-ngplus-confirm]')).toBeTruthy()
     expect(el.querySelector('[data-ngplus-cancel]')).toBeTruthy()
   })
@@ -947,9 +948,9 @@ describe('ui: 探索页', () => {
     s.exploredPlanets = ['logistics']
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    expect(page.textContent).toContain('已发现：2 / 9')
-    expect(page.textContent).toContain('势力 1/4')
-    expect(page.textContent).toContain('天体 1/5')
+    expect(page.textContent).toContain(`已发现：${formatNumber(2)} / ${formatNumber(9)}`)
+    expect(page.textContent).toContain(`势力 ${formatNumber(1)}/${formatNumber(4)}`)
+    expect(page.textContent).toContain(`天体 ${formatNumber(1)}/${formatNumber(5)}`)
   })
 
   it('产出型天体发现后：渲染贡献行（data-planet-output 显示基础+比例+增益实时值）', () => {
@@ -964,7 +965,7 @@ describe('ui: 探索页', () => {
     expect(row).toBeTruthy()
     expect(row!.textContent).toContain('碎星矿带')
     // 基础 2×1（无科技）×1.1 + 比例 100×2%×1.1 = 2.2 + 2.2 = 4.4 → UI 取整显示 +4/s
-    expect(row!.textContent).toContain('◆ +4/s')
+    expect(row!.textContent).toContain('◆ +4.40/秒')
   })
 
   it('星栏：探索天体仅在发现后显示', () => {
@@ -1099,7 +1100,7 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
       const panel = container.querySelector('[data-panel="build"]') as HTMLElement
       renderInterstellarPanel(panel, s)
       const card = panel.querySelector(`[data-building="${id}"]`) as HTMLElement
-      expect(card.textContent).toContain('已满级（Lv.10）')
+      expect(card.textContent).toContain('已满级（Lv.10.00）')
       expect(card.querySelector(`[data-upgrade="${id}"]`)).toBeNull()
       expect(card.querySelector(`[data-upgrade-max="${id}"]`)).toBeNull()
       expect(card.getAttribute('data-unique')).toBe('')

@@ -2,6 +2,7 @@ import { CONQUESTS } from './data'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import { rollDomain } from './rng'
+import { formatNumber, formatPercent } from './format'
 import type { ConquestState, GameState } from './types'
 
 /**
@@ -69,15 +70,15 @@ export function settleConquests(state: GameState, nowMs: number, rng?: () => num
       const rewards: string[] = []
       if (def.rewardMineral) {
         state.resources.mineral += def.rewardMineral
-        rewards.push(`${def.rewardMineral} 矿物`)
+        rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
       }
       if (def.rewardTech) {
         state.resources.tech += def.rewardTech
-        rewards.push(`${def.rewardTech} 科技点`)
+        rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
       }
       if (def.bonus) {
         state.permanentBonuses[def.bonus.kind] = (state.permanentBonuses[def.bonus.kind] ?? 0) + def.bonus.value
-        rewards.push(`全产出 +${def.bonus.value * 100}%`)
+        rewards.push(`全产出 +${formatPercent(def.bonus.value * 100)}`)
       }
       if (def.unlockTech) {
         state.techLevels[def.unlockTech] = 1
@@ -92,7 +93,7 @@ export function settleConquests(state: GameState, nowMs: number, rng?: () => num
     } else {
       // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
       state.conquest[def.id] = { status: 'available' }
-      logs.push(`【军事战报】对「${def.name}」的攻势失利，投入的 ${invest} 军力全军覆没。可重整旗鼓再试。`)
+      logs.push(`【军事战报】对「${def.name}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`)
     }
   }
   return logs

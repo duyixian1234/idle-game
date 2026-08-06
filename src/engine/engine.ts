@@ -28,7 +28,7 @@ import { checkAchievements, endlessIIUnlocked } from './achievements'
 import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
-import { formatPlayTime } from './format'
+import { formatMultiplier, formatNumber, formatPlayTime } from './format'
 import { applyMaintenance, netProduction, productionReport, militaryCap } from './production'
 import { nextShipCost, shipCap } from './fleet'
 import { applyFleetMaintenance } from './fleet'
@@ -265,7 +265,7 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
   if (id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
   // unique 建筑按 maxLevel 封顶（如船坞 Lv1-3）
   if (def.maxLevel != null && (state.upgrades[id] ?? 0) >= def.maxLevel) {
-    return { ok: false, reason: `已达最高等级（Lv.${def.maxLevel}）` }
+    return { ok: false, reason: `已达最高等级（Lv.${formatNumber(def.maxLevel)}）` }
   }
   const cost = upgradeCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
@@ -281,7 +281,7 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
 export function buyShip(state: GameState): ActionResult {
   const cap = shipCap(state)
   if (cap <= 0) return { ok: false, reason: '需先建造并升级船坞（Lv1 解锁 3 艘）' }
-  if (state.fleet.count >= cap) return { ok: false, reason: `已达船坞舰数上限（${cap} 艘）` }
+  if (state.fleet.count >= cap) return { ok: false, reason: `已达船坞舰数上限（${formatNumber(cap)} 艘）` }
   const next = nextShipCost(state)
   if (!next) return { ok: false, reason: '已达船坞舰数上限' }
   const cost = zeroResources()
@@ -553,7 +553,7 @@ export function checkEnding(state: GameState): boolean {
   pushLog(
     state,
     'system',
-    `【通关统计】统一历时 ${formatPlayTime(state.playSeconds)}；累计采集矿物 ${Math.floor(state.stats.totalMineralEarned).toLocaleString('zh-CN')}；NG+ 周目：${state.ngPlusLevel}。`,
+    `【通关统计】统一历时 ${formatPlayTime(state.playSeconds)}；累计采集矿物 ${formatNumber(state.stats.totalMineralEarned)}；NG+ 周目：${formatNumber(state.ngPlusLevel)}。`,
   )
   return true
 }
@@ -661,6 +661,6 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   pushLog(
     state,
     'story',
-    `【NG+ 第 ${state.ngPlusLevel} 周目】旧世界的记忆随你而来：${state.factionCodex.length} 个派系的信任、${carryTech} 科技点、以及 ×${state.permanentMult.toFixed(2)} 的永久产出加成。殖民舱再次降落，但这一次，你带着答案回来。`,
+    `【NG+ 第 ${formatNumber(state.ngPlusLevel)} 周目】旧世界的记忆随你而来：${formatNumber(state.factionCodex.length)} 个派系的信任、${formatNumber(carryTech)} 科技点、以及 ${formatMultiplier(state.permanentMult)} 的永久产出加成。殖民舱再次降落，但这一次，你带着答案回来。`,
   )
 }

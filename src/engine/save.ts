@@ -3,6 +3,7 @@ import type { GameState } from './types'
 import { ACHIEVEMENTS, achievementUnlocked } from './achievements'
 import { randSeed } from './rng'
 import type { MigrationSummary } from './types'
+import { formatNumber } from './format'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -321,8 +322,8 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
       unknownEvents,
       compensation: {},
       notes: [
-        migratedEvents > 0 ? `已迁移 ${migratedEvents} 个待处理事件` : '没有需要转换的待处理事件',
-        ...(unknownEvents > 0 ? [`${unknownEvents} 个未知事件已安全暂停`] : []),
+        migratedEvents > 0 ? `已迁移 ${formatNumber(migratedEvents)} 个待处理事件` : '没有需要转换的待处理事件',
+        ...(unknownEvents > 0 ? [`${formatNumber(unknownEvents)} 个未知事件已安全暂停`] : []),
       ],
     }
     next.migrationSummary = summary

@@ -453,7 +453,7 @@ describe('engine: 存档序列化往返', () => {
       migratedEvents: 1,
       unknownEvents: 1,
       compensation: {},
-      notes: ['已迁移 1 个待处理事件', '1 个未知事件已安全暂停'],
+      notes: ['已迁移 1.00 个待处理事件', '1.00 个未知事件已安全暂停'],
     })
     expect(migrated.log[0]).toMatchObject({ type: 'system', time: 1234 })
     expect(deserializeSave(serializeSave(migrated)).migrationSummary).toEqual(migrated.migrationSummary)

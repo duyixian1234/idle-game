@@ -1,39 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { formatBigNumber, formatNumber } from './format'
+import { formatBigNumber, formatMultiplier, formatNumber, formatPercent, formatPlainNumber, formatRate } from './format'
 
-describe('engine: 大数字中文缩写', () => {
-  it('1 万以下按整数千分位显示', () => {
-    expect(formatNumber(0)).toBe('0')
-    expect(formatNumber(999)).toBe('999')
-    expect(formatNumber(9999)).toBe('9,999')
+describe('engine: 用户可见数值格式化', () => {
+  it('固定两位小数并使用千位分隔符', () => {
+    expect(formatNumber(0)).toBe('0.00')
+    expect(formatNumber(999)).toBe('999.00')
+    expect(formatNumber(9999)).toBe('9,999.00')
+    expect(formatPlainNumber(12.345)).toBe('12.35')
+    expect(formatPlainNumber(1.005)).toBe('1.01')
+    expect(formatPlainNumber(-1.005)).toBe('-1.01')
   })
 
-  it('1 万级显示 x.x万', () => {
-    expect(formatNumber(12_000)).toBe('1.2万')
-    expect(formatNumber(123_456)).toBe('12.3万')
-  })
-
-  it('亿/兆逐级进位', () => {
+  it('从 10000 起使用中文四位单位并固定两位小数', () => {
+    expect(formatNumber(10_000)).toBe('1.00万')
+    expect(formatNumber(123_456)).toBe('12.35万')
     expect(formatNumber(123_456_789)).toBe('1.23亿')
-    expect(formatNumber(1_234_567_890_123)).toBe('1.23兆')
   })
 
-  it('更高单位（京/垓）', () => {
-    expect(formatNumber(1e16)).toBe('1京')
-    expect(formatNumber(1.5e20)).toBe('1.5垓')
+  it('舍入进位会提升中文单位', () => {
+    expect(formatNumber(999_999.995)).toBe('100.00万')
+    expect(formatNumber(99_999_999.995)).toBe('1.00亿')
   })
 
-  it('负数加负号', () => {
-    expect(formatBigNumber(-12_000)).toBe('-1.2万')
+  it('负数、极小值和特殊值遵循约定', () => {
+    expect(formatBigNumber(-12_000)).toBe('-1.20万')
+    expect(formatNumber(-0.001)).toBe('0.00')
+    expect(formatPlainNumber(Infinity)).toBe('∞')
+    expect(formatPlainNumber(-Infinity)).toBe('-∞')
+    expect(formatPlainNumber(Number.NaN)).toBe('—')
   })
 
-  it('尾数去除多余小数零', () => {
-    expect(formatNumber(10_000)).toBe('1万')
-    expect(formatNumber(100_000)).toBe('10万')
-    expect(formatNumber(1_000_000)).toBe('100万')
-  })
-
-  it('非有限数显示 ∞', () => {
-    expect(formatBigNumber(Infinity)).toBe('∞')
+  it('业务单位使用本地化后缀', () => {
+    expect(formatRate(1.2)).toBe('+1.20/秒')
+    expect(formatRate(-1.2)).toBe('-1.20/秒')
+    expect(formatPercent(12.5)).toBe('12.50%')
+    expect(formatMultiplier(1.5)).toBe('1.50倍')
   })
 })

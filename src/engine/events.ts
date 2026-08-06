@@ -27,6 +27,7 @@ import { raidThreshold } from './reputation'
 import { rollDomain, streamFor } from './rng'
 import { EVENT_STORIES } from './story'
 import { pushLog } from './core'
+import { formatNumber, formatPercent } from './format'
 import type {
   EventAutomationAudit,
   EventAutomationPolicy,
@@ -447,7 +448,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { cost, reward: Math.floor(cost * 1.4), curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
-        { id: 'confront', label: '正面迎战', hint: `-${cost}军力` },
+        { id: 'confront', label: '正面迎战', hint: `-${formatNumber(cost)} 军力` },
         { id: 'retreat', label: '暂时撤退' },
       ],
     }
@@ -464,7 +465,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { cost, gain, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: terms.breakdown },
       options: [
-        { id: 'accept', label: '成交', hint: `-${cost}矿物 +${gain}科技` },
+        { id: 'accept', label: '成交', hint: `-${formatNumber(cost)} 矿物 +${formatNumber(gain)} 科技点` },
         { id: 'refuse', label: '拒绝' },
       ],
     }
@@ -487,8 +488,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { gain, shieldCost, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
-        { id: 'collect', label: '常规采集', hint: `+${gain}矿物` },
-        { id: 'shield', label: '科技防护罩', hint: `-${shieldCost}科技 +${gain * 2}矿物` },
+        { id: 'collect', label: '常规采集', hint: `+${formatNumber(gain)} 矿物` },
+        { id: 'shield', label: '科技防护罩', hint: `-${formatNumber(shieldCost)} 科技点 +${formatNumber(gain * 2)} 矿物` },
       ],
     }
   }
@@ -510,8 +511,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     payload: { cost, jamCost, curveVersion: EVENT_CONTRACT_VERSION },
     settlement: { deltas: {}, breakdown: curve.breakdown },
     options: [
-      { id: 'dispatch', label: '派遣清剿队', hint: `-${cost}矿物` },
-      { id: 'jam', label: '神经干扰', hint: `-${jamCost}科技` },
+      { id: 'dispatch', label: '派遣清剿队', hint: `-${formatNumber(cost)} 矿物` },
+      { id: 'jam', label: '神经干扰', hint: `-${formatNumber(jamCost)} 科技点` },
       { id: 'ignore', label: '暂不处理' },
     ],
   }
@@ -542,9 +543,9 @@ function createRaidInstance(state: GameState, base: EventInstance, rng: () => nu
     desc: story || `${raider?.name ?? '未知势力'}的舰队列阵于你的领空边缘，索要「通行税」。`,
     payload: { factionId, ...terms, repelCost },
     options: [
-      { id: 'repel', label: '军力击退', hint: `-${repelCost}军力（威胁 −${RAID_THREAT_LOSS}）` },
-      { id: 'buyoff', label: '付税买平安', hint: `-${terms.buyoff}矿物 好感 +${RAID_BUYOFF_FAVOR_GAIN}` },
-      { id: 'ignore', label: '无视', hint: `矿/能各 -${Math.round(RAID_IGNORE_LOSS_PCT * 100)}%` },
+      { id: 'repel', label: '军力击退', hint: `-${formatNumber(repelCost)} 军力（威胁 −${formatNumber(RAID_THREAT_LOSS)}）` },
+      { id: 'buyoff', label: '付税买平安', hint: `-${formatNumber(terms.buyoff)} 矿物 好感 +${formatNumber(RAID_BUYOFF_FAVOR_GAIN)}` },
+      { id: 'ignore', label: '无视', hint: `矿/能各 -${formatPercent(RAID_IGNORE_LOSS_PCT * 100)}` },
     ],
   }
 }
@@ -557,7 +558,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   if (instance.isBoss || defId === 'endless-overseer') {
     const cost = Number(instance.payload?.cost ?? 0)
     if (optionId === 'confront') {
-      if (state.resources.military < cost) return { logType: 'warning', logText: `军力不足以迎战监督者（需 ${cost}）。`, changed: false }
+      if (state.resources.military < cost) return { logType: 'warning', logText: `军力不足以迎战监督者（需 ${formatNumber(cost)} 军力）。`, changed: false }
       state.resources.military -= cost
       const reward = Number(instance.payload?.reward ?? Math.floor(cost * 1.4))
       state.resources.mineral += reward
@@ -572,7 +573,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
         result: 'victory',
       }
       const settlement = eventSettlement({ military: -cost, mineral: reward }, cost)
-      return { logType: 'reward', logText: `监督者被击败，阶段链推进（-${cost}军力，+${reward}矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'reward', logText: `监督者被击败，阶段链推进（-${formatNumber(cost)} 军力，+${formatNumber(reward)} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     return { logType: 'warning', logText: '你撤离了监督者封锁区，阶段目标暂未完成。', changed: false }
   }
@@ -589,7 +590,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
 
       state.resources.mineral -= cost
       state.resources.tech += gain
-      return { logType: 'reward', logText: `贸易达成：-${cost} 矿物，+${gain} 科技点。`, changed: true, deltas: { mineral: -cost, tech: gain }, breakdown: instance.settlement?.breakdown ?? terms.breakdown }
+      return { logType: 'reward', logText: `贸易达成：-${formatNumber(cost)} 矿物，+${formatNumber(gain)} 科技点。`, changed: true, deltas: { mineral: -cost, tech: gain }, breakdown: instance.settlement?.breakdown ?? terms.breakdown }
     }
     return { logType: 'system', logText: '你婉拒了贸易商的报价，货船驶离轨道港。', changed: false }
   }
@@ -604,12 +605,12 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
       state.resources.tech -= shieldCost
       state.resources.mineral += gain * 2
       const settlement = eventSettlement({ tech: -shieldCost, mineral: gain * 2 }, gain * 2, 2)
-      return { logType: 'reward', logText: `防护罩展开，陨石完整回收：-${shieldCost} 科技，+${gain * 2} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'reward', logText: `防护罩展开，陨石完整回收：-${formatNumber(shieldCost)} 科技点，+${formatNumber(gain * 2)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     // collect（默认）
     state.resources.mineral += gain
     const settlement = eventSettlement({ mineral: gain }, gain)
-    return { logType: 'reward', logText: `陨石雨结束，采集到 ${gain} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'reward', logText: `陨石雨结束，采集到 ${formatNumber(gain)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
 
   if (defId === 'bug' || defId === 'void-swarm') {
@@ -620,7 +621,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
       }
       state.resources.mineral -= cost
       const settlement = eventSettlement({ mineral: -cost }, cost)
-      return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${cost} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${formatNumber(cost)} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     if (optionId === 'jam') {
       const jamCost = Number(instance.payload?.jamCost ?? scaledBy(prod.tech, 150, 50))
@@ -629,13 +630,13 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
       }
       state.resources.tech -= jamCost
       const settlement = eventSettlement({ tech: -jamCost }, jamCost)
-      return { logType: 'system', logText: `神经干扰波覆盖矿层，虫群失去方向溃散（-${jamCost} 科技）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'system', logText: `神经干扰波覆盖矿层，虫群失去方向溃散（-${formatNumber(jamCost)} 科技点）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     // ignore：扣减当前矿物 10%
     const loss = Math.floor(state.resources.mineral * 0.1)
     state.resources.mineral -= loss
     const settlement = eventSettlement({ mineral: -loss }, loss)
-    return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${loss} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${formatNumber(loss)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
 
   if (defId === 'raid') return applyRaid(state, instance, optionId)
@@ -743,12 +744,12 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   if (optionId === 'repel') {
     const repelCost = Number(instance.payload?.repelCost ?? Math.max(50, strength - fleetPower(state)))
     if (state.resources.military < repelCost) {
-      return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${repelCost}⚔，当前 ${Math.floor(state.resources.military)}⚔）。`, changed: false }
+      return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${formatNumber(repelCost)}⚔，当前 ${formatNumber(state.resources.military)}⚔）。`, changed: false }
     }
     state.resources.military -= repelCost
     if (f) f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
     const settlement = eventSettlement({ military: -repelCost, threat: -RAID_THREAT_LOSS }, repelCost)
-    return { logType: 'system', logText: `你的舰队倾巢而出，${factionName}的骚扰舰队被击退（-${repelCost}⚔，威胁 −${RAID_THREAT_LOSS}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'system', logText: `你的舰队倾巢而出，${factionName}的骚扰舰队被击退（-${formatNumber(repelCost)}⚔，威胁 −${formatNumber(RAID_THREAT_LOSS)}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
   if (optionId === 'buyoff') {
     if (state.resources.mineral < buyoff) {
@@ -757,7 +758,7 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
     state.resources.mineral -= buyoff
     if (f) f.favor = Math.min(100, f.favor + RAID_BUYOFF_FAVOR_GAIN)
     const settlement = eventSettlement({ mineral: -buyoff, favor: RAID_BUYOFF_FAVOR_GAIN }, buyoff)
-    return { logType: 'system', logText: `你向${factionName}缴纳了通行税，舰队退去（-${buyoff}矿物，好感 +${RAID_BUYOFF_FAVOR_GAIN}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'system', logText: `你向${factionName}缴纳了通行税，舰队退去（-${formatNumber(buyoff)}矿物，好感 +${formatNumber(RAID_BUYOFF_FAVOR_GAIN)}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
   // ignore：矿/能各 -5%
   const lossMineral = Math.floor(state.resources.mineral * RAID_IGNORE_LOSS_PCT)
@@ -767,7 +768,7 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const settlement = eventSettlement({ mineral: -lossMineral, energy: -lossEnergy }, lossMineral + lossEnergy)
   return {
     logType: 'warning',
-    logText: `${factionName}的舰队洗劫了外围仓库，损失 ${lossMineral} 矿物与 ${lossEnergy} 能源。`,
+    logText: `${factionName}的舰队洗劫了外围仓库，损失 ${formatNumber(lossMineral)} 矿物与 ${formatNumber(lossEnergy)} 能源。`,
     changed: true,
     deltas: settlement.deltas,
     breakdown: settlement.breakdown,
@@ -849,10 +850,10 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     totalFleetRepelled += fleetRepelled
     totalMineralLost += mineralLost
     totalEnergyLost += energyLost
-    const fleetText = fleetRepelled > 0 ? `，${fleetRepelled} 次被护卫舰队迎击` : ''
-    const militaryText = repelled - fleetRepelled > 0 ? `，${repelled - fleetRepelled} 次被军力击退` : ''
+    const fleetText = fleetRepelled > 0 ? `，${formatNumber(fleetRepelled)} 次被护卫舰队迎击` : ''
+    const militaryText = repelled - fleetRepelled > 0 ? `，${formatNumber(repelled - fleetRepelled)} 次被军力击退` : ''
     logs.push(
-      `${def.name}的舰队在离线期间${raidCount}次抵近边境：${repelled} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${mineralLost} 矿物被洗劫` : ''}。`,
+      `${def.name}的舰队在离线期间${formatNumber(raidCount)}次抵近边境：${formatNumber(repelled)} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${formatNumber(mineralLost)} 矿物被洗劫` : ''}。`,
     )
   }
   return {
@@ -887,7 +888,7 @@ function tryAutoIntercept(state: GameState): EventOutcome | null {
   const settlement = eventSettlement({ threat: -RAID_THREAT_LOSS }, terms.strength)
   return {
     logType: 'system',
-    logText: `你的护卫舰队迎击了${raider.name}的骚扰舰群（威胁 −${RAID_THREAT_LOSS}）。`,
+    logText: `你的护卫舰队迎击了${raider.name}的骚扰舰群（威胁 −${formatNumber(RAID_THREAT_LOSS)}）。`,
     changed: true,
     deltas: settlement.deltas,
     breakdown: settlement.breakdown,

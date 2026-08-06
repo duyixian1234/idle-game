@@ -5,6 +5,7 @@ import { settleOffline } from './offline'
 import { applyFleetMaintenance, fleetMaintenance, fleetPowered, fleetPower } from './fleet'
 import { RAID_THREAT_LOSS } from './balance'
 import type { GameState } from './types'
+import { formatNumber } from './format'
 
 /**
  * 舰队防御闭环测试状态：铁卫 70（强度 3500）为唯一骚扰源（其余威胁归零），
@@ -52,7 +53,7 @@ describe('engine: 舰队自动迎击（在线）', () => {
     expect(inst.defId).toBe('raid')
     // 残余 = 3500 − 1200 = 2300
     expect(inst.payload?.repelCost).toBe(3500 - fleetPower(s))
-    expect(inst.options[0].hint).toContain(`-${3500 - fleetPower(s)}军力`)
+    expect(inst.options[0].hint).toContain(`-${formatNumber(3500 - fleetPower(s))} 军力`)
   })
 
   it('残余强度公式：repelCost = max(50, strength − fleetPower)，永不低于 50（下限兜底）', () => {

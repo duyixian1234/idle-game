@@ -4,7 +4,7 @@ import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
 import type { BulkPreview } from './engine/bulk'
 import { previewNewGamePlus } from './engine/ngplus'
-import { formatNumber } from './engine/format'
+import { formatNumber, formatRate } from './engine/format'
 import { netProduction } from './engine/production'
 import { pushLog } from './engine/core'
 import { formatDuration, offlineCapSeconds, settleOffline } from './engine/offline'
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
       .filter(([, v]) => v !== 0)
-      .map(([k, v]) => `${k}:${v >= 0 ? '+' : ''}${v.toFixed(1)}/s`)
+      .map(([k, v]) => `${RESOURCE_META[k as keyof typeof RESOURCE_META]?.name ?? k}:${formatRate(v)}`)
       .join(' ')
     renderSettingsPage(els.navPages.settings, {
       isMuted: sound.isMuted(),

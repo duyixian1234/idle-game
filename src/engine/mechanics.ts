@@ -1,6 +1,7 @@
 import { RESOURCE_KEYS } from './data'
 import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS, LOGISTICS_TECH_ENERGY_RATIO, OUTPOST_MINERAL_MULT, OUTPOST_ENERGY_MULT } from './balance'
 import type { GameState, MechanicId, ResourceKey } from './types'
+import { formatMultiplier, formatNumber, formatPercent } from './format'
 
 /**
  * 星球机制深层模块：规则（apply/harvest）与展示（describe）同居一处。
@@ -46,7 +47,7 @@ const none: PlanetMechanic = {
 /** 轨道工厂站（奥伯斯）：将矿物产能转化为科技点（稀有合金冶炼） */
 const orbitalForge: PlanetMechanic = {
   name: '轨道工厂',
-  desc: '将 15% 矿物产能转化为科技点（稀有合金冶炼）。',
+  desc: `将 ${formatPercent(ORBITAL_FORGE_CONVERT_RATIO * 100)} 矿物产能转化为科技点（稀有合金冶炼）。`,
   apply(state, nominal) {
     if (!state.planets.orbital?.unlocked) return
     const converted = nominal.mineral * ORBITAL_FORGE_CONVERT_RATIO
@@ -54,7 +55,7 @@ const orbitalForge: PlanetMechanic = {
     nominal.tech += converted
   },
   describe() {
-    return `矿物 ${ORBITAL_FORGE_CONVERT_RATIO * 100}% → 科技点`
+    return `矿物 ${formatPercent(ORBITAL_FORGE_CONVERT_RATIO * 100)} → 科技点`
   },
 }
 
@@ -71,7 +72,7 @@ export function gravityWellMultiplier(planetStaySeconds: number): number {
 /** 冰封星·霜落：引力井衰减，驻留越久产出越低（封底 50%） */
 const gravityWell: PlanetMechanic = {
   name: '引力井衰减',
-  desc: '强引力扭曲时空，驻留越久产出越低（约 25 分钟后衰减至 50% 封底）；切换星球后重置。',
+  desc: `强引力扭曲时空，驻留越久产出越低（约 25 分钟后衰减至 ${formatPercent(GRAVITY_WELL_FLOOR * 100)} 封底）；切换星球后重置。`,
   apply(_state, nominal) {
     const mult = gravityWellMultiplier(_state.planetStaySeconds)
     for (const k of RESOURCE_KEYS) nominal[k] *= mult
@@ -79,7 +80,7 @@ const gravityWell: PlanetMechanic = {
   describe(state) {
     const stayMin = state.planetStaySeconds / 60
     const mult = gravityWellMultiplier(state.planetStaySeconds)
-    return `驻留 ${stayMin.toFixed(1)} 分钟 · 产出系数 ${(mult * 100).toFixed(0)}%`
+    return `驻留 ${stayMin.toFixed(1)} 分钟 · 产出系数 ${formatPercent(mult * 100)}`
   },
 }
 
@@ -91,7 +92,7 @@ const STORM_HARVEST_MIN_GAIN = 100
 /** 气态巨星·风暴之喉：能源 ×1.5；每 5 分钟风暴结晶（科技点） */
 const massProduction: PlanetMechanic = {
   name: '风暴批量生产',
-  desc: '风暴能量驱动巨型平台：能源产出 ×1.5；每 5 分钟自动凝聚风暴结晶（科技点）。',
+  desc: `风暴能量驱动巨型平台：能源产出 ${formatMultiplier(1.5)}；每 5 分钟自动凝聚风暴结晶（科技点）。`,
   apply(_state, nominal) {
     nominal.energy *= 1.5
   },
@@ -104,7 +105,7 @@ const massProduction: PlanetMechanic = {
     const gain = Math.max(STORM_HARVEST_MIN_GAIN, Math.floor(techProd * STORM_HARVEST_TECH_MULT))
     state.resources.tech += gain
     state.lastStormHarvestAt = nowMs
-    return `风暴之喉的能量漩涡凝聚出风暴结晶，提炼出 ${gain.toLocaleString('zh-CN')} 科技点。`
+    return `风暴之喉的能量漩涡凝聚出风暴结晶，提炼出 ${formatNumber(gain)} 科技点。`
   },
 }
 
@@ -114,12 +115,12 @@ const WARP_CORE_MULT = 3
 /** 母星·曙光：曲率时间加速，所有产出 ×3 */
 const warpCore: PlanetMechanic = {
   name: '曲率时间加速',
-  desc: '曲率核心扭曲时空流速：所有产出 ×3。终局的前夜。',
+  desc: `曲率核心扭曲时空流速：所有产出 ${formatMultiplier(WARP_CORE_MULT)}。终局的前夜。`,
   apply(_state, nominal) {
     for (const k of RESOURCE_KEYS) nominal[k] *= WARP_CORE_MULT
   },
   describe() {
-    return `时间流速 ×${WARP_CORE_MULT}`
+    return `时间流速 ${formatMultiplier(WARP_CORE_MULT)}`
   },
 }
 
@@ -131,7 +132,7 @@ const logisticsHub: PlanetMechanic = {
     /* 产出无直接修正（折算作用于能源结算，见 energyAdjust） */
   },
   describe() {
-    return `科技点 → 能源 1:${1 / LOGISTICS_TECH_ENERGY_RATIO}`
+    return `科技点 → 能源 1:${formatNumber(1 / LOGISTICS_TECH_ENERGY_RATIO)}`
   },
   energyAdjust(state) {
     return { poolBonus: Math.max(0, state.resources.tech) * LOGISTICS_TECH_ENERGY_RATIO, demandMult: 1 }
@@ -141,12 +142,12 @@ const logisticsHub: PlanetMechanic = {
 /** 殖民前哨·拓荒：矿物产出 ×1.25，能源需求 ×1.2（矿多但更吃能源的取舍） */
 const outpost: PlanetMechanic = {
   name: '殖民拓荒',
-  desc: '矿物产出 +25%，但重型冶炼消耗更多能源（能源需求 ×1.2）。',
+  desc: `矿物产出 +${formatPercent(25)}，但重型冶炼消耗更多能源（能源需求 ${formatMultiplier(OUTPOST_ENERGY_MULT)}）。`,
   apply(_state, nominal) {
     nominal.mineral *= OUTPOST_MINERAL_MULT
   },
   describe() {
-    return `矿物 ×${OUTPOST_MINERAL_MULT} · 能耗 ×${OUTPOST_ENERGY_MULT}`
+    return `矿物 ${formatMultiplier(OUTPOST_MINERAL_MULT)} · 能耗 ${formatMultiplier(OUTPOST_ENERGY_MULT)}`
   },
   energyAdjust() {
     return { poolBonus: 0, demandMult: OUTPOST_ENERGY_MULT }

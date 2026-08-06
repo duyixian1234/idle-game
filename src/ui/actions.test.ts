@@ -3,6 +3,7 @@ import { createInitialState, researchTech } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
 import type { ActionDeps } from './actions'
 import { ACTIONS, dispatch } from './actions'
+import { formatNumber } from '../engine/format'
 
 /** 构造记录调用顺序的假依赖 */
 function fakeDeps(): { deps: ActionDeps; calls: string[] } {
@@ -22,7 +23,7 @@ describe('actions: dispatch 副作用顺序', () => {
     const { deps, calls } = fakeDeps()
     dispatch(s, 'buy', 'miner', deps)
     expect(s.buildings.miner).toBe(1)
-    expect(s.log[0].text).toContain('建造了 采矿机（第 1 台）')
+    expect(s.log[0].text).toContain(`建造了 采矿机（第 ${formatNumber(1)} 台）`)
     expect(calls).toEqual(['sound:click', 'render', 'save'])
   })
 
@@ -92,7 +93,7 @@ describe('actions: 科技点兑换', () => {
     dispatch(s, 'convert', 250, deps)
     expect(s.resources.mineral).toBe(50) // 按 100 整数倍扣 200
     expect(s.resources.tech).toBe(2)
-    expect(s.log[0].text).toContain('兑换完成：-200 矿物，+2 科技点')
+    expect(s.log[0].text).toContain(`兑换完成：-${formatNumber(200)} 矿物，+${formatNumber(2)} 科技点`)
     expect(calls[0]).toBe('sound:click')
   })
 
@@ -198,7 +199,7 @@ describe('actions: 一键买满（批量）', () => {
     dispatch(s, 'buyMax', 'miner', deps)
     expect(s.buildings.miner).toBe(6)
     expect(s.resources.mineral).toBe(14)
-    expect(s.log[0].text).toContain('一键买满「采矿机」：购买：6 次')
+    expect(s.log[0].text).toContain(`一键买满「采矿机」：购买：${formatNumber(6)} 次`)
     expect(s.log[0].text).toContain('花费 ◆86')
     expect(s.log[0].text).toContain('剩余 ◆14')
     expect(calls).toEqual(['sound:click', 'render', 'save'])
@@ -283,7 +284,7 @@ describe('actions: 无限模式开启新周目', () => {
     expect(s.endingTriggered).toBe(false)
     expect(s.resources.mineral).toBe(0)
     // 【NG+ 第 N 周目】由 startNewGamePlus 内部 push（feedback 不重复）
-    expect(s.log[0].text).toContain('【NG+ 第 2 周目】')
+    expect(s.log[0].text).toContain(`【NG+ 第 ${formatNumber(2)} 周目】`)
     expect(calls).toEqual(['render', 'save']) // 无音效、无额外日志
   })
 })

@@ -10,6 +10,7 @@ import {
   settleExpeditions,
   startExpedition,
 } from './exploration'
+import { formatPercent } from './format'
 import { settleOffline } from './offline'
 import { previewNewGamePlus } from './ngplus'
 import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
@@ -326,7 +327,7 @@ describe('engine: 派遣结算（自动入账）', () => {
     s.exploredPlanets = ['rubbleBelt']
     s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'rubbleBelt' } }))
     const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
-    expect(logs[0].text).toContain('产出增益 +10%')
+    expect(logs[0].text).toContain(`产出增益 +${formatPercent(10)}`)
     expect(s.planets.rubbleBelt.outputBonus).toBe(0.1)
     // 封顶 0.5
     s.planets.rubbleBelt.outputBonus = 0.45

@@ -63,7 +63,7 @@ export interface ActionDeps {
 /** convert / convertMax 共享的成功反馈与失败日志 */
 function convertFeedback(_state: GameState, result: unknown): ActionFeedback {
   const v = (result as { ok: true; value: { mineralSpent: number; techGained: number } }).value
-  return { logs: [{ type: 'system', text: `兑换完成：-${v.mineralSpent} 矿物，+${v.techGained} 科技点。` }], sound: 'click' }
+  return { logs: [{ type: 'system', text: `兑换完成：-${formatNumber(v.mineralSpent)} 矿物，+${formatNumber(v.techGained)} 科技点。` }], sound: 'click' }
 }
 
 function convertOnFailure(_state: GameState, _payload: string | number, reason: string): { logs: ActionLog[] } {
@@ -76,14 +76,14 @@ function convertOnFailure(_state: GameState, _payload: string | number, reason: 
 function formatCostText(spent: Record<ResourceKey, number>): string {
   return RESOURCE_KEYS.filter((k) => spent[k] > 0)
     .map((k) => `${RESOURCE_META[k].symbol}${formatNumber(spent[k])}`)
-    .join(' ')
+    .join(' ') || formatNumber(0)
 }
 
 /** 批量成功反馈：次数 + 花费 + 剩余 */
 function bulkFeedbackText(result: unknown, prefix: string): ActionFeedback {
   const v = (result as { ok: true; value: BulkSpend }).value
   return {
-    logs: [{ type: 'system', text: `${prefix}：${v.count} 次，花费 ${formatCostText(v.spent)}，剩余 ${formatCostText(v.remaining)}。` }],
+    logs: [{ type: 'system', text: `${prefix}：${formatNumber(v.count)} 次，花费 ${formatCostText(v.spent)}，剩余 ${formatCostText(v.remaining)}。` }],
     sound: 'click',
   }
 }
@@ -111,19 +111,19 @@ function diplomacyFeedback(state: GameState, _result: unknown, payload: string |
   const [factionId, action] = String(payload).split(':')
   const def = FACTIONS[factionId]
   const f = state.factions[factionId]
-  const favor = Math.floor(f?.favor ?? 0)
+  const favor = f?.favor ?? 0
   const logs: ActionLog[] = []
   if (action === 'trade') {
-    logs.push({ type: 'system', text: `与${def?.name}达成贸易，好感 +6（当前 ${favor}）。` })
+    logs.push({ type: 'system', text: `与${def?.name}达成贸易，好感 +${formatNumber(6)}（当前 ${formatNumber(favor)}）。` })
   } else if (action === 'alliance') {
     logs.push({ type: 'reward', text: `与${def?.name}正式结盟！星系统一的版图再近一步。` })
     if (isFederationUnified(state)) {
       logs.push({ type: 'story', text: '【星系统一联邦】四个派系已全部达成统一条件。旧时代的裂痕正在愈合……' })
     }
   } else if (action === 'techshare') {
-    logs.push({ type: 'system', text: `向${def?.name}共享技术情报，好感 +15（当前 ${favor}）。` })
+    logs.push({ type: 'system', text: `向${def?.name}共享技术情报，好感 +${formatNumber(15)}（当前 ${formatNumber(favor)}）。` })
   } else {
-    logs.push({ type: 'system', text: `对${def?.name}展示威慑，其军力下降，好感 -8（当前 ${favor}）。` })
+    logs.push({ type: 'system', text: `对${def?.name}展示威慑，其军力下降，好感 -${formatNumber(8)}（当前 ${formatNumber(favor)}）。` })
   }
   return { logs, sound: action === 'alliance' ? 'success' : 'click' }
 }
@@ -153,7 +153,7 @@ export const ACTIONS: Record<string, GameAction> = {
     run: (state, id) => buyBuilding(state, String(id)),
     feedback: (state, _r, id) => {
       const name = BUILDINGS[String(id)]?.name ?? String(id)
-      return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${state.buildings[String(id)]} 台）。` }], sound: 'click' }
+      return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${formatNumber(state.buildings[String(id)] ?? 0)} 台）。` }], sound: 'click' }
     },
   },
   upgrade: {
@@ -161,7 +161,7 @@ export const ACTIONS: Record<string, GameAction> = {
     run: (state, id) => upgradeBuilding(state, String(id)),
     feedback: (state, _r, id) => {
       const name = BUILDINGS[String(id)]?.name ?? String(id)
-      return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${state.upgrades[String(id)]}，产出提升。` }], sound: 'upgrade' }
+      return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${formatNumber(state.upgrades[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
   research: {
@@ -177,7 +177,7 @@ export const ACTIONS: Record<string, GameAction> = {
     run: (state, id) => upgradeTech(state, String(id)),
     feedback: (state, _r, id) => {
       const name = TECHS[String(id)]?.name ?? String(id)
-      return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${state.techLevels[String(id)]}，产出提升。` }], sound: 'upgrade' }
+      return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${formatNumber(state.techLevels[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
   convert: {
@@ -302,7 +302,7 @@ export const ACTIONS: Record<string, GameAction> = {
     // 建造护卫舰（第 count+1 艘，成本逐艘 ×1.5）；硬约束与上限拦截在引擎 buyShip 内
     run: (state) => buyShip(state),
     feedback: (state) => ({
-      logs: [{ type: 'system', text: `护卫舰入列：舰队现有 ${state.fleet.count} 艘，总维护费 -${formatNumber(fleetMaintenance(state))} 能源/s。` }],
+      logs: [{ type: 'system', text: `护卫舰入列：舰队现有 ${formatNumber(state.fleet.count)} 艘，总维护费 ${formatNumber(-fleetMaintenance(state))} 能源/秒。` }],
       sound: 'upgrade',
     }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `造舰失败：${reason}。` }] }),

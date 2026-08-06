@@ -105,7 +105,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   tradeRich: {
     id: 'tradeRich',
     name: '贸易网络成型',
-    desc: '累计完成 10 次贸易，让生意人的数字变得漂亮。',
+    desc: `累计完成 ${formatNumber(10)} 次贸易，让生意人的数字变得漂亮。`,
     category: 'story',
     condition: (s) => Boolean(s.storyFlags.tradeRich),
     rewardMineral: 10_000,
@@ -159,7 +159,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   endlessII: {
     id: 'endlessII',
     name: '永恒殖民',
-    desc: '累计采集 100 亿矿物。把石头变成城市，把荒芜变成星海——日志仍在书写。',
+    desc: `累计采集 ${formatNumber(10_000_000_000)} 矿物。把石头变成城市，把荒芜变成星海——日志仍在书写。`,
     category: 'story',
     condition: (s) => endlessIIUnlocked(s),
     rewardMineral: 5_000_000,
@@ -168,7 +168,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   conquestAll: {
     id: 'conquestAll',
     name: '星海肃清',
-    desc: '肃清全部 4 片星域，让虫群的信号从星图上彻底消失。',
+    desc: `肃清全部 ${formatNumber(4)} 片星域，让虫群的信号从星图上彻底消失。`,
     category: 'finale',
     condition: (s) => Boolean(s.storyFlags.conquestAll),
     rewardMineral: 200_000,
@@ -181,7 +181,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   mineral1M: {
     id: 'mineral1M',
     name: '亿万矿藏',
-    desc: '本局累计采集 100 万矿物。',
+    desc: `本局累计采集 ${formatNumber(1_000_000)} 矿物。`,
     category: 'collect',
     condition: (s) => s.stats.totalMineralEarned >= 1_000_000,
     rewardMineral: 10_000,
@@ -190,7 +190,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   mineral100M: {
     id: 'mineral100M',
     name: '深空富矿',
-    desc: '本局累计采集 1 亿矿物。',
+    desc: `本局累计采集 ${formatNumber(100_000_000)} 矿物。`,
     category: 'collect',
     condition: (s) => s.stats.totalMineralEarned >= 100_000_000,
     rewardTech: 10_000,
@@ -199,7 +199,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   trades50: {
     id: 'trades50',
     name: '老练的商人',
-    desc: '本局累计完成 50 次外交贸易。',
+    desc: `本局累计完成 ${formatNumber(50)} 次外交贸易。`,
     category: 'collect',
     condition: (s) => sumTradeCount(s) >= 50,
     rewardMineral: 20_000,
@@ -208,7 +208,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   intimidates10: {
     id: 'intimidates10',
     name: '星辰的阴影',
-    desc: '本局累计威慑派系 10 次。',
+    desc: `本局累计威慑派系 ${formatNumber(10)} 次。`,
     category: 'collect',
     condition: (s) => sumIntimidateCount(s) >= 10,
     rewardTech: 5_000,
@@ -217,7 +217,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   allies3: {
     id: 'allies3',
     name: '三方会盟',
-    desc: '本局与 3 个派系正式结盟。',
+    desc: `本局与 ${formatNumber(3)} 个派系正式结盟。`,
     category: 'collect',
     condition: (s) => alliedCount(s) >= 3,
     rewardMineral: 50_000,
@@ -226,7 +226,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   favor300: {
     id: 'favor300',
     name: '众望所归',
-    desc: '本局四派系好感总和达到 300。',
+    desc: `本局四派系好感总和达到 ${formatNumber(300)}。`,
     category: 'collect',
     condition: (s) => sumFavor(s) >= 300,
     rewardMineral: 30_000,
@@ -235,7 +235,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   militaryCap5k: {
     id: 'militaryCap5k',
     name: '军港林立',
-    desc: '军力容量上限达到 5000。',
+    desc: `军力容量上限达到 ${formatNumber(5_000)}。`,
     category: 'collect',
     condition: (s) => militaryCap(s) >= 5_000,
     rewardTech: 5_000,
@@ -244,7 +244,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   play24h: {
     id: 'play24h',
     name: '征途二十四小时',
-    desc: '本局在线游玩累计 24 小时。',
+    desc: `本局在线游玩累计 ${formatNumber(24)} 小时。`,
     category: 'collect',
     condition: (s) => s.playSeconds >= 24 * HOUR,
     rewardMineral: 50_000,
@@ -253,7 +253,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   conquests2: {
     id: 'conquests2',
     name: '双线告捷',
-    desc: '本局成功攻占 2 个区域。',
+    desc: `本局成功攻占 ${formatNumber(2)} 个区域。`,
     category: 'collect',
     condition: (s) => conqueredCount(s) >= 2,
     rewardMineral: 50_000,
@@ -282,7 +282,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   explorerDual: {
     id: 'explorerDual',
     name: '双线作战',
-    desc: '研发「深空导航阵列」，解锁第 2 探索信道，两支舰队并行深入星海。',
+    desc: `研发「深空导航阵列」，解锁第 ${formatNumber(2)} 探索信道，两支舰队并行深入星海。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['deepSpaceNav'] ?? 0) >= 1,
     rewardMineral: 20_000,
@@ -291,7 +291,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   explorerTriple: {
     id: 'explorerTriple',
     name: '多路并进',
-    desc: '研发「星际通信中继」，解锁第 3 探索信道，三路同时推进。',
+    desc: `研发「星际通信中继」，解锁第 ${formatNumber(3)} 探索信道，三路同时推进。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['interstellarRelay'] ?? 0) >= 1,
     rewardMineral: 50_000,
@@ -329,7 +329,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   mineral1B: {
     id: 'mineral1B',
     name: '星海之王',
-    desc: '本局累计采集 10 亿矿物。',
+    desc: `本局累计采集 ${formatNumber(1_000_000_000)} 矿物。`,
     category: 'finale',
     condition: (s) => s.stats.totalMineralEarned >= 1_000_000_000,
     rewardMineral: 500_000,
@@ -384,7 +384,7 @@ export function checkAchievements(state: GameState, nowMs: number = Date.now()):
     if (def.rewardMineral) rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
     if (def.rewardTech) rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
     const rewardText = rewards.length > 0 ? ` 奖励：${rewards.join('、')}` : ''
-    pushLog(state, 'reward', `【成就】「${def.name}」达成：+${def.rep} 声望${rewardText}。`)
+    pushLog(state, 'reward', `【成就】「${def.name}」达成：+${formatNumber(def.rep)} 声望${rewardText}。`)
     newly.push(def)
   }
   return newly

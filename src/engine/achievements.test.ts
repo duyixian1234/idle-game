@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
+import { formatNumber } from './format'
 import type { GameState } from './types'
 
 /** 构造带指定 conditions 的测试状态 */
@@ -32,7 +33,7 @@ describe('achievements', () => {
     expect(s.resources.mineral).toBe(15 + (def.rewardMineral ?? 0))
     // 日志播报
     expect(s.log[0].text).toContain('【成就】')
-    expect(s.log[0].text).toContain(`+${def.rep} 声望`)
+    expect(s.log[0].text).toContain(`+${formatNumber(def.rep)} 声望`)
   })
 
   it('已解锁成就重复检查不重复发奖励/日志（本周目幂等）', () => {
@@ -191,7 +192,7 @@ describe('achievements', () => {
       expect(s.resources.mineral - before).toBe(5_000_000)
       const log = s.log.find((e) => e.text.includes('「永恒殖民」'))
       expect(log).toBeTruthy()
-      expect(log!.text).toContain('+8 声望')
+      expect(log!.text).toContain(`+${formatNumber(8)} 声望`)
     })
 
     it('story 类一次性语义：NG+ 后不重解锁、不重发奖励', () => {

@@ -18,6 +18,7 @@ import {
 } from './balance'
 import { createFactionState } from './diplomacy'
 import { militaryCap, netProduction } from './production'
+import { formatNumber, formatPercent } from './format'
 import { rollDomain } from './rng'
 import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './types'
 
@@ -225,7 +226,7 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
     const cur = state.factions[r.factionId]
     if (cur) {
       cur.favor = Math.min(FAVOR_CAP, cur.favor + EXPEDITION_REPEAT_FAVOR_GAIN)
-      return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? r.factionId}」的联系，好感 +${EXPEDITION_REPEAT_FAVOR_GAIN}。` }
+      return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? r.factionId}」的联系，好感 +${formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN)}。` }
     }
     return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? r.factionId}」的联系。` }
   }
@@ -239,7 +240,7 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
     const ps = state.planets[r.planetId]
     if (ps?.unlocked) {
       ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
-      return { type: 'story', text: `探索队返航：确认「${def?.name ?? r.planetId}」殖民地运行正常，产出增益 +${Math.round(EXPEDITION_OUTPUT_BONUS_STEP * 100)}%。` }
+      return { type: 'story', text: `探索队返航：确认「${def?.name ?? r.planetId}」殖民地运行正常，产出增益 +${formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100)}。` }
     }
     return { type: 'story', text: `探索队返航：确认「${def?.name ?? r.planetId}」殖民地运行正常。` }
   }
@@ -248,6 +249,6 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
   state.resources.tech += r.tech
   return {
     type: 'reward',
-    text: `探索队返航：未发现新文明，回收了 ${r.mineral.toLocaleString('zh-CN')} 矿物、${r.energy.toLocaleString('zh-CN')} 能源与 ${r.tech.toLocaleString('zh-CN')} 科技点。`,
+    text: `探索队返航：未发现新文明，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`,
   }
 }

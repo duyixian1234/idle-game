@@ -231,11 +231,32 @@ body {
 
 .res-value {
   font-weight: 600;
+  min-width: 5.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .res-rate {
   color: var(--text-dim);
   font-size: 11px;
+  min-width: 6.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numeric game values stay aligned as compact units grow. */
+[data-res-value],
+[data-fleet-count],
+[data-fleet-maintenance],
+[data-fleet-power],
+.favor-num,
+.threat-num,
+.build-count,
+.build-level,
+.conquest-meta {
+  min-width: 5.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- 星域总览条 ---- */

@@ -5,7 +5,7 @@ import type { ReputationBonuses } from '../engine/reputation'
 import { ALL_FACTIONS, BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, FactionDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
-import { formatNumber, formatPlayTime } from '../engine/format'
+import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { isConquestAvailable, conquestState } from '../engine/conquest'
 import { expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
@@ -188,7 +188,7 @@ export function renderTutorial(el: HTMLElement, state: GameState): void {
   el.classList.remove('hidden')
   el.innerHTML = `
     <div class="tutorial-card" data-tutorial-card>
-      <div class="tutorial-step">${state.tutorialStep + 1}/${TUTORIAL_STEPS.length}</div>
+      <div class="tutorial-step">${formatNumber(state.tutorialStep + 1)}/${formatNumber(TUTORIAL_STEPS.length)}</div>
       <div class="tutorial-title">${escapeHtml(step.title)}</div>
       <div class="tutorial-text">${escapeHtml(step.text)}</div>
       <div class="tutorial-actions">
@@ -211,9 +211,9 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
     <div class="ending-card">
       <h1 class="ending-title">星系统一联邦</h1>
       <p class="ending-stats">
-        统一历时 ${formatPlayTime(state.playSeconds)} · 累计采集矿物 ${Math.floor(state.stats.totalMineralEarned).toLocaleString('zh-CN')}
+        统一历时 ${formatPlayTime(state.playSeconds)} · 累计采集矿物 ${formatNumber(state.stats.totalMineralEarned)}
       </p>
-      <p class="ending-stats">派系图鉴：${escapeHtml(codex)} · NG+ 周目：${state.ngPlusLevel}</p>
+      <p class="ending-stats">派系图鉴：${escapeHtml(codex)} · NG+ 周目：${formatNumber(state.ngPlusLevel)}</p>
       <div class="ending-actions">
         <button type="button" class="ending-btn primary" data-ending="infinite">进入无限模式</button>
         <button type="button" class="ending-btn" data-ending="ngplus">开启 NG+（继承 ${formatNumber(NG_PLUS_TECH_BASE * (state.ngPlusLevel + 1))} 科技点）</button>
@@ -235,8 +235,8 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     const p = previewNewGamePlus(state)
     parts.push(`
       <div class="ngplus-terminal">
-        <div class="ngplus-terminal-title">第 ${state.ngPlusLevel} 周目 · 无限模式</div>
-        <div class="ngplus-terminal-desc">开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、×${p.permanentMult.toFixed(2)} 永久产出加成、${p.codexFactions.length} 个派系图鉴（需确认，不可逆）</div>
+        <div class="ngplus-terminal-title">第 ${formatNumber(state.ngPlusLevel)} 周目 · 无限模式</div>
+        <div class="ngplus-terminal-desc">开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、${formatMultiplier(p.permanentMult)} 永久产出加成、${formatNumber(p.codexFactions.length)} 个派系图鉴（需确认，不可逆）</div>
         <div class="ending-actions">
           <button type="button" class="ending-btn primary" data-ngplus title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
         </div>
@@ -267,9 +267,9 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     if (i >= slots) {
       const need =
         i === 1
-          ? '深空导航阵列 Lv1（科技）'
+          ? `深空导航阵列 Lv${formatNumber(1)}（科技）`
           : i === 2
-            ? '星际通信中继 Lv1（科技）'
+            ? `星际通信中继 Lv${formatNumber(1)}（科技）`
             : '跃迁枢纽（终局抉择·探索路线）'
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}" data-expedition-locked>
@@ -296,11 +296,11 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     let reason = ''
     if (!affordMineral) reason = '矿物不足'
     else if (!affordEnergy) reason = '能源不足'
-    else if (!affordMilitary) reason = `军力不足（需 ${cost.military}⚔）`
+    else if (!affordMilitary) reason = `军力不足（需 ${formatNumber(cost.military)}⚔）`
     slotCards.push(`
       <div class="explore-slot" data-expedition-slot="${slotNo}">
         <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
-        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${cost.military} · 时长 60 分钟（离线照常推进）</div>
+        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 60 分钟（离线照常推进）</div>
         <div class="explore-slot-actions">
           <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">${iconUse('dispatch', 'dispatch-icon')} 派遣</button>
         </div>
@@ -309,7 +309,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
   const outputRows = explorePlanetOutputs(state)
     .map((o) => {
       const text = RESOURCE_KEYS.filter((k) => o.values[k] > 0)
-        .map((k) => `${RESOURCE_META[k].symbol} +${formatNumber(o.values[k])}/s`)
+        .map((k) => `${RESOURCE_META[k].symbol} ${formatRate(o.values[k])}`)
         .join(' · ')
       return `<div class="explore-planet-output" data-planet-output="${o.planetId}">${iconUse(o.planetId, 'explore-icon')} ${escapeHtml(o.name)}：${text}</div>`
     })
@@ -318,7 +318,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     <div class="explore-card">
       <h1 class="ending-title">派遣探索</h1>
       <p class="ending-stats">通关后的新航路：深空信道并行派遣，有概率发现新的派系势力或发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
-      <div class="explore-progress">已发现：${discovered} / ${totalPool}（势力 ${state.exploredFactions.length}/${Object.keys(EXPLORE_FACTIONS).length} · 天体 ${state.exploredPlanets.length}/${Object.keys(EXPLORE_PLANETS).length}）</div>
+      <div class="explore-progress">已发现：${formatNumber(discovered)} / ${formatNumber(totalPool)}（势力 ${formatNumber(state.exploredFactions.length)}/${formatNumber(Object.keys(EXPLORE_FACTIONS).length)} · 天体 ${formatNumber(state.exploredPlanets.length)}/${formatNumber(Object.keys(EXPLORE_PLANETS).length)}）</div>
       <div class="explore-slots">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
     </div>`)
@@ -396,8 +396,10 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
     const item = document.createElement('span')
     item.className = 'resource'
     item.setAttribute('data-resource', key)
-    const rateText = rate > 0 ? `+${rate.toFixed(1)}/s` : rate < 0 ? `${rate.toFixed(1)}/s` : ''
-    const valueText = key === 'military' ? `${formatNumber(value)}/${formatNumber(militaryCap(state))}` : formatNumber(value)
+    const rateText = formatRate(rate)
+    const valueText = key === 'military'
+      ? `${formatNumber(value)}${meta.symbol}/${formatNumber(militaryCap(state))}${meta.symbol}`
+      : formatNumber(value)
     item.innerHTML = `<span class="res-symbol">${meta.symbol}</span>
       <span class="res-name">${meta.name}</span>
       <span class="res-value" data-res-value>${valueText}</span>
@@ -513,8 +515,13 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
 function renderSettlementDetails(settlement?: { deltas: Record<string, number>; breakdown: EventFormulaPart[] }): string {
   if (!settlement) return ''
   const names: Record<EventFormulaPart['name'], string> = { base: '基础值', stageLayer: '阶段/层数倍率', risk: '风险倍率', capability: '能力修正', softCap: '软上限' }
-  const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ×${part.multiplier}` : ''}</li>`).join('')
-  const deltas = Object.entries(settlement.deltas).map(([key, value]) => `${key} ${value >= 0 ? '+' : ''}${formatNumber(value)}`).join('、') || '待选择选项'
+  const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ${formatMultiplier(part.multiplier)}` : ''}</li>`).join('')
+  const deltas = Object.entries(settlement.deltas).map(([key, value]) => {
+    const resource = RESOURCE_META[key as ResourceKey]
+    const label = resource?.name ?? key
+    const unit = resource?.symbol ?? ''
+    return `${label} ${value > 0 ? '+' : ''}${formatNumber(value)}${unit}`
+  }).join('、') || '待选择选项'
   return `<details data-event-settlement><summary>查看结算明细</summary><div data-settlement-deltas>最终值：${escapeHtml(deltas)}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
 }
 
@@ -529,10 +536,10 @@ export function renderEventExplainability(el: HTMLElement, state: GameState): vo
   const paused = state.automationHistory.filter((audit) => audit.status === 'paused')
   const history = state.automationHistory.slice(-20).reverse().map((audit) => `<li data-event-history="${audit.eventUid}" data-history-source="${audit.source}">${audit.source === 'automation' ? '自动' : '手动'} · ${audit.category} · ${audit.optionId ?? '暂停'} · ${escapeHtml(audit.reason)}</li>`).join('') || '<li data-history-empty>暂无事件历史</li>'
   const migrationSummary = state.migrationSummary
-    ? `<li data-migration-summary-count>版本 ${state.migrationSummary.fromSchemaVersion} → ${state.migrationSummary.toSchemaVersion}：已迁移 ${state.migrationSummary.migratedEvents} 个事件，未知 ${state.migrationSummary.unknownEvents} 个</li>${state.migrationSummary.notes.map((note) => `<li data-migration-note>${escapeHtml(note)}</li>`).join('')}`
+    ? `<li data-migration-summary-count>版本 ${state.migrationSummary.fromSchemaVersion} → ${state.migrationSummary.toSchemaVersion}：已迁移 ${formatNumber(state.migrationSummary.migratedEvents)} 个事件，未知 ${formatNumber(state.migrationSummary.unknownEvents)} 个</li>${state.migrationSummary.notes.map((note) => `<li data-migration-note>${escapeHtml(note)}</li>`).join('')}`
     : ''
   const migrations = migrationSummary + state.pendingEvents.filter((event) => event.migrationStatus).map((event) => `<li data-migration-event="${event.uid}">${event.migrationStatus === 'migrated' ? '已迁移' : '未知事件'}：${escapeHtml(event.migrationNote ?? event.defId)}</li>`).join('') || '<li data-migration-empty>暂无迁移记录</li>'
-  el.insertAdjacentHTML('beforeend', `<section data-event-explainability><h2>事件可解释性</h2>${paused.length ? `<div data-pause-notice role="status">自动处理已暂停 ${paused.length} 个事件：${escapeHtml(paused[0].reason)}</div>` : ''}<div data-automation-config>${policyHtml}</div><section data-event-history><h3>事件历史</h3><ul>${history}</ul></section><section data-migration-summary><h3>迁移摘要</h3><ul>${migrations}</ul></section></section>`)
+  el.insertAdjacentHTML('beforeend', `<section data-event-explainability><h2>事件可解释性</h2>${paused.length ? `<div data-pause-notice role="status">自动处理已暂停 ${formatNumber(paused.length)} 个事件：${escapeHtml(paused[0].reason)}</div>` : ''}<div data-automation-config>${policyHtml}</div><section data-event-history><h3>事件历史</h3><ul>${history}</ul></section><section data-migration-summary><h3>迁移摘要</h3><ul>${migrations}</ul></section></section>`)
 }
 
 /** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
@@ -546,12 +553,12 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       ...state,
       upgrades: { ...state.upgrades, militaryPort: (state.upgrades.militaryPort ?? 0) + 1 },
     }
-    return `军力容量 ${current} → ${militaryCap(sim)}（+${militaryCap(sim) - current}）`
+    return `军力容量 ${formatNumber(current)} → ${formatNumber(militaryCap(sim))}（+${formatNumber(militaryCap(sim) - current)}）`
   }
   if (def.unique) {
     if (def.id === 'ringSmelter') {
       const cur = smelterGlobalMult(state)
-      return `全局产出 ×${formatMult(cur)} → ×${formatMult(cur * 2)}`
+      return `全局产出 ${formatMultiplier(cur)} → ${formatMultiplier(cur * 2)}`
     }
     if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
@@ -559,9 +566,9 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
     for (const k of RESOURCE_KEYS) {
       const d = up.delta[k]
       if (d === 0) continue
-      parts.push(`${RESOURCE_META[k].symbol} ${d > 0 ? '+' : ''}${fmtRate(d)}/s`)
+      parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
     }
-    return `产出 ×2（${parts.join('，')}）`
+    return `产出 ${formatMultiplier(2)}（${parts.join('，')}）`
   }
   const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
   // 每台当前真实净产出 = 再买一台的总增量（同一加成口径）
@@ -572,7 +579,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
     if (total === 0) continue
     const perNow = buy.delta[k]
     const perNext = perNow + total / count
-    parts.push(`${RESOURCE_META[k].symbol} ${fmtRate(perNow)} → ${fmtRate(perNext)}/台（总 ${total > 0 ? '+' : ''}${fmtRate(total)}/s）`)
+    parts.push(`${RESOURCE_META[k].symbol} ${formatRate(perNow)} → ${formatRate(perNext)}/台（总 ${formatRate(total)}）`)
   }
   return parts.join('，') || '无产出变化'
 }
@@ -581,14 +588,14 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
  * 唯一大件：建造预览（机制建筑用效果文案；产出建筑用 delta，count 0→1 有效） */
 function buyPreviewText(state: GameState, def: BuildingDef): string {
   if (def.unique) {
-    if (def.id === 'ringSmelter') return '建造：解锁全局产出乘数 ×2^level（需升级激活）'
+    if (def.id === 'ringSmelter') return `建造：解锁全局产出乘数 ${formatMultiplier(2)}^等级（需升级激活）`
     if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
     const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
     const parts: string[] = []
     for (const k of RESOURCE_KEYS) {
       const d = buy.delta[k]
       if (d === 0) continue
-      parts.push(`${RESOURCE_META[k].symbol} +${fmtRate(d)}/s`)
+      parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
     }
     return `建造：${parts.join('，') || '无产出'}`
   }
@@ -597,18 +604,12 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
   for (const k of RESOURCE_KEYS) {
     const d = buy.delta[k]
     if (d === 0) continue
-    parts.push(`${RESOURCE_META[k].symbol} ${d > 0 ? '+' : ''}${fmtRate(d)}/s`)
+    parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
   }
   const consumes = (def.consumes && RESOURCE_KEYS.some((k) => (def.consumes![k] ?? 0) > 0))
-    ? ` · 耗 ${RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${fmtRate(def.consumes![k] ?? 0)}/s`).join(' ')}`
+    ? ` · 耗 ${RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${formatRate(def.consumes![k] ?? 0, false)}`).join(' ')}`
     : ''
-  return `购买 1 台：${parts.join('，') || '无产出'}${consumes}`
-}
-
-function fmtRate(n: number): string {
-  if (Math.abs(n) >= 100) return formatNumber(n)
-  const r = Math.round(n * 100) / 100
-  return String(r)
+  return `购买 ${formatNumber(1)} 台：${parts.join('，') || '无产出'}${consumes}`
 }
 
 /** 建造面板渲染选项（building-cards：卡片化 + 锁定卡折叠） */
@@ -701,8 +702,8 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
     <div class="build-info">
       <div class="build-name">
         ${escapeHtml(def.name)}
-        ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${count}</span>`}
-        ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
+        ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${formatNumber(count)}</span>`}
+        ${level > 0 ? `<span class="build-level">Lv.${formatNumber(level)}</span>` : ''}
       </div>
       <div class="build-desc">${escapeHtml(def.desc)}</div>
     </div>`
@@ -716,7 +717,7 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
   const showBuy = !unique || count <= 0
   const buyBtn = showBuy
-    ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? '建造（唯一大件，升级产出 ×2/级）' : '建造'}">
+    ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? `建造（唯一大件，升级产出 ${formatMultiplier(2)}/级）` : '建造'}">
         ${unique ? '建造 ' : ''}${formatCost(buyCost)}
       </button>`
     : ''
@@ -728,8 +729,8 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   // 升级按钮组：jumpgate 无升级效果（上游 f0458b0 决策）、maxLevel 满级后替换为「已满级」提示（如船坞 Lv3）
   const upgradeBtns = count > 0 && def.id !== 'jumpgate'
     ? maxed
-      ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${def.maxLevel}）</span></div>`
-      : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
+      ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${formatNumber(def.maxLevel ?? 0)}）</span></div>`
+      : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? `升级：产出 ${formatMultiplier(2)}（${formatCost(upCost)}）` : def.id === 'militaryPort' ? `升级：军力容量 +${formatPercent(50)}` : `升级：产出 +${formatPercent(50)}`}">
           升级 ${formatCost(upCost)}
         </button>
         ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
@@ -808,10 +809,10 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       effectText = level >= 1 ? '探索信道已解锁' : '解锁第 2/3 探索信道'
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
-      effectText = `${RESOURCE_META[def.effect.resource].name}产出 ×${formatMult(cur)}`
+      effectText = `${RESOURCE_META[def.effect.resource].name}产出 ${formatMultiplier(cur)}`
       if (upgradable) {
         const next = techMultiplier(def.effect, level + 1)
-        effectText += ` → ×${formatMult(next)}`
+        effectText += ` → ${formatMultiplier(next)}`
       }
     }
 
@@ -819,7 +820,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(def.name)}
-          ${researched ? `<span class="build-count researched-badge">${level >= TECH_MAX_LEVEL ? 'Lv.MAX' : `Lv.${level}`}</span>` : ''}
+          ${researched ? `<span class="build-count researched-badge">${level >= TECH_MAX_LEVEL ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
       </div>`
@@ -848,7 +849,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
 
     // 可升级：显示升级按钮与下一级成本（语义明确为「单击升级」）
     item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +0.5（Lv.${level} → Lv.${level + 1}）">
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
         升级 ▶ ${formatCost(cost)}
       </button>
       <button type="button" class="build-btn tech-btn upgrade-tech-btn max-btn" data-upgrade-tech-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级到 Lv.10 或资源不足为止">
@@ -862,18 +863,13 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
   const exchange = document.createElement('div')
   exchange.className = 'tech-exchange'
   exchange.innerHTML = `
-    <div class="exchange-hint">矿物兑换科技点（100 矿物 → 1 科技点）</div>
+    <div class="exchange-hint">矿物兑换科技点（${formatNumber(100)} 矿物 → ${formatNumber(1)} 科技点）</div>
     <div class="exchange-row">
       <input type="number" class="exchange-input" data-exchange-input min="0" step="100" placeholder="矿物数量" />
       <button type="button" class="build-btn tech-btn" data-convert-tech ${canConvert ? '' : 'disabled'}>兑换</button>
       <button type="button" class="build-btn tech-btn" data-convert-max ${canConvert ? '' : 'disabled'}>最大</button>
     </div>`
   el.appendChild(exchange)
-}
-
-/** 系数格式化：整数去小数位，其余保留 1 位 */
-function formatMult(n: number): string {
-  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10)
 }
 
 /** ASCII 进度条（Q14 定案）：█ 填充 + ░ 空余，纯文本零 DOM 成本；
@@ -893,9 +889,9 @@ function renderFavorBar(favor: number): string {
 /** 派系特性徽标文案（探索势力专属特性：贸易折扣/共享半价/威慑折扣；无特性返回空数组不渲染） */
 function factionPerkLabels(def: FactionDef): string[] {
   const labels: string[] = []
-  if (def.tradeDiscount) labels.push(`贸易折扣 -${Math.round(def.tradeDiscount * 100)}%`)
-  if (def.techShareCostMult) labels.push(def.techShareCostMult <= 0.6 ? '共享半价' : `技术共享 ×${def.techShareCostMult}`)
-  if (def.intimidateCostMult) labels.push(`威慑折扣 -${Math.round((1 - def.intimidateCostMult) * 100)}%`)
+  if (def.tradeDiscount) labels.push(`贸易折扣 -${formatPercent(def.tradeDiscount * 100)}`)
+  if (def.techShareCostMult) labels.push(def.techShareCostMult <= 0.6 ? '共享半价' : `技术共享 ${formatMultiplier(def.techShareCostMult)}`)
+  if (def.intimidateCostMult) labels.push(`威慑折扣 -${formatPercent((1 - def.intimidateCostMult) * 100)}`)
   return labels
 }
 
@@ -909,7 +905,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
   const prog = federationProgress(state)
   const header = document.createElement('div')
   header.className = 'diplo-header'
-  header.textContent = `星系统一联邦：${prog.satisfied}/${prog.total} 派系达成统一条件`
+  header.textContent = `星系统一联邦：${formatNumber(prog.satisfied)}/${formatNumber(prog.total)} 派系达成统一条件`
   el.appendChild(header)
 
   for (const def of Object.values(ALL_FACTIONS)) {
@@ -938,9 +934,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
         <div class="favor-row">
           <span class="favor-label">好感</span>
           ${renderFavorBar(f.favor)}
-          <span class="favor-num">${Math.floor(f.favor)}/100</span>
+          <span class="favor-num">${formatNumber(f.favor)}/${formatNumber(100)}</span>
           <span class="favor-label threat-label">威胁</span>
-          <span class="threat-num">${Math.floor(f.threat)}</span>
+          <span class="threat-num">${formatNumber(f.threat)}</span>
         </div>
       </div>
       <div class="build-actions faction-actions">
@@ -957,7 +953,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
           <button type="button" class="build-btn diplo-btn tech-share-btn max-btn" data-diplomacy-max="${def.id}:techshare" ${canShare ? '' : 'disabled'} title="一键共享：共享到好感满或科技点不足为止">
             共享满
           </button>
-          <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${ALLIANCE_FAVOR_THRESHOLD} 后可结盟（消耗大量资源）">
+          <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${formatNumber(ALLIANCE_FAVOR_THRESHOLD)} 后可结盟（消耗大量资源）">
             结盟 ${formatCost(ALLIANCE_COST)}
           </button>
           <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${def.id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
@@ -1021,7 +1017,7 @@ function conquestRewardText(def: ConquestDef): string {
   if (def.rewardMineral) parts.push(`${RESOURCE_META.mineral.symbol}${formatNumber(def.rewardMineral)}`)
   if (def.rewardTech) parts.push(`${RESOURCE_META.tech.symbol}${formatNumber(def.rewardTech)}`)
   if (def.bonus) {
-    parts.push(def.bonus.kind === 'production' ? `全产出 +${def.bonus.value * 100}%` : `军力上限 +${def.bonus.value * 100}%`)
+    parts.push(def.bonus.kind === 'production' ? `全产出 +${formatPercent(def.bonus.value * 100)}` : `军力上限 +${formatPercent(def.bonus.value * 100)}`)
   }
   if (def.unlockTech) parts.push('解锁军械科技')
   return parts.join('、') || '无'
@@ -1087,7 +1083,7 @@ function renderArmsTech(el: HTMLElement, state: GameState, defs: TechDef[]): voi
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(def.name)}
-          ${level > 0 ? `<span class="build-count researched-badge">Lv.${level}</span>` : ''}
+          ${level > 0 ? `<span class="build-count researched-badge">Lv.${formatNumber(level)}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
       </div>`
@@ -1104,7 +1100,7 @@ function renderArmsTech(el: HTMLElement, state: GameState, defs: TechDef[]): voi
     const cost = techCost(state, def.id)
     const canUp = canUpgradeTech(state, def.id)
     item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出系数 +0.5（Lv.${level} → Lv.${level + 1}）">
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
         升级 ▶ ${formatCost(cost)}
       </button>
       <button type="button" class="build-btn tech-btn upgrade-tech-btn max-btn" data-upgrade-tech-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级到满级或资源不足为止">
@@ -1129,7 +1125,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const conqueredCount = defs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = `肃清进度：${conqueredCount}/${defs.length}`
+  header.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(defs.length)}`
   conquestSection.appendChild(header)
   for (const def of defs) conquestSection.appendChild(renderConquestRow(def, state))
   el.appendChild(conquestSection)
@@ -1150,7 +1146,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
 // ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
 
 /** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
-const JUMPGATE_EFFECT_TEXT = `派遣槽 +${JUMPGATE_SLOT_BONUS} · 天体收获倍率上限 ×${2 * JUMPGATE_HARVEST_MULT} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
+const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)} · 天体收获倍率上限 ${formatMultiplier(2 * JUMPGATE_HARVEST_MULT)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
 
 /** 星域页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 舰队管理区 + 终局抉择区块（三星系间集齐后出现） */
 export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
@@ -1232,22 +1228,22 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   let buyHint = ''
   if (nextCost && !affordMineral) buyHint = '矿物不足'
   else if (nextCost && !affordEnergy) buyHint = '能源不足'
-  else if (!nextCost && cap > 0) buyHint = `已达船坞舰数上限（${cap} 艘）`
+  else if (!nextCost && cap > 0) buyHint = `已达船坞舰数上限（${formatNumber(cap)} 艘）`
   const buildBtn = nextCost
     ? `<button type="button" class="build-btn" data-fleet-build ${affordMineral && affordEnergy ? '' : 'disabled'} title="${escapeHtml(buyHint)}">建造护卫舰 ${formatCost({ mineral: nextCost.mineral, energy: nextCost.energy } as Record<ResourceKey, number>)}</button>`
     : `<button type="button" class="build-btn" data-fleet-build disabled title="已达舰数上限">建造护卫舰</button>`
   // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 1.5×）
-  const techNote = techLv > 0 ? `（含军械科技 Lv.${techLv} ×${formatMult(1 + 0.1 * techLv)}）` : ''
+  const techNote = techLv > 0 ? `（含军械科技 Lv.${formatNumber(techLv)} ${formatMultiplier(1 + 0.1 * techLv)}）` : ''
   body.innerHTML = `
     <div class="build-info">
       <div class="build-name">
         护卫舰队 ${statusBadge}
-        <span class="build-count" data-fleet-count>${count}/${cap} 艘</span>
-        <span class="build-count">船坞 Lv.${level}</span>
+        <span class="build-count" data-fleet-count>${formatNumber(count)}艘/${formatNumber(cap)}艘</span>
+        <span class="build-count">船坞 Lv.${formatNumber(level)}</span>
       </div>
       <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。</div>
       <div class="conquest-meta">
-        <span data-fleet-maintenance>维护费 -${formatNumber(maint)} 能源/s</span>
+        <span data-fleet-maintenance>维护费 ${formatRate(-maint)} 能源</span>
         ${count > 0 && !powered ? '（停摆中未扣费）' : ''}
         · <span data-fleet-power>战力 ${formatNumber(power)}${techNote}</span>
       </div>
@@ -1289,7 +1285,7 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
     if (locked) card.setAttribute('data-locked', '')
     const effectText =
       id === 'ringSmelter'
-        ? '全局产出 ×2^level（矿/能源/科技全吃）· 耗能 100 能源/s × level'
+        ? `全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）· 耗能 ${formatRate(100, false)} 能源 × 等级`
         : JUMPGATE_EFFECT_TEXT
     const statusText = chosen
       ? '✓ 已选择（本周目生效）'
@@ -1312,7 +1308,7 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
   if (!def) return
   const effectText =
     id === 'ringSmelter'
-      ? '全局产出 ×2^level（矿/能源/科技全吃）；耗能 100 能源/s × level（能源不足时按现有结算打折）'
+      ? `全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）；耗能 ${formatRate(100, false)} 能源 × 等级（能源不足时按现有结算打折）`
       : JUMPGATE_EFFECT_TEXT
   el.innerHTML = `
     <div class="megastructure-card" data-megastructure-modal>
@@ -1320,7 +1316,7 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
       <div class="buy-max-summary">${escapeHtml(def.desc)}</div>
       <table class="buy-max-table">
         <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
-        <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || '0'}</td></tr>
+        <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
       </table>
       <div class="buy-max-warn" data-megastructure-warn>⚠ 只能选择其一，本周目不可更改；另一个究极建筑将永久锁定。NG+ 重开后可重新选择。</div>
       <div class="buy-max-actions">
@@ -1333,10 +1329,10 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
 /** 当前生效的声望加成文本（无声望时显示解锁提示） */
 function reputationBonusText(b: ReputationBonuses): string {
   const parts: string[] = []
-  if (b.tradeDiscount > 0) parts.push(`贸易折扣 ${Math.round(b.tradeDiscount * 100)}%`)
-  if (b.raidThresholdBonus > 0) parts.push(`骚扰阈值 ${55 + b.raidThresholdBonus}`)
-  if (b.militaryCapBonus > 0) parts.push(`军力上限 +${Math.round(b.militaryCapBonus * 100)}%`)
-  if (b.conquestSuccessBonus > 0) parts.push(`攻占成功率 +${Math.round(b.conquestSuccessBonus * 100)}%`)
+  if (b.tradeDiscount > 0) parts.push(`贸易折扣 ${formatPercent(b.tradeDiscount * 100)}`)
+  if (b.raidThresholdBonus > 0) parts.push(`骚扰阈值 ${formatPercent(55 + b.raidThresholdBonus)}`)
+  if (b.militaryCapBonus > 0) parts.push(`军力上限 +${formatPercent(b.militaryCapBonus * 100)}`)
+  if (b.conquestSuccessBonus > 0) parts.push(`攻占成功率 +${formatPercent(b.conquestSuccessBonus * 100)}`)
   if (parts.length === 0) return '未解锁加成（声望 ≥20 解锁贸易折扣）'
   return parts.join(' · ')
 }
@@ -1352,7 +1348,7 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
   repSection.className = 'military-section'
   repSection.innerHTML = `
     <div class="rep-card">
-      <div class="rep-title">星系统一声望 <span class="rep-value">${rep} / 100</span></div>
+    <div class="rep-title">星系统一声望 <span class="rep-value">${formatNumber(rep)} / ${formatNumber(100)}</span></div>
       <div class="rep-bonuses">${escapeHtml(reputationBonusText(bonuses))}</div>
       <div class="rep-hint">声望由成就解锁驱动，影响外交与军事，不直接改变产出。</div>
     </div>`
@@ -1372,7 +1368,7 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
     const header = document.createElement('div')
     header.className = 'conquest-header'
     const doneCount = defs.filter((d) => state.achievements[d.id]).length
-    header.textContent = `${g.title}（${doneCount}/${defs.length}）`
+    header.textContent = `${g.title}（${formatNumber(doneCount)}/${formatNumber(defs.length)}）`
     section.appendChild(header)
     for (const def of defs) {
       const unlocked = Boolean(state.achievements[def.id])
@@ -1383,7 +1379,7 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
       if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
       const rewardText = rewardParts.length > 0 ? ` · ${rewardParts.join('、')}` : ''
       item.innerHTML = `
-        <div class="ach-name">${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)} <span class="ach-state">+${def.rep} 声望</span></div>
+        <div class="ach-name">${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)} <span class="ach-state">+${formatNumber(def.rep)} 声望</span></div>
         <div class="ach-desc">${escapeHtml(def.desc)}</div>
         <div class="ach-reward">奖励：${rewardText || '无'}</div>`
       section.appendChild(item)
@@ -1406,9 +1402,9 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
   stats.innerHTML = `
     <div>在线时长：${formatPlayTime(state.playSeconds)}</div>
     <div>累计采集矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
-    <div>外交贸易：${tradeSum} 次 · 威慑：${intimiSum} 次</div>
-    <div>星域肃清：${conquered}/${Object.keys(CONQUESTS).length}</div>
-    <div>NG+ 周目：${state.ngPlusLevel}</div>`
+    <div>外交贸易：${formatNumber(tradeSum)} 次 · 威慑：${formatNumber(intimiSum)} 次</div>
+    <div>星域肃清：${formatNumber(conquered)}/${formatNumber(Object.keys(CONQUESTS).length)}</div>
+    <div>NG+ 周目：${formatNumber(state.ngPlusLevel)}</div>`
   statSection.appendChild(stats)
   el.appendChild(statSection)
 }
@@ -1423,12 +1419,12 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
 export function renderBuyMaxModal(el: HTMLElement, data: BuyMaxModalData): void {
   const { preview } = data
   const spendText = formatCost(preview.spent)
-  const remainText = formatCost(preview.remaining) || '0'
+  const remainText = formatCost(preview.remaining) || formatNumber(0)
   const emptyText = preview.emptyWarnings.map((k) => RESOURCE_META[k].name).join('、')
   const energy = preview.energyWarning
   const energyWarn =
     energy && energy.bought > energy.maxDriven
-      ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 能源平衡：当前产出 ${formatNumber(energy.production)}/s · 需求 ${formatNumber(energy.consumption)}/s · 最多可驱动 ${energy.maxDriven} 台 · 本次将买 ${energy.bought} 台，超出部分无产出。</div>`
+      ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 能源平衡：当前产出 ${formatRate(energy.production)} · 需求 ${formatRate(energy.consumption)} · 最多可驱动 ${formatNumber(energy.maxDriven)} 台 · 本次将买 ${formatNumber(energy.bought)} 台，超出部分无产出。</div>`
       : ''
   const emptyWarn = emptyText
     ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 将清空资源：${escapeHtml(emptyText)}（执行后剩余不足 1）</div>`
@@ -1463,40 +1459,40 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
   const { lost } = preview
   // 将失去（本周目内清零）
   const resText = lost.resources.map((k) => `${RESOURCE_META[k].symbol}${formatNumber(state.resources[k])}`).join('、') || '无'
-  const bldText = lost.buildings.map((id) => `${BUILDINGS[id]?.name ?? id} ×${state.buildings[id]}`).join('、') || '无'
-  const techText = lost.techs.map((id) => `${TECHS[id]?.name ?? id} Lv.${state.techLevels[id]}`).join('、') || '无'
+  const bldText = lost.buildings.map((id) => `${BUILDINGS[id]?.name ?? id} ×${formatNumber(state.buildings[id] ?? 0)}`).join('、') || '无'
+  const techText = lost.techs.map((id) => `${TECHS[id]?.name ?? id} Lv.${formatNumber(state.techLevels[id] ?? 0)}`).join('、') || '无'
   const facText = lost.alliedFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
   // 将继承（NG+ 后生效，预览值）
   const codexText = preview.codexFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
   const bonusText =
     Object.entries(preview.permanentBonuses)
-      .map(([k, v]) => `${k === 'production' ? '全产出' : '军力上限'} +${Math.round(v * 100)}%`)
+      .map(([k, v]) => `${k === 'production' ? '全产出' : '军力上限'} +${formatPercent(v * 100)}`)
       .join('、') || '无'
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
     <div class="ngplus-card" data-ngplus-card>
       <div class="buy-max-title">开启新周目</div>
-      <div class="buy-max-summary">第 ${state.ngPlusLevel} 周目 → 第 ${preview.nextLevel} 周目。此操作不可逆。</div>
+      <div class="buy-max-summary">第 ${formatNumber(state.ngPlusLevel)} 周目 → 第 ${formatNumber(preview.nextLevel)} 周目。此操作不可逆。</div>
       <div class="ngplus-section-title">将失去（本周目）</div>
       <table class="buy-max-table">
         <tr><th>资源</th><td>${resText}</td></tr>
         <tr><th>建筑</th><td>${bldText}</td></tr>
         <tr><th>科技</th><td>${techText}</td></tr>
         <tr><th>派系</th><td>${facText}</td></tr>
-        <tr><th>攻占</th><td>${lost.conquered}/${Object.keys(CONQUESTS).length} 区域</td></tr>
-        <tr><th>探索</th><td>${lost.exploredCount} 个发现物 · ${lost.activeExpeditions} 支探索队（派遣中，将失去）</td></tr>
-        <tr><th>舰队</th><td>${lost.fleetCount} 艘护卫舰（随星际工程重置）</td></tr>
-        <tr><th>声望</th><td>${lost.reputation}</td></tr>
+        <tr><th>攻占</th><td>${formatNumber(lost.conquered)}/${formatNumber(Object.keys(CONQUESTS).length)} 区域</td></tr>
+        <tr><th>探索</th><td>${formatNumber(lost.exploredCount)} 个发现物 · ${formatNumber(lost.activeExpeditions)} 支探索队（派遣中，将失去）</td></tr>
+        <tr><th>舰队</th><td>${formatNumber(lost.fleetCount)} 艘护卫舰（随星际工程重置）</td></tr>
+        <tr><th>声望</th><td>${formatNumber(lost.reputation)}</td></tr>
         <tr><th>统计</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
       </table>
       <div class="ngplus-section-title">将继承</div>
       <table class="buy-max-table">
-        <tr><th>周目</th><td>第 ${preview.nextLevel} 周目</td></tr>
-        <tr><th>产出加成</th><td>×${preview.permanentMult.toFixed(2)}</td></tr>
+        <tr><th>周目</th><td>第 ${formatNumber(preview.nextLevel)} 周目</td></tr>
+        <tr><th>产出加成</th><td>${formatMultiplier(preview.permanentMult)}</td></tr>
         <tr><th>科技点</th><td>${formatNumber(preview.carryTech)}</td></tr>
-        <tr><th>图鉴派系</th><td>${escapeHtml(codexText)}（初始好感 +25）</td></tr>
+        <tr><th>图鉴派系</th><td>${escapeHtml(codexText)}（初始好感 +${formatNumber(25)}）</td></tr>
         <tr><th>永久加成</th><td>${bonusText}</td></tr>
-        <tr><th>成就图鉴</th><td>${achCount} 个（跨周目保留）</td></tr>
+        <tr><th>成就图鉴</th><td>${formatNumber(achCount)} 个（跨周目保留）</td></tr>
       </table>
       <div class="buy-max-warn">⚠ 确认后无法撤销：本周目资源、建筑、科技、派系好感、攻占进度与声望将全部清零。</div>
       <div class="buy-max-actions">
