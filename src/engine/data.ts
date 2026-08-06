@@ -606,6 +606,121 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   },
 }
 
+// ---- 无尽模式手写保底池（endless-expansion：仅 phase==='infinite' 注入探索奖池）----
+
+/** 无尽保底军事目标（ConquestDef + 解锁批次）：batch 1 = 进入无尽即解锁，batch 2 = 第 15 次探索后解锁 */
+export interface EndlessConquestDef extends ConquestDef {
+  batch: 1 | 2
+}
+
+/** 无尽保底外交对象（FactionDef + 解锁批次） */
+export interface EndlessFactionDef extends FactionDef {
+  batch: 1 | 2
+}
+
+/** 无尽保底天体（PlanetDef + 解锁批次；1 机制型 + 1 产出型） */
+export interface EndlessPlanetDef extends PlanetDef {
+  batch: 1 | 2
+}
+
+/**
+ * 无尽保底军事目标表（3 个，叙事定制）：
+ * - 唯一允许带 permanentBonus（bonus 字段）的生成来源——程序生成目标永不发放永久加成（防无限叠加）
+ * - guard 落在现有静态 500-3000 区间，随进度手感一致
+ */
+export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
+  warband: {
+    id: 'warband',
+    name: '掠夺者舰队',
+    desc: '游荡在黑暗航道的拾荒舰队，靠劫掠补给站为生。肃清它可回收大量矿藏。',
+    guard: 800,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    afterEnding: true,
+    rewardMineral: 800_000,
+    batch: 1,
+  },
+  iceFortress: {
+    id: 'iceFortress',
+    name: '冰封要塞',
+    desc: '建在冻云冰壳内的军事要塞，封存着旧联邦的武器蓝图。',
+    guard: 1_500,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    afterEnding: true,
+    rewardTech: 80_000,
+    batch: 1,
+  },
+  devourer: {
+    id: 'devourer',
+    name: '吞噬者母巢',
+    desc: '缓慢漂移的巨型生物巢穴，吞噬一切靠近的舰船。肃清它，航道将恢复平静。',
+    guard: 3_000,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    afterEnding: true,
+    rewardMineral: 3_000_000,
+    rewardTech: 150_000,
+    bonus: { kind: 'production', value: 0.05 },
+    batch: 2,
+  },
+}
+
+/** 无尽保底外交对象表（3 个，延续探索势力质感） */
+export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
+  starlightLeague: {
+    id: 'starlightLeague',
+    name: '星光商会',
+    desc: '驾驭光帆商船的星际商队，消息灵通且讲究实惠。',
+    initialFavor: 25,
+    initialThreat: 40,
+    tradeDiscount: 0.06,
+    batch: 1,
+  },
+  deepObservatory: {
+    id: 'deepObservatory',
+    name: '深空观测会',
+    desc: '驻守在最暗星区的学者组织，用观测数据交换科研支持。',
+    initialFavor: 20,
+    initialThreat: 20,
+    techShareCostMult: 0.6,
+    batch: 1,
+  },
+  mechSwarm: {
+    id: 'mechSwarm',
+    name: '机械蜂群',
+    desc: '由纳米机械聚合成的集体意识，对威慑信号异常敏感。',
+    initialFavor: 10,
+    initialThreat: 50,
+    intimidateCostMult: 0.7,
+    batch: 2,
+  },
+}
+
+/** 无尽保底天体表（2 个：1 机制型 + 1 产出型） */
+export const ENDLESS_PLANETS: Record<string, EndlessPlanetDef> = {
+  blackHoleObservatory: {
+    id: 'blackHoleObservatory',
+    name: '黑洞视界观测站',
+    desc: `建在黑洞吸积盘外侧的观测站：科技盈余可折算能源（与星际物流港同构）。`,
+    unlock: { resources: {} },
+    mechanicId: 'logisticsHub',
+    discoverOnly: true,
+    batch: 1,
+  },
+  magnetarField: {
+    id: 'magnetarField',
+    name: '磁星脉冲场',
+    desc: `濒临磁星的脉冲辐射区：基础能源产出 ${formatRate(1.8)}，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
+    unlock: { resources: {} },
+    mechanicId: 'none',
+    discoverOnly: true,
+    output: { energy: 1.8 },
+    outputPct: { energy: 0.02 },
+    batch: 2,
+  },
+}
+
 /**
  * 全部派系（初始 4 家 + 探索可发现 4 家）：
  * 判定/成本/行动统一从这里取 def——探索势力发现后自动纳入外交与联邦体系。

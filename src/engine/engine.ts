@@ -76,6 +76,8 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     expeditions: [],
     exploredFactions: [],
     exploredPlanets: [],
+    generatedTargets: [],
+    archivedRounds: {},
     hiddenPlanets: [],
     nextExpeditionId: 1,
     factions: createFactions(),
@@ -632,6 +634,9 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.exploredFactions = []
   state.exploredPlanets = []
   state.nextExpeditionId = 1
+  // 无尽生成目标清空（endless-expansion：归档 = 本周目语义；探索重新获得/重注入新一批）
+  state.generatedTargets = []
+  state.archivedRounds = {}
   // seed/rngCounters 保留（fixed-rng 已处理：跨周目序列延续）；factionCodex 保留（新势力结盟历史继承）
 
   // 星球重置为起点；派系好感重置（图鉴派系加成）

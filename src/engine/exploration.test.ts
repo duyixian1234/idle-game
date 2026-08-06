@@ -493,8 +493,8 @@ describe('engine: 探索发现物（势力/天体）接入体系', () => {
     const s = endedState()
     s.resources.tech = 100_000
     s.factions.nodeIntellect = createFactionState({ id: 'nodeIntellect', name: '节点智械', desc: '', initialFavor: 10, initialThreat: 40, techShareCostMult: 0.5 })
-    expect(techShareCost('nodeIntellect').tech).toBe(10_000)
-    expect(techShareCost('ferro').tech).toBe(20_000)
+    expect(techShareCost(s, 'nodeIntellect').tech).toBe(10_000)
+    expect(techShareCost(s, 'ferro').tech).toBe(20_000)
     const before = s.factions.nodeIntellect.favor
     factionTechShare(s, 'nodeIntellect')
     expect(s.resources.tech).toBe(100_000 - 10_000)

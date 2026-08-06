@@ -166,6 +166,33 @@ export const OUTPOST_MINERAL_MULT = 1.25
 /** 殖民前哨机制：能源折减消费侧倍率（×1.2 更吃能源，有取舍：矿多但更耗能） */
 export const OUTPOST_ENERGY_MULT = 1.2
 
+// ---- 无尽模式生成目标（endless-expansion，仅 phase==='infinite'） ----
+
+/** 生成目标数量上限驱动：每完成 N 次探索 +1（与 60min 单次派遣节奏匹配，Q14 定稿初值，sim 校准） */
+export const GENERATED_CAP_EXPLORATIONS_DIVISOR = 10
+/** 保底池第二批解锁阈值：第 N 次探索后解锁 batch 2（Q16 方案 B 定稿，sim 校准） */
+export const ENDLESS_BATCH_2_EXPLORATIONS = 15
+/** 程序生成军事目标强度周目缩放：guard × GEN_STRENGTH_GROWTH^ngPlusLevel（与探索成本同构，Q11 定稿） */
+export const GEN_STRENGTH_GROWTH = 1.5
+/** 程序生成军事目标守卫采样区间（均匀）：[MIN, MAX] 落在现有静态 500-3000 区间（Q8 定稿） */
+export const GEN_CONQUEST_GUARD_MIN = 500
+export const GEN_CONQUEST_GUARD_MAX = 3_000
+/** 程序生成军事目标一次性矿物奖励：guard × [MIN_FACTOR, MAX_FACTOR]（比例锚定现有 5万矿/500守卫 量级；**永不发 permanentBonus**） */
+export const GEN_CONQUEST_REWARD_MINERAL_FACTOR_MIN = 800
+export const GEN_CONQUEST_REWARD_MINERAL_FACTOR_MAX = 1_200
+/** 程序生成军事目标一次性科技奖励：guard × [MIN_FACTOR, MAX_FACTOR] */
+export const GEN_CONQUEST_REWARD_TECH_FACTOR_MIN = 40
+export const GEN_CONQUEST_REWARD_TECH_FACTOR_MAX = 60
+/** 程序生成外交对象初始好感/威胁区间（参照 EXPLORE_FACTIONS 初值带，Q9 定稿） */
+export const GEN_FACTION_FAVOR_MAX = 30
+export const GEN_FACTION_THREAT_MIN = 25
+export const GEN_FACTION_THREAT_MAX = 55
+/** 程序生成天体产出区间（单种资源）：output ∈ [MIN, MAX]、outputPct ∈ [PCT_MIN, PCT_MAX]——封死不破现有天花板（Q10 定稿） */
+export const GEN_PLANET_OUTPUT_MIN = 0.5
+export const GEN_PLANET_OUTPUT_MAX = 2
+export const GEN_PLANET_PCT_MIN = 0.005
+export const GEN_PLANET_PCT_MAX = 0.02
+
 /**
  * 带封顶的缩放：Math.min(cap, Math.max(min, Math.floor(rate * factor)))。
  * 与 events 内部 scaledBy 的区别在**有上限**（探索消耗封顶，防通关后期无穷膨胀成印钞机）。

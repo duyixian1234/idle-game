@@ -1,8 +1,7 @@
-import { ALL_FACTIONS, BUILDINGS, CONQUESTS, RESOURCE_KEYS } from './data'
+import { BUILDINGS, CONQUESTS, RESOURCE_KEYS } from './data'
 import { NG_PLUS_MEGASTRUCTURE_BONUS, NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
 import { reputation } from './reputation'
 import type { GameState, ResourceKey } from './types'
-
 /**
  * NG+（周目继承）深层模块。
  * - `computeNgPlusInheritance`：共享继承计算（无副作用），`startNewGamePlus` 与 `previewNewGamePlus` 共用，
@@ -68,10 +67,11 @@ export interface NgPlusPreview {
 export function computeNgPlusInheritance(state: GameState): NgPlusInheritance {
   const nextLevel = state.ngPlusLevel + 1
   const codexFactions = [...state.factionCodex]
-  // 遍历 ALL_FACTIONS（含探索发现的新势力：结盟历史同样继承）
-  for (const def of Object.values(ALL_FACTIONS)) {
-    if (state.factions[def.id]?.allied && !codexFactions.includes(def.id)) {
-      codexFactions.push(def.id)
+  // 遍历运行时派系集合（state.factions 含初始 4 家 + 探索发现 + 无尽生成对象：结盟历史同样继承）
+  // 注：无尽生成派系（gen:*/endless:*）结盟后进 codex；NG+ 清空 generatedTargets 后 codex 中其 id 仅作历史记录
+  for (const id of Object.keys(state.factions)) {
+    if (state.factions[id]?.allied && !codexFactions.includes(id)) {
+      codexFactions.push(id)
     }
   }
   return {
@@ -99,7 +99,8 @@ export function megastructureLegacyBonus(state: GameState): number {
 /** 预览 NG+（纯函数：不修改 state，调用前后状态不变） */
 export function previewNewGamePlus(state: GameState): NgPlusPreview {
   const inh = computeNgPlusInheritance(state)
-  const alliedFactions = Object.values(ALL_FACTIONS).filter((d) => state.factions[d.id]?.allied).map((d) => d.id)
+  // 运行时派系集合（含无尽生成对象）——与 computeNgPlusInheritance 同口径
+  const alliedFactions = Object.keys(state.factions).filter((id) => state.factions[id]?.allied)
   const conquered = Object.values(CONQUESTS).filter((d) => state.conquest[d.id]?.status === 'conquered').length
   // 继承的永久加成表 = 现有 + 究极建筑等级折算（预览与执行同源引用 megastructureLegacyBonus）
   const permanentBonuses = { ...state.permanentBonuses }

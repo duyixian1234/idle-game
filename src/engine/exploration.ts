@@ -1,4 +1,15 @@
-import { EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
+import { ENDLESS_CONQUESTS, ENDLESS_FACTIONS, ENDLESS_PLANETS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
+import { createFactionState, factionDefFromTarget } from './diplomacy'
+import {
+  endlessBatchUnlocked,
+  endlessTargetId,
+  generateConquestTarget,
+  generateFactionTarget,
+  generatePlanetTarget,
+  generatedCap,
+  isEndlessTargetId,
+  programmaticActiveCount,
+} from './generate'
 import {
   AUTO_EXPLORE_RETRY_MS,
   ESCORT_COMPENSATE_RATIO,
@@ -20,7 +31,6 @@ import {
   JUMPGATE_SLOT_BONUS,
   scaledClamp,
 } from './balance'
-import { createFactionState } from './diplomacy'
 import { fleetPowered } from './fleet'
 import { playMilestone } from './story'
 import { militaryCap, netProduction } from './production'
@@ -136,15 +146,28 @@ export function escortHarvestMult(state: GameState): number {
 
 /** 奖池候选条目 */
 export interface ExpeditionPoolEntry {
-  kind: 'faction' | 'planet' | 'resource'
-  /** factionId 或 planetId（resource 无 id） */
+  kind: 'faction' | 'planet' | 'conquest' | 'resource'
+  /** factionId / planetId / 生成目标 id（resource 无 id；conquest 为 targetId） */
   id?: string
   weight: number
 }
 
+/** 无尽模式程序生成占位条目（每类一条；id 为占位符，结算时实时生成具体目标） */
+const ENDLESS_GEN_POOL: Array<{ kind: 'conquest' | 'faction' | 'planet'; weight: number }> = [
+  { kind: 'conquest', weight: 2 },
+  { kind: 'faction', weight: 2 },
+  { kind: 'planet', weight: 1 },
+]
+
 /**
  * 探索奖池（剔除制）：未发现的探索势力（各 w2）+ 未发现的探索天体（各 w1，含产出型）
  * + 资源补偿（w = max(2, 6 - 已收集数)）。已发现的不再出现（收集有终点）。
+ *
+ * 无尽模式扩展池（endless-expansion，仅 phase==='infinite'）：
+ * - 手写保底目标（ENDLESS_* 表）：批次已解锁（batch 1 进无尽即解锁 / batch 2 第 15 次探索后）且未获得 → 入池；
+ * - 程序生成占位：每类一条，未归档活跃程序目标数 < generatedCap（数量上限按类型各计、只约束程序生成）→ 入池，
+ *   roll 到后结算时实时生成（确定性走 generate 域持久计数器）。
+ * ended 分支与现状逐字节一致（作用域隔离——普通通关不注入扩展池）。
  */
 export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
   const pool: ExpeditionPoolEntry[] = []
@@ -153,6 +176,31 @@ export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
   }
   for (const def of Object.values(EXPLORE_PLANETS)) {
     if (!state.exploredPlanets.includes(def.id)) pool.push({ kind: 'planet', id: def.id, weight: 1 })
+  }
+  if (state.phase === 'infinite') {
+    for (const def of Object.values(ENDLESS_CONQUESTS)) {
+      const id = endlessTargetId(def.id)
+      if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
+        pool.push({ kind: 'conquest', id, weight: 2 })
+      }
+    }
+    for (const def of Object.values(ENDLESS_FACTIONS)) {
+      const id = endlessTargetId(def.id)
+      if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
+        pool.push({ kind: 'faction', id, weight: 2 })
+      }
+    }
+    for (const def of Object.values(ENDLESS_PLANETS)) {
+      const id = endlessTargetId(def.id)
+      if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
+        pool.push({ kind: 'planet', id, weight: 1 })
+      }
+    }
+    for (const g of ENDLESS_GEN_POOL) {
+      if (programmaticActiveCount(state, g.kind) < generatedCap(state, g.kind)) {
+        pool.push({ kind: g.kind, id: `gen:${g.kind}`, weight: g.weight })
+      }
+    }
   }
   const collected = state.exploredFactions.length + state.exploredPlanets.length
   pool.push({ kind: 'resource', weight: Math.max(2, 6 - collected) })
@@ -204,6 +252,7 @@ function rollFromPool(
     if (value <= 0) {
       if (entry.kind === 'faction') return { kind: 'faction', factionId: entry.id! }
       if (entry.kind === 'planet') return { kind: 'planet', planetId: entry.id! }
+      if (entry.kind === 'conquest') return { kind: 'conquest', targetId: entry.id! }
       return { kind: 'resource', ...compensationFor(cost, mult, escortFee, mineralFee) }
     }
   }
@@ -211,6 +260,7 @@ function rollFromPool(
   const last = pool[pool.length - 1]
   if (last.kind === 'faction') return { kind: 'faction', factionId: last.id! }
   if (last.kind === 'planet') return { kind: 'planet', planetId: last.id! }
+  if (last.kind === 'conquest') return { kind: 'conquest', targetId: last.id! }
   return { kind: 'resource', ...compensationFor(cost, mult, escortFee, mineralFee) }
 }
 
@@ -296,6 +346,9 @@ export function settleExpeditions(state: GameState, nowMs: number): ExpeditionLo
 function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): ExpeditionLog {
   const r = exp.result
   const escortNote = exp.escort ? '（护航编队）' : ''
+  if (r.kind === 'conquest') {
+    return settleConquestResult(state, r.targetId, nowMs, escortNote)
+  }
   if (r.kind === 'faction') {
     const def = EXPLORE_FACTIONS[r.factionId]
     if (def && !state.factions[r.factionId]) {
@@ -308,6 +361,9 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
       cur.favor = Math.min(FAVOR_CAP, cur.favor + EXPEDITION_REPEAT_FAVOR_GAIN)
       return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? r.factionId}」的联系，好感 +${formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN)}。${escortNote}` }
     }
+    // 无尽外交对象（endless-expansion）：手写保底（endless:）或程序生成（gen:faction）
+    const endless = settleEndlessFaction(state, r.factionId, escortNote)
+    if (endless) return endless
     return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? r.factionId}」的联系。${escortNote}` }
   }
   if (r.kind === 'planet') {
@@ -322,6 +378,9 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
       ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
       return { type: 'story', text: `探索队返航：确认「${def?.name ?? r.planetId}」殖民地运行正常，产出增益 +${formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100)}。${escortNote}` }
     }
+    // 无尽天体（endless-expansion）：手写保底（endless:）或程序生成（gen:planet）
+    const endless = settleEndlessPlanet(state, r.planetId, nowMs, escortNote)
+    if (endless) return endless
     return { type: 'story', text: `探索队返航：确认「${def?.name ?? r.planetId}」殖民地运行正常。${escortNote}` }
   }
   state.resources.mineral += r.mineral
@@ -333,6 +392,108 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
       ? `护航编队返航：未发现新文明，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`
       : `探索队返航：未发现新文明，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`,
   }
+}
+
+// ---- 无尽模式生成目标结算（endless-expansion）----
+
+/** 军事目标结算：手写保底（endless:）直接创建快照；程序生成（gen:conquest）实时生成（generate 域持久计数器，确定性防 SL） */
+function settleConquestResult(state: GameState, targetId: string, nowMs: number, escortNote: string): ExpeditionLog {
+  void nowMs
+  if (isEndlessTargetId(targetId)) {
+    const defId = targetId.slice('endless:'.length)
+    const def = ENDLESS_CONQUESTS[defId]
+    if (def && !state.generatedTargets.some((t) => t.id === targetId)) {
+      state.generatedTargets.push({
+        kind: 'conquest',
+        id: targetId,
+        name: def.name,
+        desc: def.desc,
+        batch: def.batch,
+        guard: def.guard,
+        rewardMineral: def.rewardMineral,
+        rewardTech: def.rewardTech,
+        bonus: def.bonus,
+      })
+      state.conquest[targetId] = { status: 'available' }
+      return { type: 'story', text: `探索队返航：发现军事目标「${def.name}」，已标记可攻占。${escortNote}` }
+    }
+    return { type: 'story', text: `探索队返航：确认「${def?.name ?? targetId}」仍在威胁区内。${escortNote}` }
+  }
+  const target = generateConquestTarget(state, rollDomain(state, 'generate'))
+  state.generatedTargets.push(target)
+  state.conquest[target.id] = { status: 'available' }
+  return { type: 'story', text: `探索队返航：发现军事目标「${target.name}」，已标记可攻占。${escortNote}` }
+}
+
+/** 外交对象结算：手写保底直接创建；程序生成实时生成；重复发现（理论上不入池，防御分支）好感 +5 */
+function settleEndlessFaction(state: GameState, factionId: string, escortNote: string): ExpeditionLog | undefined {
+  if (isEndlessTargetId(factionId)) {
+    const defId = factionId.slice('endless:'.length)
+    const def = ENDLESS_FACTIONS[defId]
+    if (def && !state.factions[factionId]) {
+      state.factions[factionId] = createFactionState(def)
+      state.generatedTargets.push({
+        kind: 'faction',
+        id: factionId,
+        name: def.name,
+        desc: def.desc,
+        batch: def.batch,
+        initialFavor: def.initialFavor,
+        initialThreat: def.initialThreat,
+        tradeDiscount: def.tradeDiscount,
+        techShareCostMult: def.techShareCostMult,
+        intimidateCostMult: def.intimidateCostMult,
+      })
+      if (!state.exploredFactions.includes(factionId)) state.exploredFactions.push(factionId)
+      return { type: 'story', text: `探索队返航：在偏远星区发现「${def.name}」的聚居舰队。外交频道已建立。${escortNote}` }
+    }
+    const cur = state.factions[factionId]
+    if (cur) {
+      cur.favor = Math.min(FAVOR_CAP, cur.favor + EXPEDITION_REPEAT_FAVOR_GAIN)
+      return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? factionId}」的联系，好感 +${formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN)}。${escortNote}` }
+    }
+    return { type: 'story', text: `探索队返航：重新建立与「${def?.name ?? factionId}」的联系。${escortNote}` }
+  }
+  const target = generateFactionTarget(state, rollDomain(state, 'generate'))
+  state.generatedTargets.push(target)
+  state.factions[target.id] = createFactionState(factionDefFromTarget(target))
+  if (!state.exploredFactions.includes(target.id)) state.exploredFactions.push(target.id)
+  return { type: 'story', text: `探索队返航：在偏远星区发现「${target.name}」的聚居舰队。外交频道已建立。${escortNote}` }
+}
+
+/** 天体结算：手写保底直接创建；程序生成实时生成；一次性（机制型，无 output）天体发现即归档（不可再交互 → 折叠区）；产出型保留列表 */
+function settleEndlessPlanet(state: GameState, planetId: string, nowMs: number, escortNote: string): ExpeditionLog | undefined {
+  if (isEndlessTargetId(planetId)) {
+    const defId = planetId.slice('endless:'.length)
+    const def = ENDLESS_PLANETS[defId]
+    if (def && !state.planets[planetId]?.unlocked) {
+      state.planets[planetId] = { unlocked: true, unlockedAt: nowMs }
+      state.generatedTargets.push({
+        kind: 'planet',
+        id: planetId,
+        name: def.name,
+        desc: def.desc,
+        batch: def.batch,
+        output: def.output,
+        outputPct: def.outputPct,
+        mechanicId: def.mechanicId,
+      })
+      if (!state.exploredPlanets.includes(planetId)) state.exploredPlanets.push(planetId)
+      if (!def.output) state.archivedRounds[planetId] = state.ngPlusLevel ?? 0
+      return { type: 'story', text: `探索队返航：发现更佳的发展天体「${def.name}」，已进入可殖民范围。${escortNote}` }
+    }
+    const ps = state.planets[planetId]
+    if (ps?.unlocked) {
+      ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
+      return { type: 'story', text: `探索队返航：确认「${def?.name ?? planetId}」殖民地运行正常，产出增益 +${formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100)}。${escortNote}` }
+    }
+    return { type: 'story', text: `探索队返航：确认「${def?.name ?? planetId}」殖民地运行正常。${escortNote}` }
+  }
+  const target = generatePlanetTarget(state, rollDomain(state, 'generate'))
+  state.generatedTargets.push(target)
+  state.planets[target.id] = { unlocked: true, unlockedAt: nowMs }
+  if (!state.exploredPlanets.includes(target.id)) state.exploredPlanets.push(target.id)
+  return { type: 'story', text: `探索队返航：发现更佳的发展天体「${target.name}」，已进入可殖民范围。${escortNote}` }
 }
 
 // ---- 自动探索（fleet-dock-10：每 60min 自动续派，离线同样续派）----

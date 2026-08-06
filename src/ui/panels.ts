@@ -1,20 +1,21 @@
 import type { GameState, ResourceKey } from '../engine/types'
-import { ALL_FACTIONS, BUILDINGS, CONQUESTS, EXPLORE_PLANETS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, CONQUESTS, ENDLESS_CONQUESTS, ENDLESS_FACTIONS, EXPLORE_PLANETS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, FactionDef } from '../engine/data'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { isConquestAvailable, conquestState } from '../engine/conquest'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
+import { conquestDef, isConquestAvailable, conquestState } from '../engine/conquest'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
 import { escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
-import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, factionsVisible, federationProgress, intimidateCost, tradeCost } from '../engine/diplomacy'
+import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, factionDef, factionsVisible, federationProgress, intimidateCost, tradeCost } from '../engine/diplomacy'
+import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { LogDirection } from './log'
 
 function escapeHtml(s: string): string {
@@ -111,6 +112,8 @@ export interface BuildPanelRenderOptions {
   lockedExpanded?: Record<string, boolean>
   /** 刚升级高亮 id（短暂窗口内卡片加 just-upgraded 类触发一次性动画，过期自动消失） */
   flashId?: string | null
+  /** 归档折叠展开态（endless-expansion：军事/外交归档区，UI 会话内存不进存档；key = kind） */
+  archivedExpanded?: Record<string, boolean>
 }
 
 /** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局抉择弹窗 */
@@ -391,8 +394,37 @@ function factionPerkLabels(def: FactionDef): string[] {
   return labels
 }
 
-/** 渲染外交面板：遍历运行时全部已发现势力（初始 4 家 + 探索发现的势力；未发现的探索势力不渲染） */
-export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
+/** 归档折叠区（endless-expansion）：头部计数 + 明细行（名称 + 归档徽标 + 第 N 周目）。
+ * 折叠状态走 UI 层会话态（archivedExpanded，main 层持有，不进存档）——与 data-locked-collapse 同构，250ms 重建不重置。 */
+function renderArchiveCollapse(el: HTMLElement, kind: string, label: string, rows: string[], expanded: boolean): void {
+  if (rows.length === 0) return
+  const fold = document.createElement('div')
+  fold.className = 'archive-collapse'
+  fold.setAttribute('data-archived-collapse', kind)
+  fold.innerHTML = `
+    <div class="archive-summary" data-archived-toggle="${kind}" role="button" tabindex="0">${escapeHtml(label)}（${formatNumber(rows.length)}）<span class="archive-chevron">${expanded ? '▾' : '▸'}</span></div>
+    <div class="archive-list" data-archived-list="${kind}" ${expanded ? '' : 'style="display:none"'}>${rows.join('')}</div>`
+  el.appendChild(fold)
+}
+
+/** 归档明细行（endless-expansion）：名称 + 归档徽标 + 第 N 周目标记（Q17 方案 B） */
+function archiveRow(name: string, badge: string, round: number | undefined, id: string): string {
+  return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(name)}</span><span class="archive-badge">${escapeHtml(badge)}</span>${round != null ? `<span class="archive-round">第 ${formatNumber(round)} 周目</span>` : ''}</div>`
+}
+
+/** 保底锁定占位（endless-expansion）：batch 2 未解锁且未获得的目标提示（仅 infinite 渲染，「完成 N 次探索解锁」） */
+function renderEndlessLockedHint(el: HTMLElement, kind: string, lockedCount: number): void {
+  if (lockedCount <= 0) return
+  const block = document.createElement('div')
+  block.className = 'archive-collapse locked'
+  block.setAttribute('data-explore-locked', kind)
+  block.innerHTML = `<div class="archive-summary">？？？ · 完成 ${formatNumber(ENDLESS_BATCH_2_EXPLORATIONS)} 次探索解锁新${kind === 'conquest' ? '军事目标' : kind === 'diplomacy' ? '外交对象' : '天体'}</div>`
+  el.appendChild(block)
+}
+
+/** 渲染外交面板：遍历运行时全部已登场派系（初始 4 家 + 探索发现的势力 + 无尽生成对象；未发现的探索势力不渲染）。
+ * 已结盟（archivedRounds 有记录）= 不可再交互 → 移列表末尾归档折叠区（endless-expansion）。 */
+export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { archivedExpanded?: Record<string, boolean> } = {}): void {
   el.innerHTML = ''
   if (!factionsVisible(state)) {
     el.innerHTML = `<div class="diplo-empty">星域中尚未探测到其他文明信号。解锁「轨道工厂站·奥伯斯」后，派系将进入舞台。</div>`
@@ -404,26 +436,35 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
   header.textContent = `星系统一联邦：${formatNumber(prog.satisfied)}/${formatNumber(prog.total)} 派系达成统一条件`
   el.appendChild(header)
 
-  for (const def of Object.values(ALL_FACTIONS)) {
-    const f = state.factions[def.id]
-    if (!f) continue // 探索势力未发现前不渲染（发现即创建 state → 自动登场）
-    const tradeC = tradeCost(state, def.id)
-    const intC = intimidateCost(state, def.id)
+  const archived = opts.archivedExpanded ?? {}
+  const archivedRows: string[] = []
+  // 运行时派系集合（含无尽生成对象）；def 查不到（异常防御）跳过
+  for (const id of Object.keys(state.factions)) {
+    const def = factionDef(state, id)
+    if (!def) continue
+    const f = state.factions[id]
+    if (!f) continue
+    // 已结盟 = 归档（本周目语义，archivedRounds 记录归档周目）
+    if (state.archivedRounds?.[id] != null) {
+      archivedRows.push(archiveRow(def.name, '已结盟', state.archivedRounds[id], id))
+      continue
+    }
+    const tradeC = tradeCost(state, id)
+    const intC = intimidateCost(state, id)
     const shareC = TECH_SHARE_COST
-    const canTrade = canFactionTrade(state, def.id)
-    const canAlliance = canFactionAlliance(state, def.id)
-    const canIntimidate = canFactionIntimidate(state, def.id)
-    const canShare = canFactionTechShare(state, def.id)
+    const canTrade = canFactionTrade(state, id)
+    const canAlliance = canFactionAlliance(state, id)
+    const canIntimidate = canFactionIntimidate(state, id)
+    const canShare = canFactionTechShare(state, id)
     const perks = factionPerkLabels(def)
 
     const item = document.createElement('div')
     item.className = 'build-item faction-item'
-    item.setAttribute('data-faction', def.id)
+    item.setAttribute('data-faction', id)
     item.innerHTML = `
       <div class="build-info faction-info">
         <div class="build-name">
-          ${iconUse(def.id, 'faction-badge')}${escapeHtml(def.name)}
-          ${f.allied ? '<span class="build-count allied-badge">已结盟</span>' : ''}
+          ${iconUse(id, 'faction-badge')}${escapeHtml(def.name)}
           ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
@@ -436,26 +477,33 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
         </div>
       </div>
       <div class="build-actions faction-actions">
-        ${f.allied ? '' : `
-          <button type="button" class="build-btn diplo-btn" data-diplomacy="${def.id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
-            贸易 ${formatCost(tradeC)}
-          </button>
-          <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${def.id}:trade:10" ${canTrade ? '' : 'disabled'}>+10</button>
-          <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${def.id}:trade:100" ${canTrade ? '' : 'disabled'}>+100</button>
-          <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy="${def.id}:techshare" ${canShare ? '' : 'disabled'} title="分享技术情报，花费科技点直接提升好感">
-            技术共享 ${formatCost(shareC)}
-          </button>
-          <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${def.id}:techshare:10" ${canShare ? '' : 'disabled'}>+10</button>
-          <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${def.id}:techshare:100" ${canShare ? '' : 'disabled'}>+100</button>
-          <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${def.id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${formatNumber(ALLIANCE_FAVOR_THRESHOLD)} 后可结盟（消耗大量资源）">
-            结盟 ${formatCost(ALLIANCE_COST)}
-          </button>
-          <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${def.id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
-            威慑 ${formatCost(intC)}
-          </button>
-        `}
+        <button type="button" class="build-btn diplo-btn" data-diplomacy="${id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
+          贸易 ${formatCost(tradeC)}
+        </button>
+        <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${id}:trade:10" ${canTrade ? '' : 'disabled'}>+10</button>
+        <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${id}:trade:100" ${canTrade ? '' : 'disabled'}>+100</button>
+        <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy="${id}:techshare" ${canShare ? '' : 'disabled'} title="分享技术情报，花费科技点直接提升好感">
+          技术共享 ${formatCost(shareC)}
+        </button>
+        <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${id}:techshare:10" ${canShare ? '' : 'disabled'}>+10</button>
+        <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${id}:techshare:100" ${canShare ? '' : 'disabled'}>+100</button>
+        <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${formatNumber(ALLIANCE_FAVOR_THRESHOLD)} 后可结盟（消耗大量资源）">
+          结盟 ${formatCost(ALLIANCE_COST)}
+        </button>
+        <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
+          威慑 ${formatCost(intC)}
+        </button>
       </div>`
     el.appendChild(item)
+  }
+  // 归档折叠区（已结盟外交对象）
+  renderArchiveCollapse(el, 'diplomacy', '已完成外交对象', archivedRows, Boolean(archived['diplomacy']))
+  // 保底锁定占位（endless-expansion：batch 2 未解锁且未获得）
+  if (state.phase === 'infinite') {
+    const locked = Object.values(ENDLESS_FACTIONS).filter(
+      (d) => d.batch === 2 && !endlessBatchUnlocked(state, d.batch) && !state.generatedTargets.some((t) => t.id === endlessTargetId(d.id)),
+    )
+    renderEndlessLockedHint(el, 'diplomacy', locked.length)
   }
 }
 
@@ -636,7 +684,8 @@ function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
   el.appendChild(section)
 }
 
-/** 渲染军事面板：军事建筑 / 攻占列表 / 军械科技 / 舰队管理区（星际工程大件已移至建造页）。 */
+/** 渲染军事面板：军事建筑 / 攻占列表 / 军械科技 / 舰队管理区（星际工程大件已移至建造页）。
+ * 攻占列表 = 静态 4 区域 + 无尽生成军事目标（endless-expansion）；已归档（征服）目标移列表末尾折叠区。 */
 export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
   // 段 1：军事建筑（兵营/军港，含升级与 buy-max；卡片化，与民用同构；军事 tab 不启用锁定卡折叠）
@@ -644,16 +693,45 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   buildSection.className = 'military-section'
   renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)
   el.appendChild(buildSection)
-  // 段 2：攻占列表（肃清进度 x/4）
+  // 段 2：攻占列表（肃清进度 x/4 静态口径 + 无尽动态目标；已肃清 → 归档折叠区）
   const conquestSection = document.createElement('div')
   conquestSection.className = 'military-section'
-  const defs = Object.values(CONQUESTS)
-  const conqueredCount = defs.filter((d) => conquestState(state, d.id).status === 'conquered').length
+  const staticDefs = Object.values(CONQUESTS)
+  const conqueredCount = staticDefs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(defs.length)}`
+  header.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(staticDefs.length)}`
   conquestSection.appendChild(header)
-  for (const def of defs) conquestSection.appendChild(renderConquestRow(def, state))
+  const archived = opts.archivedExpanded ?? {}
+  const archivedRows: string[] = []
+  // 静态 4 区域
+  for (const def of staticDefs) {
+    if (state.archivedRounds?.[def.id] != null) {
+      archivedRows.push(archiveRow(def.name, '已肃清', state.archivedRounds[def.id], def.id))
+    } else {
+      conquestSection.appendChild(renderConquestRow(def, state))
+    }
+  }
+  // 无尽生成军事目标（动态）
+  for (const t of state.generatedTargets) {
+    if (t.kind !== 'conquest') continue
+    const def = conquestDef(state, t.id)
+    if (!def) continue
+    if (state.archivedRounds?.[t.id] != null) {
+      archivedRows.push(archiveRow(t.name, '已肃清', state.archivedRounds[t.id], t.id))
+    } else {
+      conquestSection.appendChild(renderConquestRow(def, state))
+    }
+  }
+  // 归档折叠区（已肃清军事目标）
+  renderArchiveCollapse(conquestSection, 'conquest', '已完成军事目标', archivedRows, Boolean(archived['conquest']))
+  // 保底锁定占位（endless-expansion：batch 2 未解锁且未获得）
+  if (state.phase === 'infinite') {
+    const locked = Object.values(ENDLESS_CONQUESTS).filter(
+      (d) => d.batch === 2 && !endlessBatchUnlocked(state, d.batch) && !state.generatedTargets.some((t) => t.id === endlessTargetId(d.id)),
+    )
+    renderEndlessLockedHint(conquestSection, 'conquest', locked.length)
+  }
   el.appendChild(conquestSection)
   // 段 3：军械科技（攻占「虫群前哨」解锁；行式，未攻占显示锁定文案）
   renderMilitaryTechSection(el, state)

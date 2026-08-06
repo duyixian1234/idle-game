@@ -144,8 +144,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v11 新增自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 11
+/** 存档 schema 版本（v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 12
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -204,11 +204,49 @@ export interface AutoExploreState {
   pausedAt?: number
 }
 
-/** 探索结果（出发时固化，防 SL：回归只入账不重抽）：发现势力 / 发现天体 / 资源补偿 */
+/** 探索结果（出发时固化，防 SL：回归只入账不重抽）：发现势力 / 发现天体 / 军事目标 / 资源补偿 */
 export type ExpeditionResult =
   | { kind: 'faction'; factionId: string }
   | { kind: 'planet'; planetId: string }
+  | { kind: 'conquest'; targetId: string }
   | { kind: 'resource'; mineral: number; tech: number; energy: number }
+
+/** 无尽模式生成目标（v12 新增）：
+ * - 探索获得（手写保底 batch 1/2 或程序生成 batch 0），定义快照随档落盘（生成后固定，防 RNG 漂移）
+ * - NG+ 清空重注入；归档 = 本周目语义（archivedRounds 记录归档周目）
+ * - 军事目标奖励**仅一次性资源，永不给 permanentBonus**（程序生成零永久加成，防无限叠加）
+ */
+export interface GeneratedTarget {
+  kind: GeneratedTargetKind
+  /** 唯一 id（`endless:<defId>` 手写保底 / `gen:<kind>:<n>` 程序生成） */
+  id: string
+  name: string
+  desc: string
+  /** 0 = 程序生成；1/2 = 手写保底解锁批次（进入无尽解锁 batch 1，第 15 次探索解锁 batch 2） */
+  batch: 0 | 1 | 2
+  /** 军事目标：守卫强度（成功率 = 投入军力/守卫，足额投入必成） */
+  guard?: number
+  /** 军事目标：一次性矿物奖励（程序生成必填，无 permanentBonus） */
+  rewardMineral?: number
+  /** 军事目标：一次性科技奖励 */
+  rewardTech?: number
+  /** 军事目标：永久全局加成（**仅手写保底可带**，程序生成禁——防无限叠加摧毁 balance） */
+  bonus?: { kind: 'production' | 'militaryCap'; value: number }
+  /** 外交对象：初始好感/威胁/特性（与 FactionDef 同构） */
+  initialFavor?: number
+  initialThreat?: number
+  tradeDiscount?: number
+  techShareCostMult?: number
+  intimidateCostMult?: number
+  /** 天体：基础产出（每秒）与比例挂钩产出（与 PlanetDef.output/outputPct 同构） */
+  output?: Partial<Record<ResourceKey, number>>
+  outputPct?: Partial<Record<ResourceKey, number>>
+  /** 天体机制挂点（仅手写保底机制型可用） */
+  mechanicId?: string
+}
+
+/** 无尽模式生成目标 kind：conquest=军事目标 / faction=外交对象 / planet=天体 */
+export type GeneratedTargetKind = 'conquest' | 'faction' | 'planet'
 
 /** 探索派遣状态（多槽：同时最多 explorationSlots 支；出发时固化结果，回归自动入账后移除） */
 export interface ExpeditionState {
@@ -290,6 +328,11 @@ export interface GameState {
   exploredFactions: string[]
   /** 已发现的探索天体 id（奖池剔除依据，周目重置；v6 新增） */
   exploredPlanets: string[]
+  /** 无尽模式生成目标定义快照（v12 新增）：探索获得的手写保底/程序生成目标（军事/外交/天体）；
+   * 生成后固定随档落盘（防 RNG 漂移，与 exp.result 固化同构）；NG+ 清空重注入 */
+  generatedTargets: GeneratedTarget[]
+  /** 归档周目标记（v12 新增）：targetId -> 归档时的 ngPlusLevel（本周目语义，NG+ 清空重积累） */
+  archivedRounds: Record<string, number>
   /** 用户从顶部天体列表隐藏的天体 id（按存档持久化） */
   hiddenPlanets: string[]
   /** 下一条派遣 id（递增；v6 新增） */

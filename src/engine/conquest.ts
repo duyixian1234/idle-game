@@ -1,4 +1,6 @@
 import { CONQUESTS } from './data'
+import type { ConquestDef } from './data'
+import { CONQUEST_DURATION_MS } from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import { rollDomain } from './rng'
@@ -23,9 +25,30 @@ export function conquestState(state: GameState, id: string): ConquestState {
   return state.conquest[id] ?? { status: 'locked' }
 }
 
+/** 攻占区域 def 查询：静态 CONQUESTS 优先，未命中查无尽生成目标（endless 前缀 / gen 前缀——动态军事目标统一入口）。
+ * 动态目标无前置星球（无尽模式已通关），unlockPlanet 取 'dawn'（必解锁）、afterEnding false（不额外门控）。 */
+export function conquestDef(state: GameState, id: string): ConquestDef | undefined {
+  const staticDef = CONQUESTS[id]
+  if (staticDef) return staticDef
+  const t = state.generatedTargets?.find((x) => x.kind === 'conquest' && x.id === id)
+  if (!t) return undefined
+  return {
+    id: t.id,
+    name: t.name,
+    desc: t.desc,
+    guard: t.guard ?? 0,
+    durationMs: CONQUEST_DURATION_MS,
+    unlockPlanet: 'dawn',
+    afterEnding: false,
+    rewardMineral: t.rewardMineral,
+    rewardTech: t.rewardTech,
+    bonus: t.bonus,
+  }
+}
+
 /** 区域是否可发起攻占：未攻占、不在进行中、前置星球已解锁、（通关后区域需 phase ≠ playing） */
 export function isConquestAvailable(state: GameState, id: string): boolean {
-  const def = CONQUESTS[id]
+  const def = conquestDef(state, id)
   if (!def) return false
   const cs = conquestState(state, id)
   if (cs.status === 'conquered') return false
@@ -37,7 +60,7 @@ export function isConquestAvailable(state: GameState, id: string): boolean {
 
 /** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt） */
 export function startConquest(state: GameState, id: string, invest: number, nowMs: number): ConquestActionResult {
-  const def = CONQUESTS[id]
+  const def = conquestDef(state, id)
   if (!def) return { ok: false, reason: '未知区域' }
   if (!isConquestAvailable(state, id)) return { ok: false, reason: '该区域当前无法攻占' }
   if (!Number.isFinite(invest) || invest <= 0) return { ok: false, reason: '投入军力无效' }
@@ -51,50 +74,80 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
  * 结算已到期的攻占（成功/失败），返回日志文本（由调用方 pushLog）。
  * rng 不传（undefined）→ 结果型随机走 conquest 域持久化计数器（fixed-rng 防 SL）；
  * 显式传 rng → 测试注入（跳过计数器，行为与现状一致）。
+ *
+ * 双遍历（endless-expansion）：静态 CONQUESTS + 无尽生成目标（generatedTargets kind='conquest'）。
+ * - 动态目标由探索发现创建（status 'available'），复用同一守卫/成功率/失败重试机制；
+ * - 成功一律写归档周目标记（archivedRounds[id] = ngPlusLevel，本周目语义，NG+ 清空）；
+ * - 动态目标**不参与 conquestAll 里程碑**（仅静态表检查，天然成立，注释声明）。
  */
 export function settleConquests(state: GameState, nowMs: number, rng?: () => number): string[] {
   const logs: string[] = []
+  const roll = rng ?? (() => rollDomain(state, 'conquest')())
   for (const def of Object.values(CONQUESTS)) {
-    const cs = state.conquest[def.id]
-    if (!cs || cs.startedAt == null || cs.finishAt == null) continue
-    if (nowMs < cs.finishAt) continue
-    const invest = cs.invested ?? 0
-    // 成功率 = min(100%, 投入/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
-    const chance = Math.min(1, (invest / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
-    const success = (rng ?? rollDomain(state, 'conquest'))() < chance
-    if (success) {
-      cs.status = 'conquered'
-      delete cs.startedAt
-      delete cs.finishAt
-      delete cs.invested
-      const rewards: string[] = []
-      if (def.rewardMineral) {
-        state.resources.mineral += def.rewardMineral
-        rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
-      }
-      if (def.rewardTech) {
-        state.resources.tech += def.rewardTech
-        rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
-      }
-      if (def.bonus) {
-        state.permanentBonuses[def.bonus.kind] = (state.permanentBonuses[def.bonus.kind] ?? 0) + def.bonus.value
-        rewards.push(`全产出 +${formatPercent(def.bonus.value * 100)}`)
-      }
-      if (def.unlockTech) {
-        state.techLevels[def.unlockTech] = 1
-        rewards.push(`解锁「军械科技」`)
-      }
-      logs.push(`【军事捷报】「${def.name}」攻占成功！获得 ${rewards.join('、') || '无'}。`)
-      // 首次攻占与全肃清叙事（storyFlags 防重复）
+    const log = settleOneConquest(state, def.id, def, nowMs, roll, true)
+    if (log) logs.push(log)
+  }
+  // 无尽生成军事目标（动态）：快照守卫/奖励，与静态同机制；无 unlockTech/unlockPlanet/里程碑
+  for (const t of state.generatedTargets) {
+    if (t.kind !== 'conquest') continue
+    const def = conquestDef(state, t.id)
+    if (!def) continue
+    const log = settleOneConquest(state, t.id, def, nowMs, roll, false)
+    if (log) logs.push(log)
+  }
+  return logs
+}
+
+/** 单区域结算（静态/动态共用）：null = 未在结算窗口；成功/失败返回日志文本 */
+function settleOneConquest(
+  state: GameState,
+  id: string,
+  def: Pick<ConquestDef, 'guard' | 'rewardMineral' | 'rewardTech' | 'bonus' | 'unlockTech' | 'name'>,
+  nowMs: number,
+  roll: () => number,
+  isStatic: boolean,
+): string | null {
+  const cs = state.conquest[id]
+  if (!cs || cs.startedAt == null || cs.finishAt == null) return null
+  if (nowMs < cs.finishAt) return null
+  const invest = cs.invested ?? 0
+  // 成功率 = min(100%, 投入/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
+  const chance = Math.min(1, (invest / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
+  const success = roll() < chance
+  if (success) {
+    cs.status = 'conquered'
+    delete cs.startedAt
+    delete cs.finishAt
+    delete cs.invested
+    const rewards: string[] = []
+    if (def.rewardMineral) {
+      state.resources.mineral += def.rewardMineral
+      rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
+    }
+    if (def.rewardTech) {
+      state.resources.tech += def.rewardTech
+      rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
+    }
+    if (def.bonus) {
+      state.permanentBonuses[def.bonus.kind] = (state.permanentBonuses[def.bonus.kind] ?? 0) + def.bonus.value
+      rewards.push(`全产出 +${formatPercent(def.bonus.value * 100)}`)
+    }
+    if (isStatic && def.unlockTech) {
+      state.techLevels[def.unlockTech] = 1
+      rewards.push(`解锁「军械科技」`)
+    }
+    // 归档周目标记（endless-expansion：征服 = 军事目标不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
+    state.archivedRounds[id] = state.ngPlusLevel ?? 0
+    if (isStatic) {
+      // 首次攻占与全肃清叙事（storyFlags 防重复）——仅静态目标参与里程碑
       playMilestone(state, 'firstConquest')
       if (Object.values(CONQUESTS).every((d) => state.conquest[d.id]?.status === 'conquered')) {
         playMilestone(state, 'conquestAll')
       }
-    } else {
-      // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
-      state.conquest[def.id] = { status: 'available' }
-      logs.push(`【军事战报】对「${def.name}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`)
     }
+    return `【军事捷报】「${def.name}」攻占成功！获得 ${rewards.join('、') || '无'}。`
   }
-  return logs
+  // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
+  state.conquest[id] = { status: 'available' }
+  return `【军事战报】对「${def.name}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`
 }

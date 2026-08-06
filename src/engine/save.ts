@@ -27,6 +27,8 @@ const SCHEMA_V9 = 9
 const SCHEMA_V10 = 10
 /** 首个支持自动探索设置的存档版本（fleet-dock-10 占用；v10 已被 bug-defense 占用，协调顺延至 v11） */
 const SCHEMA_V11 = 11
+/** 首个支持无尽模式生成目标与归档标记的存档版本（endless-expansion 占用） */
+const SCHEMA_V12 = 12
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -89,6 +91,8 @@ const SAVE_SCHEMA: FieldSpec[] = [
       typeof (v as { enabled?: unknown }).enabled === 'boolean' &&
       typeof (v as { escort?: unknown }).escort === 'boolean',
   },
+  { key: 'generatedTargets', since: SCHEMA_V12, check: isArray },
+  { key: 'archivedRounds', since: SCHEMA_V12, check: isPlainObject },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -287,6 +291,15 @@ function migrateV10ToV11(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** v11 → v12：无尽模式生成目标与归档标记（旧档补默认空；无尽扩展池为净新设计，无历史数据可迁移） */
+function migrateV11ToV12(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  if (!Array.isArray(next.generatedTargets)) next.generatedTargets = []
+  if (!isPlainObject(next.archivedRounds)) next.archivedRounds = {}
+  next.schemaVersion = SCHEMA_V12
+  return next
+}
+
 /**
  * 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。
  * 幂等（hadContract 检查）：eventConfigVersion 已达标 → 只归一化默认策略，不写迁移摘要。
@@ -396,6 +409,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
  * - v8 存档（无无尽状态字段）→ 转 v9
  * - v9 存档（无虫群强度倍率字段）→ 转 v10
  * - v10 存档（无自动探索字段）→ 转 v11
+ * - v11 存档（无尽生成目标与归档标记为净新设计）→ 转 v12
  * - 任意版本最后过事件契约迁移（幂等：eventConfigVersion 达标则跳过事件处理，主 schema 版本不变）
  * - 已是当前版本：事件迁移幂等跳过，原样返回
  *
@@ -416,7 +430,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V8) cur = migrateV8ToV9(cur)
   if (cur.schemaVersion === SCHEMA_V9) cur = migrateV9ToV10(cur)
   if (cur.schemaVersion === SCHEMA_V10) cur = migrateV10ToV11(cur)
-  // 事件契约迁移对任意进入版本执行：v1-v10 链式迁移后必已 ≥ v10，v11 档幂等跳过（migrateEventContract 不改主版本）
+  if (cur.schemaVersion === SCHEMA_V11) cur = migrateV11ToV12(cur)
+  // 事件契约迁移对任意进入版本执行：v1-v11 链式迁移后必已 ≥ v11，v12 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }

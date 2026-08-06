@@ -101,6 +101,8 @@ async function main(): Promise<void> {
   let seenAchievementCount = 0
   // 锁定卡折叠展开态（UI 会话状态，不进存档；key = 分区 id，刷新回默认收起，与 activePanelTab 同构）
   const lockedExpanded: Record<string, boolean> = {}
+  // 归档折叠展开态（endless-expansion：军事/外交/天体归档区；UI 会话状态不进存档，key = kind）
+  const archivedExpanded: Record<string, boolean> = {}
   // 事件卡 typewriter 进度表（ticket 04）：key = 事件 uid → partial/full 文本；跨 250ms 重建续打
   const typedEvents = new Map<number | string, string>()
   // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
@@ -171,11 +173,11 @@ async function main(): Promise<void> {
     // 星际工程分组（星系间建造物 + 终局抉择）紧随民用建筑之后（interstellar-build-merge）
     renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
-    renderDiplomacyPanel(panels['diplomacy'], state)
-    renderMilitaryPanel(panels['military'], state, { flashId })
+    renderDiplomacyPanel(panels['diplomacy'], state, { archivedExpanded })
+    renderMilitaryPanel(panels['military'], state, { flashId, archivedExpanded })
     // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位 + 护航/自动探索）/ 设置（五组）
     renderArchivePanel(els.navPages.archive, state)
-    renderExplorePage(els.navPages.explore, state, Date.now(), exploreEscortChecked)
+    renderExplorePage(els.navPages.explore, state, Date.now(), exploreEscortChecked, archivedExpanded)
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prod = netProduction(state)
     const prodText = Object.entries(prod)
@@ -775,6 +777,14 @@ async function main(): Promise<void> {
     if (collapseBtn) {
       const zone = collapseBtn.dataset.lockedCollapse ?? ''
       lockedExpanded[zone] = !lockedExpanded[zone]
+      render()
+      return
+    }
+    // 归档折叠区（data-archived-toggle，endless-expansion）：展开/收起军事/外交/天体归档明细（UI 内存态）
+    const archiveToggle = target.closest<HTMLElement>('[data-archived-toggle]')
+    if (archiveToggle) {
+      const kind = archiveToggle.dataset.archivedToggle ?? ''
+      archivedExpanded[kind] = !archivedExpanded[kind]
       render()
       return
     }

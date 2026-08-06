@@ -1,13 +1,14 @@
 import type { GameState } from '../engine/types'
-import { EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { ENDLESS_PLANETS, EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
-import { EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
+import { ENDLESS_BATCH_2_EXPLORATIONS, EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { isPlanetUnlocked } from '../engine/engine'
 import { explorePlanetOutputs, militaryCap } from '../engine/production'
+import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { ActionFailure } from '../engine/engine'
 import { iconUse } from './icons'
 
@@ -29,7 +30,13 @@ export { renderBootOverlay, renderEndingOverlay, renderTutorial } from './overla
  *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径）
  * @param escortChecked 手动派遣护航勾选状态（main 层跨渲染记忆的 UI 偏好，不污染存档）
  */
-export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now(), escortChecked: ReadonlySet<number> = new Set()): void {
+export function renderExplorePage(
+  el: HTMLElement,
+  state: GameState,
+  nowMs: number = Date.now(),
+  escortChecked: ReadonlySet<number> = new Set(),
+  archivedExpanded: Record<string, boolean> = {},
+): void {
   el.innerHTML = ''
   const parts: string[] = []
   // ① 锁定占位：通关前告知终局玩法存在
@@ -131,6 +138,37 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       return `<div class="explore-planet-output" data-planet-output="${o.planetId}">${iconUse(o.planetId, 'explore-icon')} ${escapeHtml(o.name)}：${text}</div>`
     })
     .join('')
+  // 天体归档折叠区（endless-expansion）：机制型一次性天体探索完 = 不可再交互 → 移列表末尾折叠；
+  // 产出型天体保留主列表（持续派遣收割，决策 4 硬约束）；仅 infinite 渲染
+  const archivedPlanetRows =
+    state.phase === 'infinite'
+      ? Object.keys(state.archivedRounds ?? {})
+          .filter((id) => state.planets[id]?.unlocked)
+          .map((id) => {
+            const def = EXPLORE_PLANETS[id] ?? state.generatedTargets.find((t) => t.kind === 'planet' && t.id === id)
+            if (!def) return ''
+            return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(def.name)}</span><span class="archive-badge">已探索</span><span class="archive-round">第 ${formatNumber(state.archivedRounds[id])} 周目</span></div>`
+          })
+          .filter(Boolean)
+          .join('')
+      : ''
+  const planetArchivedBlock = archivedPlanetRows
+    ? `<div class="archive-collapse" data-archived-collapse="planet">
+        <div class="archive-summary" data-archived-toggle="planet" role="button" tabindex="0">已完成探索天体（${formatNumber(archivedPlanetRows.length)}）<span class="archive-chevron">${archivedExpanded['planet'] ? '▾' : '▸'}</span></div>
+        <div class="archive-list" data-archived-list="planet" ${archivedExpanded['planet'] ? '' : 'style="display:none"'}>${archivedPlanetRows}</div>
+      </div>`
+    : ''
+  // 保底天体锁定占位（endless-expansion：batch 2 未解锁且未获得）
+  const lockedPlanets =
+    state.phase === 'infinite'
+      ? Object.values(ENDLESS_PLANETS).filter(
+          (d) => d.batch === 2 && !endlessBatchUnlocked(state, d.batch) && !state.generatedTargets.some((t) => t.id === endlessTargetId(d.id)),
+        ).length
+      : 0
+  const planetLockedBlock =
+    lockedPlanets > 0
+      ? `<div class="archive-collapse locked" data-explore-locked="planet"><div class="archive-summary">？？？ · 完成 ${formatNumber(ENDLESS_BATCH_2_EXPLORATIONS)} 次探索解锁新天体</div></div>`
+      : ''
   parts.push(`
     <div class="explore-card">
       <h1 class="ending-title">派遣探索</h1>
@@ -139,6 +177,8 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       ${autoPanel}
       <div class="explore-slots">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
+      ${planetArchivedBlock}
+      ${planetLockedBlock}
     </div>`)
   // NG+ 终局卡（仅 infinite 周目渲染；data-ngplus 契约，main 层委托开启确认弹窗）
   if (state.phase === 'infinite') {

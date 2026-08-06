@@ -330,7 +330,7 @@ describe('engine: 存档 v11 迁移（fleet-dock-10）', () => {
     delete raw.autoExplore
     const migrated = migrateSave(raw as unknown as GameState)
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
-    expect(migrated.schemaVersion).toBe(11)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.autoExplore).toEqual({ enabled: false, escort: false })
   })
 

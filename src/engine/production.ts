@@ -1,5 +1,5 @@
 import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
-import type { TechEffectProduction } from './data'
+import type { PlanetDef, TechEffectProduction } from './data'
 import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UPGRADE_GROWTH } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
@@ -156,7 +156,7 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
   const out: ExplorePlanetOutput[] = []
   for (const [id, ps] of Object.entries(state.planets)) {
     if (!ps?.unlocked) continue
-    const def = EXPLORE_PLANETS[id]
+    const def = planetOutputDef(state, id)
     if (!def?.output) continue
     const bonus = 1 + (ps.outputBonus ?? 0)
     const values = zeroResources()
@@ -167,6 +167,23 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
     out.push({ planetId: id, name: def.name, values })
   }
   return out
+}
+
+/** 天体产出定义查询：静态 EXPLORE_PLANETS 优先，未命中查无尽生成目标（endless 前缀 / gen 前缀——产出管线统一入口） */
+function planetOutputDef(state: GameState, id: string): PlanetDef | undefined {
+  const staticDef = EXPLORE_PLANETS[id]
+  if (staticDef) return staticDef
+  const t = state.generatedTargets?.find((x) => x.kind === 'planet' && x.id === id)
+  if (!t) return undefined
+  return {
+    id: t.id,
+    name: t.name,
+    desc: t.desc,
+    unlock: { resources: {} },
+    mechanicId: (t.mechanicId as PlanetDef['mechanicId']) ?? 'none',
+    output: t.output,
+    outputPct: t.outputPct,
+  }
 }
 
 export interface ProductionDelta {
@@ -266,7 +283,7 @@ function applyExplorePlanetOutput(state: GameState, techMult: Record<ResourceKey
   const mechNominal = { ...nominal }
   for (const [id, ps] of Object.entries(state.planets)) {
     if (!ps?.unlocked) continue
-    const def = EXPLORE_PLANETS[id]
+    const def = planetOutputDef(state, id)
     if (!def?.output) continue
     const bonus = 1 + (ps.outputBonus ?? 0)
     for (const key of RESOURCE_KEYS) {

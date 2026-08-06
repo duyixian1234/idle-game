@@ -17,9 +17,31 @@ import {
 } from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
-import type { FactionState, GameState, ResourceKey } from './types'
+import type { FactionState, GameState, GeneratedTarget, ResourceKey } from './types'
 
 /** 外交数值策略（结盟阈值/好感上限/成本与增长倍率）集中见 balance.ts */
+
+/** 无尽生成目标 → FactionDef（程序生成外交对象与手写保底外交对象的运行时 def，接入现有外交动作） */
+export function factionDefFromTarget(t: GeneratedTarget): FactionDef {
+  return {
+    id: t.id,
+    name: t.name,
+    desc: t.desc,
+    initialFavor: t.initialFavor ?? 0,
+    initialThreat: t.initialThreat ?? 0,
+    tradeDiscount: t.tradeDiscount,
+    techShareCostMult: t.techShareCostMult,
+    intimidateCostMult: t.intimidateCostMult,
+  }
+}
+
+/** 派系 def 查询：静态 ALL_FACTIONS 优先，未命中查无尽生成目标（endless 前缀 / gen 前缀——外交动作统一入口） */
+export function factionDef(state: GameState, id: string): FactionDef | undefined {
+  const staticDef = ALL_FACTIONS[id]
+  if (staticDef) return staticDef
+  const t = state.generatedTargets?.find((x) => x.kind === 'faction' && x.id === id)
+  return t ? factionDefFromTarget(t) : undefined
+}
 
 /** 创建初始派系状态表 */
 export function createFactions(): Record<string, FactionState> {
@@ -50,7 +72,7 @@ export function tradeCost(state: GameState, id: string): Record<ResourceKey, num
   const f = state.factions[id]
   const n = f?.tradeCount ?? 0
   const discount = reputationBonuses(state).tradeDiscount
-  const extraDiscount = ALL_FACTIONS[id]?.tradeDiscount ?? 0
+  const extraDiscount = factionDef(state, id)?.tradeDiscount ?? 0
   return {
     mineral: Math.floor(TRADE_BASE_COST * Math.pow(TRADE_COST_GROWTH, n) * (1 - discount) * (1 - extraDiscount)),
     energy: 0,
@@ -64,7 +86,7 @@ export function intimidateCost(state: GameState, id: string): Record<ResourceKey
   const f = state.factions[id]
   const n = f?.intimidateCount ?? 0
   const mult = Math.pow(INTIMIDATE_COST_GROWTH, n)
-  const defMult = ALL_FACTIONS[id]?.intimidateCostMult ?? 1
+  const defMult = factionDef(state, id)?.intimidateCostMult ?? 1
   return {
     mineral: Math.floor(INTIMIDATE_BASE_COST.mineral * mult * defMult),
     energy: Math.floor(INTIMIDATE_BASE_COST.energy * mult * defMult),
@@ -74,8 +96,8 @@ export function intimidateCost(state: GameState, id: string): Record<ResourceKey
 }
 
 /** 技术共享成本（基础 TECH_SHARE_COST 20_000 科技点；探索势力专属 techShareCostMult 折扣，如节点智械 0.5 = 半价） */
-export function techShareCost(id: string): Record<ResourceKey, number> {
-  const mult = ALL_FACTIONS[id]?.techShareCostMult ?? 1
+export function techShareCost(state: GameState, id: string): Record<ResourceKey, number> {
+  const mult = factionDef(state, id)?.techShareCostMult ?? 1
   return {
     mineral: 0,
     energy: 0,
@@ -108,7 +130,7 @@ function canAfford(resources: Record<ResourceKey, number>, cost: Record<Resource
 
 /** 派生查询：当前可否对某派系贸易 */
 export function canFactionTrade(state: GameState, id: string): boolean {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return false
   const f = state.factions[id]
   if (f.allied) return false
@@ -117,7 +139,7 @@ export function canFactionTrade(state: GameState, id: string): boolean {
 
 /** 派生查询：当前可否与某派系结盟 */
 export function canFactionAlliance(state: GameState, id: string): boolean {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return false
   const f = state.factions[id]
   if (f.allied) return false
@@ -127,7 +149,7 @@ export function canFactionAlliance(state: GameState, id: string): boolean {
 
 /** 派生查询：当前可否威慑某派系 */
 export function canFactionIntimidate(state: GameState, id: string): boolean {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return false
   const f = state.factions[id]
   if (f.allied) return false
@@ -136,16 +158,16 @@ export function canFactionIntimidate(state: GameState, id: string): boolean {
 
 /** 派生查询：当前可否对某派系技术共享 */
 export function canFactionTechShare(state: GameState, id: string): boolean {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return false
   const f = state.factions[id]
   if (f.allied) return false
-  return canAfford(state.resources, techShareCost(id))
+  return canAfford(state.resources, techShareCost(state, id))
 }
 
 /** 贸易：花费矿物提升好感 */
 export function factionTrade(state: GameState, id: string): ActionResult {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return { ok: false, reason: '未知派系' }
   const f = state.factions[id]
   if (f.allied) return { ok: false, reason: '已结盟，无需贸易' }
@@ -161,7 +183,7 @@ export function factionTrade(state: GameState, id: string): ActionResult {
 
 /** 结盟：好感达标后消耗大量资源正式结盟 */
 export function factionAlliance(state: GameState, id: string): ActionResult {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return { ok: false, reason: '未知派系' }
   const f = state.factions[id]
   if (f.allied) return { ok: false, reason: '已结盟' }
@@ -172,6 +194,8 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   f.favor = FAVOR_CAP
   // 记录派系图鉴（NG+ 继承）
   if (!state.factionCodex.includes(id)) state.factionCodex.push(id)
+  // 归档周目标记（endless-expansion：结盟 = 外交对象不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
+  state.archivedRounds[id] = state.ngPlusLevel ?? 0
   // 首次结盟叙事
   playMilestone(state, 'firstAlliance')
   return { ok: true }
@@ -179,7 +203,7 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
 
 /** 威慑：消耗资源降低对方军力（威胁度），代价是好感下降 */
 export function factionIntimidate(state: GameState, id: string): ActionResult {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return { ok: false, reason: '未知派系' }
   const f = state.factions[id]
   if (f.allied) return { ok: false, reason: '盟友不可威慑' }
@@ -196,11 +220,11 @@ export function factionIntimidate(state: GameState, id: string): ActionResult {
 
 /** 技术共享：花费科技点直接提升派系好感（成本按 techShareCost 含探索势力折扣） */
 export function factionTechShare(state: GameState, id: string): ActionResult {
-  const def = ALL_FACTIONS[id]
+  const def = factionDef(state, id)
   if (!def) return { ok: false, reason: '未知派系' }
   const f = state.factions[id]
   if (f.allied) return { ok: false, reason: '盟友不可技术共享' }
-  const cost = techShareCost(id)
+  const cost = techShareCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.favor = clampFavor(f.favor + TECH_SHARE_FAVOR_GAIN)
