@@ -9,7 +9,8 @@ export default defineConfig({
   timeout: 30_000,
   fullyParallel: true,
   retries: 0,
-  reporter: [['list']],
+  // line reporter：每测试单行输出，比 list 紧凑，便于 CI 采集
+  reporter: [['line']],
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',

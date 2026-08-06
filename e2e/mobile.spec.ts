@@ -167,26 +167,25 @@ for (const vp of VIEWPORTS) {
       await page.waitForTimeout(400) // 主循环跑几轮，几何稳定
 
       const allIssues: AuditIssue[] = []
-      const screens: string[] = []
 
       // 建造面板
       const buildIssues = await page.evaluate(auditLayout)
       allIssues.push(...buildIssues)
-      screens.push(await page.screenshot({ path: `test-results/mobile-${vp.name}-build.png`, fullPage: false }))
+      await page.screenshot({ path: `test-results/mobile-${vp.name}-build.png`, fullPage: false })
 
       // 科技面板
       await page.locator('.tab[data-tab="tech"]').click()
       await page.waitForTimeout(400)
       const techIssues = await page.evaluate(auditLayout)
       allIssues.push(...techIssues)
-      screens.push(await page.screenshot({ path: `test-results/mobile-${vp.name}-tech.png`, fullPage: false }))
+      await page.screenshot({ path: `test-results/mobile-${vp.name}-tech.png`, fullPage: false })
 
       // 外交面板
       await page.locator('.tab[data-tab="diplomacy"]').click()
       await page.waitForTimeout(400)
       const diploIssues = await page.evaluate(auditLayout)
       allIssues.push(...diploIssues)
-      screens.push(await page.screenshot({ path: `test-results/mobile-${vp.name}-diplo.png`, fullPage: false }))
+      await page.screenshot({ path: `test-results/mobile-${vp.name}-diplo.png`, fullPage: false })
 
       // 5) 可点击性探测：建造面板升满按钮（若越界则真实点击必然失败）
       await page.locator('.tab[data-tab="build"]').click()
@@ -214,7 +213,7 @@ for (const vp of VIEWPORTS) {
         ? '✅ 无布局问题'
         : allIssues.map((i) => `[${i.kind}] ${i.detail}`).join('\n')
       const clickNote = upgradeMaxClickable ? '' : '\n[点击] 升满按钮无法点击'
-      console.log(`\n===== ${vp.name} 审计结果 =====\n${summary}${clickNote}\n截图：${screens.join(', ')}`)
+      // 审计结果只随断言失败输出（expect message 含 summary）；成功路径保持终端安静，便于 CI 处理
       expect(allIssues, `移动端 ${vp.name} 布局问题：\n${summary}${clickNote}`).toEqual([])
     })
   })
