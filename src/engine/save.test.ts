@@ -441,6 +441,7 @@ describe('engine: 存档序列化往返', () => {
       uid: 1, defId: 'trade', title: '旧贸易', desc: '', options: [], createdAt: 0, resolved: false,
       payload: { cost: 500, gain: 20 },
     })
+
     s.pendingEvents.push({
       uid: 2, defId: 'future-boss', title: '未知', desc: '', options: [], createdAt: 0, resolved: false,
     })
@@ -448,8 +449,8 @@ describe('engine: 存档序列化往返', () => {
     delete raw.eventConfigVersion
     const migrated = deserializeSave(JSON.stringify(raw))
     expect(migrated.migrationSummary).toEqual({
-      fromSchemaVersion: 9,
-      toSchemaVersion: 9,
+      fromSchemaVersion: 10,
+      toSchemaVersion: 10,
       migratedEvents: 1,
       unknownEvents: 1,
       compensation: {},
@@ -457,6 +458,16 @@ describe('engine: 存档序列化往返', () => {
     })
     expect(migrated.log[0]).toMatchObject({ type: 'system', time: 1234 })
     expect(deserializeSave(serializeSave(migrated)).migrationSummary).toEqual(migrated.migrationSummary)
+  })
+
+  it('v9 旧档迁移补齐虫群强度倍率', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 9
+    delete raw.bugEscalation
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.bugEscalation).toBe(1)
   })
 
   it('保存恢复后事件随机序列与待处理队列连续', () => {

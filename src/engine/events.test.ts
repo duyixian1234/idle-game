@@ -5,12 +5,14 @@ import { pushLog } from './core'
 import {
   applyEvent,
   autoResolvePendingEvents,
+  bugTerms,
   createEventInstance,
   advanceEndlessLayer,
   endlessEventPool,
   evaluateEndlessCurve,
   evaluateEventCurve,
   EVENT_CONTRACT_VERSION,
+  EVENT_DEFS,
   pruneStaleEvents,
   pickEndlessEventDef,
   resolveEvent,
@@ -182,6 +184,41 @@ describe('engine: 陨石雨事件', () => {
 })
 
 describe('engine: 虫族警报事件', () => {
+  it('固化虫群强度并提供军力击退选项', () => {
+    const s = createInitialState(0)
+    const inst = createEventInstance(s, 'bug')
+    expect(bugTerms(s, EVENT_DEFS.find((def) => def.id === 'bug')!).strength).toBe(2200)
+    expect(inst.options.map((option) => option.id)).toEqual(['repel', 'dispatch', 'jam', 'ignore'])
+    expect(inst.payload?.strength).toBe(2200)
+    expect(inst.payload?.repelCost).toBe(2200)
+  })
+
+  it('放任会累计强度，军力击退会重置并扣除军力', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const ignored = createEventInstance(s, 'bug')
+    applyEvent(s, ignored, 'ignore')
+    expect(s.bugEscalation).toBe(1.3)
+    const repel = createEventInstance(s, 'bug')
+    s.resources.military = Number(repel.payload?.repelCost)
+    const outcome = applyEvent(s, repel, 'repel')
+    expect(outcome.changed).toBe(true)
+    expect(s.bugEscalation).toBe(1)
+    expect(s.resources.military).toBe(0)
+  })
+
+  it('舰队战力足够时自动迎击虫群且不生成事件卡', () => {
+    const s = createInitialState(0)
+    s.fleet.count = 2
+    s.resources.energy = 10_000
+    s.bugEscalation = 1
+    for (const faction of Object.values(s.factions)) faction.threat = 0
+    const outcome = triggerRandomEvent(s, () => 0.9)
+    expect(outcome?.changed).toBe(true)
+    expect(s.pendingEvents).toHaveLength(0)
+    expect(s.bugEscalation).toBe(1)
+  })
+
   it('派遣：扣矿物、无资源损失', () => {
     const s = createInitialState(0)
     s.resources.mineral = 50_000

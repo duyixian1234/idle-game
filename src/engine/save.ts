@@ -23,6 +23,8 @@ const SCHEMA_V7 = 7
 const SCHEMA_V8 = 8
 /** 首个支持无尽事件池状态的存档版本 */
 const SCHEMA_V9 = 9
+/** 首个支持虫群强度倍率的存档版本 */
+const SCHEMA_V10 = 10
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -76,6 +78,7 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'nextExpeditionId', since: 6, check: isNumber },
   { key: 'megastructureChoice', since: 7, check: (v) => v === null || v === 'smelter' || v === 'jumpgate' },
   { key: 'fleet', since: 8, check: (v) => isPlainObject(v) && typeof (v as { count?: unknown }).count === 'number' },
+  { key: 'bugEscalation', since: SCHEMA_V10, check: isNumber },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -247,6 +250,15 @@ function migrateV8ToV9(raw: Record<string, unknown>): Record<string, unknown> {
   return next
 }
 
+/** v9 → v10：补齐虫群强度倍率，旧档从基线开始。 */
+function migrateV9ToV10(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  if (typeof next.bugEscalation !== 'number' || !Number.isFinite(next.bugEscalation)) next.bugEscalation = 1
+  if (typeof next.migrationSourceVersion !== 'number') next.migrationSourceVersion = SCHEMA_V9
+  next.schemaVersion = SCHEMA_V10
+  return next
+}
+
 /** 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。 */
 function migrateEventContract(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
@@ -334,7 +346,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
     next.log = log.slice(0, 200)
     next.nextLogId = nextLogId + 1
   }
-  next.schemaVersion = SCHEMA_V9
+  next.schemaVersion = SCHEMA_V10
   return next
 }
 
@@ -364,7 +376,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V6) cur = migrateV6ToV7(cur)
   if (cur.schemaVersion === SCHEMA_V7) cur = migrateV7ToV8(cur)
   if (cur.schemaVersion === SCHEMA_V8) cur = migrateV8ToV9(cur)
-  if (cur.schemaVersion === SCHEMA_V9) cur = migrateEventContract(cur)
+  if (cur.schemaVersion === SCHEMA_V9) cur = migrateV9ToV10(cur)
+  if (cur.schemaVersion === SCHEMA_V10) cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }
 

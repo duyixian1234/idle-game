@@ -61,6 +61,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     conquest,
     megastructureChoice: null,
     fleet: { count: 0 },
+    bugEscalation: 1,
     stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
     seed,
@@ -619,6 +620,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.playSeconds = 0
   // 舰队重置：护卫舰随星际工程一并归零（新周目从零规划，遗产体系不膨胀）
   state.fleet = { count: 0 }
+  state.bugEscalation = 1
 
   // 探索重置：派遣中任务随 NG+ 静默丢弃不退款（决策 Q18）、发现进度清零、派遣 id 归 1
   state.expeditions = []

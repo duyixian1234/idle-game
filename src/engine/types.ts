@@ -142,8 +142,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（保持 v8 兼容；无尽事件状态按可选字段迁移） */
-export const SCHEMA_VERSION = 9
+/** 存档 schema 版本（v10 新增虫群强度倍率） */
+export const SCHEMA_VERSION = 10
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -246,6 +246,8 @@ export interface GameState {
   megastructureChoice: 'smelter' | 'jumpgate' | null
   /** 舰队状态（v8 新增）：周目内，NG+ 归零；船坞等级派生自 buildings/upgrades.dock，不重复存档；powered 为派生状态（每 tick 判定），不存档 */
   fleet: { count: number }
+  /** 虫群强度倍率（v10 新增）：放任后累计，任意处理路径重置为 1 */
+  bugEscalation: number
   /** 累计统计 */
   stats: GameStats
   /** 成就解锁状态：achievementId -> AchievementState（跨周目图鉴，NG+ 不清空） */

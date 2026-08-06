@@ -120,6 +120,12 @@ export const RAID_GAP_SECONDS = 3600
 export const RAID_OFFLINE_LOSS_CAP = 0.3
 /** 骚扰事件在事件表中的触发权重（有威胁派系时） */
 export const RAID_EVENT_WEIGHT = 2
+/** 虫群基线强度：船坞 Lv1 满编战力 3,600，约为基线的 1.6 倍。 */
+export const BUG_STRENGTH_BASE = 2_200
+/** 放任一次后虫群强度倍率；两次放任即 ×1.69，超过 Lv1 满编舰队战力。 */
+export const BUG_ESCALATION_STEP = 1.3
+/** 军力击退的最低成本，与 raid 的残余强度口径一致。 */
+export const BUG_REPEL_MIN = 50
 
 /** 随机事件均值间隔（秒） */
 export const MEAN_EVENT_GAP_SECONDS = 90

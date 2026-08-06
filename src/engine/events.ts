@@ -20,6 +20,9 @@ import {
   RAID_OFFLINE_LOSS_CAP,
   RAID_STRENGTH_MULT,
   RAID_THREAT_LOSS,
+  BUG_ESCALATION_STEP,
+  BUG_REPEL_MIN,
+  BUG_STRENGTH_BASE,
 } from './balance'
 import { netProduction } from './production'
 import { fleetPower } from './fleet'
@@ -493,7 +496,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       ],
     }
   }
-  // bug
+  // bug / void-swarm
+  const terms = bugTerms(state, def!)
   const curve = evaluateEndlessCurve(def?.curve.baseValue ?? 800, {
     layer: endlessLayer(state),
     stage: state.endless?.stage ?? 0,
@@ -508,14 +512,29 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     ...base,
     title: '虫族警报',
     desc: story || `殖民地下层监测到虫群啃食矿脉的迹象。`,
-    payload: { cost, jamCost, curveVersion: EVENT_CONTRACT_VERSION },
+    payload: { cost, jamCost, strength: terms.strength, repelCost: terms.repelCost, curveVersion: EVENT_CONTRACT_VERSION },
     settlement: { deltas: {}, breakdown: curve.breakdown },
     options: [
+      { id: 'repel', label: '军力击退', hint: `-${formatNumber(terms.repelCost)} 军力` },
       { id: 'dispatch', label: '派遣清剿队', hint: `-${formatNumber(cost)} 矿物` },
       { id: 'jam', label: '神经干扰', hint: `-${formatNumber(jamCost)} 科技点` },
       { id: 'ignore', label: '暂不处理' },
     ],
   }
+
+}
+
+/** 虫群事件固化的强度与军力击退成本，事件卡、结算和自动迎击共用。 */
+export function bugTerms(state: GameState, def: RandomEventDef): { strength: number; repelCost: number; curveFactor: number } {
+  const curve = evaluateEndlessCurve(def.curve.baseValue, {
+    layer: endlessLayer(state),
+    stage: state.endless?.stage ?? 0,
+    riskMultiplier: def.riskLevel === 'critical' ? 1.8 : 1,
+    softCap: def.curve.softCap,
+  })
+  const curveFactor = curve.value / 800
+  const strength = Math.max(BUG_REPEL_MIN, Math.floor(BUG_STRENGTH_BASE * curveFactor * Math.max(1, state.bugEscalation ?? 1)))
+  return { strength, repelCost: Math.max(BUG_REPEL_MIN, strength - fleetPower(state)), curveFactor }
 }
 
 /** 骚扰事件的选项与数值（供 createEventInstance 与离线结算共用，保证口径一致） */
@@ -614,12 +633,23 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   }
 
   if (defId === 'bug' || defId === 'void-swarm') {
+    const escalation = Math.max(1, state.bugEscalation ?? 1)
+    const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL].find((candidate) => candidate.id === defId)
+    if (optionId === 'repel') {
+      const cost = Number(instance.payload?.repelCost ?? (def ? bugTerms(state, def).repelCost : BUG_REPEL_MIN))
+      if (state.resources.military < cost) return { logType: 'warning', logText: `军力不足以击退虫群（需 ${formatNumber(cost)} 军力）。`, changed: false }
+      state.resources.military -= cost
+      state.bugEscalation = 1
+      const settlement = eventSettlement({ military: -cost }, cost)
+      return { logType: 'system', logText: `军力击退虫群，巢穴暂时平息（-${formatNumber(cost)} 军力，强度回落至基线）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    }
     if (optionId === 'dispatch') {
       const cost = Number(instance.payload?.cost ?? scaledBy(prod.mineral, 800, 200))
       if (state.resources.mineral < cost) {
         return { logType: 'warning', logText: '你的矿物不足以组织清剿队。', changed: false }
       }
       state.resources.mineral -= cost
+      state.bugEscalation = 1
       const settlement = eventSettlement({ mineral: -cost }, cost)
       return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${formatNumber(cost)} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
@@ -629,14 +659,16 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
         return { logType: 'warning', logText: '科技点不足以发动神经干扰。', changed: false }
       }
       state.resources.tech -= jamCost
+      state.bugEscalation = 1
       const settlement = eventSettlement({ tech: -jamCost }, jamCost)
       return { logType: 'system', logText: `神经干扰波覆盖矿层，虫群失去方向溃散（-${formatNumber(jamCost)} 科技点）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     // ignore：扣减当前矿物 10%
     const loss = Math.floor(state.resources.mineral * 0.1)
     state.resources.mineral -= loss
+    state.bugEscalation = Math.round(escalation * BUG_ESCALATION_STEP * 10) / 10
     const settlement = eventSettlement({ mineral: -loss }, loss)
-    return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${formatNumber(loss)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${formatNumber(loss)} 矿物，虫群强度升至 ×${state.bugEscalation}。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
 
   if (defId === 'raid') return applyRaid(state, instance, optionId)
@@ -650,6 +682,7 @@ function optionCost(instance: EventInstance, optionId: string): Partial<Record<R
   if (instance.family === 'disaster' && optionId === 'shield') return { tech: Number(payload.shieldCost ?? 0) }
   if (instance.family === 'security' && optionId === 'dispatch') return { mineral: Number(payload.cost ?? 0) }
   if (instance.family === 'security' && optionId === 'jam') return { tech: Number(payload.jamCost ?? 0) }
+  if (instance.family === 'security' && instance.defId !== 'raid' && optionId === 'repel') return { military: Number(payload.repelCost ?? 0) }
   if (instance.defId === 'raid' && optionId === 'repel') return { military: Number(payload.repelCost ?? 0) }
   if (instance.defId === 'raid' && optionId === 'buyoff') return { mineral: Number(payload.buyoff ?? 0) }
   return {}
@@ -878,7 +911,22 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
  * 舰队战力 ≥ 骚扰强度则不生成事件实例，直接结算为日志（威胁 −15、不扣军力——舰队代劳，
  * 成本即持续维护费）；战力不足返回 null，事件照常弹窗（repel 强度按舰队战力削减，见 createRaidInstance）。
  */
-function tryAutoIntercept(state: GameState): EventOutcome | null {
+function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null {
+  if (defId === 'bug' || defId === 'void-swarm') {
+    const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL].find((candidate) => candidate.id === defId)
+    if (!def) return null
+    const terms = bugTerms(state, def)
+    if (fleetPower(state) < terms.strength) return null
+    state.bugEscalation = 1
+    return {
+      logType: 'system',
+      logText: '你的护卫舰队清扫了虫群巢穴，虫群强度回落至基线。',
+      changed: true,
+      deltas: {},
+      priority: 'urgent',
+      handlingMode: 'alert',
+    }
+  }
   const raider = raidableFaction(state)
   if (!raider) return null
   const terms = raidTerms(state, raider.id)
@@ -910,8 +958,8 @@ export function triggerRandomEvent(state: GameState, rng?: () => number): EventO
     ? pickEndlessEventDef(state, rng)
     : (rng ? pickEventDef(state, rng) : pickEventDef(state))
   // 舰队自动迎击：raid 被选中且舰队战力足够 → 不生成事件卡，直接结算为日志
-  if (def.id === 'raid') {
-    const intercept = tryAutoIntercept(state)
+  if (def.id === 'raid' || def.id === 'bug' || def.id === 'void-swarm') {
+    const intercept = tryAutoIntercept(state, def.id)
     if (intercept) return intercept
   }
   const instance = createEventInstance(state, def.id, rng ?? streamFor(state))
