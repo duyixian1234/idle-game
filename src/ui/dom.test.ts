@@ -1046,6 +1046,22 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     expect(panel.querySelector('[data-build="starportMine"]')).toBeNull()
   })
 
+  it('唯一大件满级态：显示已满级提示、移除升级按钮且卡片操作为空', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.starportMine = 1
+    s.upgrades.starportMine = 10
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    const card = panel.querySelector('[data-building="starportMine"]') as HTMLElement
+    expect(card.textContent).toContain('已满级（Lv.10）')
+    expect(card.querySelector('[data-upgrade="starportMine"]')).toBeNull()
+    expect(card.querySelector('[data-upgrade-max="starportMine"]')).toBeNull()
+    expect(card.getAttribute('data-unique')).toBe('')
+    expect(buildCardAction(s, 'starportMine')).toBeNull()
+  })
+
   it('终局抉择区块：三星系间集齐后出现，双卡片并排；未选择均可点', () => {
     const container = document.createElement('div')
     buildLayout(container)

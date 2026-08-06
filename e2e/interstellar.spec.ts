@@ -209,6 +209,36 @@ test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星 +1000
   await expect(page.locator('[data-resource="tech"]')).toContainText('+200.0/s')
 })
 
+test('unique 大件 Lv10 封顶：满级不可升级，Lv9 仍可升级', async ({ page }) => {
+  const now = Date.now()
+  const save = buildSave(now, {
+    buildings: { starportMine: 1, stellarArray: 1, thinkTank: 1, ringSmelter: 1 },
+    upgrades: { deepDrill: 10, starportMine: 10, stellarArray: 10, thinkTank: 10, ringSmelter: 10 },
+    megastructureChoice: 'smelter',
+  })
+  await openSector(page, save)
+
+  for (const id of ['starportMine', 'stellarArray', 'thinkTank', 'ringSmelter']) {
+    const card = page.locator(`[data-building="${id}"]`)
+    await expect(card).toContainText('已满级（Lv.10）')
+    await expect(card.locator(`[data-upgrade="${id}"]`)).toHaveCount(0)
+    await expect(card.locator(`[data-upgrade-max="${id}"]`)).toHaveCount(0)
+  }
+  await expect(page.locator('[data-resource="mineral"]')).toContainText('+5.24亿/s')
+
+  const lower = buildSave(now, {
+    buildings: { starportMine: 1 },
+    upgrades: { deepDrill: 10, starportMine: 9 },
+  })
+  await page.goto('/')
+  await seedSave(page, lower)
+  await lockSaveStore(page)
+  await page.reload()
+  await dismissTutorial(page)
+  await page.locator('[data-nav="sector"]').click()
+  await expect(page.locator('[data-building="starportMine"] [data-upgrade="starportMine"]')).toBeVisible()
+})
+
 test('恒星维护费硬扣：无矿物产出时余额持续下降', async ({ page }) => {
   const now = Date.now()
   // 预置恒星阵列，且无任何矿物生产建筑：余额只能由维护费减少。

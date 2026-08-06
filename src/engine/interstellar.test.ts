@@ -72,6 +72,35 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     expect(productionReport(s).nominal.mineral).toBeCloseTo(2000)
   })
 
+  it('四座 unique 大件 Lv10 封顶：Lv9 可升至 Lv10，Lv10 拒绝继续升级', () => {
+    for (const id of ['starportMine', 'stellarArray', 'thinkTank', 'ringSmelter'] as const) {
+      const s = endedState()
+      s.resources.mineral = 1e15
+      s.resources.tech = 1e15
+      s.buildings[id] = 1
+      s.upgrades[id] = 9
+      expect(upgradeBuilding(s, id)).toMatchObject({ ok: true })
+      expect(s.upgrades[id]).toBe(10)
+      expect(upgradeBuilding(s, id)).toEqual({ ok: false, reason: '已达最高等级（Lv.10）' })
+      expect(s.upgrades[id]).toBe(10)
+    }
+  })
+
+  it('unique 大件 Lv10 产出保持在 base × 2^10', () => {
+    const s = withThreeInterstellar(endedState())
+    s.buildings.ringSmelter = 1
+    s.megastructureChoice = 'smelter'
+    s.upgrades.starportMine = 10
+    s.upgrades.stellarArray = 10
+    s.upgrades.thinkTank = 10
+    s.upgrades.ringSmelter = 10
+    const report = productionReport(s)
+    expect(report.nominal.mineral).toBeCloseTo(500 * 1024 * 1024)
+    expect(report.nominal.energy).toBeCloseTo(1000 * 1024 * 1024)
+    expect(report.nominal.tech).toBeCloseTo(200 * 1024 * 1024)
+    expect(smelterGlobalMult(s)).toBe(1024)
+  })
+
   it('唯一大件禁重复建造：count 恒 1、二次购买拒绝', () => {
     const s = endedState()
     expect(buyBuilding(s, 'starportMine')).toMatchObject({ ok: true })
