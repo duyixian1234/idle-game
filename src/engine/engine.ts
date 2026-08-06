@@ -43,6 +43,7 @@ export function createInitialState(nowMs: number): GameState {
     permanentBonuses: {},
     conquest,
     stats: { totalMineralEarned: 0 },
+    achievements: {},
     resources,
     buildings: {},
     upgrades: {},

@@ -1,0 +1,113 @@
+import { describe, expect, it } from 'vitest'
+import { createInitialState } from './engine'
+import { ACHIEVEMENTS, checkAchievements } from './achievements'
+import type { GameState } from './types'
+
+/** 构造带指定 conditions 的测试状态 */
+function makeState(): GameState {
+  return createInitialState(0)
+}
+
+describe('achievements', () => {
+  it('ACHIEVEMENTS 表完整性：26 个、类别分布、rep 正数、条件非空', () => {
+    const defs = Object.values(ACHIEVEMENTS)
+    expect(defs).toHaveLength(26)
+    const cats = new Set(defs.map((d) => d.category))
+    expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
+    for (const d of defs) {
+      expect(d.rep).toBeGreaterThan(0)
+      expect(typeof d.condition).toBe('function')
+      expect(d.name.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('叙事类成就：storyFlags 触发即解锁并发放奖励与日志', () => {
+    const s = makeState()
+    s.storyFlags.firstBuild = true
+    const newly = checkAchievements(s, 1000)
+    const def = ACHIEVEMENTS.firstBuild
+    expect(newly.map((d) => d.id)).toContain('firstBuild')
+    expect(s.achievements.firstBuild).toEqual({ unlockedAt: 1000, unlockedInRound: 0 })
+    // 奖励发放
+    expect(s.resources.mineral).toBe(15 + (def.rewardMineral ?? 0))
+    // 日志播报
+    expect(s.log[0].text).toContain('【成就】')
+    expect(s.log[0].text).toContain(`+${def.rep} 声望`)
+  })
+
+  it('已解锁成就重复检查不重复发奖励/日志（本周目幂等）', () => {
+    const s = makeState()
+    s.storyFlags.firstBuild = true
+    checkAchievements(s, 1000)
+    const mineralBefore = s.resources.mineral
+    const logCount = s.log.length
+    const again = checkAchievements(s, 2000)
+    expect(again).toHaveLength(0)
+    expect(s.resources.mineral).toBe(mineralBefore)
+    expect(s.log.length).toBe(logCount)
+  })
+
+  it('收集类成就：贸易 50 次派生条件（sum tradeCount）', () => {
+    const s = makeState()
+    for (const id of Object.keys(s.factions)) s.factions[id].tradeCount = 13 // 4×13 = 52 ≥ 50
+    const newly = checkAchievements(s)
+    expect(newly.map((d) => d.id)).toContain('trades50')
+    expect(s.achievements.trades50?.unlockedInRound).toBe(0)
+  })
+
+  it('收集类成就：累计矿物台阶', () => {
+    const s = makeState()
+    s.stats.totalMineralEarned = 1_000_000
+    const newly = checkAchievements(s)
+    expect(newly.map((d) => d.id)).toContain('mineral1M')
+    expect(newly.map((d) => d.id)).not.toContain('mineral100M')
+    expect(newly.map((d) => d.id)).not.toContain('mineral1B')
+  })
+
+  it('终局类成就：endingTriggered 触发联邦统一', () => {
+    const s = makeState()
+    s.endingTriggered = true
+    const newly = checkAchievements(s)
+    expect(newly.map((d) => d.id)).toContain('federation')
+    // 终局大奖
+    const def = ACHIEVEMENTS.federation
+    expect(s.resources.mineral).toBe(15 + (def.rewardMineral ?? 0))
+    expect(s.resources.tech).toBe(def.rewardTech ?? 0)
+  })
+
+  it('周目成就：ngPlusLevel 条件', () => {
+    const s = makeState()
+    s.ngPlusLevel = 1
+    const newly = checkAchievements(s)
+    expect(newly.map((d) => d.id)).toContain('ng2')
+    expect(newly.map((d) => d.id)).not.toContain('ng3')
+  })
+
+  it('多成就同时满足时全部解锁', () => {
+    const s = makeState()
+    s.storyFlags.firstBuild = true
+    s.storyFlags.firstTech = true
+    const newly = checkAchievements(s)
+    expect(newly.map((d) => d.id).sort()).toEqual(['firstBuild', 'firstTech'])
+  })
+
+  it('军力上限/好感总和/威慑次数/攻占数/在线时长派生条件', () => {
+    const s = makeState()
+    // 好感总和 300：4 派系各 75
+    for (const id of Object.keys(s.factions)) s.factions[id].favor = 75
+    // 威慑 10 次
+    s.factions.ferro.intimidateCount = 10
+    // 攻占 2 区域
+    s.conquest.outpost = { status: 'conquered' }
+    s.conquest.shipyard = { status: 'conquered' }
+    // 在线 24h
+    s.playSeconds = 24 * 3600
+    const newly = checkAchievements(s)
+    const ids = newly.map((d) => d.id)
+    expect(ids).toContain('favor300')
+    expect(ids).toContain('intimidates10')
+    expect(ids).toContain('conquests2')
+    expect(ids).toContain('play24h')
+    expect(ids).not.toContain('militaryCap5k') // 初始 cap 100
+  })
+})

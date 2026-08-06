@@ -80,8 +80,16 @@ export type GamePhase = 'playing' | 'ended' | 'infinite'
 
 /** 通关统计 */
 export interface GameStats {
-  /** 累计采集矿物 */
+  /** 累计采集矿物（周目内口径，NG+ 重置） */
   totalMineralEarned: number
+}
+
+/** 成就解锁状态（图鉴跨周目 + 声望周目内双语义） */
+export interface AchievementState {
+  /** 首次解锁时间戳（ms）——存在即图鉴永久已解锁（跨周目） */
+  unlockedAt: number
+  /** 解锁时的周目（ngPlusLevel）：声望只计 unlockedInRound === 当前周目的成就 */
+  unlockedInRound: number
 }
 
 /**
@@ -106,6 +114,8 @@ export interface GameState {
   conquest: Record<string, ConquestState>
   /** 累计统计 */
   stats: GameStats
+  /** 成就解锁状态：achievementId -> AchievementState（跨周目图鉴，NG+ 不清空） */
+  achievements: Record<string, AchievementState>
   /** 三种资源余额 */
   resources: Record<ResourceKey, number>
   /** 各建筑数量：buildingId -> count */
