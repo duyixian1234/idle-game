@@ -50,9 +50,9 @@ test('建造操作：购买采矿机后数量与日志更新', async ({ page }) 
   await page.locator('[data-build="miner"]').click()
 
   // 日志出现建造反馈
-  await expect(page.locator('[data-log]')).toContainText('建造了 采矿机（第 1 台）')
+  await expect(page.locator('[data-log]')).toContainText('建造了 采矿机（第 1.00 台）')
   // 建筑数量徽章 ×1
-  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×1')
+  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×1.00')
 })
 
 test('科技面板：切换二级 tab 渲染全部科技项', async ({ page }) => {

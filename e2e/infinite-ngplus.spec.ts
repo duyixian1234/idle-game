@@ -107,22 +107,22 @@ test('确认弹窗披露双清单 → 确认 → 新周目开局（周目+1/矿�
   await expect(overlay).toBeVisible()
   const card = page.locator('[data-ngplus-card]')
   await expect(card).toContainText('将失去（本周目）')
-  await expect(card).toContainText('采矿机 ×50')
+  await expect(card).toContainText('采矿机 ×50.00')
   await expect(card).toContainText('将继承')
   await expect(card).toContainText('4,000') // 继承科技点 2000 × 2
   await expect(card).toContainText('1.30') // 永久产出加成 1 + 0.15 × 2
-  await expect(card).toContainText('全产出 +25%') // 母巢永久加成预览
+  await expect(card).toContainText('全产出 +25.00%') // 母巢永久加成预览
   await expect(card).toContainText('不可逆')
 
   await page.locator('[data-ngplus-confirm]').click()
   await expect(overlay).toBeHidden()
   // 日志播报新周目（startNewGamePlus 内部 push，稳定）
-  await expect(page.locator('[data-log]')).toContainText('【NG+ 第 2 周目】')
+  await expect(page.locator('[data-log]')).toContainText('【NG+ 第 2.00 周目】')
   // 建筑清零：建造面板采矿机 ×0（成就奖励只加资源不加建筑，稳定）
-  await expect(page.locator('[data-panel="build"]')).toContainText('×0')
+  await expect(page.locator('[data-panel="build"]')).toContainText('×0.00')
   // 档案页周目 +1
   await page.locator('[data-nav="archive"]').click()
-  await expect(page.locator('[data-nav-page="archive"]')).toContainText('NG+ 周目：2')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('NG+ 周目：2.00')
 })
 
 test('取消：弹窗关闭、状态零变化（周目不变/无新周目日志）', async ({ page }) => {

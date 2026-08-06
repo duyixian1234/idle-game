@@ -91,12 +91,12 @@ test('Shift+点击购买按钮打开弹窗，不直接购买', async ({ page }) 
   await dismissTutorial(page)
 
   // 记录初始状态：0 台
-  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0')
+  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0.00')
 
   // Shift+点击购买按钮 → 弹窗出现而非直接购买
   await page.locator('[data-build="miner"]').click({ modifiers: ['Shift'] })
   await expect(page.locator('[data-overlay="buy-max"]')).toBeVisible()
-  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0')
+  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0.00')
 })
 
 test('取消弹窗：状态不变', async ({ page }) => {
@@ -110,7 +110,7 @@ test('取消弹窗：状态不变', async ({ page }) => {
   await expect(page.locator('[data-overlay="buy-max"]')).toBeVisible()
   await page.locator('[data-buy-max-cancel]').click()
   await expect(page.locator('[data-overlay="buy-max"]')).toBeHidden()
-  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0')
+  await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0.00')
 })
 
 test('清零警示：能源将被清空时弹窗红字提示', async ({ page }) => {

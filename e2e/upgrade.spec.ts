@@ -80,9 +80,9 @@ test('科技升级：点击升级按钮 Lv.1 → Lv.2，日志与徽章同步', 
   await upgradeBtn.click()
 
   // 日志反馈（actions.ts upgradeTech.feedback）
-  await expect(page.locator('[data-log]')).toContainText('科技「行星钻探」升级至 Lv.2，产出提升。')
+  await expect(page.locator('[data-log]')).toContainText('科技「行星钻探」升级至 Lv.2.00，产出提升。')
   // 徽章从 Lv.1 → Lv.2
-  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.2')
+  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.2.00')
 
   await page.waitForTimeout(500)
   expect(pageErrors).toEqual([])
@@ -96,7 +96,7 @@ test('科技升级：连续单击两次 → Lv.3（单次点击 = 升一级，�
 
   // 两次独立单击
   await upgradeBtn.click()
-  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.2')
+  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.2.00')
   await upgradeBtn.click()
-  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.3')
+  await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.3.00')
 })

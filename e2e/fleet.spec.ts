@@ -139,7 +139,7 @@ test('船坞解锁链：星港 0 级锁定原因显示；星港 ≥1 解锁可�
   await page.locator('[data-building="dock"] [data-build="dock"]').click()
   await expect(page.locator('[data-log]')).toContainText('建造了 船坞')
   await page.locator('[data-building="dock"] [data-upgrade="dock"]').click()
-  await expect(page.locator('[data-fleet-count]')).toContainText('0/3')
+  await expect(page.locator('[data-fleet-count]')).toContainText('0.00艘/3.00艘')
 })
 
 test('造舰至上限（硬约束）：资源不足禁点、满编禁点并提示上限', async ({ page }) => {
@@ -166,10 +166,10 @@ test('造舰至上限（硬约束）：资源不足禁点、满编禁点并提�
     fleet: { count: 2 },
   })
   await openSector(page, nearCap)
-  await expect(page.locator('[data-fleet-count]')).toContainText('2/3')
+  await expect(page.locator('[data-fleet-count]')).toContainText('2.00艘/3.00艘')
   await page.locator('[data-fleet-build]').click()
   await expect(page.locator('[data-log]')).toContainText('护卫舰入列')
-  await expect(page.locator('[data-fleet-count]')).toContainText('3/3')
+  await expect(page.locator('[data-fleet-count]')).toContainText('3.00艘/3.00艘')
   const cappedBtn = page.locator('[data-fleet-build]')
   await expect(cappedBtn).toBeDisabled()
   await expect(cappedBtn).toHaveAttribute('title', /上限/)
@@ -193,7 +193,7 @@ test('自动迎击替代弹窗：事件卡不出现 + 日志出现 + 威胁 −1
 
   // 事件触发窗口内：事件卡不出现，日志出现「护卫舰队迎击」与「威胁 −15」
   await expect(page.locator('[data-log]')).toContainText('护卫舰队迎击', { timeout: 15_000 })
-  await expect(page.locator('[data-log]')).toContainText('威胁 −15')
+  await expect(page.locator('[data-log]')).toContainText('威胁 −15.00')
   await expect(page.locator('[data-event-card]')).toHaveCount(0)
   // 舰队保持运转态（未因骚扰扣军力/未停摆）
   await expect(page.locator('[data-fleet-powered]')).toBeVisible()
@@ -214,7 +214,7 @@ test('停摆与恢复：能源不足警示停摆（自动迎击失效说明）�
   await openSector(page, idle)
   await expect(page.locator('[data-fleet-idle]')).toBeVisible()
   await expect(page.locator('[data-fleet-warn]')).toContainText('停摆')
-  await expect(page.locator('[data-fleet-power]')).toContainText('0')
+  await expect(page.locator('[data-fleet-power]')).toContainText('0.00')
 
   // ② 供能充足（1000 万能源）：运转徽标，战力 = 3 × 1200 = 3,600
   await page.goto('/')
@@ -226,6 +226,6 @@ test('停摆与恢复：能源不足警示停摆（自动迎击失效说明）�
   lockAchievements(powered, now)
   await openSector(page, powered)
   await expect(page.locator('[data-fleet-powered]')).toBeVisible()
-  await expect(page.locator('[data-fleet-power]')).toContainText('3,600')
+  await expect(page.locator('[data-fleet-power]')).toContainText('3,600.00')
   await expect(page.locator('[data-fleet-idle]')).toHaveCount(0)
 })

@@ -169,12 +169,12 @@ test('星港矿场解锁链：dawn 未解锁 → 深钻未满级 → 满足后�
   await mineReady.locator('[data-build="starportMine"]').click()
   await expect(page.locator('[data-log]')).toContainText('建造了 星港矿场')
   // 产出跃迁：星港 500 矿/s（无其他矿产出）
-  await expect(page.locator('[data-resource="mineral"]')).toContainText('+500.0/s')
+  await expect(page.locator('[data-resource="mineral"]')).toContainText('+500.00/秒')
 
   // 升级 → ×2（1000/s）；重复建造拒绝（唯一大件，建造按钮消失）
   await expect(mineReady.locator('[data-upgrade="starportMine"]')).toBeEnabled()
   await mineReady.locator('[data-upgrade="starportMine"]').click()
-  await expect(page.locator('[data-resource="mineral"]')).toContainText('+1000.0/s')
+  await expect(page.locator('[data-resource="mineral"]')).toContainText('+1,000.00/秒')
   await expect(page.locator('[data-building="starportMine"] [data-build]')).toHaveCount(0)
 
   // 通关前：恒星/智库锁定卡片显示「通关后解锁」
@@ -200,13 +200,13 @@ test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星 +1000
 
   await page.locator('[data-building="stellarArray"] [data-build="stellarArray"]').click()
   await expect(page.locator('[data-log]')).toContainText('建造了 聚变恒星阵列')
-  await expect(page.locator('[data-resource="energy"]')).toContainText('+1000.0/s')
+  await expect(page.locator('[data-resource="energy"]')).toContainText('+1,000.00/秒')
 
   // 恒星 1 级 → 智库可建（资源充足：初始 500 亿矿）
   await expect(page.locator('[data-building="thinkTank"] [data-build]')).toBeEnabled()
   await page.locator('[data-building="thinkTank"] [data-build="thinkTank"]').click()
   await expect(page.locator('[data-log]')).toContainText('建造了 星海智库')
-  await expect(page.locator('[data-resource="tech"]')).toContainText('+200.0/s')
+  await expect(page.locator('[data-resource="tech"]')).toContainText('+200.00/秒')
 })
 
 test('unique 大件 Lv10 封顶：满级不可升级，Lv9 仍可升级', async ({ page }) => {
@@ -220,11 +220,11 @@ test('unique 大件 Lv10 封顶：满级不可升级，Lv9 仍可升级', async 
 
   for (const id of ['starportMine', 'stellarArray', 'thinkTank', 'ringSmelter']) {
     const card = page.locator(`[data-building="${id}"]`)
-    await expect(card).toContainText('已满级（Lv.10）')
+    await expect(card).toContainText('已满级（Lv.10.00）')
     await expect(card.locator(`[data-upgrade="${id}"]`)).toHaveCount(0)
     await expect(card.locator(`[data-upgrade-max="${id}"]`)).toHaveCount(0)
   }
-  await expect(page.locator('[data-resource="mineral"]')).toContainText('+524288000.0/s')
+  await expect(page.locator('[data-resource="mineral"]')).toContainText('+5.24亿/秒')
 
   const lower = buildSave(now, {
     buildings: { starportMine: 1 },
@@ -362,7 +362,7 @@ test('NG+ 重置重选：冶炼场选择与等级被清空，重开后抉择区�
   await page.locator('[data-ngplus]').click()
   await expect(page.locator('[data-overlay="ngplus"]')).toBeVisible()
   await page.locator('[data-ngplus-confirm]').click()
-  await expect(page.locator('[data-log]')).toContainText('NG+ 第 1 周目')
+  await expect(page.locator('[data-log]')).toContainText('NG+ 第 1.00 周目')
 
   // 重开：建筑/选择全清 → 抉择区块消失（前置不满足），星港回到星球锁定态（dawn 重置）
   await page.locator('[data-nav="sector"]').click()

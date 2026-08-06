@@ -141,13 +141,13 @@ test('卡片主体点击建造×1：资源扣减 + 徽标变化 + 日志（miner
   const card = page.locator('[data-build-card="miner"]')
   await expect(card).toBeVisible()
   await expect(card.locator('use')).toHaveAttribute('href', '#ic-miner')
-  await expect(card).toContainText('×0')
+  await expect(card).toContainText('×0.00')
 
   const mineralBefore = await readResource(page, 'mineral')
   // 点击卡片主体（data-build-card 挂卡片根节点，几何中心落在信息区非按钮区）
   await card.click()
   await expect(page.locator('[data-log]')).toContainText('建造了 采矿机')
-  await expect(card).toContainText('×1')
+  await expect(card).toContainText('×1.00')
   const mineralAfter = await readResource(page, 'mineral')
   expect(mineralBefore - mineralAfter).toBeGreaterThanOrEqual(10)
 })
@@ -160,13 +160,13 @@ test('卡片主体点击升级×1：已建建筑升级（资源扣减 + Lv 徽�
 
   const card = page.locator('[data-build-card="miner"]')
   await expect(card).toBeVisible()
-  await expect(card).toContainText('×2')
+  await expect(card).toContainText('×2.00')
   await expect(card.locator('[data-upgrade="miner"]')).toBeVisible()
 
   const mineralBefore = await readResource(page, 'mineral')
   await card.click()
   await expect(page.locator('[data-log]')).toContainText('采矿机 升级至 Lv.1')
-  await expect(card).toContainText('Lv.1')
+  await expect(card).toContainText('Lv.1.00')
   const mineralAfter = await readResource(page, 'mineral')
   expect(mineralBefore - mineralAfter).toBeGreaterThan(0)
 })

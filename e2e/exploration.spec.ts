@@ -113,7 +113,7 @@ test('派遣探索：页面消耗预览 → 点击派遣 → 记录生成/资源
   const explorePage = page.locator('[data-nav-page="explore"]')
   await expect(explorePage).toContainText('深空信道 1')
   await expect(explorePage).toContainText('消耗')
-  await expect(explorePage).toContainText('40') // 兵力自适应保底 40（1 槽）
+  await expect(explorePage).toContainText('40.00') // 兵力自适应保底 40（1 槽）
   await expect(explorePage).toContainText('60 分钟')
   await expect(explorePage.locator('[data-expedition-locked]')).toHaveCount(4) // 无科技 → 信道 2-5 锁定（5 槽上限占位）
   const dispatchBtn = page.locator('[data-explore-dispatch="1"]')
@@ -145,7 +145,7 @@ test('多槽派遣：3 槽科技解锁 → 同时派遣 2 路，双记录 + 独�
   await expect(explorePage.locator('[data-expedition-timer]')).toHaveCount(2)
   await expect(explorePage.locator('[data-explore-dispatch]')).toHaveCount(1) // 仅信道 3 可派
   // 军力扣除 40 + 80 = 120（5 军港 cap 1100 → base 40；槽 2 ×2；tick 先 clamp 至 cap 1100）
-  await expect(page.locator('[data-resource="military"]')).toContainText('980/1,100')
+  await expect(page.locator('[data-resource="military"]')).toContainText('980.00⚔/1,100.00⚔')
 })
 
 test('派遣到期自动入账：结果日志播报（离线推进语义）', async ({ page }) => {
@@ -191,14 +191,14 @@ test('探索势力进入外交面板：8 家渲染 + 特性徽标 + 贸易可点
   const panel = page.locator('[data-panel="diplomacy"]')
   await expect(panel.locator('[data-faction]')).toHaveCount(8)
   // 特性徽标
-  await expect(panel.locator('[data-faction="ringOrder"] [data-faction-perk]')).toContainText('贸易折扣 -8%')
-  await expect(panel.locator('[data-faction="obsidianPact"] [data-faction-perk]')).toContainText('威慑折扣 -25%')
+  await expect(panel.locator('[data-faction="ringOrder"] [data-faction-perk]')).toContainText('贸易折扣 -8.00%')
+  await expect(panel.locator('[data-faction="obsidianPact"] [data-faction-perk]')).toContainText('威慑折扣 -25.00%')
   await expect(panel.locator('[data-faction="nodeIntellect"] [data-faction-perk]')).toContainText('共享半价')
-  await expect(panel.locator('[data-faction="ashCommune"] [data-faction-perk]')).toContainText('贸易折扣 -5%')
+  await expect(panel.locator('[data-faction="ashCommune"] [data-faction-perk]')).toContainText('贸易折扣 -5.00%')
   // 探索势力贸易可点击生效（矿 500 万足够；好感 40 → 46）
   await panel.locator('[data-diplomacy="ashCommune:trade"]').click()
   await expect(page.locator('[data-log]')).toContainText('贸易', { timeout: 5_000 })
-  await expect(panel.locator('[data-faction="ashCommune"]')).toContainText('46')
+  await expect(panel.locator('[data-faction="ashCommune"]')).toContainText('46.00')
 })
 
 test('产出型天体发现后：data-planet-output 显示当前贡献', async ({ page }) => {
