@@ -7,7 +7,7 @@ import { previewNewGamePlus } from './engine/ngplus'
 import { formatNumber } from './engine/format'
 import { netProduction } from './engine/production'
 import { pushLog } from './engine/core'
-import { formatDuration, settleOffline } from './engine/offline'
+import { formatDuration, offlineCapSeconds, settleOffline } from './engine/offline'
 import { deserializeSave, serializeSave } from './engine/save'
 import { OPENING_SCENES } from './engine/story'
 import { advanceTutorial, skipTutorial } from './engine/tutorial'
@@ -24,7 +24,9 @@ import {
   renderDiplomacyPanel,
   renderEndingOverlay,
   renderExplorePage,
+  renderInterstellarPanel,
   renderLogInto,
+  renderMegastructureModal,
   renderMilitaryPanel,
   renderNgPlusModal,
   renderPendingEvents,
@@ -76,7 +78,7 @@ async function main(): Promise<void> {
       .filter((k) => offline.gains[k] > 0)
       .map((k) => `${RESOURCE_META[k].name} +${formatNumber(offline.gains[k])}`)
       .join('、')
-    const capText = offline.capped ? '（已达 8 小时封顶）' : ''
+    const capText = offline.capped ? `（已达 ${formatDuration(offlineCapSeconds(state))} 封顶）` : ''
     pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
     for (const raidLog of offline.raidLogs) pushLog(state, 'warning', raidLog)
     for (const conquestLog of offline.conquestLogs) {
@@ -107,6 +109,8 @@ async function main(): Promise<void> {
     renderPlanetBar(els.planetBar, state)
     renderPlanetMechanic(els.mechanicBar, state)
     renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS)
+    // 星际工程分组（唯一大件 + 终局抉择区块）追加在建造面板内
+    renderInterstellarPanel(panels['build'], state)
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state)
@@ -420,6 +424,7 @@ async function main(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
+    if (e.key === 'Escape' && !els.megastructureOverlay.classList.contains('hidden')) closeMegastructureModal()
   })
 
   // ---- 无限模式手动开启新周目（确认弹窗） ----
@@ -448,6 +453,34 @@ async function main(): Promise<void> {
       closeNgPlusModal()
       // 与结局面板 NG+ 分支一致的统一序列（keepEndingDismissed=true：探索页入口不改变结局面板收起态）
       startNewGamePlusSequence(true)
+    }
+  })
+
+  // ---- 终局抉择（究极建筑二选一） ----
+  // 星域页抉择卡片（data-megastructure）→ 确认弹窗 → 确认后 dispatch('megastructure') 建造并写入选择
+  function closeMegastructureModal(): void {
+    els.megastructureOverlay.classList.add('hidden')
+  }
+
+  function openMegastructureModal(id: string): void {
+    renderMegastructureModal(els.megastructureOverlay, state, id)
+    els.megastructureOverlay.classList.remove('hidden')
+  }
+
+  els.megastructureOverlay.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t === els.megastructureOverlay) {
+      closeMegastructureModal()
+      return
+    }
+    if (t.closest('[data-megastructure-cancel]')) {
+      closeMegastructureModal()
+      return
+    }
+    if (t.closest('[data-megastructure-confirm]')) {
+      const id = (t.closest('[data-megastructure-confirm]') as HTMLElement).dataset.megastructureConfirm ?? ''
+      closeMegastructureModal()
+      if (id) dispatch(state, 'megastructure', id, deps)
     }
   })
 
@@ -485,6 +518,12 @@ async function main(): Promise<void> {
   // 建造/升级/科技/兑换/外交按钮事件委托（统一走动作注册表）
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
+    // 终局抉择卡片（data-megastructure）：未选择且未锁定时弹出确认（选定/锁定卡片不可点）
+    const megaCard = target.closest<HTMLElement>('[data-megastructure]')
+    if (megaCard && !megaCard.hasAttribute('data-chosen') && !megaCard.hasAttribute('data-locked')) {
+      openMegastructureModal(megaCard.dataset.megastructure ?? '')
+      return
+    }
     // 显式三元组 [data-attr, actionId, datasetKey]：
     // dataset 键为 camelCase（data-upgrade-tech → dataset.upgradeTech），
     // 不能靠 attr.slice(5) 推导（slice 得 kebab-case → undefined，升级科技静默失效）。
@@ -501,6 +540,12 @@ async function main(): Promise<void> {
         continue
       }
       const payload = btn.dataset[dataKey] ?? ''
+      // 究极建筑（megastructureValue）：建造必须走终局抉择确认弹窗——互斥知情决策（spec US10「明示只能选一个」），
+      // 星际工程分组内的 data-build 建造按钮与抉择卡片同一入口
+      if (actionId === 'buy' && BUILDINGS[payload]?.megastructureValue) {
+        openMegastructureModal(payload)
+        return
+      }
       if (e.shiftKey && kind !== 'none') {
         if (kind === 'diplomacy') {
           const [fid, act] = String(payload).split(':')

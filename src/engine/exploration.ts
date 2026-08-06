@@ -12,6 +12,8 @@ import {
   EXPEDITION_REPEAT_FAVOR_GAIN,
   EXPLORATION_TECH_HARVEST_PCT,
   FAVOR_CAP,
+  JUMPGATE_HARVEST_MULT,
+  JUMPGATE_SLOT_BONUS,
   scaledClamp,
 } from './balance'
 import { createFactionState } from './diplomacy'
@@ -56,11 +58,12 @@ export function isExploreAvailable(state: GameState): boolean {
   return state.phase === 'ended' || state.phase === 'infinite'
 }
 
-/** 探索槽位数量：1 + 深空导航阵列 Lv≥1 + 星际通信中继 Lv≥1（上限 3） */
+/** 探索槽位数量：1 + 深空导航阵列 Lv≥1 + 星际通信中继 Lv≥1 + 跃迁枢纽 +2（上限 5；枢纽与科技槽位叠加） */
 export function explorationSlots(state: GameState): number {
   const nav = (state.techLevels?.['deepSpaceNav'] ?? 0) >= 1 ? 1 : 0
   const relay = (state.techLevels?.['interstellarRelay'] ?? 0) >= 1 ? 1 : 0
-  return Math.min(3, 1 + nav + relay)
+  const jumpgate = state.megastructureChoice === 'jumpgate' ? JUMPGATE_SLOT_BONUS : 0
+  return Math.min(5, 1 + nav + relay + jumpgate)
 }
 
 /** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 1/2/3 槽 = base×1/2/3） */
@@ -69,11 +72,13 @@ export function expeditionMilitaryCost(state: GameState, slotIndex: number = 0):
   return base * (slotIndex + 1)
 }
 
-/** 探索收获倍率：1 + 0.1 × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0（只作用于 resource 分支补偿） */
+/** 探索收获倍率：1 + 0.1 × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0；
+ * 跃迁枢纽把上限放宽到 ×4（科技倍率再 ×2）——只作用于 resource 分支补偿 */
 export function explorationHarvestMult(state: GameState): number {
   const nav = state.techLevels?.['deepSpaceNav'] ?? 0
   const relay = state.techLevels?.['interstellarRelay'] ?? 0
-  return 1 + EXPLORATION_TECH_HARVEST_PCT * (nav + relay)
+  const tech = 1 + EXPLORATION_TECH_HARVEST_PCT * (nav + relay)
+  return state.megastructureChoice === 'jumpgate' ? tech * JUMPGATE_HARVEST_MULT : tech
 }
 
 /** 当前第 N 槽派遣消耗：矿物/能源随每秒产出动态缩放（cap 随周目 ×1.5^level），军事点随军力上限自适应（×槽位） */

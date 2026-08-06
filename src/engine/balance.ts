@@ -161,3 +161,18 @@ export const OUTPOST_ENERGY_MULT = 1.2
 export function scaledClamp(rate: number, min: number, factor: number, cap: number): number {
   return Math.min(cap, Math.max(min, Math.floor(rate * factor)))
 }
+
+// ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
+
+/** 唯一大件（星系间/究极建筑）升级增长系数：升级成本与产出均 ×2/级。
+ * 对称增长性质：成本总投入 = 首购 ×(2^10−1) = ×1,023，收益 ×2^10 = ×1,024——
+ * 末级成本 ≈ 累计收益，避免 count 折算公式（依赖 count 增长）在 count 恒 1 时成本递减的死局。 */
+export const UNIQUE_UPGRADE_GROWTH = 2
+/** NG+ 遗产：究极建筑每级折算的永久产出加成（如 Lv10 冶炼场 → 全产出 +15% 进 permanentBonuses） */
+export const NG_PLUS_MEGASTRUCTURE_BONUS = 0.015
+/** 跃迁枢纽：派遣槽额外 +2（与探索科技槽位叠加，总上限 5） */
+export const JUMPGATE_SLOT_BONUS = 2
+/** 跃迁枢纽：探索收获倍率上限放宽系数（科技满级 ×2 → ×4，即科技倍率再 ×2） */
+export const JUMPGATE_HARVEST_MULT = 2
+/** 跃迁枢纽：离线结算封顶额外放宽时长（8h → 12h） */
+export const JUMPGATE_OFFLINE_EXTRA_SECONDS = 4 * 3600

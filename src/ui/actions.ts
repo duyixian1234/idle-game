@@ -276,6 +276,17 @@ export const ACTIONS: Record<string, GameAction> = {
     feedback: () => ({ logs: [{ type: 'story', text: '探索队启程：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。' }], sound: 'upgrade' }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
   },
+  megastructure: {
+    id: 'megastructure',
+    // 终局抉择：建造究极建筑（payload = buildingId，引擎内写入 megastructureChoice，互斥本周目生效）
+    run: (state, id) => buyBuilding(state, String(id)),
+    feedback: (state, _r, id) => {
+      const name = BUILDINGS[String(id)]?.name ?? String(id)
+      const choiceText = state.megastructureChoice === 'smelter' ? '铸成星环' : '推开星门'
+      return { logs: [{ type: 'reward', text: `终局抉择落定：${name} 建成。你选择${choiceText}——另一条文明之路本周目已封锁，NG+ 可重选。` }], sound: 'success' }
+    },
+    onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `终局抉择失败：${reason}。` }] }),
+  },
 }
 
 /**

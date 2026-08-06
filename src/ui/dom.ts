@@ -2,7 +2,7 @@ import type { GameState, LogEntry, ResourceKey } from '../engine/types'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
-import { ALL_FACTIONS, BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { ALL_FACTIONS, BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, FACTIONS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, FactionDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatPlayTime } from '../engine/format'
@@ -23,9 +23,10 @@ import {
   intimidateCost,
   tradeCost,
 } from '../engine/diplomacy'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, TECH_SHARE_COST } from '../engine/balance'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST } from '../engine/balance'
 import {
   buildingCost,
+  buildingLockReason,
   canAffordBuilding,
   canAffordUpgrade,
   canResearchTech,
@@ -34,12 +35,13 @@ import {
   isBuildingUnlocked,
   isPlanetUnlocked,
   isTechResearched,
+  megastructurePrereqsMet,
   techCost,
   techLevel,
   techRequirementsMet,
   upgradeCost,
 } from '../engine/engine'
-import { explorePlanetOutputs, simulateProductionDelta, techMultiplier, militaryCap } from '../engine/production'
+import { explorePlanetOutputs, simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult } from '../engine/production'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
@@ -57,6 +59,7 @@ export interface AppElements {
   endingOverlay: HTMLElement
   buyMaxOverlay: HTMLElement
   ngplusOverlay: HTMLElement
+  megastructureOverlay: HTMLElement
   tutorial: HTMLElement
   navBar: HTMLElement
   navPages: Record<NavId, HTMLElement>
@@ -117,6 +120,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="ending-overlay hidden" data-overlay="ending" aria-label="结局"></div>
     <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
     <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
+    <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局抉择确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
   `
@@ -134,6 +138,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     endingOverlay: container.querySelector('[data-overlay="ending"]') as HTMLElement,
     buyMaxOverlay: container.querySelector('[data-overlay="buy-max"]') as HTMLElement,
     ngplusOverlay: container.querySelector('[data-overlay="ngplus"]') as HTMLElement,
+    megastructureOverlay: container.querySelector('[data-overlay="megastructure"]') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
     navBar: container.querySelector('.nav-bar') as HTMLElement,
     navPages,
@@ -223,16 +228,23 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     el.innerHTML = parts.join('')
     return
   }
-  // ③ 派遣面板：深空信道列表
+  // ③ 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 5：1 + 科技 2 + 跃迁枢纽 2）
   const slots = explorationSlots(state)
   const ongoing = state.expeditions.filter((e) => !e.resolved)
   const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
   const discovered = state.exploredFactions.length + state.exploredPlanets.length
   const slotCards: string[] = []
-  for (let i = 0; i < 3; i++) {
+  // 展示上限 5 槽（1 基础 + 2 科技 + 跃迁枢纽 +2，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
+  const SLOT_CAP = 5
+  for (let i = 0; i < SLOT_CAP; i++) {
     const slotNo = i + 1
     if (i >= slots) {
-      const need = i === 1 ? '深空导航阵列 Lv1（科技）' : '星际通信中继 Lv1（科技）'
+      const need =
+        i === 1
+          ? '深空导航阵列 Lv1（科技）'
+          : i === 2
+            ? '星际通信中继 Lv1（科技）'
+            : '跃迁枢纽（终局抉择·探索路线）'
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}" data-expedition-locked>
           <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state locked">🔒 未解锁</span></div>
@@ -433,10 +445,26 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
   el.prepend(stack)
 }
 
-/** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升 */
+/** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
+ * 唯一大件：升级 = 产出 ×2（机制建筑用效果文案），不走「再买一台」的台均折算。 */
 function upgradePreviewText(state: GameState, def: BuildingDef): string {
   const count = state.buildings[def.id] ?? 0
   if (count <= 0) return ''
+  if (def.unique) {
+    if (def.id === 'ringSmelter') {
+      const cur = smelterGlobalMult(state)
+      return `全局产出 ×${formatMult(cur)} → ×${formatMult(cur * 2)}`
+    }
+    if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
+    const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
+    const parts: string[] = []
+    for (const k of RESOURCE_KEYS) {
+      const d = up.delta[k]
+      if (d === 0) continue
+      parts.push(`${RESOURCE_META[k].symbol} ${d > 0 ? '+' : ''}${fmtRate(d)}/s`)
+    }
+    return `产出 ×2（${parts.join('，')}）`
+  }
   const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
   // 每台当前真实净产出 = 再买一台的总增量（同一加成口径）
   const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
@@ -451,8 +479,21 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
   return parts.join('，') || '无产出变化'
 }
 
-/** 购买预览：购买 1 台后的真实产出提升（即每台净贡献，含能源消耗提示） */
+/** 购买预览：购买 1 台后的真实产出提升（即每台净贡献，含能源消耗提示）。
+ * 唯一大件：建造预览（机制建筑用效果文案；产出建筑用 delta，count 0→1 有效） */
 function buyPreviewText(state: GameState, def: BuildingDef): string {
+  if (def.unique) {
+    if (def.id === 'ringSmelter') return '建造：解锁全局产出乘数 ×2^level（需升级激活）'
+    if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
+    const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
+    const parts: string[] = []
+    for (const k of RESOURCE_KEYS) {
+      const d = buy.delta[k]
+      if (d === 0) continue
+      parts.push(`${RESOURCE_META[k].symbol} +${fmtRate(d)}/s`)
+    }
+    return `建造：${parts.join('，') || '无产出'}`
+  }
   const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
   const parts: string[] = []
   for (const k of RESOURCE_KEYS) {
@@ -472,36 +513,42 @@ function fmtRate(n: number): string {
   return String(r)
 }
 
-/** 渲染建造面板（含升级按钮与锁定态） */
+/** 渲染建造面板（含升级按钮与锁定态；唯一大件：唯一徽标 + 禁买满/升满 + 锁定原因语义化） */
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>): void {
   el.innerHTML = ''
   for (const def of Object.values(defs)) {
+    const unique = def.unique === true
     const count = state.buildings[def.id] ?? 0
     const level = state.upgrades[def.id] ?? 0
     const unlocked = isBuildingUnlocked(state, def.id)
     const item = document.createElement('div')
     item.className = 'build-item'
     item.setAttribute('data-building', def.id)
+    if (unique) item.setAttribute('data-unique', '')
     if (!unlocked) item.classList.add('locked')
 
     const info = `
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(def.name)}
-          <span class="build-count">×${count}</span>
+          ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${count}</span>`}
           ${level > 0 ? `<span class="build-level">Lv.${level}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}</div>
       </div>`
 
     if (!unlocked) {
-      const reqParts = [
-        ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
-        ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
-      ]
+      // 锁定原因优先取引擎判定（通关/星球/满级科技/互斥/链式前置），缺省回退 requires 拼接
+      const lockReason = buildingLockReason(state, def.id)
+      const reqParts = lockReason
+        ? [lockReason]
+        : [
+            ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
+            ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
+          ]
       item.innerHTML = `${info}
         <div class="build-lock">
-          <span class="lock-hint">前置：${reqParts.join('、')}</span>
+          <span class="lock-hint">${escapeHtml(reqParts.join('、'))}</span>
         </div>`
       el.appendChild(item)
       continue
@@ -511,25 +558,32 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     const canBuy = canAffordBuilding(state, def.id)
     const upCost = upgradeCost(state, def.id)
     const canUp = canAffordUpgrade(state, def.id)
+    // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
+    const showBuy = !unique || count <= 0
+    const buyBtn = showBuy
+      ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? '建造（唯一大件，升级产出 ×2/级）' : '建造'}">
+          ${unique ? '建造 ' : ''}${formatCost(buyCost)}
+        </button>`
+      : ''
+    const buyMaxBtn = !unique
+      ? `<button type="button" class="build-btn max-btn" data-buy-max="${def.id}" ${canBuy ? '' : 'disabled'} title="一键买满：买到资源不足为止">
+          买满
+        </button>`
+      : ''
+    const upgradeBtns = count > 0
+      ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : '升级：产出 +50%'}">
+          升级 ${formatCost(upCost)}
+        </button>
+        ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
+          升满
+        </button>`}`
+      : ''
     item.innerHTML = `${info}
       <div class="build-preview">
         ${count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
-        <div class="build-buy-preview">${buyPreviewText(state, def)}</div>
+        ${showBuy ? `<div class="build-buy-preview">${buyPreviewText(state, def)}</div>` : ''}
       </div>
-      <div class="build-actions">
-        <button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="建造">
-          ${formatCost(buyCost)}
-        </button>
-        <button type="button" class="build-btn max-btn" data-buy-max="${def.id}" ${canBuy ? '' : 'disabled'} title="一键买满：买到资源不足为止">
-          买满
-        </button>
-        ${count > 0 ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 +50%">
-          升级 ${formatCost(upCost)}
-        </button>
-        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
-          升满
-        </button>` : ''}
-      </div>`
+      <div class="build-actions">${buyBtn}${buyMaxBtn}${upgradeBtns}</div>`
     el.appendChild(item)
   }
 }
@@ -888,6 +942,98 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
     renderArmsTech(techSection, state, arms)
     el.appendChild(techSection)
   }
+}
+
+// ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
+
+/** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
+const JUMPGATE_EFFECT_TEXT = `派遣槽 +${JUMPGATE_SLOT_BONUS} · 天体收获倍率上限 ×${2 * JUMPGATE_HARVEST_MULT} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
+
+/** 星域页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局抉择区块（三星系间集齐后出现） */
+export function renderInterstellarPanel(el: HTMLElement, state: GameState): void {
+  const section = document.createElement('div')
+  section.className = 'interstellar-section'
+  section.setAttribute('data-interstellar', '')
+  const header = document.createElement('div')
+  header.className = 'conquest-header'
+  header.textContent = '星际工程'
+  section.appendChild(header)
+  renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS)
+  // 终局抉择：星港/恒星/智库各 ≥1 级后出现（互斥二选一）
+  renderMegastructureSection(section, state)
+  el.appendChild(section)
+}
+
+/** 终局抉择区块（星际工程分组内独立段）：未选择时两卡片并排可点（data-megastructure 弹确认）；
+ * 选定后冶炼场高亮、枢纽显示本周目锁定。前置判定复用引擎 megastructurePrereqsMet（通关 + 三星系间各 ≥1），UI 不重写解锁链。 */
+export function renderMegastructureSection(el: HTMLElement, state: GameState): void {
+  if (!megastructurePrereqsMet(state)) return
+
+  const section = document.createElement('div')
+  section.className = 'interstellar-section'
+  section.setAttribute('data-megastructure-section', '')
+  const header = document.createElement('div')
+  header.className = 'conquest-header'
+  header.textContent = '终局抉择'
+  section.appendChild(header)
+  const desc = document.createElement('div')
+  desc.className = 'megastructure-desc'
+  desc.textContent = '文明之路在此分岔：你选择铸成星环，还是推开星门？（只能选一个，本周目不可更改；NG+ 重开可重新选择）'
+  section.appendChild(desc)
+
+  const cards = document.createElement('div')
+  cards.className = 'megastructure-cards'
+  for (const def of Object.values(MEGASTRUCTURE_BUILDINGS)) {
+    const id = def.id
+    const value = def.megastructureValue!
+    const chosen = state.megastructureChoice === value
+    const locked = state.megastructureChoice !== null && state.megastructureChoice !== value
+    const card = document.createElement('div')
+    card.className = `megastructure-card${chosen ? ' chosen' : ''}${locked ? ' locked' : ''}`
+    card.setAttribute('data-megastructure', id)
+    if (chosen) card.setAttribute('data-chosen', '')
+    if (locked) card.setAttribute('data-locked', '')
+    const effectText =
+      id === 'ringSmelter'
+        ? '全局产出 ×2^level（矿/能源/科技全吃）· 耗能 100 能源/s × level'
+        : JUMPGATE_EFFECT_TEXT
+    const statusText = chosen
+      ? '✓ 已选择（本周目生效）'
+      : locked
+        ? '🔒 本周目已锁定'
+        : `建造 ${formatCost(buildingCost(state, id))}`
+    card.innerHTML = `
+      <div class="megastructure-name">${escapeHtml(def.name)}</div>
+      <div class="megastructure-effect">${escapeHtml(effectText)}</div>
+      <div class="megastructure-status">${escapeHtml(statusText)}</div>`
+    cards.appendChild(card)
+  }
+  section.appendChild(cards)
+  el.appendChild(section)
+}
+
+/** 终局抉择确认弹窗（复用 ending overlay 卡片体系）：效果预览 + 建造消耗 + 互斥警告 + 确认/取消 */
+export function renderMegastructureModal(el: HTMLElement, state: GameState, id: string): void {
+  const def = BUILDINGS[id]
+  if (!def) return
+  const effectText =
+    id === 'ringSmelter'
+      ? '全局产出 ×2^level（矿/能源/科技全吃）；耗能 100 能源/s × level（能源不足时按现有结算打折）'
+      : JUMPGATE_EFFECT_TEXT
+  el.innerHTML = `
+    <div class="megastructure-card" data-megastructure-modal>
+      <div class="buy-max-title">终局抉择：${escapeHtml(def.name)}</div>
+      <div class="buy-max-summary">${escapeHtml(def.desc)}</div>
+      <table class="buy-max-table">
+        <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
+        <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || '0'}</td></tr>
+      </table>
+      <div class="buy-max-warn" data-megastructure-warn>⚠ 只能选择其一，本周目不可更改；另一个究极建筑将永久锁定。NG+ 重开后可重新选择。</div>
+      <div class="buy-max-actions">
+        <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">确认建造</button>
+        <button type="button" class="ending-btn ghost" data-megastructure-cancel>取消</button>
+      </div>
+    </div>`
 }
 
 /** 当前生效的声望加成文本（无声望时显示解锁提示） */

@@ -17,7 +17,9 @@ import {
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderExplorePage,
+  renderInterstellarPanel,
   renderLogInto,
+  renderMegastructureModal,
   renderMilitaryPanel,
   renderNgPlusModal,
   renderPendingEvents,
@@ -831,7 +833,7 @@ describe('ui: 探索页', () => {
     expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
   })
 
-  it('ended：深空信道列表渲染（3 槽：无科技 1 空闲 + 2 锁定），消耗预览/派遣按钮可用', () => {
+  it('ended：深空信道列表渲染（1 槽：无科技仅信道 1 空闲 + 2-5 锁定占位），消耗预览/派遣按钮可用', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -842,11 +844,14 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain('40')
     expect(page.textContent).toContain('60 分钟')
     expect(page.querySelector('[data-expedition-slot="1"]')).toBeTruthy()
-    expect(page.querySelector('[data-expedition-locked]')).toBeTruthy() // 信道 2/3 锁定
+    // 槽位上限 5（1 基础 + 2 科技 + 枢纽 2）：无科技仅 1 空闲，2-5 锁定占位提示解锁需求
+    expect(page.querySelectorAll('[data-expedition-slot]')).toHaveLength(5)
+    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(4)
+    expect(page.textContent).toContain('深空导航阵列')
     const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch="1"]')
     expect(btn).toBeTruthy()
     expect(btn?.disabled).toBe(false)
-    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeNull() // 锁定槽无派遣按钮
+    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeNull()
   })
 
   it('3 槽科技解锁：三个信道全部空闲可派遣，槽位成本 ×1/×2/×3', () => {
@@ -857,8 +862,10 @@ describe('ui: 探索页', () => {
     s.techLevels.interstellarRelay = 1
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    expect(page.querySelector('[data-expedition-locked]')).toBeNull()
+    // 3 槽科技解锁：3 空闲可派遣 + 4/5 锁定（跃迁枢纽解锁需求）
+    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(2)
     expect(page.querySelectorAll('[data-explore-dispatch]')).toHaveLength(3)
+    expect(page.textContent).toContain('跃迁枢纽')
     // 槽 1/2/3 军事点 = 40/80/120
     expect(page.textContent).toContain('⚔40')
     expect(page.textContent).toContain('⚔80')
@@ -975,5 +982,115 @@ describe('ui: 设置页', () => {
     const reset = page.querySelector<HTMLButtonElement>('[data-tool="reset"]')
     expect(reset?.classList.contains('danger')).toBe(true)
     expect(page.textContent).toContain('此操作不可撤销')
+  })
+})
+
+describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）', () => {
+  /** 通关后 + 第 5 星球 + 深钻满级：全部星际工程解锁前置满足 */
+  function endedState(): ReturnType<typeof createInitialState> {
+    const s = createInitialState(0, 42)
+    s.phase = 'ended'
+    s.endingTriggered = true
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.resources.mineral = 50_000_000_000
+    s.resources.tech = 5_000_000_000
+    return s
+  }
+
+  it('星际工程分组渲染：通关前星港可建、恒星/智库锁定卡片显示原因', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    expect(panel.querySelector('[data-interstellar]')).toBeTruthy()
+    const mine = panel.querySelector('[data-building="starportMine"]')
+    expect(mine).toBeTruthy()
+    expect(mine?.getAttribute('data-unique')).toBe('')
+    expect(panel.querySelector('[data-building="stellarArray"]')?.textContent).toContain('通关后解锁')
+    expect(panel.querySelector('[data-building="thinkTank"]')?.textContent).toContain('通关后解锁')
+    // 未通关且星港未建：抉择区块不渲染
+    expect(panel.querySelector('[data-megastructure-section]')).toBeNull()
+  })
+
+  it('通关后集齐星港：恒星可建造、智库锁定显示链式前置原因', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.starportMine = 1
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    // 恒星（星港 ≥1 已满足）：可建造态（建造按钮），不再显示锁定原因
+    expect(panel.querySelector('[data-building="stellarArray"]')?.querySelector('[data-build="stellarArray"]')).toBeTruthy()
+    // 智库（恒星 0）：链式前置锁定
+    expect(panel.querySelector('[data-building="thinkTank"]')?.textContent).toContain('聚变恒星阵列')
+    expect(panel.querySelector('[data-megastructure-section]')).toBeNull()
+  })
+
+  it('唯一大件渲染：无买满/升满按钮，升级按钮存在', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.starportMine = 1
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    expect(panel.querySelector('[data-buy-max="starportMine"]')).toBeNull()
+    expect(panel.querySelector('[data-upgrade-max="starportMine"]')).toBeNull()
+    expect(panel.querySelector('[data-upgrade="starportMine"]')).toBeTruthy()
+    // 建造按钮隐藏（已建造）
+    expect(panel.querySelector('[data-build="starportMine"]')).toBeNull()
+  })
+
+  it('终局抉择区块：三星系间集齐后出现，双卡片并排；未选择均可点', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.starportMine = 1
+    s.buildings.stellarArray = 1
+    s.buildings.thinkTank = 1
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    const section = panel.querySelector('[data-megastructure-section]')
+    expect(section).toBeTruthy()
+    expect(section?.querySelector('[data-megastructure="ringSmelter"]')).toBeTruthy()
+    expect(section?.querySelector('[data-megastructure="jumpgate"]')).toBeTruthy()
+    expect(section?.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-chosen')).toBeNull()
+    expect(section?.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-locked')).toBeNull()
+    expect(section?.textContent).toContain('只能选一个')
+  })
+
+  it('选定冶炼场：冶炼场高亮、枢纽显示本周目锁定', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.buildings.starportMine = 1
+    s.buildings.stellarArray = 1
+    s.buildings.thinkTank = 1
+    s.buildings.ringSmelter = 1
+    s.megastructureChoice = 'smelter'
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    const section = panel.querySelector('[data-megastructure-section]') as HTMLElement
+    expect(section.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-chosen')).toBe('')
+    expect(section.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-locked')).toBe('')
+    expect(section.textContent).toContain('本周目已锁定')
+  })
+
+  it('终局抉择确认弹窗渲染：效果 + 消耗 + 互斥警告 + 确认按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    const overlay = container.querySelector('[data-overlay="megastructure"]') as HTMLElement
+    renderMegastructureModal(overlay, s, 'ringSmelter')
+    expect(overlay.querySelector('[data-megastructure-confirm="ringSmelter"]')).toBeTruthy()
+    expect(overlay.textContent).toContain('全局产出')
+    expect(overlay.textContent).toContain('建造消耗')
+    expect(overlay.textContent).toContain('只能选择其一')
+    renderMegastructureModal(overlay, s, 'jumpgate')
+    expect(overlay.querySelector('[data-megastructure-confirm="jumpgate"]')).toBeTruthy()
+    expect(overlay.textContent).toContain('离线')
   })
 })

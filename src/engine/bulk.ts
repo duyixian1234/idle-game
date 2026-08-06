@@ -176,8 +176,17 @@ function toPreview(state: GameState, spend: BulkSpend, id: string): BulkPreview 
   return { ...spend, emptyWarnings, energyWarning: energyWarningFor(state, id, spend.count) }
 }
 
-/** 预演：买满某类目标（纯计算，不修改状态） */
+/** 唯一大件（unique）禁用批量：买满/升满路径短路，只允许单级操作（interstellar-buildings spec 决策 21） */
+function isUniqueBlocked(kind: BulkKind, id: string): boolean {
+  return (kind === 'building' || kind === 'buildingUpgrade') && BUILDINGS[id]?.unique === true
+}
+
+/** 预演：买满某类目标（纯计算，不修改状态；唯一建筑直接返回 count=0） */
 export function previewMaxBuy(state: GameState, kind: BulkKind, id: string): BulkPreview {
+  if (isUniqueBlocked(kind, id)) {
+    const spend: BulkSpend = { count: 0, spent: zeroResources(), remaining: { ...state.resources }, stoppedReason: 'notUnlocked' }
+    return { ...spend, emptyWarnings: [] }
+  }
   const sim = cloneForSim(state)
   const spend = runLoop(sim, loopTargetFor(state, kind, id))
   return toPreview(state, spend, id)
@@ -191,8 +200,9 @@ export function previewDiplomacyMax(state: GameState, factionId: string, action:
   return { ...spend, emptyWarnings }
 }
 
-/** 执行：买满某类目标（真实状态上循环；首步失败返回与单次一致的原因） */
+/** 执行：买满某类目标（真实状态上循环；首步失败返回与单次一致的原因；唯一建筑直接失败） */
 export function executeMaxBuy(state: GameState, kind: BulkKind, id: string): BulkActionResult {
+  if (isUniqueBlocked(kind, id)) return { ok: false, reason: '唯一建筑不支持批量操作' }
   const { firstFailReason, ...spend } = runLoop(state, loopTargetFor(state, kind, id))
   if (spend.count === 0 && firstFailReason) {
     return { ok: false, reason: firstFailReason }
@@ -209,8 +219,9 @@ export function executeDiplomacyMax(state: GameState, factionId: string, action:
   return { ok: true, value: spend }
 }
 
-/** 目标是否可批量（引擎层判定，UI 用于按钮可用性） */
+/** 目标是否可批量（引擎层判定，UI 用于按钮可用性；唯一建筑恒不可批量） */
 export function canBulkBuy(state: GameState, kind: BulkKind, id: string): boolean {
+  if (isUniqueBlocked(kind, id)) return false
   if (kind === 'building') {
     if (!isBuildingUnlocked(state, id) || BUILDINGS[id] === undefined) return false
     // 产军力建筑：军力已满上限则不可批量

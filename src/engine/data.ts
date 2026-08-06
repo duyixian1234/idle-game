@@ -15,24 +15,38 @@ export interface BuildingDef {
   id: string
   name: string
   desc: string
-  /** 建筑类别：civil 显示于建造面板，military 显示于军事面板 */
-  category?: 'civil' | 'military'
+  /** 建筑类别：civil 显示于建造面板，military 显示于军事面板，interstellar 显示于星域页「星际工程」分组 */
+  category?: 'civil' | 'military' | 'interstellar'
   /** 首个成本（含各资源） */
   baseCost: Partial<Record<ResourceKey, number>>
-  /** 每买一个的成本增长倍率 */
+  /** 每买一个的成本增长倍率（unique 建筑不使用——成本走 baseCost × UNIQUE_UPGRADE_GROWTH^level 独立公式） */
   costGrowth: number
-  /** 每单位每秒产出 */
+  /** 每单位每秒产出（unique 建筑：base × UNIQUE_UPGRADE_GROWTH^level） */
   produces: Partial<Record<ResourceKey, number>>
-  /** 每单位每秒消耗（当前仅能源消耗类建筑） */
+  /** 每单位每秒消耗（当前仅能源消耗类建筑；unique 建筑按 level 计：consumes × level） */
   consumes?: Partial<Record<ResourceKey, number>>
   /** 每单位提供的资源容量（当前仅军港的军力上限） */
   capacity?: Partial<Record<ResourceKey, number>>
-  /** 解锁前置建筑（无则始终可见） */
+  /** 解锁前置建筑（无则始终可见；星际建筑链式前置复用：需 ≥1 级） */
   requires?: string[]
   /** 解锁前置科技 */
   requiresTech?: string[]
   /** 解锁前置星球（需已解锁） */
   requiresPlanet?: string[]
+  /** 唯一大件：count 恒 1、禁止重复建造；购买/升级入口语义变为「建造/升一级」；成本/产出/维护/能耗均走独立 ×2^level 分支（不复用 count 折算公式）；bulk 买满/升满禁用 */
+  unique?: boolean
+  /** 维护费（唯一大件专属）：按 tick 硬扣对应资源、不参与 settleEnergyRatio 能源打折结算；数值随等级 ×2^level（与产出对称增长，占比恒定） */
+  maintenance?: Partial<Record<ResourceKey, number>>
+  /** 通关后解锁（phase ∈ {ended, infinite}） */
+  requiresEnded?: boolean
+  /** 解锁前置科技（需满级，如深层钻探 Lv10） */
+  requiresMaxTech?: string[]
+  /** 解锁前置建筑升级满级（如深层钻机建筑 Lv10 = 产出天花板；区别于 requires 的 ≥1 台语义） */
+  requiresMaxLevel?: string[]
+  /** 互斥：当 megastructureChoice === 该值时本周目永久锁定（究极建筑二选一） */
+  exclusiveMegastructure?: 'smelter' | 'jumpgate'
+  /** 购买时写入 megastructureChoice 的值（究极建筑专属；null 选择由 UI 门控） */
+  megastructureValue?: 'smelter' | 'jumpgate'
 }
 
 /** 每级建筑升级的产出加成（+50%/级）——数值策略见 balance.ts LEVEL_PRODUCTION_BONUS */
@@ -103,6 +117,73 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     capacity: { military: 200 },
     requiresPlanet: ['orbital'],
   },
+  // ---- 星系间工程（interstellar-buildings spec：唯一大件 + 终局抉择）----
+  starportMine: {
+    id: 'starportMine',
+    name: '星港矿场',
+    desc: '横跨小行星带的巨型输送港，整颗星体被剥开、熔炼、装船。唯一大件，升级产出 ×2/级（终局冲刺加速器）。',
+    category: 'interstellar',
+    unique: true,
+    baseCost: { mineral: 50_000_000, tech: 2_000_000 },
+    costGrowth: 2,
+    produces: { mineral: 500 },
+    requiresPlanet: ['dawn'],
+    requiresMaxLevel: ['deepDrill'],
+  },
+  stellarArray: {
+    id: 'stellarArray',
+    name: '聚变恒星阵列',
+    desc: '捕获整颗恒星辐射的戴森阵列骨架，能源产出跃迁；以矿物维持聚变反应（维护费随等级 ×2/级，硬扣不因能源不足打折）。',
+    category: 'interstellar',
+    unique: true,
+    baseCost: { mineral: 500_000_000, tech: 50_000_000 },
+    costGrowth: 2,
+    produces: { energy: 1000 },
+    maintenance: { mineral: 20 },
+    requiresEnded: true,
+    requires: ['starportMine'],
+  },
+  thinkTank: {
+    id: 'thinkTank',
+    name: '星海智库',
+    desc: '汇聚全星系数千文明遗产的思维星云，科技产出跃迁。唯一大件，升级产出 ×2/级。',
+    category: 'interstellar',
+    unique: true,
+    baseCost: { mineral: 2_000_000_000, tech: 200_000_000 },
+    costGrowth: 2,
+    produces: { tech: 200 },
+    requiresEnded: true,
+    requires: ['stellarArray'],
+  },
+  ringSmelter: {
+    id: 'ringSmelter',
+    name: '星环冶炼场',
+    desc: '环绕母星赤道的巨型冶炼环：全局产出 ×2^level（矿/能源/科技全吃）。高耗能 100 能源/s × level，能源不足时产能按现有结算打折。终局抉择「建设」路线。',
+    category: 'interstellar',
+    unique: true,
+    baseCost: { mineral: 500_000_000, tech: 50_000_000 },
+    costGrowth: 2,
+    produces: {},
+    consumes: { energy: 100 },
+    requiresEnded: true,
+    requires: ['starportMine', 'stellarArray', 'thinkTank'],
+    exclusiveMegastructure: 'jumpgate',
+    megastructureValue: 'smelter',
+  },
+  jumpgate: {
+    id: 'jumpgate',
+    name: '跃迁枢纽',
+    desc: '贯通星海航道的跃迁门：派遣槽 +2、天体收获倍率上限 ×4、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。',
+    category: 'interstellar',
+    unique: true,
+    baseCost: { mineral: 500_000_000, tech: 50_000_000 },
+    costGrowth: 2,
+    produces: {},
+    requiresEnded: true,
+    requires: ['starportMine', 'stellarArray', 'thinkTank'],
+    exclusiveMegastructure: 'smelter',
+    megastructureValue: 'jumpgate',
+  },
 }
 
 /** 军事类建筑子集（显示于军事面板；civil 类显示于建造面板） */
@@ -110,9 +191,19 @@ export const MILITARY_BUILDINGS: Record<string, BuildingDef> = Object.fromEntrie
   Object.entries(BUILDINGS).filter(([, def]) => def.category === 'military'),
 )
 
-/** 民用类建筑子集（显示于建造面板） */
+/** 民用类建筑子集（显示于建造面板；interstellar 归星际工程分组，不在此列） */
 export const CIVIL_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
-  Object.entries(BUILDINGS).filter(([, def]) => def.category !== 'military'),
+  Object.entries(BUILDINGS).filter(([, def]) => def.category !== 'military' && def.category !== 'interstellar'),
+)
+
+/** 星系间工程子集（星域页「星际工程」分组；唯一大件，解锁链见 engine.isBuildingUnlocked） */
+export const INTERSTELLAR_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
+  Object.entries(BUILDINGS).filter(([, def]) => def.category === 'interstellar'),
+)
+
+/** 究极建筑（终局抉择二选一：星环冶炼场/跃迁枢纽） */
+export const MEGASTRUCTURE_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
+  Object.entries(BUILDINGS).filter(([, def]) => def.exclusiveMegastructure !== undefined),
 )
 
 /** 科技效果：产出系数加成 */

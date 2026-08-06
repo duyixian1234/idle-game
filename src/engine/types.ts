@@ -38,8 +38,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations——由 save.ts 迁移链支撑） */
-export const SCHEMA_VERSION = 6
+/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations；7：+终局抉择 megastructureChoice——由 save.ts 迁移链支撑） */
+export const SCHEMA_VERSION = 7
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -138,6 +138,8 @@ export interface GameState {
   permanentBonuses: Record<string, number>
   /** 区域攻占状态：conquestId -> ConquestState */
   conquest: Record<string, ConquestState>
+  /** 终局抉择（究极建筑二选一，周目内硬锁）：'smelter' = 星环冶炼场、'jumpgate' = 跃迁枢纽、null = 未选择；NG+ 重置可重选（v7 新增） */
+  megastructureChoice: 'smelter' | 'jumpgate' | null
   /** 累计统计 */
   stats: GameStats
   /** 成就解锁状态：achievementId -> AchievementState（跨周目图鉴，NG+ 不清空） */

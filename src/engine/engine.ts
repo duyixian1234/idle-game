@@ -8,7 +8,7 @@ import {
   TECHS,
 } from './data'
 import type { TechDef } from './data'
-import { LEVEL_PRODUCTION_BONUS, TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
+import { LEVEL_PRODUCTION_BONUS, TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UNIQUE_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
@@ -21,8 +21,8 @@ import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
-import { netProduction, productionReport, militaryCap, levelMultiplier } from './production'
-import { computeNgPlusInheritance } from './ngplus'
+import { applyMaintenance, netProduction, productionReport, militaryCap, levelMultiplier } from './production'
+import { computeNgPlusInheritance, megastructureLegacyBonus } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
 import { randSeed, streamFor } from './rng'
 // re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
@@ -49,6 +49,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     permanentMult: 1,
     permanentBonuses: {},
     conquest,
+    megastructureChoice: null,
     stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
     seed,
@@ -79,9 +80,18 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
   }
 }
 
-/** 建筑购买成本：baseCost * growth^count，向下取整，至少 1 */
+/** 建筑购买成本：baseCost * growth^count，向下取整，至少 1。
+ * 唯一大件（unique）：首购恒为 baseCost（count 恒 1、不随 count 增长） */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
+  if (def.unique) {
+    const cost = zeroResources()
+    for (const key of RESOURCE_KEYS) {
+      const base = def.baseCost[key] ?? 0
+      cost[key] = base > 0 ? Math.max(1, Math.floor(base)) : 0
+    }
+    return cost
+  }
   const count = state.buildings[id] ?? 0
   const factor = Math.pow(def.costGrowth, count)
   const cost = zeroResources()
@@ -93,17 +103,24 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
 }
 
 /**
- * 建筑升级成本（产出等价折算，balance-rework spec 定稿）：
- *   upgradeCost = buyCost × UPGRADE_PREMIUM × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)
- * 其中 count = 现有台数（升级作用于全部单位）、level = 当前等级。
- * 数学性质：升级每 +1/s 成本 ÷ 买入每 +1/s 成本恒等于 UPGRADE_PREMIUM（=2），任意 count/L 不漂移——
- *   买入 1 台产出 = (1+0.5L)×base×mult，升级 1 级全部 count 台产出 = 0.5×count×base×mult，
- *   成本比 = (upCost/0.5count) / (buyCost/(1+0.5L)) = P。替代旧公式 buyCost×4×1.6^level
- *   （count×level 双指数导致 Lv.10+ 升级 ROI 比买入差 49~15000×，详见 spec）。
+ * 建筑升级成本。
+ * - 普通建筑：产出等价折算（balance-rework spec 定稿）upgradeCost = buyCost × UPGRADE_PREMIUM × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)
+ * - 唯一大件（unique）：独立公式 `baseCost × UNIQUE_UPGRADE_GROWTH^level`（= baseCost × 2^level）。
+ *   不复用 count 折算公式——count 恒 1 时该公式随 level 递减，会破坏「升级成本与收益对称 ×2/级」的终局语义。
  */
 export function upgradeCost(state: GameState, id: string): Record<ResourceKey, number> {
-  const count = state.buildings[id] ?? 0
+  const def = BUILDINGS[id]
   const level = state.upgrades[id] ?? 0
+  if (def?.unique) {
+    const factor = Math.pow(UNIQUE_UPGRADE_GROWTH, level)
+    const cost = zeroResources()
+    for (const key of RESOURCE_KEYS) {
+      const base = def.baseCost[key] ?? 0
+      cost[key] = base > 0 ? Math.max(1, Math.floor(base * factor)) : 0
+    }
+    return cost
+  }
+  const count = state.buildings[id] ?? 0
   const buy = buildingCost(state, id)
   const mult = (UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count) / levelMultiplier(level)
   const cost = zeroResources()
@@ -138,14 +155,52 @@ function canAfford(resources: Record<ResourceKey, number>, cost: Record<Resource
   return RESOURCE_KEYS.every((k) => resources[k] >= (cost[k] ?? 0))
 }
 
-/** 前置建筑/科技/星球是否已满足（建筑拥有 ≥1 台，科技已研发，星球已解锁） */
+/** 通关后（ended/infinite）判定——星系间工程解锁链共用 */
+function isEnded(state: GameState): boolean {
+  return state.phase === 'ended' || state.phase === 'infinite'
+}
+
+/** 前置建筑/科技/星球是否已满足（建筑拥有 ≥1 台，科技已研发，星球已解锁）；
+ * 星系间工程额外解锁链：通关后（requiresEnded）/ 建筑升级满级（requiresMaxLevel）/ 终局互斥（exclusiveMegastructure） */
 export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) return false
   if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) return false
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) return false
+  if (def.requiresEnded && !isEnded(state)) return false
+  if (def.requiresMaxLevel && !def.requiresMaxLevel.every((t) => (state.upgrades[t] ?? 0) >= TECH_MAX_LEVEL)) return false
+  if (def.exclusiveMegastructure && state.megastructureChoice === def.exclusiveMegastructure) return false
   return true
+}
+
+/** 建筑锁定原因（UI 锁定卡片展示；返回 null = 未锁定）。优先级：终局互斥 → 通关 → 星球 → 建筑满级 → 前置建筑/科技 */
+export function buildingLockReason(state: GameState, id: string): string | null {
+  const def = BUILDINGS[id]
+  if (!def) return '未知建筑'
+  if (def.exclusiveMegastructure && state.megastructureChoice === def.exclusiveMegastructure) {
+    return '本周目已锁定：已选择另一究极建筑'
+  }
+  if (def.requiresEnded && !isEnded(state)) return '通关后解锁'
+  if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) {
+    return `需解锁星球：${def.requiresPlanet.map((p) => PLANETS[p]?.name ?? p).join('、')}`
+  }
+  if (def.requiresMaxLevel && !def.requiresMaxLevel.every((t) => (state.upgrades[t] ?? 0) >= TECH_MAX_LEVEL)) {
+    return `需「${def.requiresMaxLevel.map((t) => BUILDINGS[t]?.name ?? t).join('、')}」升级满级`
+  }
+  if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) {
+    return `需先建造：${def.requires.map((r) => BUILDINGS[r]?.name ?? r).join('、')}`
+  }
+  if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) {
+    return `需先研发：${def.requiresTech.map((t) => TECHS[t]?.name ?? t).join('、')}`
+  }
+  return null
+}
+
+/** 终局抉择前置是否满足：通关 && 三星系间建筑各 ≥1 级（终局抉择区块/互斥基础设施共用，UI 不重写判定） */
+export function megastructurePrereqsMet(state: GameState): boolean {
+  if (!isEnded(state)) return false
+  return ['starportMine', 'stellarArray', 'thinkTank'].every((id) => (state.buildings[id] ?? 0) >= 1)
 }
 
 /** 派生查询：当前是否买得起某建筑 */
@@ -162,16 +217,19 @@ export function canAffordUpgrade(state: GameState, id: string): boolean {
   return canAfford(state.resources, upgradeCost(state, id))
 }
 
-/** 建造建筑 */
+/** 建造建筑（唯一大件：count 恒 1、禁重复建造；究极建筑购买即写入终局抉择） */
 export function buyBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
   if (!isBuildingUnlocked(state, id)) return { ok: false, reason: '前置建筑未解锁' }
+  if (def.unique && (state.buildings[id] ?? 0) > 0) return { ok: false, reason: '唯一建筑已建造，无法重复建造' }
   const cost = buildingCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   const wasEmpty = Object.values(state.buildings).every((c) => c <= 0)
-  state.buildings[id] = (state.buildings[id] ?? 0) + 1
+  state.buildings[id] = def.unique ? 1 : (state.buildings[id] ?? 0) + 1
+  // 究极建筑：购买即写入终局抉择（互斥在本周目生效，NG+ 重置可重选）
+  if (def.megastructureValue) state.megastructureChoice = def.megastructureValue
   // 首次建造叙事
   if (wasEmpty) playMilestone(state, 'firstBuild')
   return { ok: true }
@@ -319,6 +377,8 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   if (report.nominal.mineral > 0) {
     state.stats.totalMineralEarned += report.nominal.mineral * dt
   }
+  // 星系间建筑维护费：硬扣对应资源（独立结算、不参与能源打折；与 consumes 语义隔离）
+  applyMaintenance(state, dt)
   // 能源余额兜底不为负（消耗类建筑已按比例结算）
   if (state.resources.energy < 0) state.resources.energy = 0
   // 军力容量兜底：截断累计超上限的部分（秒级近似下的保险）
@@ -481,6 +541,14 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.ngPlusLevel = inh.nextLevel
   state.permanentMult = inh.permanentMult
   const carryTech = inh.carryTech
+
+  // 究极建筑 NG+ 遗产：所选建筑等级 ×1.5% 折算全产出永久加成（读旧 state 计算，随后重置选择可重选）
+  const legacy = megastructureLegacyBonus(state)
+  if (legacy > 0) {
+    state.permanentBonuses.production = (state.permanentBonuses.production ?? 0) + legacy
+  }
+  // 终局抉择重置：NG+ 可重新选择另一究极建筑（防残留：所选建筑等级随 buildings/upgrades 一并清空）
+  state.megastructureChoice = null
 
   // 记录已结盟派系（图鉴）：computeNgPlusInheritance 已含本周目已结盟派系
   for (const id of inh.codexFactions) {

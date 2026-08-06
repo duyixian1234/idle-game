@@ -1,13 +1,18 @@
-import { militaryCap, productionReport } from './production'
+import { applyMaintenance, militaryCap, productionReport } from './production'
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { settleOfflineRaids } from './events'
-import { OFFLINE_CAP_SECONDS } from './balance'
+import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
-/** 离线收益封顶 8 小时——数值策略见 balance.ts OFFLINE_CAP_SECONDS */
+/** 离线收益封顶 8 小时——数值策略见 balance.ts OFFLINE_CAP_SECONDS（跃迁枢纽放宽至 12h，见 offlineCapSeconds） */
+
+/** 离线结算封顶（秒）：基础 8h + 跃迁枢纽 4h = 12h（全局结算参数派生，tick/UI 同源） */
+export function offlineCapSeconds(state: GameState): number {
+  return OFFLINE_CAP_SECONDS + (state.megastructureChoice === 'jumpgate' ? JUMPGATE_OFFLINE_EXTRA_SECONDS : 0)
+}
 
 export interface OfflineResult {
   /** 实际结算时长（秒，已封顶） */
@@ -45,7 +50,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   }
   if (raw <= 0) return empty
 
-  const duration = Math.min(raw, OFFLINE_CAP_SECONDS)
+  const duration = Math.min(raw, offlineCapSeconds(state))
   const report = productionReport(state)
   const gains = zeroResources()
   for (const k of Object.keys(gains) as ResourceKey[]) {
@@ -64,6 +69,8 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   for (const k of Object.keys(gains) as ResourceKey[]) {
     state.resources[k] += gains[k]
   }
+  // 星系间建筑维护费：硬扣、独立结算（与 tick 同口径；离线时长内维护费正常累计）
+  applyMaintenance(state, duration)
   if (state.resources.energy < 0) state.resources.energy = 0
   if (state.resources.military > militaryCap(state)) state.resources.military = militaryCap(state)
   // 离线收益计入累计采集统计
@@ -76,7 +83,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   return {
     durationSeconds: duration,
     rawDurationSeconds: raw,
-    capped: raw > OFFLINE_CAP_SECONDS,
+    capped: raw > offlineCapSeconds(state),
     gains,
     raidLogs: raids.logs,
     conquestLogs,

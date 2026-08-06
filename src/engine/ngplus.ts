@@ -1,5 +1,5 @@
-import { ALL_FACTIONS, CONQUESTS, RESOURCE_KEYS } from './data'
-import { NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
+import { ALL_FACTIONS, BUILDINGS, CONQUESTS, RESOURCE_KEYS } from './data'
+import { NG_PLUS_MEGASTRUCTURE_BONUS, NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
 import { reputation } from './reputation'
 import type { GameState, ResourceKey } from './types'
 
@@ -80,14 +80,32 @@ export function computeNgPlusInheritance(state: GameState): NgPlusInheritance {
   }
 }
 
+/**
+ * 究极建筑 NG+ 遗产折算：所选究极建筑等级 × NG_PLUS_MEGASTRUCTURE_BONUS（每级 +1.5% 全产出）。
+ * - 无选择（megastructureChoice null）或所选建筑 0 级 → 0（无加成）；
+ * - 共享函数：previewNewGamePlus 与 startNewGamePlus 同源引用，保证预览与执行一致（防双实现漂移）。
+ */
+export function megastructureLegacyBonus(state: GameState): number {
+  const choice = state.megastructureChoice
+  if (!choice) return 0
+  const buildingId = choice === 'smelter' ? 'ringSmelter' : 'jumpgate'
+  if (!BUILDINGS[buildingId]) return 0
+  const level = state.buildings[buildingId] ? state.upgrades[buildingId] ?? 0 : 0
+  return level * NG_PLUS_MEGASTRUCTURE_BONUS
+}
+
 /** 预览 NG+（纯函数：不修改 state，调用前后状态不变） */
 export function previewNewGamePlus(state: GameState): NgPlusPreview {
   const inh = computeNgPlusInheritance(state)
   const alliedFactions = Object.values(ALL_FACTIONS).filter((d) => state.factions[d.id]?.allied).map((d) => d.id)
   const conquered = Object.values(CONQUESTS).filter((d) => state.conquest[d.id]?.status === 'conquered').length
+  // 继承的永久加成表 = 现有 + 究极建筑等级折算（预览与执行同源引用 megastructureLegacyBonus）
+  const permanentBonuses = { ...state.permanentBonuses }
+  const legacy = megastructureLegacyBonus(state)
+  if (legacy > 0) permanentBonuses.production = (permanentBonuses.production ?? 0) + legacy
   return {
     ...inh,
-    permanentBonuses: { ...state.permanentBonuses },
+    permanentBonuses,
     lost: {
       resources: RESOURCE_KEYS.filter((k) => state.resources[k] > 0),
       buildings: Object.keys(state.buildings),

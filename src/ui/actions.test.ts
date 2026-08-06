@@ -234,7 +234,7 @@ describe('actions: 一键买满（批量）', () => {
 })
 
 describe('actions: 注册表完整性', () => {
-  it('十六个动作全部注册', () => {
+  it('十七个动作全部注册', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
@@ -245,6 +245,7 @@ describe('actions: 注册表完整性', () => {
         'diplomacy',
         'diplomacyMax',
         'explore',
+        'megastructure',
         'newGamePlus',
         'research',
         'resolveEvent',

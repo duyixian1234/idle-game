@@ -1,6 +1,6 @@
 import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import type { TechEffectProduction } from './data'
-import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP } from './balance'
+import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UPGRADE_GROWTH } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
 import { reputationBonuses } from './reputation'
@@ -68,12 +68,22 @@ function pipelineNominal(state: GameState): PipelineNominal {
   for (const [id, count] of Object.entries(state.buildings)) {
     const def = BUILDINGS[id]
     if (!def || count <= 0) continue
-    const mul = levelMultiplier(state.upgrades[id] ?? 0)
-    for (const key of RESOURCE_KEYS) {
-      base[key] += (def.produces[key] ?? 0) * count * mul
+    if (def.unique) {
+      // 唯一大件产出分支：base × 2^level（与普通建筑线性 levelMultiplier 并存，互不污染）
+      const uniqueMult = Math.pow(UNIQUE_UPGRADE_GROWTH, state.upgrades[id] ?? 0)
+      for (const key of RESOURCE_KEYS) {
+        base[key] += (def.produces[key] ?? 0) * uniqueMult
+      }
+    } else {
+      const mul = levelMultiplier(state.upgrades[id] ?? 0)
+      for (const key of RESOURCE_KEYS) {
+        base[key] += (def.produces[key] ?? 0) * count * mul
+      }
     }
     for (const key of RESOURCE_KEYS) {
-      energyDemand += (def.consumes?.[key] ?? 0) * count
+      // 能耗：普通建筑按台数；唯一大件按等级（冶炼场 100 能源/s × level，Lv0 待机不耗能）
+      const perUnit = def.consumes?.[key] ?? 0
+      if (perUnit > 0) energyDemand += perUnit * (def.unique ? (state.upgrades[id] ?? 0) : count)
     }
   }
 
@@ -100,7 +110,8 @@ export function productionReport(state: GameState): ProductionReport {
   // 整体随后与建筑产出一同 ×permMult → 占比恒 2%/2%/1%（×1+outputBonus）；无 consumes，不参与能源折减、不受军力截断。
   applyExplorePlanetOutput(state, techMult, nominal)
 
-  // NG+ 永久产出加成 × 区域永久加成（permanentBonuses['production'] 累计，随存档持久化）
+  // NG+ 永久产出加成 × 区域永久加成（permanentBonuses['production'] 累计，随存档持久化）。
+  // 作用于能源结算前：影响能源供给池（存量行为保持——NG+ 周目遗产可为自己供能）。
   const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
   if (permMult !== 1) {
     for (const key of RESOURCE_KEYS) nominal[key] *= permMult
@@ -120,16 +131,27 @@ export function productionReport(state: GameState): ProductionReport {
     }
   }
 
+  // 星环冶炼场全局乘数：×2^level，能源结算后作用于最终产出（矿/能源/科技全吃；军力为容量资源不吃）。
+  // ⚠️ 刻意置于能源结算后：冶炼场不能为自己供能——若在结算前放大能源，其 100×level 能耗永不会不足，
+  // 「能源链真实约束」失效（spec 决策 14）。
+  const smelterMult = smelterGlobalMult(state)
+  if (smelterMult !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      if (key !== 'military') nominal[key] *= smelterMult
+    }
+  }
+
   // 军力容量截断：剩余容量为 0 时产出停摆，接近上限时按剩余容量打折（秒级口径）
   const room = militaryCap(state) - state.resources.military
   nominal.military = Math.max(0, Math.min(nominal.military, room))
   return { nominal, energyRatio }
 }
 
-/** 探索产出型天体当前每秒贡献明细（UI data-planet-output 单一真源，与 productionReport 同口径含 permMult） */
+/** 探索产出型天体当前每秒贡献明细（UI data-planet-output 单一真源，与 productionReport 同口径含 permMult 与冶炼场乘数） */
 export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
   const { techMult, nominal } = pipelineNominal(state)
   const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  const smelterMult = smelterGlobalMult(state)
   const out: ExplorePlanetOutput[] = []
   for (const [id, ps] of Object.entries(state.planets)) {
     if (!ps?.unlocked) continue
@@ -139,7 +161,7 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
     const values = zeroResources()
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
-      if (base !== 0) values[key] = base * bonus * permMult
+      if (base !== 0) values[key] = base * bonus * permMult * smelterMult
     }
     out.push({ planetId: id, name: def.name, values })
   }
@@ -249,6 +271,34 @@ function applyExplorePlanetOutput(state: GameState, techMult: Record<ResourceKey
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * mechNominal[key]
       if (base !== 0) nominal[key] += base * bonus
+    }
+  }
+}
+
+/** 星环冶炼场全局产出乘数：×2^level（未选择冶炼场或 Lv0 = ×1）。矿/能源/科技全吃（军力为容量资源不吃）。
+ * 门控用 megastructureChoice（与枢纽机制同一状态源：购买即写入、互斥防切换、NG+ 一并重置），不重复读 buildings。
+ * 与 NG+ permanentMult 独立——终局增幅不被周目继承系数稀释，生产报告/UI 明细同一真源。 */
+export function smelterGlobalMult(state: GameState): number {
+  if (state.megastructureChoice !== 'smelter') return 1
+  return Math.pow(UNIQUE_UPGRADE_GROWTH, state.upgrades.ringSmelter ?? 0)
+}
+
+/**
+ * 星系间建筑维护费结算：按秒硬扣维护资源（维护基数 × UNIQUE_UPGRADE_GROWTH^level）。
+ * - 独立结算：不参与 settleEnergyRatio 能源打折（与 consumes 语义隔离——能源建筑产出稳定、可预期）；
+ * - 对称增长：维护费与产出同 ×2^level → 维护占比恒定（如恒星阵列 20/500 = 4% 永不漂移）；
+ * - 余额可扣为负（欠维护费语义：产出照常，但无法购买任何东西直至回正）。
+ * tick 与 settleOffline 共用，保证在线/离线口径一致。
+ */
+export function applyMaintenance(state: GameState, dtSeconds: number): void {
+  if (dtSeconds <= 0) return
+  for (const [id, count] of Object.entries(state.buildings)) {
+    const def = BUILDINGS[id]
+    if (!def?.maintenance || count <= 0) continue
+    const mult = Math.pow(UNIQUE_UPGRADE_GROWTH, state.upgrades[id] ?? 0)
+    for (const key of RESOURCE_KEYS) {
+      const m = def.maintenance[key] ?? 0
+      if (m > 0) state.resources[key] -= m * mult * dtSeconds
     }
   }
 }
