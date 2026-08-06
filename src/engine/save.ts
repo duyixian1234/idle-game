@@ -1,6 +1,7 @@
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
 import { ACHIEVEMENTS, achievementUnlocked } from './achievements'
+import { randSeed } from './rng'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -8,6 +9,10 @@ const SCHEMA_V1 = 1
 const SCHEMA_V2 = 2
 /** 首个支持成就系统的 schema 版本（v3 基础上加 achievements 解锁集合） */
 const SCHEMA_V3 = 3
+/** 首个支持固定随机种子/分域计数器的 schema 版本（v4 基础上加 seed + rngCounters） */
+const SCHEMA_V4 = 4
+/** 当前 schema 版本（写死，防未来升级后迁移函数标错版本导致跳级） */
+const SCHEMA_V5 = 5
 /** 支持的最低版本（当前全部可迁移版本） */
 const MIN_SUPPORTED_VERSION = 1
 
@@ -51,6 +56,8 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'conquest', since: 3, check: isPlainObject },
   { key: 'stats', check: isPlainObject },
   { key: 'achievements', since: 4, check: isPlainObject },
+  { key: 'seed', since: 5, check: isNumber },
+  { key: 'rngCounters', since: 5, check: isPlainObject },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -128,6 +135,8 @@ function migrateV2ToV3(raw: Record<string, unknown>): Record<string, unknown> {
  * - 遍历成就定义按派生条件判定（旧档 tradeCount/conquest/storyFlags/ngPlusLevel 等历史值已在存档内）
  * - 满足则设 { unlockedAt: now, unlockedInRound: 当前周目 }——**不发资源奖励**（防「憋单等系统上线」刷双份）
  * - 声望由 reputation() 派生自动生效（unlockedInRound 匹配当前周目），符合「回溯解锁不补资源、声望照发」
+ * ⚠️ 迁移链陷阱：schemaVersion 必须写死 SCHEMA_V4（不能用 SCHEMA_VERSION）——否则 SCHEMA_VERSION 升到 5
+ * 后，v3 档会被直接标成 5 而跳过 v5 的 seed/rngCounters 补齐（v3→v4→v5 顺序迁移被破坏）。
  */
 function migrateV3ToV4(raw: Record<string, unknown>): Record<string, unknown> {
   const next = { ...raw }
@@ -142,15 +151,29 @@ function migrateV3ToV4(raw: Record<string, unknown>): Record<string, unknown> {
       achievements[def.id] = { unlockedAt: now, unlockedInRound: round }
     }
   }
-  next.schemaVersion = SCHEMA_VERSION
+  next.schemaVersion = SCHEMA_V4
+  return next
+}
+
+/**
+ * v4 → v5：补齐固定随机种子与分域计数器（fixed-rng）。
+ * - 老档迁移补的 seed 是随机的：迁移前随机历史与 seed 无关，迁移后序列由新 seed 决定，无副作用。
+ * - 条件补齐（字段已存在则保留）：幂等且允许测试注入固定 seed 验证迁移后引擎确定性。
+ */
+function migrateV4ToV5(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  if (typeof next.seed !== 'number') next.seed = randSeed()
+  if (next.rngCounters == null) next.rngCounters = {}
+  next.schemaVersion = SCHEMA_V5
   return next
 }
 
 /**
  * 迁移旧版本存档到当前版本。
- * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4
- * - v2 存档（无军力/区域字段）→ 转 v3 → 转 v4
- * - v3 存档（无成就字段）→ 转 v4（含回溯解锁）
+ * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4 → 转 v5
+ * - v2 存档（无军力/区域字段）→ 转 v3 → 转 v4 → 转 v5
+ * - v3 存档（无成就字段）→ 转 v4（含回溯解锁）→ 转 v5（补随机 seed）
+ * - v4 存档（无 seed/rngCounters）→ 转 v5
  * - 已是当前版本：原样返回
  *
  * loadGame（IndexedDB 加载路径）与 deserializeSave（导入路径）共用此入口，
@@ -163,6 +186,7 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V1) cur = migrateV1ToV2(cur)
   if (cur.schemaVersion === SCHEMA_V2) cur = migrateV2ToV3(cur)
   if (cur.schemaVersion === SCHEMA_V3) cur = migrateV3ToV4(cur)
+  if (cur.schemaVersion === SCHEMA_V4) cur = migrateV4ToV5(cur)
   return cur as unknown as GameState
 }
 

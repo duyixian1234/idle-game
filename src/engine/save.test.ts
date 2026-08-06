@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from './engine'
+import { createInitialState, startNewGamePlus } from './engine'
 import { pushLog } from './core'
 import { reputation } from './reputation'
-import { deserializeSave, isValidSave, serializeSave } from './save'
+import { deserializeSave, isValidSave, migrateSave, serializeSave } from './save'
+import { pickEventDef } from './events'
+import { settleConquests } from './conquest'
 import { SCHEMA_VERSION } from './types'
+import type { GameState } from './types'
 
 describe('engine: 存档序列化往返', () => {
   it('序列化→反序列化保持全量状态', () => {
@@ -153,5 +156,112 @@ describe('engine: 存档序列化往返', () => {
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 99
     expect(() => deserializeSave(JSON.stringify(raw))).toThrow(/版本/)
+  })
+
+  it('v4 旧档迁移为 v5：补齐 seed/rngCounters，schemaVersion=5', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 4
+    delete (raw as Record<string, unknown>).seed
+    delete (raw as Record<string, unknown>).rngCounters
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.seed).toBeGreaterThanOrEqual(0)
+    expect(migrated.seed).toBeLessThan(0x100000000)
+    expect(migrated.rngCounters).toEqual({})
+  })
+
+  it('v3 旧档链式迁移直达 v5：不跳过 v5 补齐（回归迁移链陷阱）', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 3
+    delete (raw as Record<string, unknown>).achievements
+    delete (raw as Record<string, unknown>).seed
+    delete (raw as Record<string, unknown>).rngCounters
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(5)
+    // v5 补齐必须生效：seed 在合法范围、rngCounters 空对象（否则 migrateV3ToV4 误标 5 跳级）
+    expect(migrated.seed).toBeGreaterThanOrEqual(0)
+    expect(migrated.seed).toBeLessThan(0x100000000)
+    expect(migrated.rngCounters).toEqual({})
+    // v4 中间产物仍在：成就表补齐
+    expect(migrated.achievements).toEqual({})
+  })
+
+  it('v1 旧档链式迁移直达 v5（完整链路）', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 1
+    ;(raw as Record<string, unknown>).researched = { planetDrill: true }
+    delete (raw as Record<string, unknown>).techLevels
+    delete (raw as Record<string, unknown>).permanentBonuses
+    delete (raw as Record<string, unknown>).conquest
+    delete (raw as Record<string, unknown>).achievements
+    delete (raw as Record<string, unknown>).seed
+    delete (raw as Record<string, unknown>).rngCounters
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.techLevels).toEqual({ planetDrill: 1 })
+    expect(migrated.resources.military).toBe(0)
+    expect(migrated.seed).toBeGreaterThanOrEqual(0)
+    expect(migrated.rngCounters).toEqual({})
+  })
+
+  it('v5 档原样返回（isValidSave 通过）', () => {
+    const s = createInitialState(0, 42)
+    s.rngCounters.event = 3
+    const restored = deserializeSave(serializeSave(s))
+    expect(restored.schemaVersion).toBe(5)
+    expect(restored.seed).toBe(42)
+    expect(restored.rngCounters).toEqual({ event: 3 })
+  })
+
+  it('isValidSave：缺 seed/rngCounters 的 v5 档非法；v4 档（无 v5 字段）合法', () => {
+    const s = createInitialState(0, 42)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    // v5 档缺 seed → 非法
+    const bad = { ...raw }
+    delete (bad as Record<string, unknown>).seed
+    expect(isValidSave(bad)).toBe(false)
+    // v5 档缺 rngCounters → 非法
+    const bad2 = { ...raw }
+    delete (bad2 as Record<string, unknown>).rngCounters
+    expect(isValidSave(bad2)).toBe(false)
+    // v4 档无 v5 字段 → 合法（since 5 不要求）
+    const v4 = { ...raw, schemaVersion: 4 }
+    delete (v4 as Record<string, unknown>).seed
+    delete (v4 as Record<string, unknown>).rngCounters
+    expect(isValidSave(v4)).toBe(true)
+  })
+
+  it('createInitialState 产物直接通过 isValidSave', () => {
+    expect(isValidSave(createInitialState(0))).toBe(true)
+  })
+
+  it('迁移后确定性冒烟：v4 档迁移后引擎不传 rng 可稳定跑（无 undefined 崩溃）', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 4
+    delete (raw as Record<string, unknown>).seed
+    delete (raw as Record<string, unknown>).rngCounters
+    const migrated = migrateSave(raw as unknown as GameState)
+    // 事件类型 roll 稳定
+    expect(pickEventDef(migrated)).toBeDefined()
+    // 攻占结算走 conquest 域不崩（无进行中攻占 → 返回空日志）
+    expect(settleConquests(migrated, 0)).toEqual([])
+    expect(migrated.seed).toBeGreaterThanOrEqual(0)
+  })
+
+  it('NG+ 后 seed/rngCounters 深比较不变（跨周目保留，决策 Q13）', () => {
+    const s = createInitialState(0, 42)
+    s.rngCounters.event = 5
+    s.rngCounters.conquest = 2
+    s.phase = 'ended'
+    s.endingTriggered = true
+    const seedBefore = s.seed
+    const countersBefore = JSON.parse(JSON.stringify(s.rngCounters))
+    startNewGamePlus(s, 1000)
+    expect(s.seed).toBe(seedBefore)
+    expect(JSON.stringify(s.rngCounters)).toBe(JSON.stringify(countersBefore))
   })
 })
