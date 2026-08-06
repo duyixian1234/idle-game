@@ -21,22 +21,30 @@ export async function dismissTutorial(page: Page): Promise<void> {
  * 必须在 seedSave 之后调用（防止 beforeunload 把内存中的新游戏 state 覆盖注入的旧档）。
  */
 export async function lockSaveStore(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const proto = IDBObjectStore.prototype as unknown as { put: (v: unknown, k: IDBValidKey) => IDBRequest }
-    const origPut = proto.put
-    proto.put = function (value: unknown, key: IDBValidKey) {
-      if (this.name === 'save' && key === 'current') {
-        // 把覆盖请求重定向到废弃 key，保留注入存档
-        return origPut.call(this, value, '__blocked_by_e2e__')
-      }
-      return origPut.call(this, value, key)
+  await page.addInitScript(saveLockScript)
+  await page.evaluate(saveLockScript)
+}
+
+function saveLockScript(): void {
+  const proto = IDBObjectStore.prototype as unknown as { put: (v: unknown, k: IDBValidKey) => IDBRequest }
+  if ((proto as typeof proto & { __e2eSaveLock?: boolean }).__e2eSaveLock) return
+  const origPut = proto.put
+  proto.put = function (value: unknown, key: IDBValidKey) {
+    if (this.name === 'save' && key === 'current' && !(window as Window & { __e2eSeeding?: boolean }).__e2eSeeding) {
+      // 把覆盖请求重定向到废弃 key，保留注入存档
+      return origPut.call(this, value, '__blocked_by_e2e__')
     }
-  })
+    return origPut.call(this, value, key)
+  }
+  ;(proto as typeof proto & { __e2eSaveLock?: boolean }).__e2eSaveLock = true
 }
 
 /** 向 IndexedDB（idle-game/save/current）写入存档，并返回读取到的 schemaVersion 用于断言 */
 export async function seedSave(page: Page, save: Record<string, unknown>): Promise<number> {
+  // 先注册到下一次文档，避免当前页面 reload 的 beforeunload 覆盖注入存档。
+  await page.addInitScript(saveLockScript)
   return await page.evaluate(async (s) => {
+    ;(window as Window & { __e2eSeeding?: boolean }).__e2eSeeding = true
     // 先清空 store，避免残留旧存档污染
     await new Promise<void>((resolve, reject) => {
       const open = indexedDB.open('idle-game', 1)
@@ -54,7 +62,7 @@ export async function seedSave(page: Page, save: Record<string, unknown>): Promi
       open.onerror = () => reject(open.error)
     })
     // 立即读回验证
-    return await new Promise<number>((resolve, reject) => {
+    const schemaVersion = await new Promise<number>((resolve, reject) => {
       const open = indexedDB.open('idle-game', 1)
       open.onsuccess = () => {
         const db = open.result
@@ -65,5 +73,7 @@ export async function seedSave(page: Page, save: Record<string, unknown>): Promi
       }
       open.onerror = () => reject(open.error)
     })
+    ;(window as Window & { __e2eSeeding?: boolean }).__e2eSeeding = false
+    return schemaVersion
   }, save)
 }

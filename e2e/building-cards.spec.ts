@@ -133,6 +133,8 @@ test('卡片主体点击建造×1：资源扣减 + 徽标变化 + 日志（miner
   // mineral 设 <1 万：formatNumber 走千分位整数（中文单位 3 位有效数字下 10 扣减不可分辨）
   const save = buildSave(now, { resources: { mineral: 5_000, energy: 500_000, tech: 100_000, military: 50_000 } })
   save.buildings = {}
+  // 冻结本用例的生产时钟，避免等待 UI 重渲染时的产出抵消首台成本。
+  save.lastTick = now + 3_600_000
   await openSector(page, save)
 
   // 卡片契约：data-build-card 存在、图标 use 引用 sprite、未建徽标 ×0
