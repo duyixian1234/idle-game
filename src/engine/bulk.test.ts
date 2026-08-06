@@ -92,6 +92,12 @@ describe('engine: upgradeBuildingMax（一键升满建筑）', () => {
     const r = executeMaxBuy(s, 'buildingUpgrade', 'miner')
     expect(r).toEqual({ ok: false, reason: '尚未建造该建筑' })
   })
+
+  it('没有升级效果的跃迁枢纽不提供批量升级入口', () => {
+    const s = stateWith({ mineral: 1_000_000, tech: 1_000_000 })
+    s.buildings.jumpgate = 1
+    expect(executeMaxBuy(s, 'buildingUpgrade', 'jumpgate')).toEqual({ ok: false, reason: '该建筑没有可升级效果' })
+  })
 })
 
 describe('engine: upgradeTechMax（一键升满科技）', () => {

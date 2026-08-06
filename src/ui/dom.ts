@@ -450,6 +450,14 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
 function upgradePreviewText(state: GameState, def: BuildingDef): string {
   const count = state.buildings[def.id] ?? 0
   if (count <= 0) return ''
+  if (def.id === 'militaryPort') {
+    const current = militaryCap(state)
+    const sim: GameState = {
+      ...state,
+      upgrades: { ...state.upgrades, militaryPort: (state.upgrades.militaryPort ?? 0) + 1 },
+    }
+    return `军力容量 ${current} → ${militaryCap(sim)}（+${militaryCap(sim) - current}）`
+  }
   if (def.unique) {
     if (def.id === 'ringSmelter') {
       const cur = smelterGlobalMult(state)
@@ -570,8 +578,8 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
           买满
         </button>`
       : ''
-    const upgradeBtns = count > 0
-      ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : '升级：产出 +50%'}">
+    const upgradeBtns = count > 0 && def.id !== 'jumpgate'
+      ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
           升级 ${formatCost(upCost)}
         </button>
         ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">

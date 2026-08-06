@@ -129,8 +129,8 @@ function loopTargetFor(_state: GameState, kind: BulkKind, id: string): LoopTarge
   }
   if (kind === 'buildingUpgrade') {
     return {
-      atCap: () => false,
-      capReason: 'resource',
+      atCap: () => id === 'jumpgate',
+      capReason: 'maxLevel',
       tryOnce: (s) => upgradeBuilding(s, id),
       levelOf: (s) => s.upgrades[id] ?? 0,
     }
@@ -228,6 +228,6 @@ export function canBulkBuy(state: GameState, kind: BulkKind, id: string): boolea
     if ((BUILDINGS[id]?.produces?.military ?? 0) > 0 && state.resources.military >= militaryCap(state)) return false
     return true
   }
-  if (kind === 'buildingUpgrade') return (state.buildings[id] ?? 0) > 0
+  if (kind === 'buildingUpgrade') return id !== 'jumpgate' && (state.buildings[id] ?? 0) > 0
   return techLevel(state, id) > 0 && techLevel(state, id) < (TECHS[id]?.maxLevel ?? TECH_MAX_LEVEL)
 }

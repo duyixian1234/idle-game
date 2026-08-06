@@ -26,9 +26,10 @@ export function levelMultiplier(level: number): number {
  */
 export function militaryCap(state: GameState): number {
   const portCount = state.buildings.militaryPort ?? 0
+  const portLevel = state.upgrades.militaryPort ?? 0
   const bonus = state.permanentBonuses['militaryCap'] ?? 0
   const repBonus = reputationBonuses(state).militaryCapBonus
-  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount) * (1 + bonus + repBonus))
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus))
 }
 
 export interface ProductionReport {

@@ -654,6 +654,24 @@ describe('ui: 军事面板', () => {
     expect(panel.textContent).toContain('守卫 2,000⚔')
   })
 
+  it('军事升级入口展示兵营产出与军港容量效果，跃迁枢纽无升级入口', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.buildings.barracks = 1
+    s.buildings.militaryPort = 1
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 1_000_000
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panel.querySelector('[data-upgrade="barracks"]')?.getAttribute('title')).toContain('产出 +50%')
+    expect(panel.querySelector('[data-upgrade="militaryPort"]')?.getAttribute('title')).toContain('容量 +50%')
+    expect(panel.querySelector('[data-building="militaryPort"]')?.textContent).toContain('军力容量 300 → 400')
+    expect(panel.querySelector('[data-upgrade="jumpgate"]')).toBeNull()
+  })
+
   it('军事建筑不出现在建造面板（civil 分流）', () => {
     const container = document.createElement('div')
     buildLayout(container)
