@@ -1,4 +1,5 @@
-import { BUILDINGS, CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS, TECH_EXCHANGE_RATE } from '../engine/data'
+import { BUILDINGS, CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
+import { TECH_EXCHANGE_RATE } from '../engine/balance'
 import {
   buyBuilding,
   convertMineralToTech,

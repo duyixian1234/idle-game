@@ -5,10 +5,9 @@ import {
   createEventInstance,
   pickEventDef,
   raidableFaction,
-  RAID_THREAT_LOSS,
-  RAID_IGNORE_LOSS_PCT,
   settleOfflineRaids,
 } from './events'
+import { RAID_IGNORE_LOSS_PCT, RAID_THREAT_LOSS } from './balance'
 import { factionAlliance } from './diplomacy'
 import type { GameState } from './types'
 

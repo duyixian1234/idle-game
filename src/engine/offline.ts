@@ -1,11 +1,11 @@
 import { militaryCap, productionReport } from './production'
 import { settleConquests } from './conquest'
 import { settleOfflineRaids } from './events'
+import { OFFLINE_CAP_SECONDS } from './balance'
 import { zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
-/** 离线收益封顶：8 小时 */
-export const OFFLINE_CAP_SECONDS = 8 * 3600
+/** 离线收益封顶 8 小时——数值策略见 balance.ts OFFLINE_CAP_SECONDS */
 
 export interface OfflineResult {
   /** 实际结算时长（秒，已封顶） */

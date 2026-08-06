@@ -23,7 +23,7 @@ import {
 } from './engine'
 import { netProduction, productionMultipliers, productionReport, simulateProductionDelta } from './production'
 import { pushLog } from './core'
-import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './data'
+import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 
 describe('engine: 初始状态', () => {
   it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {

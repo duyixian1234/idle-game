@@ -1,4 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
+import { CONQUEST_DURATION_MS } from './balance'
 
 /** 资源显示元信息 */
 export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string }> = {
@@ -36,8 +37,7 @@ export interface BuildingDef {
   requiresPlanet?: string[]
 }
 
-/** 每级建筑升级的产出加成（+50%/级） */
-export const LEVEL_PRODUCTION_BONUS = 0.5
+/** 每级建筑升级的产出加成（+50%/级）——数值策略见 balance.ts LEVEL_PRODUCTION_BONUS */
 
 /** 建筑定义表（数据驱动，后续 ticket 扩展在此追加） */
 export const BUILDINGS: Record<string, BuildingDef> = {
@@ -153,20 +153,9 @@ export interface TechDef {
   unlockByConquest?: string
 }
 
-/** 科技等级上限（产出类科技，1 = 已研发） */
-export const TECH_MAX_LEVEL = 10
-/** 每级科技升级的产出系数增量（线性叠加：mult + 0.5×(lv−1)，与建筑升级口径一致） */
-export const TECH_PER_LEVEL_BONUS = 0.5
-/**
- * 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)）。
- * 原 1.5（spec 决策）：平衡模拟显示满级需求仅 17 万、后期产能 6 分钟升完，
- * 调为 1.7 后 5 项产出类科技全满级合计约 42.8 万科技点（base × ∑1.7^0..9 ≈ 286.5×base 逐项精算：
- * planetDrill 2,861◎ / solarEfficiency 7,158◎ / computingBoost 17,191◎ / fusionCell 114,625◎ / nanoFab 286,565◎），
- * 升级成为通关期持续目标（ticket 05 确认）。
- */
-export const TECH_UPGRADE_GROWTH = 1.7
-/** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
-export const TECH_EXCHANGE_RATE = 100
+/** 科技等级上限（产出类科技，1 = 已研发）——数值策略见 balance.ts TECH_MAX_LEVEL */
+/** 科技等级上限与升级成本曲线（TECH_UPGRADE_GROWTH=1.7）、兑换汇率（TECH_EXCHANGE_RATE=100）
+ *  均为数值策略，见 balance.ts（含 42.8 万满级口径说明）。 */
 
 /** 星球解锁条件 */
 export interface PlanetUnlock {
@@ -344,8 +333,7 @@ export interface ConquestDef {
   unlockTech?: string
 }
 
-/** 攻占倒计时（分钟）：统一 60 分钟 */
-export const CONQUEST_DURATION_MS = 60 * 60_000
+/** 攻占倒计时统一 60 分钟——数值策略见 balance.ts CONQUEST_DURATION_MS */
 
 /** 攻占区域定义表（4 区域，沿主线三段 + 通关后） */
 export const CONQUESTS: Record<string, ConquestDef> = {

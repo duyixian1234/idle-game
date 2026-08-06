@@ -1,4 +1,5 @@
 import { CONQUESTS, FACTIONS, RESOURCE_KEYS } from './data'
+import { NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
 import { reputation } from './reputation'
 import type { GameState, ResourceKey } from './types'
 
@@ -12,12 +13,7 @@ import type { GameState, ResourceKey } from './types'
  * 均可调用），入口合法性由 UI 门控——ended → 结局面板；infinite → 工具栏「开启新周目」。
  */
 
-/** NG+ 继承的科技点基数（随周目递增） */
-export const NG_PLUS_TECH_BASE = 2_000
-/** NG+ 每周目永久产出加成 */
-export const NG_PLUS_PERMANENT_BONUS = 0.15
-/** 图鉴派系在 NG+ 的初始好感加成 */
-export const CODEX_FAVOR_BONUS = 25
+/** NG+ 继承数值（科技点基数/永久加成/图鉴好感加成）集中见 balance.ts */
 
 /** 共享继承计算结果（NG+ 执行后的新值，无副作用） */
 export interface NgPlusInheritance {

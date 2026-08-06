@@ -11,8 +11,6 @@ import { isConquestAvailable, conquestState } from '../engine/conquest'
 import { NG_PLUS_TECH_BASE } from '../engine/engine'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
-  ALLIANCE_COST,
-  ALLIANCE_FAVOR_THRESHOLD,
   canFactionAlliance,
   canFactionIntimidate,
   canFactionTechShare,
@@ -20,9 +18,9 @@ import {
   factionsVisible,
   federationProgress,
   intimidateCost,
-  TECH_SHARE_COST,
   tradeCost,
 } from '../engine/diplomacy'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, TECH_SHARE_COST } from '../engine/balance'
 import {
   buildingCost,
   canAffordBuilding,
@@ -39,7 +37,7 @@ import {
   upgradeCost,
 } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap } from '../engine/production'
-import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/data'
+import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
 import type { NgPlusPreview } from '../engine/ngplus'

@@ -1,32 +1,24 @@
 import { FACTIONS, RESOURCE_KEYS } from './data'
+import {
+  ALLIANCE_COST,
+  ALLIANCE_FAVOR_THRESHOLD,
+  FAVOR_CAP,
+  FEDERATION_FAVOR_THRESHOLD,
+  INTIMIDATE_BASE_COST,
+  INTIMIDATE_COST_GROWTH,
+  INTIMIDATE_FAVOR_LOSS,
+  INTIMIDATE_THREAT_LOSS,
+  TECH_SHARE_COST,
+  TECH_SHARE_FAVOR_GAIN,
+  TRADE_BASE_COST,
+  TRADE_COST_GROWTH,
+  TRADE_FAVOR_GAIN,
+} from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import type { FactionState, GameState, ResourceKey } from './types'
 
-/** 结盟所需好感阈值 */
-export const ALLIANCE_FAVOR_THRESHOLD = 80
-/** 好感上限 */
-export const FAVOR_CAP = 100
-/** 统一联邦判定：好感达标（=100）或已结盟 */
-export const FEDERATION_FAVOR_THRESHOLD = 100
-
-/** 贸易：好感 +6，成本随次数 ×1.5 */
-export const TRADE_FAVOR_GAIN = 6
-export const TRADE_BASE_COST = 5_000
-export const TRADE_COST_GROWTH = 1.5
-
-/** 威慑：好感 -8，威胁 -25，成本随次数 ×1.8（含科技点，技术优势语义） */
-export const INTIMIDATE_FAVOR_LOSS = 8
-export const INTIMIDATE_THREAT_LOSS = 25
-export const INTIMIDATE_BASE_COST: Record<ResourceKey, number> = { mineral: 30_000, energy: 15_000, tech: 10_000, military: 0 }
-export const INTIMIDATE_COST_GROWTH = 1.8
-
-/** 结盟成本 */
-export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, energy: 50_000, tech: 20_000, military: 0 }
-
-/** 技术共享：花费科技点直接提升好感（纯科技点出口，与结盟成本同量级） */
-export const TECH_SHARE_FAVOR_GAIN = 15
-export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000, military: 0 }
+/** 外交数值策略（结盟阈值/好感上限/成本与增长倍率）集中见 balance.ts */
 
 /** 创建初始派系状态表 */
 export function createFactions(): Record<string, FactionState> {

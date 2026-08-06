@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
 import { netProduction } from './production'
 import { pushLog } from './core'
-import { applyEvent, createEventInstance, MEAN_EVENT_GAP_SECONDS, pruneStaleEvents, resolveEvent, scheduleNextEvent, triggerRandomEvent } from './events'
+import { applyEvent, createEventInstance, pruneStaleEvents, resolveEvent, scheduleNextEvent, triggerRandomEvent } from './events'
+import { MEAN_EVENT_GAP_SECONDS } from './balance'
 
 /** 固定 rng 序列 */
 function seqRng(values: number[]): () => number {

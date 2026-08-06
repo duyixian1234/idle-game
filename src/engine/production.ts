@@ -1,5 +1,6 @@
-import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, RESOURCE_KEYS, TECHS, TECH_PER_LEVEL_BONUS } from './data'
+import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import type { TechEffectProduction } from './data'
+import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
 import { reputationBonuses } from './reputation'
@@ -16,10 +17,8 @@ export function levelMultiplier(level: number): number {
   return 1 + LEVEL_PRODUCTION_BONUS * level
 }
 
-/** 军力初始容量上限（无军港时） */
-export const MILITARY_BASE_CAP = 100
-/** 每座军港提供的军力容量 */
-export const MILITARY_PORT_CAP = 200
+/** 军力初始容量上限（无军港时）——数值策略见 balance.ts */
+/** 每座军港提供的军力容量——数值策略见 balance.ts */
 
 /**
  * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计。
@@ -152,7 +151,7 @@ export function productionMultipliers(state: GameState): Record<ResourceKey, num
  * 仅 production 类科技有等级含义。
  */
 export function techMultiplier(effect: TechEffectProduction, level: number): number {
-  return effect.mult + TECH_PER_LEVEL_BONUS * (level - 1)
+  return effect.mult + LEVEL_PRODUCTION_BONUS * (level - 1)
 }
 
 /**

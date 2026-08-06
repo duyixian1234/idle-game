@@ -1,4 +1,5 @@
 import { ACHIEVEMENTS } from './achievements'
+import { RAID_THRESHOLD_BONUS_CAP, RAID_THREAT_THRESHOLD, REPUTATION_CAP } from './balance'
 import type { GameState } from './types'
 
 /**
@@ -9,10 +10,7 @@ import type { GameState } from './types'
  *   全部作用于「上限/效率/门槛/阈值」类，永不触碰任何每秒产出系数。
  */
 
-/** 声望上限 */
-export const REPUTATION_CAP = 100
-/** 骚扰阈值上移硬上限（55 + 10 = 65：铁卫 70/沃克斯 60 满声望仍骚扰，防御玩法永续） */
-export const RAID_THRESHOLD_BONUS_CAP = 10
+/** 声望上限与骚扰阈值上移硬上限——数值策略见 balance.ts */
 
 /** 当前声望（0-100，封顶；achievements 可能缺失于迁移早期，容错） */
 export function reputation(state: GameState): number {
@@ -64,7 +62,7 @@ export function reputationBonuses(state: GameState): ReputationBonuses {
   return out
 }
 
-/** 骚扰触发阈值（55 + 上移量，硬上限 65） */
+/** 骚扰触发阈值（RAID_THREAT_THRESHOLD + 上移量，硬上限 55+10=65） */
 export function raidThreshold(state: GameState): number {
-  return Math.min(55 + reputationBonuses(state).raidThresholdBonus, 65)
+  return Math.min(RAID_THREAT_THRESHOLD + reputationBonuses(state).raidThresholdBonus, RAID_THREAT_THRESHOLD + RAID_THRESHOLD_BONUS_CAP)
 }

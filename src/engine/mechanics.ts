@@ -1,4 +1,5 @@
 import { RESOURCE_KEYS } from './data'
+import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS } from './balance'
 import type { GameState, MechanicId, ResourceKey } from './types'
 
 /**
@@ -34,8 +35,7 @@ const none: PlanetMechanic = {
   },
 }
 
-/** 轨道工厂站转换比例（ticket 05 平衡调参：30% → 15%） */
-export const ORBITAL_FORGE_CONVERT_RATIO = 0.15
+/** 轨道工厂站转换比例（30% → 15% 平衡调参）与风暴收获间隔——数值策略见 balance.ts */
 
 /** 轨道工厂站（奥伯斯）：将矿物产能转化为科技点（稀有合金冶炼） */
 const orbitalForge: PlanetMechanic = {
@@ -77,8 +77,7 @@ const gravityWell: PlanetMechanic = {
   },
 }
 
-/** 风暴收获间隔（ms）：5 分钟 */
-export const STORM_HARVEST_INTERVAL_MS = 5 * 60_000
+/** 风暴收获间隔（ms）：5 分钟——数值策略见 balance.ts STORM_HARVEST_INTERVAL_MS */
 /** 风暴收获：科技产出 ×60 秒，至少 100 */
 const STORM_HARVEST_TECH_MULT = 60
 const STORM_HARVEST_MIN_GAIN = 100

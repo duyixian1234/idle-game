@@ -6,7 +6,8 @@ import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
 import { ACHIEVEMENTS, checkAchievements } from '../engine/achievements'
-import { BUILDINGS, PLANETS, TECH_MAX_LEVEL } from '../engine/data'
+import { BUILDINGS, PLANETS } from '../engine/data'
+import { TECH_MAX_LEVEL } from '../engine/balance'
 import {
   appendLog,
   buildLayout,

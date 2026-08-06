@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
-import { REPUTATION_CAP, RAID_THRESHOLD_BONUS_CAP, reputation, reputationBonuses, raidThreshold } from './reputation'
+import { reputation, reputationBonuses, raidThreshold } from './reputation'
+import { RAID_THRESHOLD_BONUS_CAP, REPUTATION_CAP } from './balance'
 import type { GameState } from './types'
 
 function makeState(): GameState {

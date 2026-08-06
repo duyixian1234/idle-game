@@ -5,14 +5,13 @@ import {
   PLANETS,
   RESOURCE_KEYS,
   TECHS,
-  TECH_EXCHANGE_RATE,
-  TECH_MAX_LEVEL,
-  TECH_UPGRADE_GROWTH,
 } from './data'
 import type { TechDef } from './data'
+import { TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
-import { FIRST_EVENT_DELAY_SECONDS, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
+import { FIRST_EVENT_DELAY_SECONDS } from './balance'
+import { pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
 import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { checkAchievements } from './achievements'
@@ -21,9 +20,10 @@ import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
 import { netProduction, productionReport, militaryCap } from './production'
-import { computeNgPlusInheritance, CODEX_FAVOR_BONUS } from './ngplus'
+import { computeNgPlusInheritance } from './ngplus'
+import { CODEX_FAVOR_BONUS } from './balance'
 // re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
-export { NG_PLUS_TECH_BASE, NG_PLUS_PERMANENT_BONUS, CODEX_FAVOR_BONUS } from './ngplus'
+export { NG_PLUS_TECH_BASE, NG_PLUS_PERMANENT_BONUS, CODEX_FAVOR_BONUS } from './balance'
 
 export function createInitialState(nowMs: number): GameState {
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}

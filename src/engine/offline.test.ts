@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { formatDuration, OFFLINE_CAP_SECONDS, settleOffline } from './offline'
+import { formatDuration, settleOffline } from './offline'
+import { OFFLINE_CAP_SECONDS } from './balance'
 
 describe('engine: 离线收益结算', () => {
   it('按时间差结算产出', () => {

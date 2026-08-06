@@ -4,8 +4,8 @@ import { PLANETS } from './data'
 import {
   gravityWellMultiplier,
   PLANET_MECHANICS,
-  STORM_HARVEST_INTERVAL_MS,
 } from './mechanics'
+import { STORM_HARVEST_INTERVAL_MS } from './balance'
 
 describe('mechanics: 机制表完整性', () => {
   it('机制表覆盖全部星球的 mechanicId', () => {

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
 import {
-  ALLIANCE_COST,
-  ALLIANCE_FAVOR_THRESHOLD,
   canFactionAlliance,
   canFactionTechShare,
   canFactionTrade,
@@ -11,16 +9,20 @@ import {
   factionIntimidate,
   factionTechShare,
   factionTrade,
-  FAVOR_CAP,
   federationProgress,
-  INTIMIDATE_BASE_COST,
-  INTIMIDATE_COST_GROWTH,
   intimidateCost,
   isFederationUnified,
-  TECH_SHARE_COST,
-  TECH_SHARE_FAVOR_GAIN,
   tradeCost,
 } from './diplomacy'
+import {
+  ALLIANCE_COST,
+  ALLIANCE_FAVOR_THRESHOLD,
+  FAVOR_CAP,
+  INTIMIDATE_BASE_COST,
+  INTIMIDATE_COST_GROWTH,
+  TECH_SHARE_COST,
+  TECH_SHARE_FAVOR_GAIN,
+} from './balance'
 
 describe('engine: 派系初始状态', () => {
   it('4 派系好感/威胁与定义一致', () => {

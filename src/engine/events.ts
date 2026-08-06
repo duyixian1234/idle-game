@@ -1,5 +1,15 @@
 import type { EventInstance, GameState, ResourceKey } from './types'
 import { FACTIONS } from './data'
+import {
+  MEAN_EVENT_GAP_SECONDS,
+  RAID_BUYOFF_FAVOR_GAIN,
+  RAID_EVENT_WEIGHT,
+  RAID_GAP_SECONDS,
+  RAID_IGNORE_LOSS_PCT,
+  RAID_OFFLINE_LOSS_CAP,
+  RAID_STRENGTH_MULT,
+  RAID_THREAT_LOSS,
+} from './balance'
 import { netProduction } from './production'
 import { raidThreshold } from './reputation'
 import { EVENT_STORIES } from './story'
@@ -20,29 +30,15 @@ export const EVENT_DEFS: RandomEventDef[] = [
 ]
 
 /**
- * 派系骚扰（raid）参数：
- * - 威胁度 ≥ RAID_THREAT_THRESHOLD 且未结盟的派系会周期性地军事骚扰殖民地
- * - 击退需军力 = 该派系威胁度 × RAID_STRENGTH_MULT，击退后威胁度 −RAID_THREAT_LOSS（软威慑）
+ * 派系骚扰（raid）参数族（威胁阈值/强度倍率/损失/封顶）集中见 balance.ts。
+ * - 威胁度 ≥ 骚扰阈值 且未结盟的派系会周期性地军事骚扰殖民地
+ * - 击退需军力 = 该派系威胁度 × 强度倍率，击退后威胁度 −RAID_THREAT_LOSS（软威慑）
  * - 买平安 = 矿物标定值，好感 +RAID_BUYOFF_FAVOR_GAIN
  * - 无视 = 矿/能各 −RAID_IGNORE_LOSS_PCT%
  * - 离线自动结算：军力足够自动击退，否则按无视规则（叠加离线 30% 封顶）
  */
-export const RAID_THREAT_THRESHOLD = 55
-export const RAID_STRENGTH_MULT = 50
-export const RAID_THREAT_LOSS = 15
-export const RAID_BUYOFF_FAVOR_GAIN = 5
-export const RAID_IGNORE_LOSS_PCT = 0.05
-/** 离线骚扰频率间隔（秒）：每离线满该时长结算一次骚扰 */
-export const RAID_GAP_SECONDS = 3600
-/** 离线骚扰总损失封顶（离线产出的比例） */
-export const RAID_OFFLINE_LOSS_CAP = 0.3
-/** 骚扰事件在事件表中的触发权重（有威胁派系时） */
-export const RAID_EVENT_WEIGHT = 2
 
-/** 随机事件均值间隔（秒） */
-export const MEAN_EVENT_GAP_SECONDS = 90
-/** 首次触发延迟（秒） */
-export const FIRST_EVENT_DELAY_SECONDS = 45
+/** 随机事件均值间隔与首次延迟——数值策略见 balance.ts */
 
 /** 事件处理结果（供调用方写日志） */
 export interface EventOutcome {
