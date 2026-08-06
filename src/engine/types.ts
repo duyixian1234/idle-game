@@ -38,7 +38,7 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements） */
+/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters） */
 export const SCHEMA_VERSION = 4
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
@@ -116,6 +116,10 @@ export interface GameState {
   stats: GameStats
   /** 成就解锁状态：achievementId -> AchievementState（跨周目图鉴，NG+ 不清空） */
   achievements: Record<string, AchievementState>
+  /** 固定随机种子（v5 新增）：32 位无符号，新建档生成、跨周目保留——同一档案 = 同一随机宇宙 */
+  seed: number
+  /** 分域随机调用计数器（v5 新增）：RngDomain -> 已消耗次数，随自动保存写入；跨周目保留使序列延续推进 */
+  rngCounters: Record<string, number>
   /** 三种资源余额 */
   resources: Record<ResourceKey, number>
   /** 各建筑数量：buildingId -> count */

@@ -22,10 +22,11 @@ import { formatPlayTime } from './format'
 import { netProduction, productionReport, militaryCap, levelMultiplier } from './production'
 import { computeNgPlusInheritance } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
+import { randSeed } from './rng'
 // re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
 export { NG_PLUS_TECH_BASE, NG_PLUS_PERMANENT_BONUS, CODEX_FAVOR_BONUS } from './balance'
 
-export function createInitialState(nowMs: number): GameState {
+export function createInitialState(nowMs: number, seed = randSeed()): GameState {
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
   for (const def of Object.values(PLANETS)) {
     planets[def.id] = { unlocked: def.id === 'barren' }
@@ -48,6 +49,8 @@ export function createInitialState(nowMs: number): GameState {
     conquest,
     stats: { totalMineralEarned: 0 },
     achievements: {},
+    seed,
+    rngCounters: {},
     resources,
     buildings: {},
     upgrades: {},
