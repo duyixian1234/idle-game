@@ -295,6 +295,8 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
     const card = document.createElement('div')
     card.className = 'event-card'
     card.setAttribute('data-event', String(ev.uid))
+    // data-def 暴露事件类型 id（E2E 断言「刷新后事件类型一致」用，防 SL 端到端验证）
+    card.setAttribute('data-def', ev.defId)
     const options = ev.options
       .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
       .join('')
