@@ -2,6 +2,7 @@ import { pushLog } from './core'
 import { militaryCap } from './production'
 import type { GameState } from './types'
 import { formatNumber } from './format'
+import { EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
 
 /**
  * 成就系统：可见化的叙事里程碑（映射 storyFlags）+ 收集型成就（全部基于 state 派生）。
@@ -42,7 +43,7 @@ const alliedCount = (s: GameState): number => Object.values(s.factions).filter((
 const conqueredCount = (s: GameState): number => Object.values(s.conquest).filter((c) => c.status === 'conquered').length
 const HOUR = 3600
 
-/** 成就定义表（27 个：叙事 13 + 收集 9 + 终局 5；文案实现期定稿） */
+/** 成就定义表（29 个：叙事 12 + 收集 12 + 终局 5；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -247,6 +248,43 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     condition: (s) => conqueredCount(s) >= 2,
     rewardMineral: 50_000,
     rep: 4,
+  },
+
+  // ---- 探索类（通关后派遣，周目重解锁）----
+  explorerFirst: {
+    id: 'explorerFirst',
+    name: '启程',
+    desc: '完成首次探索派遣，让舰队的尾迹延伸向未知星区。',
+    category: 'collect',
+    condition: (s) => (s.stats.explorations ?? 0) >= 1,
+    rewardMineral: 5_000,
+    rep: 2,
+  },
+  explorerContact: {
+    id: 'explorerContact',
+    name: '初识',
+    desc: '发现首个偏远星区势力，星海比你想象的更热闹。',
+    category: 'collect',
+    condition: (s) => (s.exploredFactions?.length ?? 0) >= 1,
+    rewardMineral: 10_000,
+    rep: 2,
+  },
+  explorerComplete: {
+    id: 'explorerComplete',
+    name: '群星尽览',
+    desc: '发现全部探索势力与探索天体，星图的迷雾彻底散去。',
+    category: 'collect',
+    condition: (s) => {
+      const factions = Object.keys(EXPLORE_FACTIONS)
+      const planets = Object.keys(EXPLORE_PLANETS)
+      if (factions.length === 0 && planets.length === 0) return false
+      return (
+        factions.every((id) => (s.exploredFactions ?? []).includes(id)) &&
+        planets.every((id) => (s.exploredPlanets ?? []).includes(id))
+      )
+    },
+    rewardMineral: 50_000,
+    rep: 3, // 声望 cap 溢出接受（图鉴价值为主，spec Q12）
   },
 
   // ---- 终局类 ----

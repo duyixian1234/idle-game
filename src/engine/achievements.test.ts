@@ -9,9 +9,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：26 个、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：29 个、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(26)
+    expect(defs).toHaveLength(29)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -109,5 +109,51 @@ describe('achievements', () => {
     expect(ids).toContain('conquests2')
     expect(ids).toContain('play24h')
     expect(ids).not.toContain('militaryCap5k') // 初始 cap 100
+  })
+
+  it('探索成就：派遣 1 次解锁 explorerFirst、发现 1 势力解锁 explorerContact', () => {
+    const s = makeState()
+    expect(checkAchievements(s).map((d) => d.id)).not.toContain('explorerFirst')
+    s.stats.explorations = 1
+    expect(checkAchievements(s).map((d) => d.id)).toContain('explorerFirst')
+    expect(s.achievements.explorerFirst?.unlockedInRound).toBe(0)
+    // 未发现势力不解锁 explorerContact
+    expect(s.achievements.explorerContact).toBeUndefined()
+    s.exploredFactions = ['ashCommune']
+    expect(checkAchievements(s).map((d) => d.id)).toContain('explorerContact')
+  })
+
+  it('探索成就：explorerComplete 池覆盖判定（部分不达标、全收集达标）', () => {
+    const s = makeState()
+    // 部分收集：只发现 1 势力 → 不达标
+    s.exploredFactions = ['ashCommune']
+    expect(checkAchievements(s).map((d) => d.id)).not.toContain('explorerComplete')
+    // 全收集：4 势力 + 2 天体
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics']
+    expect(checkAchievements(s).map((d) => d.id)).not.toContain('explorerComplete')
+    s.exploredPlanets = ['logistics', 'outpost']
+    expect(checkAchievements(s).map((d) => d.id)).toContain('explorerComplete')
+    // 奖励发放 + rep 3
+    const def = ACHIEVEMENTS.explorerComplete
+    expect(s.resources.mineral).toBeGreaterThan(15 + (def.rewardMineral ?? 0) - 1) // 含奖励（15 初始 + 50k）
+  })
+
+  it('探索成就：周目语义（NG+ 后重置可重解锁）', () => {
+    const s = makeState()
+    s.stats.explorations = 1
+    checkAchievements(s, 1000)
+    expect(s.achievements.explorerFirst?.unlockedInRound).toBe(0)
+    // NG+（二周目）：探索统计重置，成就条件不再满足
+    s.ngPlusLevel = 1
+    s.stats.explorations = 0
+    expect(checkAchievements(s, 2000).map((d) => d.id)).not.toContain('explorerFirst')
+    // 二周目再次派遣 → 重解锁（unlockedInRound 更新为 1 + 重发奖励）
+    const mineralBefore = s.resources.mineral
+    s.stats.explorations = 1
+    const newly = checkAchievements(s, 3000)
+    expect(newly.map((d) => d.id)).toContain('explorerFirst')
+    expect(s.achievements.explorerFirst?.unlockedInRound).toBe(1)
+    expect(s.resources.mineral).toBeGreaterThan(mineralBefore)
   })
 })
