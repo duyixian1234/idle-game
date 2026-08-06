@@ -20,8 +20,9 @@ export interface BuildingDef {
   category?: 'civil' | 'military' | 'interstellar'
   /** 首个成本（含各资源） */
   baseCost: Partial<Record<ResourceKey, number>>
-  /** 每买一个的成本增长倍率（unique 建筑不使用——成本走 baseCost × UNIQUE_UPGRADE_GROWTH^level 独立公式） */
-  costGrowth: number
+  /** 成本多项式指数 k：买入成本 = baseCost × (count+1)^k（cost-softcap 2026-08-07 替换原 costGrowth 几何增长；
+   * 早期曲线贴近、后期软上限，杜绝天文数字死区。unique 建筑不使用——成本走 baseCost × UNIQUE_UPGRADE_GROWTH^level 独立公式） */
+  costExponent: number
   /** 每单位每秒产出（unique 建筑：base × UNIQUE_UPGRADE_GROWTH^level） */
   produces: Partial<Record<ResourceKey, number>>
   /** 每单位每秒消耗（当前仅能源消耗类建筑；unique 建筑按 level 计：consumes × level） */
@@ -61,7 +62,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     name: '采矿机',
     desc: '在荒芜地表钻探矿脉，持续产出矿物。',
     baseCost: { mineral: 10 },
-    costGrowth: 1.15,
+    costExponent: 0.46,
     produces: { mineral: 1 },
   },
   solar: {
@@ -69,7 +70,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     name: '太阳能板',
     desc: '展开光伏阵列吸收恒星辐射，产出能源。',
     baseCost: { mineral: 25 },
-    costGrowth: 1.18,
+    costExponent: 0.555,
     produces: { energy: 1 },
   },
   lab: {
@@ -77,7 +78,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     name: '实验室',
     desc: '分析地壳样本与星图数据，产出科技点。',
     baseCost: { mineral: 60, energy: 10 },
-    costGrowth: 1.2,
+    costExponent: 0.615,
     produces: { tech: 0.5 },
   },
   refinery: {
@@ -85,7 +86,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     name: '精炼厂',
     desc: '以能源驱动高压冶炼，提升矿物产出；能源不足时产能按比例打折。',
     baseCost: { mineral: 150, energy: 25 },
-    costGrowth: 1.25,
+    costExponent: 0.69,
     produces: { mineral: 3 },
     consumes: { energy: 0.5 },
     requires: ['solar'],
@@ -95,7 +96,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     name: '深层钻机',
     desc: '直达地幔热矿层，产出大量矿物。需要「深层钻探」科技解锁。',
     baseCost: { mineral: 2500, energy: 120 },
-    costGrowth: 1.3,
+    costExponent: 0.81,
     produces: { mineral: 8 },
     requiresTech: ['deepDrill'],
   },
@@ -105,7 +106,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     desc: '招募并训练殖民者卫队，持续产出军力（⚔）。军力有容量上限，满员时产出停止。',
     category: 'military',
     baseCost: { mineral: 8_000, energy: 200 },
-    costGrowth: 1.25,
+    costExponent: 0.69,
     produces: { military: 0.5 },
     requiresPlanet: ['orbital'],
   },
@@ -115,7 +116,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     desc: '泊满护卫舰的轨道船坞，每座提升军力容量上限。',
     category: 'military',
     baseCost: { mineral: 20_000, tech: 500 },
-    costGrowth: 1.3,
+    costExponent: 0.81,
     produces: {},
     capacity: { military: 200 },
     requiresPlanet: ['orbital'],
@@ -129,7 +130,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     unique: true,
     maxLevel: 10,
     baseCost: { mineral: 50_000_000, tech: 2_000_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: { mineral: 500 },
     requiresPlanet: ['dawn'],
     requiresMaxLevel: ['deepDrill'],
@@ -142,7 +143,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     unique: true,
     maxLevel: 10,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: { energy: 1000 },
     maintenance: { mineral: 20 },
     requiresEnded: true,
@@ -156,7 +157,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     unique: true,
     maxLevel: 10,
     baseCost: { mineral: 2_000_000_000, tech: 200_000_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: { tech: 200 },
     requiresEnded: true,
     requires: ['stellarArray'],
@@ -169,7 +170,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     unique: true,
     maxLevel: 10,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: {},
     consumes: { energy: 100 },
     requiresEnded: true,
@@ -184,7 +185,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     category: 'interstellar',
     unique: true,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: {},
     requiresEnded: true,
     requires: ['starportMine', 'stellarArray', 'thinkTank'],
@@ -199,7 +200,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     unique: true,
     maxLevel: 10,
     baseCost: { mineral: 20_000_000, tech: 500_000 },
-    costGrowth: 2,
+    costExponent: 2,
     produces: {},
     requires: ['starportMine'],
   },

@@ -82,3 +82,32 @@ export function formatPlayTime(seconds: number): string {
   if (h <= 0) return `${m}分钟`
   return `${h}小时${m}分`
 }
+
+/**
+ * 相对价格显示（cost-softcap Q10，ticket 02）：成本相对当前产出要攒多久（秒）。
+ * 瓶颈资源口径：N = max(成本ᵢ / 产出ᵢ)，只统计成本 > 0 且有正产出的资源项；
+ * 无有效资源项（全成本为 0 或产出全 ≤0）返回 null（调用方显示占位）。
+ */
+export function timeToSave(cost: Record<string, number>, production: Record<string, number>): number | null {
+  let bottleneck = 0
+  let hasValid = false
+  for (const key of Object.keys(cost)) {
+    const c = cost[key]
+    const p = production[key] ?? 0
+    if (!Number.isFinite(c) || c <= 0 || !Number.isFinite(p) || p <= 0) continue
+    hasValid = true
+    const seconds = c / p
+    if (seconds > bottleneck) bottleneck = seconds
+  }
+  return hasValid ? bottleneck : null
+}
+
+/** 秒数 → 「≈N 秒/分钟/小时」文案（s<60、分<3600、其余小时，向上取整，防「0 秒」误导） */
+export function formatTimeToSave(seconds: number): string {
+  const s = Math.max(1, Math.ceil(seconds))
+  if (s < 60) return `≈${s} 秒产出`
+  const minutes = Math.ceil(s / 60)
+  if (minutes < 60) return `≈${minutes} 分钟产出`
+  const hours = Math.ceil(minutes / 60)
+  return `≈${hours} 小时产出`
+}

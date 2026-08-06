@@ -198,10 +198,10 @@ describe('actions: 一键买满（批量）', () => {
     const { deps, calls } = fakeDeps()
     dispatch(s, 'buyMax', 'miner', deps)
     expect(s.buildings.miner).toBe(6)
-    expect(s.resources.mineral).toBe(14)
+    expect(s.resources.mineral).toBe(1)
     expect(s.log[0].text).toContain(`一键买满「采矿机」：购买：${formatNumber(6)} 次`)
-    expect(s.log[0].text).toContain('花费 ◆86')
-    expect(s.log[0].text).toContain('剩余 ◆14')
+    expect(s.log[0].text).toContain('花费 ◆99')
+    expect(s.log[0].text).toContain('剩余 ◆1')
     expect(calls).toEqual(['sound:click', 'render', 'save'])
   })
 

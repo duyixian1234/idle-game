@@ -71,9 +71,10 @@ describe('engine: 建造建筑', () => {
   it('成本随已有数量增长', () => {
     const s = createInitialState(1000)
     expect(buildingCost(s, 'miner').mineral).toBe(10)
-    s.buildings.miner = 5
+    s.buildings.miner = 10
     const cost = buildingCost(s, 'miner')
-    expect(cost.mineral).toBe(Math.floor(10 * Math.pow(1.15, 5)))
+    // 多项式软上限（sim 定稿 k=0.46）：count=10 → floor(10×11^0.46)=30，超过起始矿物 15（买不起）
+    expect(cost.mineral).toBe(Math.floor(10 * Math.pow(11, 0.46)))
     expect(canAffordBuilding(s, 'miner')).toBe(false)
   })
 
@@ -120,21 +121,21 @@ describe('engine: 建筑升级', () => {
     expect(netProduction(s).mineral).toBe(2 * 1.5)
   })
 
-  it('升级成本按等级分段增长且不会下降', () => {
+  it('升级成本随等级温和增长且不会下降（cost-softcap 多项式）', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
-    // buyCost = floor(10×1.15^1)=11；Lv0→1 的成本保持基准值。
-    expect(upgradeCost(s, 'miner').mineral).toBe(11)
-    s.upgrades.miner = 1
+    // buyCost = floor(10×2^0.46)=13；Lv0→1 成本 = 13 × count × (1+c×level) = 13×1×1 = 13。
     expect(upgradeCost(s, 'miner').mineral).toBe(13)
-    s.upgrades.miner = 2
+    s.upgrades.miner = 1
     expect(upgradeCost(s, 'miner').mineral).toBe(15)
-    s.upgrades.miner = 3
+    s.upgrades.miner = 2
     expect(upgradeCost(s, 'miner').mineral).toBe(17)
+    s.upgrades.miner = 3
+    expect(upgradeCost(s, 'miner').mineral).toBe(19)
     s.upgrades.miner = 4
-    expect(upgradeCost(s, 'miner').mineral).toBe(22)
+    expect(upgradeCost(s, 'miner').mineral).toBe(21)
     s.upgrades.miner = 5
-    expect(upgradeCost(s, 'miner').mineral).toBe(28)
+    expect(upgradeCost(s, 'miner').mineral).toBe(23)
   })
 
   it('多台建筑升级成本按数量线性增长', () => {
@@ -142,7 +143,8 @@ describe('engine: 建筑升级', () => {
     one.buildings.miner = 1
     const many = createInitialState(0)
     many.buildings.miner = 2
-    expect(upgradeCost(many, 'miner').mineral).toBe(26)
+    // many: buyCost = floor(10×3^0.46)=16，mult = P×0.5×count = 2 → 16×2 = 32
+    expect(upgradeCost(many, 'miner').mineral).toBe(32)
     expect(upgradeCost(many, 'miner').mineral).toBeGreaterThan(upgradeCost(one, 'miner').mineral)
   })
 

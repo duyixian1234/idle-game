@@ -394,8 +394,8 @@ describe('engine: 星系间建筑成本公式不回归普通建筑', () => {
     expect(buyBuilding(s, 'miner')).toMatchObject({ ok: true })
     expect(buyBuilding(s, 'miner')).toMatchObject({ ok: true })
     expect(s.buildings.miner).toBe(2)
-    // 第二台成本 = 10 × 1.15 = 11（原公式）
-    expect(s.resources.mineral).toBe(10_000 - 10 - 11)
+    // 第二台成本 = floor(10×2^0.46) = 13（cost-softcap 多项式终值 k=0.46）
+    expect(s.resources.mineral).toBe(10_000 - 10 - 13)
   })
 
   it('UNIQUE_UPGRADE_GROWTH = 2 常量生效（对称增长锚点）', () => {

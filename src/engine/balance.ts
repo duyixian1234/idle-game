@@ -20,59 +20,21 @@ import type { ResourceKey } from './types'
 export const LEVEL_PRODUCTION_BONUS = 0.5
 /**
  * 升级溢价 P（本次重平衡唯一新增根因子）：
- * 建筑升级成本 = buyCost × P × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)。
+ * 建筑升级成本 = buyCost × P × LEVEL_PRODUCTION_BONUS × count × (1 + ORDINARY_UPGRADE_LEVEL_GROWTH × level)。
  * 数学性质：升级每 +1/s 成本 ÷ 买入每 +1/s 成本恒等于 P，任意 count/L 不漂移。
  * P=2 定值（Q6b）：取 ROI∈[2,5] 带下界，升级「值得但略亏」，保持买/升交替决策。
+ * 注：cost-softcap 定稿（2026-08-07）修正注释与实现一致——原注释写 ÷levelMultiplier(level)，
+ * 实现从未存在该分母，而是 ×growth^level（升级指数叠加买入指数 ×count 三重爆炸）。
+ * 现升级公式去掉 growth^level 连乘、改为 ×(1 + c×level) 温和增长（软上限同步买入多项式曲线）。
  */
 export const UPGRADE_PREMIUM = 2
+/** 普通建筑升级成本随等级的温和增长系数 c：升级成本 = buyCost × P × 0.5 × count × (1 + c×level)。
+ * c 由 cost-softcap ticket 03 balance-sim 校准（初值 0.15；Q9 推荐 0.1~0.2 量级）。 */
+export const ORDINARY_UPGRADE_LEVEL_GROWTH = 0.15
 /** 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)；满级 5 项合计 42.8 万科技点） */
 export const TECH_UPGRADE_GROWTH = 1.7
 /** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
 export const TECH_EXCHANGE_RATE = 100
-
-const ORDINARY_UPGRADE_BUILDING_IDS = [
-  'miner',
-  'solar',
-  'lab',
-  'refinery',
-  'deepDrill',
-  'barracks',
-  'militaryPort',
-] as const
-
-/** 普通建筑升级成本分段增长率：Lv0-Lv3 使用 early，Lv4+ 使用 late。 */
-export const ORDINARY_UPGRADE_COST_GROWTH: Record<string, { early: number; late: number }> = {
-  miner: { early: 1.15, late: 1.25 },
-  solar: { early: 1.18, late: 1.28 },
-  lab: { early: 1.2, late: 1.3 },
-  refinery: { early: 1.25, late: 1.35 },
-  deepDrill: { early: 1.3, late: 1.4 },
-  barracks: { early: 1.25, late: 1.35 },
-  militaryPort: { early: 1.3, late: 1.4 },
-}
-const ORDINARY_UPGRADE_EARLY_LEVELS = 3
-
-for (const id of ORDINARY_UPGRADE_BUILDING_IDS) {
-  if (!Object.prototype.hasOwnProperty.call(ORDINARY_UPGRADE_COST_GROWTH, id)) {
-    throw new Error(`Missing ordinary upgrade cost growth for ${id}`)
-  }
-}
-for (const [id, growth] of Object.entries(ORDINARY_UPGRADE_COST_GROWTH)) {
-  if (
-    !Number.isFinite(growth.early) ||
-    !Number.isFinite(growth.late) ||
-    growth.early < 1 ||
-    growth.late < growth.early
-  ) {
-    throw new Error(`Invalid ordinary upgrade cost growth for ${id}`)
-  }
-}
-
-export function ordinaryUpgradeCostGrowth(id: string, level: number): number {
-  const growth = ORDINARY_UPGRADE_COST_GROWTH[id]
-  if (!growth) throw new Error(`Missing ordinary upgrade cost growth for ${id}`)
-  return level <= ORDINARY_UPGRADE_EARLY_LEVELS ? growth.early : growth.late
-}
 
 // ---- 科技 ----
 

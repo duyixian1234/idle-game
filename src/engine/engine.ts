@@ -10,12 +10,12 @@ import {
 import type { TechDef } from './data'
 import {
   LEVEL_PRODUCTION_BONUS,
+  ORDINARY_UPGRADE_LEVEL_GROWTH,
   TECH_EXCHANGE_RATE,
   TECH_MAX_LEVEL,
   TECH_UPGRADE_GROWTH,
   UNIQUE_UPGRADE_GROWTH,
   UPGRADE_PREMIUM,
-  ordinaryUpgradeCostGrowth,
 } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
@@ -98,7 +98,8 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
   }
 }
 
-/** 建筑购买成本：baseCost * growth^count，向下取整，至少 1。
+/** 建筑购买成本：baseCost × (count+1)^costExponent，向下取整，至少 1。
+ * 多项式软上限（cost-softcap 2026-08-07）：早期（count 小）贴近原几何曲线，后期增长放缓，杜绝天文数字死区。
  * 唯一大件（unique）：首购恒为 baseCost（count 恒 1、不随 count 增长） */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
@@ -111,7 +112,7 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
     return cost
   }
   const count = state.buildings[id] ?? 0
-  const factor = Math.pow(def.costGrowth, count)
+  const factor = Math.pow(count + 1, def.costExponent)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     const base = def.baseCost[key] ?? 0
@@ -120,15 +121,9 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
   return cost
 }
 
-function ordinaryUpgradeCostValue(base: number, multiplier: number, id: string, level: number): number {
-  let cost = base * multiplier
-  if (level <= 3) return Math.max(1, Math.ceil(cost * Math.pow(ordinaryUpgradeCostGrowth(id, level), level)))
-
-  cost = Math.ceil(cost * Math.pow(ordinaryUpgradeCostGrowth(id, 3), 3))
-  for (let currentLevel = 4; currentLevel <= level; currentLevel += 1) {
-    cost = Math.ceil(cost * ordinaryUpgradeCostGrowth(id, currentLevel))
-  }
-  return Math.max(1, cost)
+function ordinaryUpgradeCostValue(base: number, multiplier: number, level: number): number {
+  const factor = 1 + ORDINARY_UPGRADE_LEVEL_GROWTH * level
+  return Math.max(1, Math.ceil(base * multiplier * factor))
 }
 
 /** 建筑升级成本按对象类型与等级计算，最终逐资源向上取整。 */
@@ -149,7 +144,7 @@ export function upgradeCost(state: GameState, id: string): Record<ResourceKey, n
   const mult = UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
-    cost[key] = buy[key] > 0 ? ordinaryUpgradeCostValue(buy[key], mult, id, level) : 0
+    cost[key] = buy[key] > 0 ? ordinaryUpgradeCostValue(buy[key], mult, level) : 0
   }
   return cost
 }

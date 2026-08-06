@@ -279,6 +279,22 @@ describe('ui: 布局与冒烟', () => {
     expect(drill!.hasAttribute('data-locked')).toBe(true)
     expect(drill!.querySelector('.build-buy-preview')).toBeNull()
   })
+
+  it('相对价格行：买入成本显示瓶颈秒数（data-cost-time）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 1 // 净产出矿物 1/s
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const minerCard = container.querySelector<HTMLElement>('[data-building="miner"]')
+    // 买入第 2 台成本 = floor(10×2^0.46)=13，产出 1/s → ≈13 秒产出
+    const costTime = minerCard!.querySelector('[data-cost-time="miner"]')
+    expect(costTime).toBeTruthy()
+    expect(costTime!.textContent).toContain('买入 ≈13 秒产出')
+    // unique 建筑（星港）无相对时间行
+    const starport = container.querySelector<HTMLElement>('[data-building="starportMine"]')
+    expect(starport!.querySelector('[data-cost-time]')).toBeNull()
+  })
 })
 
 describe('ui: 科技面板', () => {
@@ -622,8 +638,8 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
     expect(overlay.textContent).toContain('买满：采矿机')
     expect(overlay.textContent).toContain('将购买 6 台')
-    expect(overlay.textContent).toContain('◆86')
-    expect(overlay.textContent).toContain('◆14')
+    expect(overlay.textContent).toContain('◆99')
+    expect(overlay.textContent).toContain('◆1')
     expect(overlay.querySelector('[data-buy-max-confirm]')).toBeTruthy()
     expect(overlay.querySelector('[data-buy-max-cancel]')).toBeTruthy()
   })
@@ -633,7 +649,7 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.resources.mineral = 1000
-    s.resources.energy = 97 // 第 6 台后能源清零
+    s.resources.energy = 93 // 第 5 台后能源清零
     const preview = previewMaxBuy(s, 'building', 'lab')
     renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
       title: '买满：实验室',
@@ -661,7 +677,7 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
     expect(overlay.textContent).toContain('能源平衡')
     expect(overlay.textContent).toContain(`最多可驱动 ${formatNumber(2)} 台`)
-    expect(overlay.textContent).toContain(`本次将买 ${formatNumber(4)} 台`)
+    expect(overlay.textContent).toContain(`本次将买 ${formatNumber(3)} 台`)
   })
 
   it('无警示时弹窗不渲染警示行', () => {

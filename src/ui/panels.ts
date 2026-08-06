@@ -4,12 +4,12 @@ import type { BuildingDef, ConquestDef, FactionDef } from '../engine/data'
 import { ACHIEVEMENTS } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
-import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate } from '../engine/format'
+import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { isConquestAvailable, conquestState } from '../engine/conquest'
 import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
-import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult } from '../engine/production'
+import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
 import { escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
@@ -207,6 +207,13 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   const maxed = unique && def.maxLevel != null && level >= def.maxLevel
   // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
   const showBuy = !unique || count <= 0
+  // cost-softcap Q10：买入成本相对当前净产出的「≈N 秒产出」（瓶颈资源口径；无成本/产出全 0 时省略）
+  const costTime = showBuy
+    ? timeToSave(buyCost, netProduction(state))
+    : null
+  const costTimeRow = costTime != null && !unique
+    ? `<div class="build-cost-time" data-cost-time="${def.id}">买入 ${formatTimeToSave(costTime)}</div>`
+    : ''
   const buyBtn = showBuy
     ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? `建造（唯一大件，升级产出 ${formatMultiplier(2)}/级）` : '建造'}">
         ${unique ? '建造 ' : ''}${formatCost(buyCost)}
@@ -233,6 +240,7 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
       <div class="build-preview">
         ${count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
         ${showBuy ? `<div class="build-buy-preview">${buyPreviewText(state, def)}</div>` : ''}
+        ${costTimeRow}
       </div>
     </div>
     <div class="build-actions">${buyBtn}${bulkBuyBtns}${upgradeBtns}</div>`

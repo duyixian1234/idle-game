@@ -25,24 +25,24 @@ describe('engine: buyBuildingMax（一键买满建筑）', () => {
       ok: true,
       value: {
         count: 6,
-        spent: { mineral: 86, energy: 0, tech: 0, military: 0 },
-        remaining: { mineral: 14, energy: 0, tech: 0, military: 0 },
+        spent: { mineral: 99, energy: 0, tech: 0, military: 0 },
+        remaining: { mineral: 1, energy: 0, tech: 0, military: 0 },
         stoppedReason: 'resource',
         targetLevel: undefined,
       },
     })
     expect(s.buildings.miner).toBe(6)
-    // 单次成本序列：10,11,13,15,17,20（floor 10×1.15^n），下一台 23 > 剩余 14
-    expect(s.resources.mineral).toBe(14)
+    // 单次成本序列（miner k=0.46，floor 10×(count+1)^0.46）：10,13,16,18,20,22，下一台 24 > 剩余 1
+    expect(s.resources.mineral).toBe(1)
   })
 
   it('多资源目标（实验室）以瓶颈资源停止，并给出清零警示', () => {
-    const s = stateWith({ mineral: 1000, energy: 97 }) // 能源 97 = 6 台能耗总和，第 6 台后能源清零
+    const s = stateWith({ mineral: 1000, energy: 93 }) // 能源 93 = 5 台能耗总和，第 5 台后能源清零
     const preview = previewMaxBuy(s, 'building', 'lab')
-    // 成本序列（mineral, energy）×1.2^n：(60,10)(72,12)(86,14)(103,17)(124,20)(149,24)
-    expect(preview.count).toBe(6)
-    expect(preview.spent.mineral).toBe(594)
-    expect(preview.spent.energy).toBe(97)
+    // 成本序列（mineral, energy）× (count+1)^0.615：(60,10)(91,15)(117,19)(140,23)(161,26)(180,30)
+    expect(preview.count).toBe(5)
+    expect(preview.spent.mineral).toBe(569)
+    expect(preview.spent.energy).toBe(93)
     expect(preview.remaining.energy).toBe(0)
     expect(preview.stoppedReason).toBe('resource')
     expect(preview.emptyWarnings).toEqual(['energy'])
@@ -197,8 +197,8 @@ describe('engine: 能源平衡警示（精炼厂）', () => {
     const s = stateWith({ mineral: 1000, energy: 500 })
     s.buildings.solar = 1 // 能源产出 1/s；refinery 单台耗 0.5/s → 冗余可驱动 2 台
     const p = previewMaxBuy(s, 'building', 'refinery')
-    expect(p.count).toBe(4) // 矿物先耗尽（150+187+234+292=863）
-    expect(p.energyWarning).toEqual({ production: 1, consumption: 0, maxDriven: 2, bought: 4 })
+    expect(p.count).toBe(3) // 矿物先耗尽（150+241+320=711，第 4 台 390 > 剩余 289）
+    expect(p.energyWarning).toEqual({ production: 1, consumption: 0, maxDriven: 2, bought: 3 })
   })
 
   it('能源已满载时 maxDriven 为 0', () => {
