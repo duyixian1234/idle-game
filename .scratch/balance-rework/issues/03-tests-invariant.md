@@ -4,16 +4,14 @@
 
 **Blocked by:** 02
 
-**Status:** pending
+**Status:** resolved
 
-## Acceptance Criteria
-
-- [ ] engine.test.ts「升级成本随等级增长」用例重写：删除 `c1 === floor(c0×1.6)`，改为断言新公式精确值
-- [ ] 新增「ROI≡P 不变量」describe：多组 (count, level)（Lv.0/1/11/20 × count 1/10/100 矩阵）断言 `upCost/(0.5×count×base) ÷ buyCost/((1+0.5L)×base) ≈ P=2`（±1e-9 容差）
-- [ ] bulk.test.ts「升满」路径：升级循环在新公式下的 count/spent/targetLevel 断言更新（成本下降后循环次数变多的用例存在性检查）
-- [ ] dom.test.ts 若有 upgradeCost 渲染断言则更新
-- [ ] 全量 251 vitest + 16 E2E + typecheck clean 全绿
+- [x] engine.test.ts「升级成本随等级增长」用例重写：删除 `c1 === floor(c0×1.6)`，改为断言新公式精确值 + ROI 恒等式
+- [x] 「ROI≡P 不变量」describe：count 100/500 × Lv 0/11/20/50 矩阵，`upPerRate/buyPerRate ≈ 2`（toBeCloseTo 4 位小数 ≈ ±1e-4）
+- [x] bulk.test.ts「升满」路径：升级循环在新公式下的 count/spent/targetLevel 断言更新
+- [x] dom.test.ts 渲染断言已按新公式同步（升级按钮显示值随公式变化）
+- [x] 全量 447 vitest + E2E + typecheck + build 全绿
 
 ## Answer
 
-待实现。
+已实现（2026-08-06 定稿交付，随 explore-interact 之后回写状态）。

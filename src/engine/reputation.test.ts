@@ -46,16 +46,17 @@ describe('reputation', () => {
     expect(reputation(s)).toBe(26)
     expect(reputationBonuses(s).tradeDiscount).toBe(0.05)
     expect(reputationBonuses(s).raidThresholdBonus).toBe(0)
-    // rep 60+ → 命中 60 档
-    unlockByIds(s, ['mineral1M', 'trades50', 'intimidates10', 'allies3', 'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'mineral100M', 'conquestAll', 'endless', 'endlessII']) // 3+4+4+4+4+4+4+4+5+6+4+5 = 51
+    // rep 80+ → 命中 80 档（endlessII rep 8 定稿后：26 + 54 = 80）
+    unlockByIds(s, ['mineral1M', 'trades50', 'intimidates10', 'allies3', 'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'mineral100M', 'conquestAll', 'endless', 'endlessII']) // 3+4+4+4+4+4+4+4+5+6+4+8 = 54
     const rep = reputation(s)
-    expect(rep).toBeGreaterThanOrEqual(60)
+    expect(rep).toBeGreaterThanOrEqual(80)
     const b = reputationBonuses(s)
     expect(b.tradeDiscount).toBe(0.1)
     expect(b.militaryCapBonus).toBe(0.1)
-    expect(b.raidThresholdBonus).toBe(5)
-    // 骚扰阈值 55+5 = 60
-    expect(raidThreshold(s)).toBe(60)
+    expect(b.raidThresholdBonus).toBe(10)
+    expect(b.conquestSuccessBonus).toBe(0.1)
+    // 骚扰阈值 55+10 = 65（硬上限）
+    expect(raidThreshold(s)).toBe(65)
   })
 
   it('满声望：骚扰阈值硬上限 65（不超 RAID_THRESHOLD_BONUS_CAP）', () => {

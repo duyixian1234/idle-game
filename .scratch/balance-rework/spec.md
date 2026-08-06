@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: implemented（4 ticket 全部实现并回写 resolved，2026-08-06；447 vitest + E2E + typecheck + build 全绿）
 
 # Spec: 数值策略集中化 + 建筑升级曲线重平衡（balance-rework）
 
@@ -85,4 +85,5 @@ Status: ready-for-agent
 - 设计经 grill-me 四轮访谈定稿（2026-08-06），18 项决策全部经用户确认（均采纳推荐）：Q1 实现巧合（非设计意图）、Q2 目标 (a) 升级有意义但边际递减（ROI ∈ [2,5] 带）、Q3 方案 2 产出等价折算、Q4 只动建筑升级线、Q5-A 物理集中+经济核心根因子化、Q6a 方案 2 costGrowth 显式保留、Q6b P=2、Q7 平衡模拟+不变量测试、Q8 删除 upgradeCostMult。
 - 公式的优雅性质：`upgradeCost = buyCost × P × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)` 复用既有 LEVEL_PRODUCTION_BONUS 与 levelMultiplier，**仅新增 UPGRADE_PREMIUM 一个根因子**；「少常数」落在共享数学族（等级加成/升级溢价/科技增长），而非内容数据。
 - P=2 截图态换算：采矿机 82.6亿→1.8亿 / 太阳能 8032亿→1.2亿 / 实验室 1.01兆→1.3亿+2,220万⚡ / 精炼厂 231亿→1.6亿+2,590万⚡ / 深层钻机 41.8亿→1.7亿+817万⚡（脚本精算，2026-08-06）。
+- 平衡模拟结论（一次性脚本跑完即删，2026-08-06）：① 通关节奏：新曲线到达星球解锁阈值（5万/20万/100万/1000万矿物）时间差在 ±30% 内，不劣化；② 决策均衡点：P=2 下「先买后升 / 先升后买 / 交替」三路线总产出差距合理，任一路线可持续通关（升级值得但略亏，保持买/升交替）；③ 无限模式：Lv.50/count 500 量级下 ROI 仍 ≈ 2（不变量理论 + 脚本实证一致）。
 - 改动面：新增 balance.ts + 8 文件 import 迁移 + engine.ts 公式改 + data.ts 删字段 + 测试重写（engine/bulk/dom）+ 一次性模拟脚本。按 4 个 ticket 顺序推进（01→02→03→04），每步原子提交。

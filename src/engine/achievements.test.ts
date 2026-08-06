@@ -156,4 +156,62 @@ describe('achievements', () => {
     expect(s.achievements.explorerFirst?.unlockedInRound).toBe(1)
     expect(s.resources.mineral).toBeGreaterThan(mineralBefore)
   })
+
+  describe('永恒殖民（endlessII）：累计采集 100 亿 + 无限模式前置', () => {
+    it('未进无限模式：即使 100 亿也不触发', () => {
+      const s = makeState()
+      s.stats.totalMineralEarned = 10_000_000_000
+      expect(checkAchievements(s).map((d) => d.id)).not.toContain('endlessII')
+    })
+
+    it('边界：99.99 亿不触发、100 亿触发', () => {
+      const s = makeState()
+      s.storyFlags.endless = true
+      s.stats.totalMineralEarned = 9_999_000_000
+      expect(checkAchievements(s).map((d) => d.id)).not.toContain('endlessII')
+      s.stats.totalMineralEarned = 10_000_000_000
+      const newly = checkAchievements(s, 1000)
+      expect(newly.map((d) => d.id)).toContain('endlessII')
+      expect(s.achievements.endlessII).toEqual({ unlockedAt: 1000, unlockedInRound: 0 })
+    })
+
+    it('奖励与 rep：一次性矿物 500 万 + rep 8', () => {
+      const s = makeState()
+      // 预解锁随 100 亿一并满足的成就，隔离 endlessII 的矿物增量（endless +10万 / mineral1M +1万 / mineral100M 科技 / mineral1B +50万）
+      for (const id of ['endless', 'mineral1M', 'mineral100M', 'mineral1B']) {
+        s.achievements[id] = { unlockedAt: 1, unlockedInRound: 0 }
+      }
+      s.storyFlags.endless = true
+      s.stats.totalMineralEarned = 10_000_000_000
+      const def = ACHIEVEMENTS.endlessII
+      expect(def.rewardMineral).toBe(5_000_000)
+      expect(def.rep).toBe(8)
+      const before = s.resources.mineral
+      checkAchievements(s)
+      expect(s.resources.mineral - before).toBe(5_000_000)
+      const log = s.log.find((e) => e.text.includes('「永恒殖民」'))
+      expect(log).toBeTruthy()
+      expect(log!.text).toContain('+8 声望')
+    })
+
+    it('story 类一次性语义：NG+ 后不重解锁、不重发奖励', () => {
+      const s = makeState()
+      for (const id of ['endless', 'mineral1M', 'mineral1B']) {
+        s.achievements[id] = { unlockedAt: 1, unlockedInRound: 0 }
+      }
+      s.storyFlags.endless = true
+      s.stats.totalMineralEarned = 10_000_000_000
+      checkAchievements(s, 1000)
+      expect(s.achievements.endlessII?.unlockedInRound).toBe(0)
+      // NG+：storyFlags 跨周目保留 + 周目统计重置；ng2（+10万）正常解锁，endlessII 不重发 500 万
+      s.ngPlusLevel = 1
+      s.stats.totalMineralEarned = 0
+      const before = s.resources.mineral
+      const again = checkAchievements(s, 2000)
+      expect(again.map((d) => d.id)).not.toContain('endlessII')
+      expect(again.map((d) => d.id)).toContain('ng2')
+      expect(s.achievements.endlessII?.unlockedInRound).toBe(0)
+      expect(s.resources.mineral - before).toBe(100_000) // 仅 ng2 的 10 万，无 endlessII 的 500 万
+    })
+  })
 })

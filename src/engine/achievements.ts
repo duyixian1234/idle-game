@@ -43,7 +43,17 @@ const alliedCount = (s: GameState): number => Object.values(s.factions).filter((
 const conqueredCount = (s: GameState): number => Object.values(s.conquest).filter((c) => c.status === 'conquered').length
 const HOUR = 3600
 
-/** 成就定义表（29 个：叙事 12 + 收集 12 + 终局 5；文案实现期定稿） */
+/**
+ * 「永恒殖民」共享判定（endlessii-unlock spec 定稿，成就条件与叙事挂点同源引用，防两处数值漂移）：
+ * - 前置：已进入无限模式（统一联邦达成时置位，跨周目保留）
+ * - 门槛：本局累计采集矿物 ≥ 100 亿（周目内口径，NG+ 归零）
+ * - 时间条件不入判定（数值核算证明 3h 不构成约束，时间意象由 desc / 叙事文本承载）
+ */
+export function endlessIIUnlocked(s: GameState): boolean {
+  return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
+}
+
+/** 成就定义表（31 个：叙事 12 + 收集 14 + 终局 5；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -149,11 +159,11 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   endlessII: {
     id: 'endlessII',
     name: '永恒殖民',
-    desc: '把石头变成城市，把荒芜变成星海——日志仍在书写。',
+    desc: '累计采集 100 亿矿物。把石头变成城市，把荒芜变成星海——日志仍在书写。',
     category: 'story',
-    condition: (s) => Boolean(s.storyFlags.endlessII),
-    rewardMineral: 100_000,
-    rep: 5,
+    condition: (s) => endlessIIUnlocked(s),
+    rewardMineral: 5_000_000,
+    rep: 8,
   },
   conquestAll: {
     id: 'conquestAll',

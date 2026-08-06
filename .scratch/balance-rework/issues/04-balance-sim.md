@@ -4,16 +4,14 @@
 
 **Blocked by:** 02, 03
 
-**Status:** pending
+**Status:** resolved
 
-## Acceptance Criteria
-
-- [ ] 脚本模拟新旧公式下到达星球解锁阈值（5万/20万/100万/1000万矿物）的时间差，新曲线通关时长在 ±30% 内
-- [ ] P=2 决策均衡点验证：存在「先买后升 / 先升后买 / 交替」三种策略，且总产出差距在合理范围（任一路线可通关）
-- [ ] 无限模式 Lv.50 / count 500 量级下 ROI ≈ 2（不变量实证）
-- [ ] 模拟结论写入 spec Further Notes，脚本删除（不入库）
-- [ ] 全量回归 + typecheck clean 全绿
+- [x] 通关节奏：新曲线到达星球解锁阈值（5万/20万/100万/1000万矿物）时间差 ±30% 内，不劣化
+- [x] P=2 决策均衡点：先买后升 / 先升后买 / 交替三条路线均可持续通关（升级值得但略亏，保持买/升交替决策）
+- [x] 无限模式 Lv.50 / count 500 量级下 ROI ≈ 2（脚本实证 + engine.test ROI 用例双保险）
+- [x] 模拟结论写入 spec Further Notes（平衡模拟结论条目），脚本已删除（scripts/ 目录无残留）
+- [x] 全量 447 vitest + E2E + typecheck + build 全绿
 
 ## Answer
 
-待实现。
+已实现（2026-08-06 定稿交付，随 explore-interact 之后回写状态）。

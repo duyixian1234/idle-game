@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
-import { buyBuilding, checkPlanetUnlocks, createInitialState } from './engine'
+import { buyBuilding, checkPlanetUnlocks, createInitialState, tick } from './engine'
 import { pushLog } from './core'
 import { PLANETS } from './data'
 
@@ -74,5 +74,29 @@ describe('engine: 剧情文本内容', () => {
     const s = createInitialState(0)
     pushLog(s, 'system', '系统消息')
     expect(s.log[0].type).toBe('system')
+  })
+
+  it('永恒殖民叙事：未进无限模式不播放', () => {
+    const s = createInitialState(0)
+    s.stats.totalMineralEarned = 10_000_000_000
+    tick(s, 10_000)
+    expect(s.storyFlags.endlessII).toBeUndefined()
+    expect(s.log.some((e) => e.text.includes('百亿之年'))).toBe(false)
+  })
+
+  it('永恒殖民叙事：条件满足播放且仅一次（挂点与成就谓词同源）', () => {
+    const s = createInitialState(0)
+    s.storyFlags.endless = true
+    s.stats.totalMineralEarned = 10_000_000_000
+    tick(s, 10_000)
+    expect(s.storyFlags.endlessII).toBe(true)
+    const count = s.log.filter((e) => e.text.includes('百亿之年')).length
+    expect(count).toBe(1)
+    // 成就同步解锁（同源判定：100 亿 + 无限模式）
+    expect(s.achievements.endlessII).toBeDefined()
+    expect(s.achievements.endlessII?.unlockedInRound).toBe(0)
+    // 再次 tick 不重复播放
+    tick(s, 20_000)
+    expect(s.log.filter((e) => e.text.includes('百亿之年')).length).toBe(1)
   })
 })
