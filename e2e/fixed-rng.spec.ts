@@ -67,7 +67,7 @@ function buildV5Save(now: number, seed: number) {
 
 /** 等待事件卡片出现并返回其 data-def（事件类型 id） */
 async function waitForEventDef(page: import('@playwright/test').Page): Promise<string> {
-  const card = page.locator('.event-card').first()
+  const card = page.locator('[data-event-card]').first()
   await card.waitFor({ state: 'visible', timeout: 20_000 })
   const def = await card.getAttribute('data-def')
   expect(def).toBeTruthy()

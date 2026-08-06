@@ -67,7 +67,7 @@ test('v1 旧档加载：不崩溃，迁移后 planetDrill 显示 Lv.1', async ({
   await expect(page.locator('[data-resource="mineral"]')).toBeVisible()
 
   // 迁移生效：planetDrill 已研发 → 显示 Lv.1 徽章
-  await page.locator('.tab[data-tab="tech"]').click()
+  await page.locator('[data-tab="tech"]').click()
   await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.1')
 
   // 等待若干 tick（渲染/离线结算/事件调度全部跑过）后仍无未捕获异常
@@ -90,7 +90,7 @@ test('v1 旧档可继续建造（engine 读 techLevels 不崩）', async ({ page
   const minerBtn = page.locator('[data-build="miner"]')
   await expect(minerBtn).toBeVisible()
   await minerBtn.click()
-  await expect(page.locator('.log-area')).toContainText('建造了 采矿机（第 13 台）')
+  await expect(page.locator('[data-log]')).toContainText('建造了 采矿机（第 13 台）')
 
   await page.waitForTimeout(800)
   expect(pageErrors).toEqual([])

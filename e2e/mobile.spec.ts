@@ -73,7 +73,8 @@ function auditLayout(): AuditIssue[] {
   if (document.documentElement.scrollWidth > vw + 1) {
     issues.push({ kind: 'overflow', detail: `页面 scrollWidth=${document.documentElement.scrollWidth} > 视口 ${vw}` })
   }
-  for (const sel of ['.panel-body', '.log-area', '.mechanic-bar', '.favor-row', '.resource-bar', '.planet-bar', '.panel-tabs', '.event-options', '.exchange-row']) {
+  // 容器选择器保留样式类（CSS 引用范畴，非断言）；日志区改用语义化 [data-log]
+  for (const sel of ['.panel-body', '[data-log]', '.mechanic-bar', '.favor-row', '.resource-bar', '.planet-bar', '.panel-tabs', '.event-options', '.exchange-row', '.nav-bar']) {
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
       if (el.scrollWidth > el.clientWidth + 1) {
         issues.push({ kind: 'overflow', detail: `${sel} scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}` })
@@ -81,9 +82,10 @@ function auditLayout(): AuditIssue[] {
     }
   }
 
-  // 1b) 日志区保底高度：日志流是叙事主体，必须保证 ≥18vh 可见，防面板挤压
-  const logArea = document.querySelector('.log-area')
-  if (logArea) {
+  // 1b) 日志区保底高度：日志流是叙事主体，必须保证 ≥18vh 可见，防面板挤压。
+  //     仅审计当前可见页的日志区（settings/explore 页下 sector 日志区 display:none，rect 为 0）
+  const logArea = document.querySelector('[data-log]')
+  if (logArea && isVisible(logArea as HTMLElement)) {
     const lh = logArea.getBoundingClientRect().height
     if (lh < window.innerHeight * 0.18 - 2) {
       issues.push({ kind: 'logHeight', detail: `日志区高度 ${Math.round(lh)}px < 18vh（${Math.round(window.innerHeight * 0.18)}px），被操作面板挤压` })
@@ -99,9 +101,29 @@ function auditLayout(): AuditIssue[] {
     }
   }
 
-  // 2) 主流程按钮越出视口（排除浮层 overlay 内部按钮；星球 chip 由 1c 专项检查）
+  // 1d) 底部导航固定不遮挡内容：nav-bar 上缘不得侵入 content 可视区（B 架构 footer 独立 flex 项）
+  const navBar = document.querySelector('.nav-bar')
+  const content = document.querySelector('.content')
+  if (navBar && content) {
+    const nr = navBar.getBoundingClientRect()
+    const cr = content.getBoundingClientRect()
+    if (nr.top < cr.bottom - 2) {
+      issues.push({ kind: 'covered', detail: `nav-bar top=${Math.round(nr.top)} 侵入 content bottom=${Math.round(cr.bottom)}，可能遮挡内容` })
+    }
+  }
+  // 1e) 顶部 header 不遮挡：topbar 与 content 不应重叠（flex 布局防御）
+  const topbar = document.querySelector('.topbar')
+  if (topbar && content) {
+    const tr = topbar.getBoundingClientRect()
+    const cr = content.getBoundingClientRect()
+    if (tr.bottom > cr.top + 2) {
+      issues.push({ kind: 'covered', detail: `topbar bottom=${Math.round(tr.bottom)} 侵入 content top=${Math.round(cr.top)}` })
+    }
+  }
+
+  // 2) 主流程按钮越出视口（排除浮层 overlay 内部按钮与引导浮层；星球 chip 由 1c 专项检查）
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((b) => {
-    if (b.closest('.ending-overlay, .buy-max-overlay, .tutorial')) return false
+    if (b.closest('[data-overlay], .tutorial')) return false
     return isVisible(b)
   })
   for (const b of buttons) {
@@ -174,28 +196,43 @@ for (const vp of VIEWPORTS) {
       await page.screenshot({ path: `test-results/mobile-${vp.name}-build.png`, fullPage: false })
 
       // 科技面板
-      await page.locator('.tab[data-tab="tech"]').click()
+      await page.locator('[data-tab="tech"]').click()
       await page.waitForTimeout(400)
       const techIssues = await page.evaluate(auditLayout)
       allIssues.push(...techIssues)
       await page.screenshot({ path: `test-results/mobile-${vp.name}-tech.png`, fullPage: false })
 
       // 外交面板
-      await page.locator('.tab[data-tab="diplomacy"]').click()
+      await page.locator('[data-tab="diplomacy"]').click()
       await page.waitForTimeout(400)
       const diploIssues = await page.evaluate(auditLayout)
       allIssues.push(...diploIssues)
       await page.screenshot({ path: `test-results/mobile-${vp.name}-diplo.png`, fullPage: false })
 
+      // 设置页（一级 tab）：四组无溢出，footer/header 固定不遮挡
+      await page.locator('[data-nav="settings"]').click()
+      await page.waitForTimeout(400)
+      const settingsIssues = await page.evaluate(auditLayout)
+      allIssues.push(...settingsIssues)
+      await page.screenshot({ path: `test-results/mobile-${vp.name}-settings.png`, fullPage: false })
+
+      // 探索页（一级 tab）：playing 下锁定占位无溢出
+      await page.locator('[data-nav="explore"]').click()
+      await page.waitForTimeout(400)
+      const exploreIssues = await page.evaluate(auditLayout)
+      allIssues.push(...exploreIssues)
+      await page.screenshot({ path: `test-results/mobile-${vp.name}-explore.png`, fullPage: false })
+
       // 5) 可点击性探测：建造面板升满按钮（若越界则真实点击必然失败）
-      await page.locator('.tab[data-tab="build"]').click()
+      await page.locator('[data-nav="sector"]').click()
+      await page.locator('[data-tab="build"]').click()
       await page.waitForTimeout(300)
       let upgradeMaxClickable = true
       try {
         await page.locator('[data-upgrade-max="miner"]').click({ timeout: 3_000 })
         // 升满按钮会打开确认弹窗（buy-max 设计行为）→ Esc 关闭，避免遮挡后续点击
         await page.keyboard.press('Escape')
-        await expect(page.locator('.buy-max-overlay')).toHaveClass(/hidden/)
+        await expect(page.locator('[data-overlay="buy-max"]')).toBeHidden()
       } catch (err) {
         upgradeMaxClickable = false
         allIssues.push({ kind: 'outOfViewport', detail: `点击 [data-upgrade-max="miner"] 失败：${err instanceof Error ? err.message.split('\n')[0] : err}` })
@@ -204,7 +241,7 @@ for (const vp of VIEWPORTS) {
       // 6) 星球切换行为：点击可见的已解锁「冰封星」chip 必须切换成功
       const iceChip = page.locator('[data-planet="ice"]')
       await iceChip.click()
-      await expect(page.locator('.planet-chip.active')).toHaveAttribute('data-planet', 'ice')
+      await expect(page.locator('[data-planet="ice"][data-active]')).toHaveAttribute('data-planet', 'ice')
 
       await page.waitForTimeout(800)
       expect(pageErrors, '存在未捕获异常').toEqual([])

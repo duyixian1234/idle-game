@@ -66,7 +66,7 @@ test('买满：确认弹窗展示预演数据，确认后批量结算并写日�
   await maxBtn.click()
 
   // 确认弹窗：标题、次数、花费、剩余、确认/取消按钮
-  const overlay = page.locator('.buy-max-overlay')
+  const overlay = page.locator('[data-overlay="buy-max"]')
   await expect(overlay).toBeVisible()
   await expect(overlay).toContainText('买满：采矿机')
   await expect(overlay).toContainText('将购买')
@@ -77,7 +77,7 @@ test('买满：确认弹窗展示预演数据，确认后批量结算并写日�
   // 确认 → 弹窗关闭、资源结算、日志写入
   await page.locator('[data-buy-max-confirm]').click()
   await expect(overlay).toBeHidden()
-  await expect(page.locator('.log-area')).toContainText('一键买满「采矿机」：购买')
+  await expect(page.locator('[data-log]')).toContainText('一键买满「采矿机」：购买')
   // 数量徽章出现 ×N（矿物 200 买满后必然 ≥ 6 台：10+11+13+15+17+20=86 ≤ 200）
   const countText = await page.locator('[data-building="miner"] .build-count').textContent()
   expect(countText).toMatch(/×\d+/)
@@ -95,7 +95,7 @@ test('Shift+点击购买按钮打开弹窗，不直接购买', async ({ page }) 
 
   // Shift+点击购买按钮 → 弹窗出现而非直接购买
   await page.locator('[data-build="miner"]').click({ modifiers: ['Shift'] })
-  await expect(page.locator('.buy-max-overlay')).toBeVisible()
+  await expect(page.locator('[data-overlay="buy-max"]')).toBeVisible()
   await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0')
 })
 
@@ -107,9 +107,9 @@ test('取消弹窗：状态不变', async ({ page }) => {
   await dismissTutorial(page)
 
   await page.locator('[data-buy-max="miner"]').click()
-  await expect(page.locator('.buy-max-overlay')).toBeVisible()
+  await expect(page.locator('[data-overlay="buy-max"]')).toBeVisible()
   await page.locator('[data-buy-max-cancel]').click()
-  await expect(page.locator('.buy-max-overlay')).toBeHidden()
+  await expect(page.locator('[data-overlay="buy-max"]')).toBeHidden()
   await expect(page.locator('[data-building="miner"] .build-count')).toHaveText('×0')
 })
 
@@ -122,9 +122,9 @@ test('清零警示：能源将被清空时弹窗红字提示', async ({ page }) 
   await dismissTutorial(page)
 
   await page.locator('[data-buy-max="lab"]').click()
-  const overlay = page.locator('.buy-max-overlay')
+  const overlay = page.locator('[data-overlay="buy-max"]')
   await expect(overlay).toBeVisible()
   await expect(overlay).toContainText('买满：实验室')
   await expect(overlay).toContainText('将清空资源：能源')
-  await expect(overlay.locator('.buy-max-warn')).toBeVisible()
+  await expect(overlay.locator('[data-buy-max-warn]')).toBeVisible()
 })

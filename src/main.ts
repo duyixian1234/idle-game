@@ -23,7 +23,7 @@ import {
   renderBuyMaxModal,
   renderDiplomacyPanel,
   renderEndingOverlay,
-  renderExploreOverlay,
+  renderExplorePage,
   renderLogInto,
   renderMilitaryPanel,
   renderNgPlusModal,
@@ -31,17 +31,19 @@ import {
   renderPlanetBar,
   renderPlanetMechanic,
   renderResources,
-  renderStatusLine,
+  renderSettingsPage,
   renderTechPanel,
   renderTutorial,
   unlockRequirementText,
 } from './ui/dom'
-import type { LogDirection } from './ui/dom'
+import type { LogDirection, NavId } from './ui/dom'
 import { dispatch } from './ui/actions'
 import type { ActionDeps } from './ui/actions'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
+// 与 package.json version 同步（设置页关于区展示）
+const APP_VERSION = '0.1.0'
 
 async function main(): Promise<void> {
   const container = document.getElementById('app') as HTMLElement
@@ -50,13 +52,22 @@ async function main(): Promise<void> {
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
   // 结局面板临时收起标记
   let endingDismissed = false
-  // 探索面板开关（通关后工具栏「探索」打开）
-  let exploreOpen = false
   // 音效管理
   const sound = new SoundManager()
   // 日志排序方向（偏好记忆），已渲染日志游标
   let logDirection: LogDirection = (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION
   let lastLogId = 0
+  // ---- UI 层会话状态（不进存档）----
+  // 星域页二级 tab 会话记忆：切走再切回记住上次 tab（刷新回默认 build）
+  let activePanelTab = 'build'
+  // 角标差值 state：读即已读（进入对应页时快照到当前存量）
+  let seenEventCount = 0
+  let seenAchievementCount = 0
+
+  // 本周目解锁成就数（unlockedInRound === 当前周目；声望同一口径，见 reputation.ts）
+  function unlockedAchievementsThisRound(s: GameState): number {
+    return Object.values(s.achievements).filter((a) => a.unlockedInRound === s.ngPlusLevel).length
+  }
 
   // 离线收益结算（首次进入或回归时）
   const offline = settleOffline(state, Date.now())
@@ -78,6 +89,9 @@ async function main(): Promise<void> {
   // 回归时补查一次星球解锁（离线期间可能已满足条件）
   checkPlanetUnlocks(state)
 
+  // 角标刷新语义①：初始化 seen 快照 = 当前存量（挂机刷新是常态，存量重报是噪音；仅新触发报角标）
+  resetSeenSnapshot()
+
   // 首次进入时播放开局叙事序列
   if (state.log.length === 0) {
     for (const scene of OPENING_SCENES) pushLog(state, 'story', scene)
@@ -96,7 +110,21 @@ async function main(): Promise<void> {
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state)
-    renderArchivePanel(panels['archive'], state)
+    // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位）/ 设置（五组）
+    renderArchivePanel(els.navPages.archive, state)
+    renderExplorePage(els.navPages.explore, state)
+    const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
+    const prod = netProduction(state)
+    const prodText = Object.entries(prod)
+      .filter(([, v]) => v !== 0)
+      .map(([k, v]) => `${k}:${v >= 0 ? '+' : ''}${v.toFixed(1)}/s`)
+      .join(' ')
+    renderSettingsPage(els.navPages.settings, {
+      isMuted: sound.isMuted(),
+      logDirection,
+      statusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
+      version: APP_VERSION,
+    })
     renderPendingEvents(els.logEl, state)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId
@@ -107,60 +135,82 @@ async function main(): Promise<void> {
     }
     // 结局面板：ended 且未临时收起时显示
     renderEndingOverlay(els.endingOverlay, state, state.phase === 'ended' && !endingDismissed)
-    // 探索面板：通关后 + 用户打开时显示（倒计时由主循环 250ms 重建刷新）
-    renderExploreOverlay(els.exploreOverlay, state, exploreOpen)
     renderTutorial(els.tutorial, state)
-    // 工具栏按钮状态
-    const muteBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="mute"]')
-    if (muteBtn) muteBtn.textContent = sound.isMuted() ? '🔇 已静音' : '🔊 静音'
-    const dirBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-tool="logdir"]')
-    if (dirBtn) dirBtn.textContent = logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
-    // 无限模式专用「开启新周目」按钮：仅 phase === 'infinite' 可见（其余时刻隐藏，保持通关门槛）
-    const ngBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-ngplus]')
-    if (ngBtn) {
-      if (state.phase === 'infinite') {
-        const p = previewNewGamePlus(state)
-        ngBtn.style.display = ''
-        ngBtn.title = `开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、×${p.permanentMult.toFixed(2)} 永久产出加成、${p.codexFactions.length} 个派系图鉴（需确认）`
-      } else {
-        ngBtn.style.display = 'none'
-      }
-    }
-    // 探索入口按钮：通关后（ended/infinite）可见，playing 隐藏
-    const exploreBtn = els.toolbar.querySelector<HTMLButtonElement>('[data-explore]')
-    if (exploreBtn) {
-      if (state.phase === 'ended' || state.phase === 'infinite') {
-        exploreBtn.style.display = ''
-      } else {
-        exploreBtn.style.display = 'none'
-        exploreOpen = false
-      }
-    }
-    const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
-    const prod = netProduction(state)
-    const prodText = Object.entries(prod)
-      .filter(([, v]) => v !== 0)
-      .map(([k, v]) => `${k}:${v >= 0 ? '+' : ''}${v.toFixed(1)}/s`)
-      .join(' ')
-    renderStatusLine(els.statusLine, `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`)
-    // 外交 tab 可用性：解锁轨道工厂站后开放
-    const diploTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="diplomacy"]')
+    // 一级导航角标（差值派生，无动画；读即已读由 setActiveNav 更新快照）
+    renderBadges()
+    // 二级 tab 状态恢复（tab 按钮不随 250ms 重建，此处保持幂等 + 会话记忆）
+    updatePanelTabs()
+    // 外交/军事二级 tab 可用性：解锁轨道工厂站后开放
+    const diploTab = els.panel.querySelector<HTMLButtonElement>('[data-tab="diplomacy"]')
     if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
-    // 军事 tab 可用性：解锁轨道工厂站后开放
-    const militaryTab = els.panel.querySelector<HTMLButtonElement>('.tab[data-tab="military"]')
+    const militaryTab = els.panel.querySelector<HTMLButtonElement>('[data-tab="military"]')
     if (militaryTab) militaryTab.disabled = !state.planets.orbital?.unlocked
   }
 
-  // 面板 tab 切换（01 仅"建造"可用）
-  for (const tab of Array.from(els.panel.querySelectorAll<HTMLElement>('.tab'))) {
-    tab.addEventListener('click', () => {
-      for (const t of Array.from(els.panel.querySelectorAll<HTMLElement>('.tab'))) t.classList.toggle('active', t === tab)
-      for (const [name, body] of Object.entries(panels)) body.classList.toggle('hidden', name !== tab.dataset.tab)
-    })
+  // 一级导航页切换（互斥显隐；footer 与页容器不参与 250ms 重建，状态持久于 DOM）
+  function setActiveNav(id: NavId): void {
+    for (const navBtn of Array.from(els.navBar.querySelectorAll<HTMLElement>('[data-nav]'))) {
+      navBtn.classList.toggle('active', navBtn.dataset.nav === id)
+    }
+    for (const [name, page] of Object.entries(els.navPages)) {
+      page.classList.toggle('hidden', name !== id)
+    }
+    // 读即已读：进入星域/档案页时清零对应角标
+    if (id === 'sector') seenEventCount = state.pendingEvents.length
+    if (id === 'archive') seenAchievementCount = unlockedAchievementsThisRound(state)
   }
 
-  // 工具：静音/导出/导入/重置
-  els.toolbar.addEventListener('click', (e) => {
+  // 星域页二级 tab：会话记忆（切走再切回记住上次 tab；刷新回默认 build）
+  function updatePanelTabs(): void {
+    for (const tab of Array.from(els.panel.querySelectorAll<HTMLElement>('.tab'))) {
+      tab.classList.toggle('active', tab.dataset.tab === activePanelTab)
+    }
+    for (const [name, body] of Object.entries(panels)) {
+      body.classList.toggle('hidden', name !== activePanelTab)
+    }
+  }
+
+  // 一级导航角标：事件/成就差值（纯 UI 派生，无动画；≤99 显示）
+  // 单一角标渲染：count > 0 → 红点数字，否则隐藏
+  function setNavBadge(navId: string, count: number): void {
+    const badge = els.navBar.querySelector<HTMLElement>(`[data-nav-badge="${navId}"]`)
+    if (!badge) return
+    if (count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count)
+      badge.classList.remove('hidden')
+    } else {
+      badge.classList.add('hidden')
+    }
+  }
+
+  function renderBadges(): void {
+    setNavBadge('sector', Math.max(0, state.pendingEvents.length - seenEventCount))
+    setNavBadge('archive', Math.max(0, unlockedAchievementsThisRound(state) - seenAchievementCount))
+  }
+
+  // 角标 seen 快照重置为当前存量（刷新语义①：新状态接管后存量不重报）
+  function resetSeenSnapshot(): void {
+    seenEventCount = state.pendingEvents.length
+    seenAchievementCount = unlockedAchievementsThisRound(state)
+  }
+
+  // 一级导航 tab 切换（footer 一次性构建，委托稳定）
+  els.navBar.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-nav]')
+    if (!btn) return
+    setActiveNav(btn.dataset.nav as NavId)
+  })
+
+  // 星域页二级 tab 切换（会话记忆：切走再切回记住上次 tab）
+  els.panel.addEventListener('click', (e) => {
+    const tab = (e.target as HTMLElement).closest<HTMLElement>('.tab[data-tab]')
+    if (!tab) return
+    activePanelTab = tab.dataset.tab ?? 'build'
+    updatePanelTabs()
+  })
+
+  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变）
+  els.navPages.settings.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]')
     if (!btn) return
     const tool = btn.dataset.tool
@@ -186,8 +236,7 @@ async function main(): Promise<void> {
       URL.revokeObjectURL(url)
       pushLog(state, 'system', '存档已导出为 JSON 文件，可分享给朋友。')
     } else if (tool === 'import') {
-      const input = els.toolbar.querySelector<HTMLInputElement>('#import-file')
-      input?.click()
+      els.importFile.click()
     } else if (tool === 'reset') {
       const confirmed = window.confirm('⚠️ 确定要删除当前存档并重新开始吗？此操作不可撤销。')
       if (confirmed) {
@@ -198,13 +247,16 @@ async function main(): Promise<void> {
           endingDismissed = false
           lastLogId = 0
           els.logEl.innerHTML = ''
+          // 重置后为全新状态：seen 快照重置（pendingEvents/成就均为空，等价 0），导航回星域
+          resetSeenSnapshot()
+          setActiveNav('sector')
           render()
           void saveGame(state)
         })()
       }
     }
   })
-  els.toolbar.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', async (e) => {
+  els.importFile.addEventListener('change', async (e) => {
     const input = e.target as HTMLInputElement
     const file = input.files?.[0]
     input.value = ''
@@ -232,6 +284,8 @@ async function main(): Promise<void> {
       state.nextEventAt = Math.max(state.nextEventAt, Date.now() + 45_000)
       lastLogId = 0
       els.logEl.innerHTML = ''
+      // 导入接管新档：seen 快照重置为当前存量（刷新语义①，避免存量重报）
+      resetSeenSnapshot()
       pushLog(state, 'system', `导入成功：来自朋友的存档已接管殖民地。`)
       render()
       void saveGame(state)
@@ -267,17 +321,24 @@ async function main(): Promise<void> {
       render()
       void saveGame(state)
     } else if (action === 'ngplus') {
-      startNewGamePlus(state, Date.now())
-      endingDismissed = false
-      lastLogId = 0
-      els.logEl.innerHTML = ''
-      render()
-      void saveGame(state)
+      startNewGamePlusSequence(false)
     } else if (action === 'close') {
       endingDismissed = true
       render()
     }
   })
+
+  // 手动开启新周目的统一序列（结局面板入口 + 探索页 NG+ 终局卡共用）：
+  // startNewGamePlus 内部已 push【NG+ 第 N 周目】日志；UI 重置日志流 + 角标差值（unlockedInRound 更新）
+  function startNewGamePlusSequence(keepEndingDismissed: boolean): void {
+    startNewGamePlus(state, Date.now())
+    endingDismissed = keepEndingDismissed
+    lastLogId = 0
+    els.logEl.innerHTML = ''
+    resetSeenSnapshot()
+    render()
+    void saveGame(state)
+  }
 
   // 统一动作副作用依赖：渲染 / 保存 / 音效（见 actions.ts dispatch）
   const deps: ActionDeps = {
@@ -359,14 +420,10 @@ async function main(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
-    if (e.key === 'Escape' && !els.exploreOverlay.classList.contains('hidden')) {
-      exploreOpen = false
-      render()
-    }
   })
 
   // ---- 无限模式手动开启新周目（确认弹窗） ----
-  // 语义与结局面板「开启 NG+」完全一致；仅 phase === 'infinite' 时工具栏按钮可见
+  // 语义与结局面板「开启 NG+」完全一致；入口在探索页 NG+ 终局卡（仅 phase === 'infinite' 渲染）
   function closeNgPlusModal(): void {
     els.ngplusOverlay.classList.add('hidden')
   }
@@ -389,44 +446,20 @@ async function main(): Promise<void> {
     }
     if (t.closest('[data-ngplus-confirm]')) {
       closeNgPlusModal()
-      // 与结局面板 NG+ 分支一致的手动序列（startNewGamePlus 内部已 push【NG+ 第 N 周目】日志）
-      startNewGamePlus(state, Date.now())
-      lastLogId = 0
-      els.logEl.innerHTML = ''
-      render()
-      void saveGame(state)
+      // 与结局面板 NG+ 分支一致的统一序列（keepEndingDismissed=true：探索页入口不改变结局面板收起态）
+      startNewGamePlusSequence(true)
     }
   })
 
-  // 工具栏「开启新周目」入口（按钮可见性由 render 按 phase 控制）
-  els.toolbar.addEventListener('click', (e) => {
-    if (!(e.target as HTMLElement).closest('[data-ngplus]')) return
-    openNgPlusModal()
-  })
-
-  // ---- 探索派遣面板 ----
-  // 工具栏「探索」入口：仅 ended/infinite 可见（render 控制显隐），打开即渲染面板
-  els.toolbar.addEventListener('click', (e) => {
-    if (!(e.target as HTMLElement).closest('[data-explore]')) return
-    if (!(state.phase === 'ended' || state.phase === 'infinite')) return
-    exploreOpen = true
-    render()
-  })
-
-  els.exploreOverlay.addEventListener('click', (e) => {
-    const t = e.target as HTMLElement
-    if (t === els.exploreOverlay) {
-      exploreOpen = false
-      render()
+  // ---- 探索页（一级 tab）：NG+ 终局卡 + 派遣 ----
+  // data-ngplus：infinite 下终局卡「开启新周目」→ 确认弹窗
+  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理）
+  els.navPages.explore.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-ngplus]')) {
+      openNgPlusModal()
       return
     }
-    if (t.closest('[data-explore-close]')) {
-      exploreOpen = false
-      render()
-      return
-    }
-    if (t.closest('[data-explore-dispatch]')) {
-      // 派遣成功后面板保持打开（显示倒计时）；结果入账由 tick/offline 自动处理
+    if ((e.target as HTMLElement).closest('[data-explore-dispatch]')) {
       dispatch(state, 'explore', '', deps)
     }
   })

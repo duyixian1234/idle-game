@@ -15,7 +15,7 @@ import {
   renderBuildPanel,
   renderBuyMaxModal,
   renderDiplomacyPanel,
-  renderExploreOverlay,
+  renderExplorePage,
   renderLogInto,
   renderMilitaryPanel,
   renderNgPlusModal,
@@ -23,18 +23,31 @@ import {
   renderPlanetBar,
   renderPlanetMechanic,
   renderResources,
+  renderSettingsPage,
   renderTechPanel,
   unlockRequirementText,
 } from './dom'
 
 describe('ui: 布局与冒烟', () => {
-  it('buildLayout 生成资源条/日志区/操作面板', () => {
+  it('buildLayout 生成 B 架构骨架：header/footer/4 页容器', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
     expect(els.resourceBar).toBeTruthy()
     expect(els.logEl).toBeTruthy()
     expect(els.panel).toBeTruthy()
-    expect(container.querySelectorAll('.tab')).toHaveLength(5)
+    expect(els.navBar).toBeTruthy()
+    expect(container.querySelector('[data-log]')).toBeTruthy()
+    // 一级导航 4 tab + 星域页二级 tab 4 个（档案移出一级导航，不再占二级）
+    expect(container.querySelectorAll('[data-nav]')).toHaveLength(4)
+    expect(container.querySelectorAll('.tab')).toHaveLength(4)
+    // 4 页容器齐备
+    for (const p of ['sector', 'archive', 'explore', 'settings']) {
+      expect(container.querySelector(`[data-nav-page="${p}"]`)).toBeTruthy()
+    }
+    // overlay 语义化契约
+    expect(container.querySelector('[data-overlay="ending"]')).toBeTruthy()
+    expect(container.querySelector('[data-overlay="buy-max"]')).toBeTruthy()
+    expect(container.querySelector('[data-overlay="ngplus"]')).toBeTruthy()
   })
 
   it('资源条渲染四资源与速率（军力显示当前/上限）', () => {
@@ -643,8 +656,8 @@ describe('ui: 军事面板', () => {
     s.storyFlags.firstBuild = true
     s.storyFlags.firstTech = true
     checkAchievements(s, 1000)
-    renderArchivePanel(container.querySelector('[data-panel="archive"]') as HTMLElement, s)
-    const panel = container.querySelector('[data-panel="archive"]') as HTMLElement
+    renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
     // 声望条
     expect(panel.textContent).toContain('声望')
     expect(panel.textContent).toContain('4 / 100')
@@ -660,14 +673,14 @@ describe('ui: 军事面板', () => {
     expect(panel.textContent).toContain('在线时长')
   })
 
-  it('档案面板：档案 tab 开局即开放（无 disabled）', () => {
+  it('档案页：一级导航「档案」常驻可点（非二级 tab）', () => {
     const container = document.createElement('div')
     buildLayout(container)
-    const tab = container.querySelector<HTMLButtonElement>('.tab[data-tab="archive"]')
-    expect(tab).toBeTruthy()
-    expect(tab?.disabled).toBe(false)
-    // 开局默认面板是建造，但 archive panel-body 存在
-    expect(container.querySelector('[data-panel="archive"]')).toBeTruthy()
+    const nav = container.querySelector<HTMLButtonElement>('[data-nav="archive"]')
+    expect(nav).toBeTruthy()
+    expect(nav?.disabled).toBe(false)
+    // 开局默认星域页，但 archive 页容器存在（隐藏态由 main 层切换）
+    expect(container.querySelector('[data-nav-page="archive"]')).toBeTruthy()
   })
 
   it('档案面板：满声望显示全部加成', () => {
@@ -678,21 +691,37 @@ describe('ui: 军事面板', () => {
     for (const def of Object.values(ACHIEVEMENTS)) {
       s.achievements[def.id] = { unlockedAt: 1, unlockedInRound: 0 }
     }
-    renderArchivePanel(container.querySelector('[data-panel="archive"]') as HTMLElement, s)
-    const panel = container.querySelector('[data-panel="archive"]') as HTMLElement
+    renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
     expect(panel.textContent).toContain('贸易折扣 15%')
     expect(panel.textContent).toContain('骚扰阈值 65')
     expect(panel.textContent).toContain('军力上限 +20%')
     expect(panel.textContent).toContain('攻占成功率 +15%')
   })
 
-  it('工具栏「开启新周目」按钮存在且初始隐藏（仅 infinite 由 render 显示）', () => {
+  it('探索页：infinite 终局卡渲染「开启新周目」（data-ngplus 契约）', () => {
     const container = document.createElement('div')
     buildLayout(container)
-    const btn = container.querySelector<HTMLButtonElement>('[data-ngplus]')
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.ngPlusLevel = 1
+    s.permanentBonuses = { production: 0.25 }
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s)
+    const btn = page.querySelector<HTMLButtonElement>('[data-ngplus]')
     expect(btn).toBeTruthy()
     expect(btn!.textContent).toContain('开启新周目')
-    expect(btn!.style.display).toBe('none')
+    expect(page.textContent).toContain('第 1 周目')
+  })
+
+  it('探索页：playing 下无 NG+ 终局卡（无 data-ngplus）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s)
+    expect(page.querySelector('[data-ngplus]')).toBeNull()
+    expect(page.textContent).toContain('通关后解锁探索')
   })
 
   it('renderNgPlusModal 渲染双清单（将失去/将继承）与确认按钮', () => {
@@ -718,7 +747,7 @@ describe('ui: 军事面板', () => {
   })
 })
 
-describe('ui: 探索面板', () => {
+describe('ui: 探索页', () => {
   function endedState(): ReturnType<typeof createInitialState> {
     const s = createInitialState(0)
     s.phase = 'ended'
@@ -730,63 +759,69 @@ describe('ui: 探索面板', () => {
     return s
   }
 
-  it('playing 阶段：面板隐藏（不可见）', () => {
+  it('playing 阶段：锁定占位页（🔒 + 解锁条件 + 玩法简介）', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
+    buildLayout(container)
     const s = createInitialState(0)
-    renderExploreOverlay(els.exploreOverlay, s, true)
-    expect(els.exploreOverlay.classList.contains('hidden')).toBe(true)
-    expect(els.exploreOverlay.innerHTML).toBe('')
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s)
+    expect(page.textContent).toContain('通关后解锁探索')
+    expect(page.textContent).toContain('单槽派遣探索队')
+    expect(page.textContent).toContain('完成「星系统一联邦」结局')
+    expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
   })
 
-  it('ended + 打开：显示状态行/消耗预览/派遣按钮（资源足够可用）', () => {
+  it('ended：页面直接渲染派遣面板（状态行/消耗预览/派遣按钮可用）', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
+    buildLayout(container)
     const s = endedState()
-    renderExploreOverlay(els.exploreOverlay, s, true, 0)
-    expect(els.exploreOverlay.classList.contains('hidden')).toBe(false)
-    expect(els.exploreOverlay.textContent).toContain('探索槽空闲')
-    expect(els.exploreOverlay.textContent).toContain('消耗')
-    expect(els.exploreOverlay.textContent).toContain('40')
-    expect(els.exploreOverlay.textContent).toContain('60 分钟')
-    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.textContent).toContain('探索槽空闲')
+    expect(page.textContent).toContain('消耗')
+    expect(page.textContent).toContain('40')
+    expect(page.textContent).toContain('60 分钟')
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
     expect(btn).toBeTruthy()
     expect(btn?.disabled).toBe(false)
   })
 
   it('资源不足：派遣按钮禁用且 title 给原因', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
+    buildLayout(container)
     const s = endedState()
     s.resources.military = 10
-    renderExploreOverlay(els.exploreOverlay, s, true, 0)
-    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
     expect(btn?.disabled).toBe(true)
     expect(btn?.title).toContain('军力不足')
   })
 
   it('派遣进行中：显示倒计时 + 按钮禁用（单槽）', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
+    buildLayout(container)
     const s = endedState()
     s.expeditions.push({ id: 1, startedAt: 0, finishAt: 3_600_000, cost: { mineral: 3000, energy: 1000, military: 40 }, result: { kind: 'resource', mineral: 0, tech: 0, energy: 0 }, resolved: false })
-    renderExploreOverlay(els.exploreOverlay, s, true, 60_000)
-    expect(els.exploreOverlay.textContent).toContain('返航倒计时')
-    const btn = els.exploreOverlay.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 60_000)
+    expect(page.textContent).toContain('返航倒计时')
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch]')
     expect(btn?.disabled).toBe(true)
     expect(btn?.title).toContain('探索队在途中')
   })
 
   it('发现进度：显示已发现 x/6 与势力/天体拆分', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
+    buildLayout(container)
     const s = endedState()
     s.exploredFactions = ['ashCommune']
     s.exploredPlanets = ['logistics']
-    renderExploreOverlay(els.exploreOverlay, s, true, 0)
-    expect(els.exploreOverlay.textContent).toContain('已发现：2 / 6')
-    expect(els.exploreOverlay.textContent).toContain('势力 1/4')
-    expect(els.exploreOverlay.textContent).toContain('天体 1/2')
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.textContent).toContain('已发现：2 / 6')
+    expect(page.textContent).toContain('势力 1/4')
+    expect(page.textContent).toContain('天体 1/2')
   })
 
   it('星栏：探索天体仅在发现后显示', () => {
@@ -800,10 +835,50 @@ describe('ui: 探索面板', () => {
     expect(els.planetBar.textContent).toContain('星际物流港')
   })
 
-  it('工具栏含 data-explore 按钮（显隐由 main 层控制）', () => {
+  it('一级导航「探索」tab 常驻（playing 也可见可点，页内显锁定占位）', () => {
     const container = document.createElement('div')
-    const els = buildLayout(container)
-    expect(els.toolbar.querySelector('[data-explore]')).toBeTruthy()
-    expect(els.toolbar.querySelector('[data-explore]')?.textContent).toContain('探索')
+    buildLayout(container)
+    const nav = container.querySelector<HTMLButtonElement>('[data-nav="explore"]')
+    expect(nav).toBeTruthy()
+    expect(nav?.disabled).toBe(false)
+  })
+})
+
+describe('ui: 设置页', () => {
+  it('renderSettingsPage 渲染五组（音频/日志/存档管理/危险区/关于）与 data-tool 契约', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
+    renderSettingsPage(page, { isMuted: false, logDirection: 'newest-bottom', statusText: '荒漠星 · 存档自动保存中', version: '0.1.0' })
+    expect(page.textContent).toContain('音频')
+    expect(page.textContent).toContain('日志')
+    expect(page.textContent).toContain('存档管理')
+    expect(page.textContent).toContain('危险区')
+    expect(page.textContent).toContain('关于')
+    expect(page.querySelector('[data-tool="mute"]')).toBeTruthy()
+    expect(page.querySelector('[data-tool="logdir"]')).toBeTruthy()
+    expect(page.querySelector('[data-tool="export"]')).toBeTruthy()
+    expect(page.querySelector('[data-tool="import"]')).toBeTruthy()
+    expect(page.querySelector('[data-tool="reset"]')).toBeTruthy()
+    expect(page.textContent).toContain('v0.1.0')
+  })
+
+  it('静音/排序按钮文案随状态切换', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
+    renderSettingsPage(page, { isMuted: true, logDirection: 'newest-top', statusText: '', version: '0.1.0' })
+    expect(page.querySelector('[data-tool="mute"]')?.textContent).toContain('已静音')
+    expect(page.querySelector('[data-tool="logdir"]')?.textContent).toContain('最新在顶')
+  })
+
+  it('危险区重置按钮带 danger 类与警示文案', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
+    renderSettingsPage(page, { isMuted: false, logDirection: 'newest-bottom', statusText: '', version: '0.1.0' })
+    const reset = page.querySelector<HTMLButtonElement>('[data-tool="reset"]')
+    expect(reset?.classList.contains('danger')).toBe(true)
+    expect(page.textContent).toContain('此操作不可撤销')
   })
 })

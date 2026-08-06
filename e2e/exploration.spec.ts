@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 import { dismissTutorial, lockSaveStore, seedSave } from './helpers'
 
 /**
- * 探索系统 E2E（exploration）。
- * 回归点：① 通关后工具栏「探索」可见、playing 隐藏；② 面板显示消耗预览与派遣按钮；
+ * 探索系统 E2E（exploration，探索迁入一级 tab 后）。
+ * 回归点：① ended 存档探索页显示派遣面板、playing 显示锁定占位；② 面板消耗预览与派遣按钮；
  * ③ 派遣成功生成记录/扣资源/倒计时显示；④ 派遣到期自动入账（结果日志播报，离线语义）。
  */
 
@@ -64,28 +64,29 @@ function buildEndedSave(now: number, expeditions: unknown[] = [], explored: { fa
   }
 }
 
-async function seedEnded(page: import('@playwright/test').Page, save: ReturnType<typeof buildEndedSave>) {
+/** 打开探索页（ended 档：关闭结局面板后点一级 tab） */
+async function openExplore(page: import('@playwright/test').Page, save: ReturnType<typeof buildEndedSave>): Promise<void> {
+  await page.goto('/')
   const schemaVersion = await seedSave(page, save)
   expect(schemaVersion).toBe(6)
   await lockSaveStore(page)
   await page.reload()
   await dismissTutorial(page)
-  await expect(page.locator('[data-explore]')).toBeVisible()
-  // 关闭结局面板（ended 档会显示全屏遮罩，拦截探索按钮点击）
+  // 关闭结局面板（ended 档会显示全屏遮罩，拦截导航点击）
   const closeBtn = page.locator('[data-ending="close"]')
   if (await closeBtn.isVisible().catch(() => false)) {
     await closeBtn.click()
   }
+  await page.locator('[data-nav="explore"]').click()
 }
 
-test('通关后：探索入口可见，playing 存档隐藏', async ({ page }) => {
+test('通关后：探索页显示派遣面板；playing 存档显示锁定占位', async ({ page }) => {
   await page.goto('/')
-  await seedEnded(page, buildEndedSave(Date.now()))
-  await expect(page.locator('[data-explore]')).toContainText('探索')
+  await openExplore(page, buildEndedSave(Date.now()))
+  await expect(page.locator('[data-nav-page="explore"]')).toContainText('派遣探索')
+  await expect(page.locator('[data-explore-dispatch]')).toBeVisible()
 
-  // playing 存档：入口隐藏
-  // ⚠️ 必须同时把派系改为未统一（buildEndedSave 默认全部 favor100/allied，
-  //    若保留则首个 tick 的 checkEnding 判定联邦已统一 → phase 自动转 ended → 按钮出现）
+  // playing 存档：探索页锁定占位（🔒 + 解锁条件，无派遣按钮）
   await page.goto('/')
   const playing = buildEndedSave(Date.now())
   playing.phase = 'playing'
@@ -99,33 +100,30 @@ test('通关后：探索入口可见，playing 存档隐藏', async ({ page }) =
   await lockSaveStore(page)
   await page.reload()
   await dismissTutorial(page)
-  await expect(page.locator('[data-explore]')).toBeHidden()
+  await page.locator('[data-nav="explore"]').click()
+  await expect(page.locator('[data-nav-page="explore"]')).toContainText('通关后解锁探索')
+  await expect(page.locator('[data-explore-dispatch]')).toBeHidden()
 })
 
-test('派遣探索：面板消耗预览 → 点击派遣 → 记录生成/资源扣除/倒计时', async ({ page }) => {
+test('派遣探索：页面消耗预览 → 点击派遣 → 记录生成/资源扣除/倒计时', async ({ page }) => {
   await page.goto('/')
-  await seedEnded(page, buildEndedSave(Date.now()))
+  await openExplore(page, buildEndedSave(Date.now()))
 
-  // 打开探索面板：状态行/消耗预览/派遣按钮可用
-  await page.locator('[data-explore]').click()
-  const overlay = page.locator('.explore-overlay')
-  await expect(overlay).toBeVisible()
-  await expect(overlay).toContainText('探索槽空闲')
-  await expect(overlay).toContainText('消耗')
-  await expect(overlay).toContainText('40') // 兵力固定 40
-  await expect(overlay).toContainText('60 分钟')
+  // 探索页：状态行/消耗预览/派遣按钮可用
+  const explorePage = page.locator('[data-nav-page="explore"]')
+  await expect(explorePage).toContainText('探索槽空闲')
+  await expect(explorePage).toContainText('消耗')
+  await expect(explorePage).toContainText('40') // 兵力固定 40
+  await expect(explorePage).toContainText('60 分钟')
   const dispatchBtn = page.locator('[data-explore-dispatch]')
   await expect(dispatchBtn).toBeEnabled()
 
-  // 记录派遣前军力，点击派遣
-  const militaryBefore = await page.evaluate(() => 5000)
   await dispatchBtn.click()
 
-  // 启程日志 + 面板切到倒计时（单槽，按钮禁用）
-  await expect(page.locator('.log-area')).toContainText('探索队启程')
-  await expect(overlay).toContainText('返航倒计时')
+  // 启程日志 + 页面切到倒计时（单槽，按钮禁用）
+  await expect(page.locator('[data-log]')).toContainText('探索队启程')
+  await expect(explorePage).toContainText('返航倒计时')
   await expect(dispatchBtn).toBeDisabled()
-  expect(militaryBefore).toBe(5000) // 军力快照无变化断言（派扣除由引擎层单测覆盖，E2E 聚焦 UI 流）
 })
 
 test('派遣到期自动入账：结果日志播报（离线推进语义）', async ({ page }) => {
@@ -142,12 +140,11 @@ test('派遣到期自动入账：结果日志播报（离线推进语义）', as
     },
   ])
   await page.goto('/')
-  await seedEnded(page, save)
+  await openExplore(page, save)
 
   // tick（250ms 循环）触发 settleExpeditions → 入账日志
-  await expect(page.locator('.log-area')).toContainText('探索队返航', { timeout: 10_000 })
-  await expect(page.locator('.log-area')).toContainText('回收了')
+  await expect(page.locator('[data-log]')).toContainText('探索队返航', { timeout: 10_000 })
+  await expect(page.locator('[data-log]')).toContainText('回收了')
   // 单槽释放：可再次派遣
-  await page.locator('[data-explore]').click()
   await expect(page.locator('[data-explore-dispatch]')).toBeEnabled()
 })

@@ -59,7 +59,7 @@ async function openTechPanel(page: import('@playwright/test').Page): Promise<voi
   await lockSaveStore(page)
   await page.reload()
   await dismissTutorial(page)
-  await page.locator('.tab[data-tab="tech"]').click()
+  await page.locator('[data-tab="tech"]').click()
 }
 
 test('科技升级：点击升级按钮 Lv.1 → Lv.2，日志与徽章同步', async ({ page }) => {
@@ -80,7 +80,7 @@ test('科技升级：点击升级按钮 Lv.1 → Lv.2，日志与徽章同步', 
   await upgradeBtn.click()
 
   // 日志反馈（actions.ts upgradeTech.feedback）
-  await expect(page.locator('.log-area')).toContainText('科技「行星钻探」升级至 Lv.2，产出提升。')
+  await expect(page.locator('[data-log]')).toContainText('科技「行星钻探」升级至 Lv.2，产出提升。')
   // 徽章从 Lv.1 → Lv.2
   await expect(page.locator('[data-tech="planetDrill"]')).toContainText('Lv.2')
 

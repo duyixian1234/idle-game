@@ -66,26 +66,26 @@ test('档案面板：v4 存档回溯解锁成就、声望正确显示', async ({
   await page.reload()
   await dismissTutorial(page)
 
-  // 档案 tab 开局即开放
-  const archiveTab = page.locator('.tab[data-tab="archive"]')
+  // 档案一级 tab 开局即可点
+  const archiveTab = page.locator('[data-nav="archive"]')
   await expect(archiveTab).toBeVisible()
   await expect(archiveTab).toBeEnabled()
   await archiveTab.click()
 
   // 回溯解锁：叙事成就（firstBuild/firstTech/firstAlliance/orbitalUnlocked）已解锁
   // + 收集类（mineral1M：矿物 200 万）+ 结盟 3 派系（allies3）
-  await expect(page.locator('[data-panel="archive"]')).toContainText('第一块领地')
-  await expect(page.locator('[data-panel="archive"]')).toContainText('✓ 第一块领地')
-  await expect(page.locator('[data-panel="archive"]')).toContainText('亿万矿藏')
-  await expect(page.locator('[data-panel="archive"]')).toContainText('✓ 亿万矿藏')
-  await expect(page.locator('[data-panel="archive"]')).toContainText('三方会盟')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('第一块领地')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('✓ 第一块领地')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('亿万矿藏')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('✓ 亿万矿藏')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('三方会盟')
 
   // 声望：叙事 10（firstBuild2+firstTech2+orbitalUnlocked3+firstAlliance3）
   // + 收集 11（mineral1M3+trades50 4+allies3 4）+ federationPending 4（3/4 结盟 tick 触发）= 25
-  await expect(page.locator('[data-panel="archive"]')).toContainText('25 / 100')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('25 / 100')
   // 生效加成：声望 25 ≥ 20 → 20 档贸易折扣 5%
-  await expect(page.locator('[data-panel="archive"]')).toContainText('贸易折扣 5%')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('贸易折扣 5%')
 
   // 本周目统计
-  await expect(page.locator('[data-panel="archive"]')).toContainText('NG+ 周目：0')
+  await expect(page.locator('[data-nav-page="archive"]')).toContainText('NG+ 周目：0')
 })

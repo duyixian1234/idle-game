@@ -10,6 +10,8 @@ import { formatDuration } from '../engine/offline'
 import { isConquestAvailable, conquestState } from '../engine/conquest'
 import { expeditionCost, isExploreAvailable } from '../engine/exploration'
 import { NG_PLUS_TECH_BASE } from '../engine/engine'
+import { previewNewGamePlus } from '../engine/ngplus'
+import type { NgPlusPreview } from '../engine/ngplus'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import {
   canFactionAlliance,
@@ -41,7 +43,9 @@ import { simulateProductionDelta, techMultiplier, militaryCap } from '../engine/
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
-import type { NgPlusPreview } from '../engine/ngplus'
+
+/** 一级导航 id（B 架构 4 tab：星域 / 档案 / 探索 / 设置） */
+export type NavId = 'sector' | 'archive' | 'explore' | 'settings'
 
 export interface AppElements {
   root: HTMLElement
@@ -50,13 +54,13 @@ export interface AppElements {
   mechanicBar: HTMLElement
   logEl: HTMLElement
   panel: HTMLElement
-  statusLine: HTMLElement
   endingOverlay: HTMLElement
   buyMaxOverlay: HTMLElement
   ngplusOverlay: HTMLElement
-  exploreOverlay: HTMLElement
-  toolbar: HTMLElement
   tutorial: HTMLElement
+  navBar: HTMLElement
+  navPages: Record<NavId, HTMLElement>
+  importFile: HTMLInputElement
 }
 
 const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
@@ -72,61 +76,68 @@ export type LogDirection = 'newest-bottom' | 'newest-top'
 export const LOG_DIR_KEY = 'idle-game-log-direction'
 export const DEFAULT_LOG_DIRECTION: LogDirection = 'newest-bottom'
 
-/** 构建应用骨架，返回各区域元素引用 */
+/** 构建应用骨架（B 架构），返回各区域元素引用。
+ *  header（资源条+星域条）与 footer（一级导航）一次性构建，不参与 250ms tick 重建；
+ *  机制条移入内容区顶部随滚动；4 个 data-nav-page 页容器承载星域/档案/探索/设置。 */
 export function buildLayout(container: HTMLElement): AppElements {
   container.innerHTML = ''
   container.className = 'game'
   container.innerHTML = `
-    <header class="resource-bar" aria-label="资源条"></header>
-    <nav class="planet-bar" aria-label="星域总览"></nav>
-    <div class="mechanic-bar" aria-label="星球机制"></div>
-    <main class="log-area" aria-label="日志流"></main>
-    <section class="panel" aria-label="操作面板">
-      <div class="panel-tabs">
-        <button type="button" class="tab active" data-tab="build">建造</button>
-        <button type="button" class="tab" data-tab="tech">科技</button>
-        <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
-        <button type="button" class="tab" data-tab="military" disabled>军事</button>
-        <button type="button" class="tab" data-tab="archive">档案</button>
-      </div>
-      <div class="panel-body" data-panel="build"></div>
-      <div class="panel-body hidden" data-panel="tech"></div>
-      <div class="panel-body hidden" data-panel="diplomacy"></div>
-      <div class="panel-body hidden" data-panel="military"></div>
-      <div class="panel-body hidden" data-panel="archive"></div>
-    </section>
-    <footer class="toolbar" aria-label="工具">
-      <button type="button" class="tool-btn" data-tool="mute">🔊 静音</button>
-      <button type="button" class="tool-btn" data-tool="logdir">📜 排序</button>
-      <button type="button" class="tool-btn" data-tool="export">导出存档</button>
-      <button type="button" class="tool-btn" data-tool="import">导入存档</button>
-      <button type="button" class="tool-btn" data-explore style="display:none" title="派遣探索队前往偏远星区：有概率发现新势力/新天体">🚀 探索</button>
-      <button type="button" class="tool-btn" data-ngplus style="display:none" title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
-      <button type="button" class="tool-btn danger" data-tool="reset">重置</button>
-      <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
+    <header class="topbar">
+      <div class="resource-bar" aria-label="资源条"></div>
+      <nav class="planet-bar" aria-label="星域总览"></nav>
+    </header>
+    <main class="content">
+      <section class="nav-page" data-nav-page="sector" aria-label="星域">
+        <div class="mechanic-bar" aria-label="星球机制"></div>
+        <div class="log-area" data-log aria-label="日志流"></div>
+        <section class="panel" aria-label="操作面板">
+          <div class="panel-tabs">
+            <button type="button" class="tab active" data-tab="build">建造</button>
+            <button type="button" class="tab" data-tab="tech">科技</button>
+            <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
+            <button type="button" class="tab" data-tab="military" disabled>军事</button>
+          </div>
+          <div class="panel-body" data-panel="build"></div>
+          <div class="panel-body hidden" data-panel="tech"></div>
+          <div class="panel-body hidden" data-panel="diplomacy"></div>
+          <div class="panel-body hidden" data-panel="military"></div>
+        </section>
+      </section>
+      <section class="nav-page hidden" data-nav-page="archive" aria-label="档案"></section>
+      <section class="nav-page hidden" data-nav-page="explore" aria-label="探索"></section>
+      <section class="nav-page hidden" data-nav-page="settings" aria-label="设置"></section>
+    </main>
+    <footer class="nav-bar" aria-label="一级导航">
+      <button type="button" class="nav-item active" data-nav="sector">🪐<span class="nav-label">星域</span><span class="nav-badge hidden" data-nav-badge="sector"></span></button>
+      <button type="button" class="nav-item" data-nav="archive">🏛<span class="nav-label">档案</span><span class="nav-badge hidden" data-nav-badge="archive"></span></button>
+      <button type="button" class="nav-item" data-nav="explore">🚀<span class="nav-label">探索</span></button>
+      <button type="button" class="nav-item" data-nav="settings">⚙<span class="nav-label">设置</span></button>
     </footer>
-    <div class="status-line"></div>
-    <div class="ending-overlay hidden" aria-label="结局"></div>
-    <div class="buy-max-overlay hidden" aria-label="批量购买确认"></div>
-    <div class="ngplus-overlay hidden" aria-label="开启新周目确认"></div>
-    <div class="explore-overlay hidden" aria-label="探索派遣"></div>
+    <div class="ending-overlay hidden" data-overlay="ending" aria-label="结局"></div>
+    <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
+    <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
+    <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
   `
   const root = container
+  const pages = ['sector', 'archive', 'explore', 'settings'] as const
+  const navPages = {} as Record<NavId, HTMLElement>
+  for (const p of pages) navPages[p] = container.querySelector(`[data-nav-page="${p}"]`) as HTMLElement
   return {
     root,
     resourceBar: container.querySelector('.resource-bar') as HTMLElement,
     planetBar: container.querySelector('.planet-bar') as HTMLElement,
     mechanicBar: container.querySelector('.mechanic-bar') as HTMLElement,
-    logEl: container.querySelector('.log-area') as HTMLElement,
+    logEl: container.querySelector('[data-log]') as HTMLElement,
     panel: container.querySelector('.panel') as HTMLElement,
-    statusLine: container.querySelector('.status-line') as HTMLElement,
-    endingOverlay: container.querySelector('.ending-overlay') as HTMLElement,
-    buyMaxOverlay: container.querySelector('.buy-max-overlay') as HTMLElement,
-    ngplusOverlay: container.querySelector('.ngplus-overlay') as HTMLElement,
-    exploreOverlay: container.querySelector('.explore-overlay') as HTMLElement,
-    toolbar: container.querySelector('.toolbar') as HTMLElement,
+    endingOverlay: container.querySelector('[data-overlay="ending"]') as HTMLElement,
+    buyMaxOverlay: container.querySelector('[data-overlay="buy-max"]') as HTMLElement,
+    ngplusOverlay: container.querySelector('[data-overlay="ngplus"]') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
+    navBar: container.querySelector('.nav-bar') as HTMLElement,
+    navPages,
+    importFile: container.querySelector('#import-file') as HTMLInputElement,
   }
 }
 
@@ -145,7 +156,7 @@ export function renderTutorial(el: HTMLElement, state: GameState): void {
   }
   el.classList.remove('hidden')
   el.innerHTML = `
-    <div class="tutorial-card">
+    <div class="tutorial-card" data-tutorial-card>
       <div class="tutorial-step">${state.tutorialStep + 1}/${TUTORIAL_STEPS.length}</div>
       <div class="tutorial-title">${escapeHtml(step.title)}</div>
       <div class="tutorial-text">${escapeHtml(step.text)}</div>
@@ -180,14 +191,38 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
     </div>`
 }
 
-/** 渲染探索派遣面板（通关后 ended/infinite；单槽状态行 + 消耗预览 + 派遣按钮） */
-export function renderExploreOverlay(el: HTMLElement, state: GameState, visible: boolean, nowMs: number = Date.now()): void {
-  if (!visible || !isExploreAvailable(state)) {
-    el.classList.add('hidden')
-    el.innerHTML = ''
+/** 渲染探索页（一级 tab 内嵌）：
+ *  ① NG+ 终局卡：phase==='infinite' 时顶部显示「开启新周目」入口（data-ngplus 契约，与结局面板入口并存）
+ *  ② 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
+ *  ③ 派遣面板：ended/infinite 直接页面渲染（原 explore-overlay 内容平移，dispatch 保留 data-explore-dispatch 契约） */
+export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now()): void {
+  el.innerHTML = ''
+  const parts: string[] = []
+  // ① NG+ 终局卡：infinite 模式顶部常驻入口
+  if (state.phase === 'infinite') {
+    const p = previewNewGamePlus(state)
+    parts.push(`
+      <div class="ngplus-terminal">
+        <div class="ngplus-terminal-title">第 ${state.ngPlusLevel} 周目 · 无限模式</div>
+        <div class="ngplus-terminal-desc">开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、×${p.permanentMult.toFixed(2)} 永久产出加成、${p.codexFactions.length} 个派系图鉴（需确认，不可逆）</div>
+        <div class="ending-actions">
+          <button type="button" class="ending-btn primary" data-ngplus title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
+        </div>
+      </div>`)
+  }
+  // ② 锁定占位：通关前告知终局玩法存在
+  if (!isExploreAvailable(state)) {
+    parts.push(`
+      <div class="explore-locked">
+        <div class="explore-lock-icon">🔒</div>
+        <div class="explore-lock-title">通关后解锁探索</div>
+        <div class="explore-lock-desc">单槽派遣探索队（60 分钟 / 离线照常推进，不可取消）：有概率发现新的派系势力与天体，也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</div>
+        <div class="explore-lock-hint">解锁条件：完成「星系统一联邦」结局（统一全部派系）</div>
+      </div>`)
+    el.innerHTML = parts.join('')
     return
   }
-  el.classList.remove('hidden')
+  // ③ 派遣面板
   const ongoing = state.expeditions.find((e) => !e.resolved)
   const cost = expeditionCost(state)
   const affordMineral = state.resources.mineral >= cost.mineral
@@ -203,7 +238,7 @@ export function renderExploreOverlay(el: HTMLElement, state: GameState, visible:
     : '探索槽空闲，可派遣'
   const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
   const discovered = state.exploredFactions.length + state.exploredPlanets.length
-  el.innerHTML = `
+  parts.push(`
     <div class="explore-card">
       <h1 class="ending-title">派遣探索</h1>
       <p class="ending-stats">通关后的新航路：有概率发现新的派系势力或发展天体，也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
@@ -216,9 +251,9 @@ export function renderExploreOverlay(el: HTMLElement, state: GameState, visible:
         <button type="button" class="ending-btn primary" data-explore-dispatch ${ongoing || !affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">
           🚀 派遣探索
         </button>
-        <button type="button" class="ending-btn ghost" data-explore-close>关闭</button>
       </div>
-    </div>`
+    </div>`)
+  el.innerHTML = parts.join('')
 }
 
 /** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜） */
@@ -241,6 +276,7 @@ function renderPlanetChip(def: PlanetDef, state: GameState): HTMLElement {
   btn.type = 'button'
   btn.className = `planet-chip${active ? ' active' : ''}`
   btn.setAttribute('data-planet', def.id)
+  if (active) btn.setAttribute('data-active', '')
   if (!unlocked) {
     // 未解锁星球可点击：显示解锁条件（悬停 title + 点击日志）
     btn.classList.add('locked')
@@ -305,6 +341,7 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
 export function appendLog(el: HTMLElement, entry: LogEntry, dir: LogDirection): void {
   const div = document.createElement('div')
   div.className = `log-line ${LOG_TYPE_CLASS[entry.type]}`
+  div.setAttribute('data-log-line', '')
   div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>`
   if (dir === 'newest-bottom') {
     el.appendChild(div)
@@ -352,6 +389,8 @@ export function renderPendingEvents(el: HTMLElement, state: GameState): void {
     card.setAttribute('data-event', String(ev.uid))
     // data-def 暴露事件类型 id（E2E 断言「刷新后事件类型一致」用，防 SL 端到端验证）
     card.setAttribute('data-def', ev.defId)
+    // data-event-card：语义化容器契约（E2E 断言不依赖 .event-card 类）
+    card.setAttribute('data-event-card', '')
     const options = ev.options
       .map((o) => `<button type="button" class="event-option" data-event-resolve="${ev.uid}:${o.id}" title="${escapeHtml(o.hint ?? '')}">${escapeHtml(o.label)}${o.hint ? ` <span class="event-hint">${escapeHtml(o.hint)}</span>` : ''}</button>`)
       .join('')
@@ -630,8 +669,48 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState): void {
   }
 }
 
-export function renderStatusLine(el: HTMLElement, text: string): void {
-  el.textContent = text
+/** 设置页 UI 状态（由 main 层组装传入，纯展示） */
+export interface SettingsStatus {
+  isMuted: boolean
+  logDirection: LogDirection
+  statusText: string
+  version: string
+}
+
+/** 渲染设置页（一级 tab）：音频 / 日志 / 存档管理 / 危险区 / 关于 五组。250ms 重建无 transition 干扰 */
+export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): void {
+  el.innerHTML = `
+    <section class="settings-group">
+      <h2 class="settings-title">音频</h2>
+      <div class="settings-actions">
+        <button type="button" class="tool-btn" data-tool="mute">${status.isMuted ? '🔇 已静音' : '🔊 静音'}</button>
+      </div>
+    </section>
+    <section class="settings-group">
+      <h2 class="settings-title">日志</h2>
+      <div class="settings-actions">
+        <button type="button" class="tool-btn" data-tool="logdir">${status.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'}</button>
+      </div>
+    </section>
+    <section class="settings-group">
+      <h2 class="settings-title">存档管理</h2>
+      <div class="settings-actions">
+        <button type="button" class="tool-btn" data-tool="export">导出存档</button>
+        <button type="button" class="tool-btn" data-tool="import">导入存档</button>
+      </div>
+    </section>
+    <section class="settings-group danger-zone">
+      <h2 class="settings-title">危险区</h2>
+      <p class="danger-hint">删除当前存档并重新开始，此操作不可撤销。</p>
+      <div class="settings-actions">
+        <button type="button" class="tool-btn danger" data-tool="reset">重置存档</button>
+      </div>
+    </section>
+    <section class="settings-group">
+      <h2 class="settings-title">关于</h2>
+      <div class="about-version">深空拓荒 · 星系统一联邦 v${escapeHtml(status.version)}</div>
+      <div class="about-status">${escapeHtml(status.statusText)}</div>
+    </section>`
 }
 
 // ---- 军事面板 ----
@@ -865,10 +944,10 @@ export function renderBuyMaxModal(el: HTMLElement, data: BuyMaxModalData): void 
   const energy = preview.energyWarning
   const energyWarn =
     energy && energy.bought > energy.maxDriven
-      ? `<div class="buy-max-warn">⚠ 能源平衡：当前产出 ${formatNumber(energy.production)}/s · 需求 ${formatNumber(energy.consumption)}/s · 最多可驱动 ${energy.maxDriven} 台 · 本次将买 ${energy.bought} 台，超出部分无产出。</div>`
+      ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 能源平衡：当前产出 ${formatNumber(energy.production)}/s · 需求 ${formatNumber(energy.consumption)}/s · 最多可驱动 ${energy.maxDriven} 台 · 本次将买 ${energy.bought} 台，超出部分无产出。</div>`
       : ''
   const emptyWarn = emptyText
-    ? `<div class="buy-max-warn">⚠ 将清空资源：${escapeHtml(emptyText)}（执行后剩余不足 1）</div>`
+    ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 将清空资源：${escapeHtml(emptyText)}（执行后剩余不足 1）</div>`
     : ''
   el.innerHTML = `
     <div class="buy-max-card">
@@ -911,7 +990,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
       .join('、') || '无'
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
-    <div class="ngplus-card">
+    <div class="ngplus-card" data-ngplus-card>
       <div class="buy-max-title">开启新周目</div>
       <div class="buy-max-summary">第 ${state.ngPlusLevel} 周目 → 第 ${preview.nextLevel} 周目。此操作不可逆。</div>
       <div class="ngplus-section-title">将失去（本周目）</div>
