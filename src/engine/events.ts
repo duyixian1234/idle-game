@@ -1,6 +1,7 @@
 import type { EventInstance, GameState, ResourceKey } from './types'
 import { FACTIONS } from './data'
 import { netProduction } from './production'
+import { raidThreshold } from './reputation'
 import { EVENT_STORIES } from './story'
 
 export interface RandomEventDef {
@@ -50,13 +51,14 @@ export interface EventOutcome {
   changed: boolean
 }
 
-/** 当前威胁度最高的可骚扰派系（threat ≥ 阈值且未结盟）；无则 null */
+/** 当前威胁度最高的可骚扰派系（threat ≥ 当前骚扰阈值且未结盟；阈值随声望上移，硬上限 65）；无则 null */
 export function raidableFaction(state: GameState): { id: string; name: string; threat: number } | null {
+  const threshold = raidThreshold(state)
   let best: { id: string; threat: number } | null = null
   for (const def of Object.values(FACTIONS)) {
     const f = state.factions[def.id]
     if (!f || f.allied) continue
-    if (f.threat < RAID_THREAT_THRESHOLD) continue
+    if (f.threat < threshold) continue
     if (!best || f.threat > best.threat) best = { id: def.id, threat: f.threat }
   }
   if (!best) return null
@@ -306,7 +308,7 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
 
   for (const def of Object.values(FACTIONS)) {
     const f = state.factions[def.id]
-    if (!f || f.allied || f.threat < RAID_THREAT_THRESHOLD) continue
+    if (!f || f.allied || f.threat < raidThreshold(state)) continue
     const terms = raidTerms(state, def.id)
     const cap = Math.max(0, gains.mineral * RAID_OFFLINE_LOSS_CAP)
     let repelled = 0

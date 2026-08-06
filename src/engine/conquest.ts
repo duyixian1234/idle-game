@@ -1,5 +1,6 @@
 import { CONQUESTS } from './data'
 import { playMilestone } from './story'
+import { reputationBonuses } from './reputation'
 import type { ConquestState, GameState } from './types'
 
 /**
@@ -52,7 +53,8 @@ export function settleConquests(state: GameState, nowMs: number, rng: () => numb
     if (!cs || cs.startedAt == null || cs.finishAt == null) continue
     if (nowMs < cs.finishAt) continue
     const invest = cs.invested ?? 0
-    const chance = Math.min(1, invest / def.guard)
+    // 成功率 = min(100%, 投入/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
+    const chance = Math.min(1, (invest / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
     const success = rng() < chance
     if (success) {
       cs.status = 'conquered'

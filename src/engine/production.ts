@@ -2,6 +2,7 @@ import { BUILDINGS, LEVEL_PRODUCTION_BONUS, PLANETS, RESOURCE_KEYS, TECHS, TECH_
 import type { TechEffectProduction } from './data'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
+import { reputationBonuses } from './reputation'
 import type { GameState, ResourceKey } from './types'
 
 /**
@@ -21,13 +22,14 @@ export const MILITARY_BASE_CAP = 100
 export const MILITARY_PORT_CAP = 200
 
 /**
- * 军力容量上限：基础 100 + 军港数量 × 200，再乘永久加成（'militaryCap' 键累计，如攻占区域奖励）。
+ * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计。
  * 军力是唯一有上限的资源：满上限时兵营产出截断（浪费语义，逼玩家消费/扩容）。
  */
 export function militaryCap(state: GameState): number {
   const portCount = state.buildings.militaryPort ?? 0
   const bonus = state.permanentBonuses['militaryCap'] ?? 0
-  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount) * (1 + bonus))
+  const repBonus = reputationBonuses(state).militaryCapBonus
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount) * (1 + bonus + repBonus))
 }
 
 export interface ProductionReport {

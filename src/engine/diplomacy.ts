@@ -1,5 +1,6 @@
 import { FACTIONS, RESOURCE_KEYS } from './data'
 import { playMilestone } from './story'
+import { reputationBonuses } from './reputation'
 import type { FactionState, GameState, ResourceKey } from './types'
 
 /** 结盟所需好感阈值 */
@@ -46,11 +47,17 @@ function clampFavor(n: number): number {
   return Math.max(0, Math.min(FAVOR_CAP, n))
 }
 
-/** 贸易成本（随次数递增） */
+/** 贸易成本（随次数递增；声望高 = 信誉好 = 商人给折扣，最终值 ×(1 - 折扣)） */
 export function tradeCost(state: GameState, id: string): Record<ResourceKey, number> {
   const f = state.factions[id]
   const n = f?.tradeCount ?? 0
-  return { mineral: Math.floor(TRADE_BASE_COST * Math.pow(TRADE_COST_GROWTH, n)), energy: 0, tech: 0, military: 0 }
+  const discount = reputationBonuses(state).tradeDiscount
+  return {
+    mineral: Math.floor(TRADE_BASE_COST * Math.pow(TRADE_COST_GROWTH, n) * (1 - discount)),
+    energy: 0,
+    tech: 0,
+    military: 0,
+  }
 }
 
 /** 威慑成本（随次数递增，含科技点） */
