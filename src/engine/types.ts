@@ -38,7 +38,7 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters） */
+/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations——由 save.ts 迁移链支撑） */
 export const SCHEMA_VERSION = 5
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
@@ -82,6 +82,30 @@ export type GamePhase = 'playing' | 'ended' | 'infinite'
 export interface GameStats {
   /** 累计采集矿物（周目内口径，NG+ 重置） */
   totalMineralEarned: number
+  /** 累计完成探索派遣次数（周目内口径，NG+ 重置；探索成就用） */
+  explorations: number
+}
+
+/** 探索结果（出发时固化，防 SL：回归只入账不重抽）：发现势力 / 发现天体 / 资源补偿 */
+export type ExpeditionResult =
+  | { kind: 'faction'; factionId: string }
+  | { kind: 'planet'; planetId: string }
+  | { kind: 'resource'; mineral: number; tech: number; energy: number }
+
+/** 探索派遣状态（单槽：同时最多 1 支；出发时固化结果，回归自动入账后移除） */
+export interface ExpeditionState {
+  /** 派遣 id（存档递增，nextExpeditionId） */
+  id: number
+  /** 出发时间戳（ms） */
+  startedAt: number
+  /** 结算时间戳（ms）= startedAt + EXPEDITION_DURATION_MS */
+  finishAt: number
+  /** 出发时扣除的消耗（含固定兵力；兵力锁定不返还） */
+  cost: { mineral: number; energy: number; military: number }
+  /** 出发时固化的探索结果 */
+  result: ExpeditionResult
+  /** 是否已入账（入账后从 expeditions 移除） */
+  resolved: boolean
 }
 
 /** 成就解锁状态（图鉴跨周目 + 声望周目内双语义） */
@@ -132,6 +156,14 @@ export interface GameState {
   planets: Record<string, PlanetState>
   /** 当前查看/生效的星球 */
   activePlanet: string
+  /** 探索派遣队列（单槽：进行中 ≤ 1 支，引擎侧校验；v6 新增） */
+  expeditions: ExpeditionState[]
+  /** 已发现的探索势力 id（奖池剔除依据，周目重置；v6 新增） */
+  exploredFactions: string[]
+  /** 已发现的探索天体 id（奖池剔除依据，周目重置；v6 新增） */
+  exploredPlanets: string[]
+  /** 下一条派遣 id（递增；v6 新增） */
+  nextExpeditionId: number
   /** 派系外交状态：factionId -> FactionState */
   factions: Record<string, FactionState>
   /** 当前星球连续停留秒数（引力井衰减机制用，切换星球重置） */

@@ -117,7 +117,35 @@ export const REPUTATION_CAP = 100
 /** 骚扰阈值上移硬上限（55 + 10 = 65：铁卫 70/沃克斯 60 满声望仍骚扰，防御玩法永续） */
 export const RAID_THRESHOLD_BONUS_CAP = 10
 
+/** 资源是否足够支付成本（cost 缺省键按 0 处理，兼容手写三键成本） */
 // ---- 攻占 ----
 
 /** 攻占倒计时（分钟）：统一 60 分钟 */
 export const CONQUEST_DURATION_MS = 60 * 60_000
+
+// ---- 探索（通关后派遣） ----
+
+/** 派遣时长（ms）：60 分钟（复用攻占倒计时语义，离线照常推进） */
+export const EXPEDITION_DURATION_MS = 60 * 60_000
+/** 派遣固定军力消耗（兵力硬上限天然冷却；上限 100+200×军港，前期要攒、后期受单槽约束） */
+export const EXPEDITION_MILITARY_COST = 40
+/** 派遣矿物消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——初值，ticket 06 balance-sim 校准 */
+export const EXPEDITION_MINERAL = { min: 3_000, factor: 300, cap: 150_000 }
+/** 派遣能源消耗（随每秒产出动态缩放，带封顶）：{ min, factor, cap }——初值，ticket 06 balance-sim 校准 */
+export const EXPEDITION_ENERGY = { min: 1_000, factor: 150, cap: 60_000 }
+/** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）——初值，ticket 06 balance-sim 校准 */
+export const EXPEDITION_COMPENSATE_RATIO = { mineral: 0.75, energy: 0.75, techPerMineral: 0.01 }
+/** 物流港机制：科技点折算能源折减（每 1 科技点顶 ENERGY 能源缺口，精炼厂能源不足打折幅度降低）——初值，ticket 06 balance-sim 校准 */
+export const LOGISTICS_TECH_ENERGY_RATIO = 0.5
+/** 殖民前哨机制：矿物产出倍率（能源消耗增大为取舍，见 OUTPOST_ENERGY_MULT） */
+export const OUTPOST_MINERAL_MULT = 1.25
+/** 殖民前哨机制：能源折减消费侧倍率（×1.2 更吃能源，有取舍：矿多但更耗能） */
+export const OUTPOST_ENERGY_MULT = 1.2
+
+/**
+ * 带封顶的缩放：Math.min(cap, Math.max(min, Math.floor(rate * factor)))。
+ * 与 events 内部 scaledBy 的区别在**有上限**（探索消耗封顶，防通关后期无穷膨胀成印钞机）。
+ */
+export function scaledClamp(rate: number, min: number, factor: number, cap: number): number {
+  return Math.min(cap, Math.max(min, Math.floor(rate * factor)))
+}

@@ -1,5 +1,7 @@
 import { militaryCap, productionReport } from './production'
 import { settleConquests } from './conquest'
+import { settleExpeditions } from './exploration'
+import type { ExpeditionLog } from './exploration'
 import { settleOfflineRaids } from './events'
 import { OFFLINE_CAP_SECONDS } from './balance'
 import { zeroResources } from './core'
@@ -20,6 +22,8 @@ export interface OfflineResult {
   raidLogs: string[]
   /** 离线期间攻占到期结算日志（main 层 pushLog） */
   conquestLogs: string[]
+  /** 离线期间探索派遣到期结算日志（main 层 pushLog） */
+  expeditionLogs: ExpeditionLog[]
 }
 
 /**
@@ -37,6 +41,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
     gains: zeroResources(),
     raidLogs: [],
     conquestLogs: [],
+    expeditionLogs: [],
   }
   if (raw <= 0) return empty
 
@@ -53,6 +58,8 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   const raids = settleOfflineRaids(state, duration, gains)
   // 离线期间攻占倒计时照常推进，回归时结算到期战报
   const conquestLogs = settleConquests(state, nowMs, rng)
+  // 离线期间探索派遣倒计时照常推进，回归时自动入账（离线推进语义）
+  const expeditionLogs = settleExpeditions(state, nowMs)
 
   for (const k of Object.keys(gains) as ResourceKey[]) {
     state.resources[k] += gains[k]
@@ -73,6 +80,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
     gains,
     raidLogs: raids.logs,
     conquestLogs,
+    expeditionLogs,
   }
 }
 

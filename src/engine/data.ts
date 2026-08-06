@@ -212,10 +212,15 @@ export interface FactionDef {
   initialFavor: number
   /** 初始军力威胁度 0-100 */
   initialThreat: number
+  /** 贸易成本额外折扣（与声望折扣乘法叠加，如 0.05 = 再 -5%；探索势力专属，可缺省） */
+  tradeDiscount?: number
+  /** 技术共享成本倍率（如 0.5 = 科技点半价；探索势力专属，可缺省） */
+  techShareCostMult?: number
 }
 
 /** 派系定义表（4 派系） */
-export const FACTIONS: Record<string, FactionDef> = {  ferro: {
+export const FACTIONS: Record<string, FactionDef> = {
+  ferro: {
     id: 'ferro',
     name: '铁卫同盟',
     desc: '控制着轨道防御网络的老牌军事集团。',
@@ -372,3 +377,11 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     bonus: { kind: 'production', value: 0.25 },
   },
 }
+
+// ---- 探索奖池（通关后派遣可发现；ticket 02 填充） ----
+
+/** 探索势力池（通关后派遣可发现的新势力，探索发现即创建、参与联邦判定；与 FACTIONS 初始 4 家分离） */
+export const EXPLORE_FACTIONS: Record<string, FactionDef> = {}
+
+/** 探索天体池（通关后派遣可发现的新天体，discoverOnly：只能由探索解锁） */
+export const EXPLORE_PLANETS: Record<string, PlanetDef> = {}

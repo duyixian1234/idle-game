@@ -10,6 +10,7 @@ import type { TechDef } from './data'
 import { LEVEL_PRODUCTION_BONUS, TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
+import { settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
 import { pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
@@ -47,7 +48,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     permanentMult: 1,
     permanentBonuses: {},
     conquest,
-    stats: { totalMineralEarned: 0 },
+    stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
     seed,
     rngCounters: {},
@@ -57,6 +58,10 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     techLevels: {},
     planets,
     activePlanet: 'barren',
+    expeditions: [],
+    exploredFactions: [],
+    exploredPlanets: [],
+    nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,
     lastStormHarvestAt: nowMs,
@@ -345,6 +350,10 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   for (const conquestLog of settleConquests(state, nowMs, rng)) {
     pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
   }
+  // 探索派遣结算（倒计时到期 → 自动入账：新势力/新天体/资源补偿；离线由 settleOffline 调用同函数）
+  for (const expLog of settleExpeditions(state, nowMs)) {
+    pushLog(state, expLog.type, expLog.text)
+  }
   // 结局判定
   checkEnding(state)
   // 成就检查（放在结局判定后：federation 成就依赖 endingTriggered）
@@ -478,7 +487,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
 
   // 周目内统计重置（成就条件全部周目内口径：二周目重新积累声望）；
   // achievements 图鉴保留（跨周目永久记录），unlockedInRound 不匹配 → 声望自动归零
-  state.stats = { totalMineralEarned: 0 }
+  state.stats = { totalMineralEarned: 0, explorations: 0 }
   state.playSeconds = 0
 
   // 星球重置为起点；派系好感重置（图鉴派系加成）

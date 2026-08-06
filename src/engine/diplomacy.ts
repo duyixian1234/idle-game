@@ -1,4 +1,5 @@
 import { FACTIONS, RESOURCE_KEYS } from './data'
+import type { FactionDef } from './data'
 import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
@@ -24,15 +25,20 @@ import type { FactionState, GameState, ResourceKey } from './types'
 export function createFactions(): Record<string, FactionState> {
   const out: Record<string, FactionState> = {}
   for (const def of Object.values(FACTIONS)) {
-    out[def.id] = {
-      favor: def.initialFavor,
-      allied: false,
-      tradeCount: 0,
-      intimidateCount: 0,
-      threat: def.initialThreat,
-    }
+    out[def.id] = createFactionState(def)
   }
   return out
+}
+
+/** 单派系状态构造（初始 4 家与探索发现的新势力共用；favor/threat 取 def 初值） */
+export function createFactionState(def: FactionDef): FactionState {
+  return {
+    favor: def.initialFavor,
+    allied: false,
+    tradeCount: 0,
+    intimidateCount: 0,
+    threat: def.initialThreat,
+  }
 }
 
 function clampFavor(n: number): number {
