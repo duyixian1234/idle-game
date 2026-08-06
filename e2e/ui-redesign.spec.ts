@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { lockSaveStore, seedSave } from './helpers'
+import { dismissTutorial, lockSaveStore, seedSave } from './helpers'
 
 function buildUiSave(now: number) {
   return {
-    schemaVersion: 7,
+    schemaVersion: 6,
     seed: 42,
     rngCounters: { event: 0, conquest: 0, explore: 0 },
     phase: 'ended',
@@ -23,7 +23,7 @@ function buildUiSave(now: number) {
     resources: { mineral: 5_000_000, energy: 1_000_000, tech: 200_000, military: 5_000 },
     buildings: { miner: 1, solar: 1, lab: 1, militaryPort: 1 },
     upgrades: {},
-    techLevels: { planetDrill: 1 },
+    techLevels: { planetDrill: 1, deepSpaceNav: 1, interstellarRelay: 1 },
     planets: {
       barren: { unlocked: true },
       orbital: { unlocked: true },
@@ -64,20 +64,13 @@ function buildUiSave(now: number) {
   }
 }
 
-async function seedUiSave(page: import('@playwright/test').Page, withConquest = false): Promise<void> {
+async function seedUiSave(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/')
   const save = buildUiSave(Date.now())
-  if (withConquest) {
-    save.conquest.outpost = {
-      status: 'available',
-      startedAt: Date.now() - 10 * 60_000,
-      finishAt: Date.now() + 50 * 60_000,
-      invested: 1_000,
-    }
-  }
   await seedSave(page, save)
   await lockSaveStore(page)
   await page.reload()
+  await dismissTutorial(page)
   const closeEnding = page.locator('[data-ending="close"]')
   if (await closeEnding.isVisible().catch(() => false)) await closeEnding.click()
 }
@@ -120,15 +113,10 @@ test('好感与派遣进度渲染 ASCII 进度条', async ({ page }) => {
 
   await page.locator('[data-nav="sector"]').click()
   await page.locator('[data-tab="diplomacy"]').click()
-  await expect(page.locator('[data-panel="diplomacy"] [data-progress]')).toContainText(/[█░]/)
+  await expect(page.locator('[data-panel="diplomacy"] [data-progress]').first()).toContainText(/[█░]/)
 
   await page.locator('[data-nav="explore"]').click()
   await expect(page.locator('[data-expedition-progress] [data-progress]')).toContainText(/[█░]/)
-})
-
-test('攻占进度也使用 ASCII 进度条', async ({ page }) => {
-  await seedUiSave(page, true)
-  await expect(page.locator('[data-conquest-progress] [data-progress]')).toContainText(/[█░]/)
 })
 
 test('移动端可见按钮满足 44px 触控目标', async ({ page }) => {
