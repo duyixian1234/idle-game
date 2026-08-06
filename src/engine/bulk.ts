@@ -96,6 +96,7 @@ function runLoop(state: GameState, target: LoopTarget): BulkSpend & { firstFailR
     if (target.atCap(state)) {
       return { count, spent, remaining: { ...state.resources }, stoppedReason: target.capReason, targetLevel }
     }
+
     const before = { ...state.resources }
     const result = target.tryOnce(state)
     if (!result.ok) {
@@ -114,6 +115,33 @@ function runLoop(state: GameState, target: LoopTarget): BulkSpend & { firstFailR
     if (target.levelOf) targetLevel = target.levelOf(state)
   }
   return { count, spent, remaining: { ...state.resources }, stoppedReason: 'resource', targetLevel, firstFailReason }
+}
+
+/** 执行固定次数的批量操作；资源不足时自然提前停止。 */
+function runLimitedLoop(state: GameState, target: LoopTarget, limit: number): BulkSpend & { firstFailReason?: string } {
+  const spent = zeroResources()
+  let count = 0
+  let targetLevel: number | undefined
+  let firstFailReason: string | undefined
+  while (count < limit && !target.atCap(state)) {
+    const before = { ...state.resources }
+    const result = target.tryOnce(state)
+    if (!result.ok) {
+      if (count === 0) firstFailReason = result.reason
+      break
+    }
+    count += 1
+    for (const k of RESOURCE_KEYS) spent[k] += before[k] - state.resources[k]
+    if (target.levelOf) targetLevel = target.levelOf(state)
+  }
+  return {
+    count,
+    spent,
+    remaining: { ...state.resources },
+    stoppedReason: count >= limit ? 'resource' : target.atCap(state) ? target.capReason : 'resource',
+    targetLevel,
+    firstFailReason,
+  }
 }
 
 /** 各 kind 的循环目标 */
@@ -207,6 +235,16 @@ export function executeMaxBuy(state: GameState, kind: BulkKind, id: string): Bul
   if (spend.count === 0 && firstFailReason) {
     return { ok: false, reason: firstFailReason }
   }
+
+  return { ok: true, value: spend }
+}
+
+/** 执行最多 limit 次批量购买/升级，不提供无限买满入口。 */
+export function executeLimitedBuy(state: GameState, kind: BulkKind, id: string, limit: number): BulkActionResult {
+  if (!Number.isInteger(limit) || limit <= 0) return { ok: false, reason: '批量数量无效' }
+  if (isUniqueBlocked(kind, id)) return { ok: false, reason: '唯一建筑不支持批量操作' }
+  const { firstFailReason, ...spend } = runLimitedLoop(state, loopTargetFor(state, kind, id), limit)
+  if (spend.count === 0 && firstFailReason) return { ok: false, reason: firstFailReason }
   return { ok: true, value: spend }
 }
 
@@ -216,6 +254,15 @@ export function executeDiplomacyMax(state: GameState, factionId: string, action:
   if (spend.count === 0 && firstFailReason) {
     return { ok: false, reason: firstFailReason }
   }
+
+  return { ok: true, value: spend }
+}
+
+/** 执行最多 limit 次外交批量操作。 */
+export function executeLimitedDiplomacy(state: GameState, factionId: string, action: 'trade' | 'techShare', limit: number): BulkActionResult {
+  if (!Number.isInteger(limit) || limit <= 0) return { ok: false, reason: '批量数量无效' }
+  const { firstFailReason, ...spend } = runLimitedLoop(state, diplomacyLoopTarget(state, factionId, action), limit)
+  if (spend.count === 0 && firstFailReason) return { ok: false, reason: firstFailReason }
   return { ok: true, value: spend }
 }
 

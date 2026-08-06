@@ -10,7 +10,7 @@ import {
   upgradeBuilding,
   upgradeTech,
 } from '../engine/engine'
-import { executeDiplomacyMax, executeMaxBuy } from '../engine/bulk'
+import { executeDiplomacyMax, executeLimitedBuy, executeLimitedDiplomacy, executeMaxBuy } from '../engine/bulk'
 import type { BulkSpend } from '../engine/bulk'
 import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
@@ -94,7 +94,8 @@ function bulkOnFailure(_state: GameState, _payload: string | number, reason: str
 
 /** 外交批量：payload 为 "factionId:action"（trade | techshare） */
 function runDiplomacyMax(state: GameState, payload: string | number): unknown {
-  const [factionId, action] = String(payload).split(':')
+  const [factionId, action, limitText] = String(payload).split(':')
+  if (limitText) return executeLimitedDiplomacy(state, factionId, action === 'techshare' ? 'techShare' : 'trade', Number(limitText))
   return executeDiplomacyMax(state, factionId, action === 'techshare' ? 'techShare' : 'trade')
 }
 
@@ -149,7 +150,8 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'buy',
     run: (state, id) => buyBuilding(state, String(id)),
     feedback: (state, _r, id) => {
-      const name = BUILDINGS[String(id)]?.name ?? String(id)
+      const buildingId = String(id).split(':')[0]
+      const name = BUILDINGS[buildingId]?.name ?? buildingId
       return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${formatNumber(state.buildings[String(id)] ?? 0)} 台）。` }], sound: 'click' }
     },
   },
@@ -157,7 +159,8 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'upgrade',
     run: (state, id) => upgradeBuilding(state, String(id)),
     feedback: (state, _r, id) => {
-      const name = BUILDINGS[String(id)]?.name ?? String(id)
+      const buildingId = String(id).split(':')[0]
+      const name = BUILDINGS[buildingId]?.name ?? buildingId
       return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${formatNumber(state.upgrades[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
@@ -165,7 +168,8 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'research',
     run: (state, id) => researchTech(state, String(id)),
     feedback: (_state, _r, id) => {
-      const name = TECHS[String(id)]?.name ?? String(id)
+      const techId = String(id).split(':')[0]
+      const name = TECHS[techId]?.name ?? techId
       return { logs: [{ type: 'reward', text: `科技「${name}」研发完成，新能力已生效。` }], sound: 'success' }
     },
   },
@@ -196,28 +200,40 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   buyMax: {
     id: 'buyMax',
-    run: (state, id) => executeMaxBuy(state, 'building', String(id)),
+    run: (state, id) => {
+      const [buildingId, limitText] = String(id).split(':')
+      return limitText ? executeLimitedBuy(state, 'building', buildingId, Number(limitText)) : executeMaxBuy(state, 'building', buildingId)
+    },
     feedback: (_state, _r, id) => {
-      const name = BUILDINGS[String(id)]?.name ?? String(id)
-      return bulkFeedbackText(_r, `一键买满「${name}」：购买`)
+      const [buildingId, limitText] = String(id).split(':')
+      const name = BUILDINGS[buildingId]?.name ?? buildingId
+      return bulkFeedbackText(_r, limitText ? `批量购买「${name}」` : `一键买满「${name}」：购买`)
     },
     onFailure: bulkOnFailure,
   },
   upgradeMax: {
     id: 'upgradeMax',
-    run: (state, id) => executeMaxBuy(state, 'buildingUpgrade', String(id)),
+    run: (state, id) => {
+      const [buildingId, limitText] = String(id).split(':')
+      return limitText ? executeLimitedBuy(state, 'buildingUpgrade', buildingId, Number(limitText)) : executeMaxBuy(state, 'buildingUpgrade', buildingId)
+    },
     feedback: (_state, _r, id) => {
-      const name = BUILDINGS[String(id)]?.name ?? String(id)
-      return bulkFeedbackText(_r, `一键升满「${name}」：升级`)
+      const [buildingId, limitText] = String(id).split(':')
+      const name = BUILDINGS[buildingId]?.name ?? buildingId
+      return bulkFeedbackText(_r, limitText ? `批量升级「${name}」` : `一键升满「${name}」：升级`)
     },
     onFailure: bulkOnFailure,
   },
   upgradeTechMax: {
     id: 'upgradeTechMax',
-    run: (state, id) => executeMaxBuy(state, 'techUpgrade', String(id)),
+    run: (state, id) => {
+      const [techId, limitText] = String(id).split(':')
+      return limitText ? executeLimitedBuy(state, 'techUpgrade', techId, Number(limitText)) : executeMaxBuy(state, 'techUpgrade', techId)
+    },
     feedback: (_state, _r, id) => {
-      const name = TECHS[String(id)]?.name ?? String(id)
-      return bulkFeedbackText(_r, `一键升满科技「${name}」：升级`)
+      const [techId, limitText] = String(id).split(':')
+      const name = TECHS[techId]?.name ?? techId
+      return bulkFeedbackText(_r, limitText ? `批量升级科技「${name}」` : `一键升满科技「${name}」：升级`)
     },
     onFailure: bulkOnFailure,
   },
@@ -225,9 +241,9 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'diplomacyMax',
     run: runDiplomacyMax,
     feedback: (_state, _r, payload) => {
-      const [factionId, action] = String(payload).split(':')
+      const [factionId, action, limitText] = String(payload).split(':')
       const name = FACTIONS[factionId]?.name ?? factionId
-      return bulkFeedbackText(_r, `与${name}${action === 'techshare' ? '技术共享' : '贸易'}`)
+      return bulkFeedbackText(_r, `与${name}${limitText ? '批量' : ''}${action === 'techshare' ? '技术共享' : '贸易'}`)
     },
     onFailure: bulkOnFailure,
   },
