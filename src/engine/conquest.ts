@@ -1,6 +1,7 @@
 import { CONQUESTS } from './data'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
+import { rollDomain } from './rng'
 import type { ConquestState, GameState } from './types'
 
 /**
@@ -45,8 +46,12 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
   return { ok: true }
 }
 
-/** 结算已到期的攻占（成功/失败），返回日志文本（由调用方 pushLog） */
-export function settleConquests(state: GameState, nowMs: number, rng: () => number = Math.random): string[] {
+/**
+ * 结算已到期的攻占（成功/失败），返回日志文本（由调用方 pushLog）。
+ * rng 不传（undefined）→ 结果型随机走 conquest 域持久化计数器（fixed-rng 防 SL）；
+ * 显式传 rng → 测试注入（跳过计数器，行为与现状一致）。
+ */
+export function settleConquests(state: GameState, nowMs: number, rng?: () => number): string[] {
   const logs: string[] = []
   for (const def of Object.values(CONQUESTS)) {
     const cs = state.conquest[def.id]
@@ -55,7 +60,7 @@ export function settleConquests(state: GameState, nowMs: number, rng: () => numb
     const invest = cs.invested ?? 0
     // 成功率 = min(100%, 投入/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
     const chance = Math.min(1, (invest / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
-    const success = rng() < chance
+    const success = (rng ?? rollDomain(state, 'conquest'))() < chance
     if (success) {
       cs.status = 'conquered'
       delete cs.startedAt

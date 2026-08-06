@@ -12,6 +12,7 @@ import {
 } from './balance'
 import { netProduction } from './production'
 import { raidThreshold } from './reputation'
+import { rollDomain, streamFor } from './rng'
 import { EVENT_STORIES } from './story'
 
 export interface RandomEventDef {
@@ -61,17 +62,22 @@ export function raidableFaction(state: GameState): { id: string; name: string; t
   return { id: best.id, name: FACTIONS[best.id]?.name ?? best.id, threat: best.threat }
 }
 
-/** 按权重随机选择事件定义（raid 为动态项：有威胁派系时进入候选；母巢攻占后虫族警报权重归 0） */
-export function pickEventDef(state: GameState, rng: () => number = Math.random): RandomEventDef {
+/**
+ * 按权重随机选择事件定义（raid 为动态项：有威胁派系时进入候选；母巢攻占后虫族警报权重归 0）。
+ * rng 不传（undefined）→ 结果型随机走 event 域持久化计数器（fixed-rng 防 SL）；
+ * 显式传 rng → 测试注入（跳过计数器，行为与现状一致）。
+ */
+export function pickEventDef(state: GameState, rng?: () => number): RandomEventDef {
   // 叙事闭环：虫群母巢被攻占后，虫族警报事件不再触发（母巢被端、虫灾绝迹）
   const nestConquered = state.conquest.nest?.status === 'conquered'
   const pool = EVENT_DEFS.filter((d) => !(d.id === 'bug' && nestConquered))
   if (raidableFaction(state)) pool.push({ id: 'raid', name: '军事骚扰', weight: RAID_EVENT_WEIGHT, kind: 'raid' })
   const total = pool.reduce((sum, d) => sum + d.weight, 0)
-  let roll = rng() * total
+  const roll = rng ?? rollDomain(state, 'event')
+  let value = roll() * total
   for (const def of pool) {
-    roll -= def.weight
-    if (roll <= 0) return def
+    value -= def.weight
+    if (value <= 0) return def
   }
   return pool[pool.length - 1]
 }
@@ -334,10 +340,14 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
   return { logs, repelled: totalRepelled, mineralLost: totalMineralLost, energyLost: totalEnergyLost }
 }
 
-/** 触发一次随机事件：trade/bug/meteor/raid 均进入待处理队列（交互事件） */
-export function triggerRandomEvent(state: GameState, rng: () => number = Math.random): string | null {
-  const def = pickEventDef(state, rng)
-  const instance = createEventInstance(state, def.id, rng)
+/**
+ * 触发一次随机事件：trade/bug/meteor/raid 均进入待处理队列（交互事件）。
+ * 分层（fixed-rng）：rng 不传 → 事件类型走 event 域持久化计数器、事件文案走 seed 派生即时流
+ * （计数器只 +1 不 +3）；显式传 rng → 全链注入（测试路径，行为与现状一致）。
+ */
+export function triggerRandomEvent(state: GameState, rng?: () => number): string | null {
+  const def = rng ? pickEventDef(state, rng) : pickEventDef(state)
+  const instance = createEventInstance(state, def.id, rng ?? streamFor(state))
   state.pendingEvents.push(instance)
   return null
 }

@@ -22,7 +22,7 @@ import { formatPlayTime } from './format'
 import { netProduction, productionReport, militaryCap, levelMultiplier } from './production'
 import { computeNgPlusInheritance } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
-import { randSeed } from './rng'
+import { randSeed, streamFor } from './rng'
 // re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
 export { NG_PLUS_TECH_BASE, NG_PLUS_PERMANENT_BONUS, CODEX_FAVOR_BONUS } from './balance'
 
@@ -296,9 +296,11 @@ export function convertMineralToTech(
  * 推进时间：按真实时间差结算资源产出。
  * 消耗能源的建筑按能源可得比例结算，能源不会为负。
  * 到点触发随机事件（可注入 rng 以确定性测试）。
+ * rng 不传（undefined）→ 生产模式：结果型随机走持久域、装饰型走即时流（fixed-rng 防 SL）；
+ * 显式传 rng → 测试注入（全链透传，行为与现状一致）。
  * @param nowMs 当前时间戳（测试可注入）
  */
-export function tick(state: GameState, nowMs: number, rng: () => number = Math.random): GameState {
+export function tick(state: GameState, nowMs: number, rng?: () => number): GameState {
   const dtMs = Math.max(0, nowMs - state.lastTick)
   if (dtMs <= 0) return state
   const dt = dtMs / 1000
@@ -325,9 +327,10 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   }
 
   // 随机事件：到点触发一次并安排下一次（无限模式更密）
+  // 事件类型走持久域（triggerRandomEvent 内部 rng undefined → rollDomain），间隔抖动走即时流（streamFor）
   if (nowMs >= state.nextEventAt) {
     const outcomeText = triggerRandomEvent(state, rng)
-    scheduleNextEvent(state, nowMs, rng, eventGapScale(state))
+    scheduleNextEvent(state, nowMs, rng ?? streamFor(state), eventGapScale(state))
     if (outcomeText) {
       pushLog(state, 'event', outcomeText)
     }
@@ -338,7 +341,7 @@ export function tick(state: GameState, nowMs: number, rng: () => number = Math.r
   checkPlanetUnlocks(state)
   // 统一前夕叙事（3/4 达成时）
   checkFederationPendingStory(state)
-  // 攻占结算（倒计时到期 → 成功/失败）
+  // 攻占结算（倒计时到期 → 成功/失败；rng undefined → 走 conquest 域持久化计数器）
   for (const conquestLog of settleConquests(state, nowMs, rng)) {
     pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
   }

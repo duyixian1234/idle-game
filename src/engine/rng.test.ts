@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from './engine'
+import { createInitialState, tick } from './engine'
+import { settleConquests, startConquest } from './conquest'
+import { pickEventDef, triggerRandomEvent } from './events'
+import { settleOffline } from './offline'
 import { mulberry32, randSeed, rollDomain, SALT, streamFor } from './rng'
 import type { GameState } from './types'
+
+/** 初始档所有派系威胁清零：事件池固定为基础 3 类（trade 4 / meteor 3 / bug 2，total 9），无 raid 干扰 */
+function fixedPool(state: GameState): GameState {
+  for (const f of Object.values(state.factions)) f.threat = 0
+  return state
+}
 
 describe('engine: mulberry32 PRNG', () => {
   it('对固定 seed 输出确定快照序列（写死前 10 个值，可审计）', () => {
@@ -140,5 +149,110 @@ describe('engine: createInitialState 种子参数化', () => {
     expect(auto.seed).toBeGreaterThanOrEqual(0)
     expect(auto.seed).toBeLessThan(0x100000000)
     expect(auto.rngCounters).toEqual({})
+  })
+})
+
+describe('engine: 接线（结果型走持久域）', () => {
+  it('pickEventDef 不传 rng：连续调用消耗 event 域且结果确定', () => {
+    const s = fixedPool(createInitialState(0, 42))
+    const def1 = pickEventDef(s)
+    expect(s.rngCounters.event).toBe(1)
+    pickEventDef(s)
+    expect(s.rngCounters.event).toBe(2)
+    // 同 (seed, counter) 独立实例重放 → 同结果
+    const replay = pickEventDef(fixedPool(createInitialState(0, 42)))
+    expect(replay.id).toBe(def1.id)
+  })
+
+  it('triggerRandomEvent 不传 rng：事件类型消耗 event 域恰 1 次（文案走即时流不增计数）', () => {
+    const s = fixedPool(createInitialState(0, 42))
+    triggerRandomEvent(s)
+    expect(s.rngCounters.event).toBe(1)
+    expect(s.rngCounters.conquest).toBeUndefined()
+    expect(s.pendingEvents).toHaveLength(1)
+    // 重放：同 seed 同 counter 的独立 state 触发同一事件类型
+    const s2 = fixedPool(createInitialState(0, 42))
+    triggerRandomEvent(s2)
+    expect(s2.pendingEvents[0].defId).toBe(s.pendingEvents[0].defId)
+  })
+
+  it('settleConquests 不传 rng：走 conquest 域（足额投入消耗 1 次计数且必成）', () => {
+    const s = createInitialState(0, 42)
+    s.planets.ice = { unlocked: true }
+    s.resources.military = 100_000
+    startConquest(s, 'outpost', 2_000, 0) // 足额 → chance = 1
+    const logs = settleConquests(s, 60 * 60_000)
+    expect(s.rngCounters.conquest).toBe(1)
+    expect(logs[0]).toContain('捷报')
+    expect(s.conquest.outpost.status).toBe('conquered')
+  })
+
+  it('settleConquests 不传 rng：薄投结果仅由 (seed, counter) 决定（重放一致）', () => {
+    const run = () => {
+      const s = createInitialState(0, 42)
+      s.planets.ice = { unlocked: true }
+      s.resources.military = 100_000
+      startConquest(s, 'outpost', 200, 0) // 薄投 → chance < 1
+      const logs = settleConquests(s, 60 * 60_000)
+      return { log: logs[0], status: s.conquest.outpost.status, counter: s.rngCounters.conquest }
+    }
+    expect(run()).toEqual(run())
+  })
+
+  it('tick 不传 rng：事件类型 event 域 + 攻占 conquest 域各计各的', () => {
+    const s = fixedPool(createInitialState(0, 42))
+    s.nextEventAt = 10_000
+    s.planets.ice = { unlocked: true }
+    s.resources.military = 100_000
+    startConquest(s, 'outpost', 2_000, 0) // finishAt = 3_600_000
+    tick(s, 3_600_000) // 事件（已到点）+ 攻占（已到期），均不传 rng
+    expect(s.rngCounters.event).toBe(1)
+    expect(s.rngCounters.conquest).toBe(1)
+    expect(s.pendingEvents).toHaveLength(1)
+    expect(s.conquest.outpost.status).toBe('conquered')
+  })
+
+  it('settleOffline 不传 rng：离线攻占结算走 conquest 域', () => {
+    const s = fixedPool(createInitialState(0, 42))
+    s.lastTick = 0
+    s.planets.ice = { unlocked: true }
+    s.resources.military = 100_000
+    startConquest(s, 'outpost', 2_000, 0) // finishAt = 3_600_000
+    const r = settleOffline(s, 3_600_000)
+    expect(r.conquestLogs).toHaveLength(1)
+    expect(s.rngCounters.conquest).toBe(1)
+  })
+})
+
+describe('engine: 防 SL 语义（保存 → 恢复 → 序列延续）', () => {
+  it('恢复快照后继续 roll，与未中断连续 roll 序列完全一致', () => {
+    const makeState = () => fixedPool(createInitialState(0, 42))
+    // 未中断：连续 roll 6 次
+    const a = makeState()
+    const defsA: string[] = []
+    for (let i = 0; i < 6; i++) defsA.push(pickEventDef(a).id)
+    // 中断：roll 3 次 → 深拷贝模拟存档恢复 → 再 roll 3 次
+    const b = makeState()
+    const defsB: string[] = []
+    for (let i = 0; i < 3; i++) defsB.push(pickEventDef(b).id)
+    const snapshot = JSON.parse(JSON.stringify(b)) as GameState // 存档恢复（含 rngCounters）
+    for (let i = 0; i < 3; i++) defsB.push(pickEventDef(snapshot).id)
+    expect(defsB).toEqual(defsA)
+  })
+
+  it('装饰型 stream 不改变任何持久化状态（全状态快照断言）', () => {
+    const s = createInitialState(0, 42)
+    const before = JSON.stringify(s)
+    const stream = streamFor(s)
+    stream(); stream(); stream()
+    expect(JSON.stringify(s)).toBe(before)
+  })
+
+  it('显式注入 rng 跳过计数器（测试路径不污染持久化状态）', () => {
+    const s = fixedPool(createInitialState(0, 42))
+    triggerRandomEvent(s, () => 0.1) // 注入 rng
+    expect(s.rngCounters).toEqual({})
+    expect(s.pendingEvents).toHaveLength(1)
+    expect(s.pendingEvents[0].defId).toBe('trade') // 0.1*9=0.9 → trade
   })
 })

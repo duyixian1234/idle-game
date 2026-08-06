@@ -25,9 +25,10 @@ export interface OfflineResult {
 /**
  * 离线收益结算：按存档 lastTick 与 nowMs 的时间差结算产出，8 小时封顶。
  * 结算后 lastTick 更新为 nowMs，后续 tick 不会重复结算。
+ * rng 不传（undefined）→ 攻占结算走 conquest 域持久化计数器（fixed-rng）；显式传 rng → 测试注入。
  * @param nowMs 当前时间戳（测试注入）
  */
-export function settleOffline(state: GameState, nowMs: number, rng: () => number = Math.random): OfflineResult {
+export function settleOffline(state: GameState, nowMs: number, rng?: () => number): OfflineResult {
   const raw = Math.max(0, (nowMs - state.lastTick) / 1000)
   const empty: OfflineResult = {
     durationSeconds: 0,
