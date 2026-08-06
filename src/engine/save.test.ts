@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { pushLog } from './core'
+import { reputation } from './reputation'
 import { deserializeSave, isValidSave, serializeSave } from './save'
 import { SCHEMA_VERSION } from './types'
 
@@ -37,7 +38,7 @@ describe('engine: 存档序列化往返', () => {
     expect((migrated as unknown as Record<string, unknown>).researched).toBeUndefined()
   })
 
-  it('v2 旧档（三键资源、无军力字段）迁移为 v3：军力 0、永久加成/攻占为空', () => {
+  it('v2 旧档（三键资源、无军力字段）迁移为当前版本：军力 0、永久加成/攻占为空', () => {
     const s = createInitialState(0)
     s.resources.mineral = 123
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
@@ -49,7 +50,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).permanentBonuses
     delete (raw as Record<string, unknown>).conquest
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(3)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.resources).toEqual({ mineral: 123, energy: 0, tech: 0, military: 0 })
     expect(migrated.permanentBonuses).toEqual({})
     expect(migrated.conquest).toEqual({})
@@ -58,7 +59,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.buildings).toEqual(s.buildings)
   })
 
-  it('v1 旧档链式迁移直达 v3（v1→v2→v3）', () => {
+  it('v1 旧档链式迁移直达当前版本（v1→v2→v3→v4）', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 1
@@ -67,7 +68,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).permanentBonuses
     delete (raw as Record<string, unknown>).conquest
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(3)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.techLevels).toEqual({ nanoFab: 1 })
     expect(migrated.resources.military).toBe(0)
     expect(migrated.permanentBonuses).toEqual({})
@@ -92,6 +93,55 @@ describe('engine: 存档序列化往返', () => {
     const raw = { ...s }
     delete (raw as Record<string, unknown>).upgrades
     expect(isValidSave(raw)).toBe(false)
+  })
+
+  it('v3 旧档迁移为 v4：回溯解锁已满足成就、不发资源奖励、声望生效', () => {
+    const s = createInitialState(0)
+    // 模拟老玩家进度：首次建造/首次科技已发生、贸易 50 次（4×13=52）、矿物 200 万
+    s.storyFlags.firstBuild = true
+    s.storyFlags.firstTech = true
+    for (const id of Object.keys(s.factions)) s.factions[id].tradeCount = 13
+    s.stats.totalMineralEarned = 2_000_000
+    const mineralBefore = s.resources.mineral
+    const techBefore = s.resources.tech
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 3
+    delete (raw as Record<string, unknown>).achievements
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    // 回溯解锁：满足条件的成就已解锁（unlockedInRound = 当前周目 0）
+    expect(migrated.achievements.firstBuild?.unlockedInRound).toBe(0)
+    expect(migrated.achievements.trades50?.unlockedInRound).toBe(0)
+    expect(migrated.achievements.mineral1M?.unlockedInRound).toBe(0)
+    expect(migrated.achievements.mineral100M).toBeUndefined()
+    expect(migrated.achievements.ng2).toBeUndefined() // ngPlusLevel 0 不满足
+    // 不补发资源奖励
+    expect(migrated.resources.mineral).toBe(mineralBefore)
+    expect(migrated.resources.tech).toBe(techBefore)
+    // 声望派生生效（firstBuild 2 + firstTech 2 + trades50 4 + mineral1M 3 = 11）
+    expect(reputation(migrated)).toBe(11)
+    // 迁移路径不写解锁日志
+    expect(migrated.log).toEqual(s.log)
+  })
+
+  it('v3 旧档二周目回溯：unlockedInRound = 当前周目 1', () => {
+    const s = createInitialState(0)
+    s.ngPlusLevel = 1
+    s.storyFlags.firstBuild = true
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 3
+    delete (raw as Record<string, unknown>).achievements
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.achievements.firstBuild?.unlockedInRound).toBe(1)
+    // 声望计入当前周目：firstBuild(2) + ng2(5, ngPlusLevel≥1) = 7
+    expect(reputation(migrated)).toBe(7)
+  })
+
+  it('v4 存档往返保留 achievements', () => {
+    const s = createInitialState(0)
+    s.achievements.firstBuild = { unlockedAt: 100, unlockedInRound: 0 }
+    const restored = deserializeSave(serializeSave(s))
+    expect(restored.achievements).toEqual({ firstBuild: { unlockedAt: 100, unlockedInRound: 0 } })
   })
 
   it('非法 JSON 抛错', () => {
