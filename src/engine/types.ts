@@ -39,7 +39,7 @@ export interface EventInstance {
 }
 
 /** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations——由 save.ts 迁移链支撑） */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'

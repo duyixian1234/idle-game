@@ -1,4 +1,4 @@
-import { CONQUESTS, FACTIONS, RESOURCE_KEYS } from './data'
+import { ALL_FACTIONS, CONQUESTS, RESOURCE_KEYS } from './data'
 import { NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
 import { reputation } from './reputation'
 import type { GameState, ResourceKey } from './types'
@@ -45,6 +45,10 @@ export interface NgPlusLost {
   totalMineralEarned: number
   /** 周目内在线秒数（NG+ 重置） */
   playSeconds: number
+  /** 已发现的探索势力/天体数（NG+ 重置，派遣中任务静默丢弃） */
+  exploredCount: number
+  /** 是否存在派遣中任务（NG+ 将静默丢弃不退款） */
+  expeditionOngoing: boolean
 }
 
 /** 确认弹窗预览契约（纯数据，无方法） */
@@ -62,7 +66,8 @@ export interface NgPlusPreview {
 export function computeNgPlusInheritance(state: GameState): NgPlusInheritance {
   const nextLevel = state.ngPlusLevel + 1
   const codexFactions = [...state.factionCodex]
-  for (const def of Object.values(FACTIONS)) {
+  // 遍历 ALL_FACTIONS（含探索发现的新势力：结盟历史同样继承）
+  for (const def of Object.values(ALL_FACTIONS)) {
     if (state.factions[def.id]?.allied && !codexFactions.includes(def.id)) {
       codexFactions.push(def.id)
     }
@@ -78,7 +83,7 @@ export function computeNgPlusInheritance(state: GameState): NgPlusInheritance {
 /** 预览 NG+（纯函数：不修改 state，调用前后状态不变） */
 export function previewNewGamePlus(state: GameState): NgPlusPreview {
   const inh = computeNgPlusInheritance(state)
-  const alliedFactions = Object.values(FACTIONS).filter((d) => state.factions[d.id]?.allied).map((d) => d.id)
+  const alliedFactions = Object.values(ALL_FACTIONS).filter((d) => state.factions[d.id]?.allied).map((d) => d.id)
   const conquered = Object.values(CONQUESTS).filter((d) => state.conquest[d.id]?.status === 'conquered').length
   return {
     ...inh,
@@ -92,6 +97,8 @@ export function previewNewGamePlus(state: GameState): NgPlusPreview {
       reputation: reputation(state),
       totalMineralEarned: state.stats.totalMineralEarned,
       playSeconds: state.playSeconds,
+      exploredCount: state.exploredFactions.length + state.exploredPlanets.length,
+      expeditionOngoing: state.expeditions.some((e) => !e.resolved),
     },
   }
 }

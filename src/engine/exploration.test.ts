@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, setActivePlanet, tick } from './engine'
+import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, setActivePlanet, startNewGamePlus, tick } from './engine'
 import { expeditionCost, expeditionPool, isExploreAvailable, settleExpeditions, startExpedition } from './exploration'
 import { settleOffline } from './offline'
+import { previewNewGamePlus } from './ngplus'
 import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
 import { EXPEDITION_DURATION_MS, OUTPOST_ENERGY_MULT, OUTPOST_MINERAL_MULT } from './balance'
 import { productionReport } from './production'
@@ -363,5 +364,53 @@ describe('engine: 探索天体机制', () => {
     s.activePlanet = 'outpost'
     // 10 精炼厂 × 3/s × 科技 1.5 × 前哨 1.25 = 56.25
     expect(productionReport(s).nominal.mineral).toBeCloseTo(10 * 3 * 1.5 * OUTPOST_MINERAL_MULT, 6)
+  })
+})
+
+describe('engine: 探索与 NG+ 交互（决策 Q18）', () => {
+  it('NG+ 重置探索字段：派遣丢弃、发现进度清零、id 归 1、统计归零', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition())
+    s.exploredFactions = ['ashCommune', 'ringOrder']
+    s.exploredPlanets = ['logistics']
+    s.nextExpeditionId = 3
+    s.stats.explorations = 2
+    const militaryBefore = s.resources.military
+    startNewGamePlus(s, 0)
+    expect(s.expeditions).toEqual([])
+    expect(s.exploredFactions).toEqual([])
+    expect(s.exploredPlanets).toEqual([])
+    expect(s.nextExpeditionId).toBe(1)
+    expect(s.stats.explorations).toBe(0)
+    // 派遣中任务静默丢弃不退款（兵力不返还——resources 已整体重置为 0）
+    expect(s.resources.military).toBe(0)
+    expect(militaryBefore).toBeGreaterThan(0)
+  })
+
+  it('NG+ 保留 fixed-rng 字段与 factionCodex（新势力结盟历史继承）', () => {
+    const s = endedState()
+    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35 })
+    s.factions.ashCommune.allied = true
+    s.factionCodex.push('ferro')
+    const seedBefore = s.seed
+    const countersBefore = JSON.stringify(s.rngCounters)
+    startNewGamePlus(s, 0)
+    expect(s.seed).toBe(seedBefore)
+    expect(JSON.stringify(s.rngCounters)).toBe(countersBefore)
+    expect(s.factionCodex).toContain('ashCommune') // 探索势力结盟历史继承
+    expect(s.factionCodex).toContain('ferro')
+  })
+
+  it('previewNewGamePlus 失去清单含探索条目（已收集数 + 派遣中标记）', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition())
+    s.exploredFactions = ['ashCommune']
+    s.exploredPlanets = ['logistics']
+    const p = previewNewGamePlus(s)
+    expect(p.lost.exploredCount).toBe(2)
+    expect(p.lost.expeditionOngoing).toBe(true)
+    // 无派遣时标记 false
+    const s2 = endedState()
+    expect(previewNewGamePlus(s2).lost.expeditionOngoing).toBe(false)
   })
 })

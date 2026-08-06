@@ -158,37 +158,55 @@ describe('engine: 存档序列化往返', () => {
     expect(() => deserializeSave(JSON.stringify(raw))).toThrow(/版本/)
   })
 
-  it('v4 旧档迁移为 v5：补齐 seed/rngCounters，schemaVersion=5', () => {
+  it('v4 旧档迁移为 v6：补齐 seed/rngCounters 与探索字段，schemaVersion=6', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 4
     delete (raw as Record<string, unknown>).seed
     delete (raw as Record<string, unknown>).rngCounters
+    delete (raw as Record<string, unknown>).expeditions
+    delete (raw as Record<string, unknown>).exploredFactions
+    delete (raw as Record<string, unknown>).exploredPlanets
+    delete (raw as Record<string, unknown>).nextExpeditionId
+    ;(raw.stats as Record<string, unknown>).explorations = undefined
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.schemaVersion).toBe(6)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
     expect(migrated.rngCounters).toEqual({})
+    expect(migrated.expeditions).toEqual([])
+    expect(migrated.exploredFactions).toEqual([])
+    expect(migrated.exploredPlanets).toEqual([])
+    expect(migrated.nextExpeditionId).toBe(1)
+    expect(migrated.stats.explorations).toBe(0)
   })
 
-  it('v3 旧档链式迁移直达 v5：不跳过 v5 补齐（回归迁移链陷阱）', () => {
+  it('v3 旧档链式迁移直达 v6：不跳过 v5/v6 补齐（回归迁移链陷阱）', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 3
     delete (raw as Record<string, unknown>).achievements
     delete (raw as Record<string, unknown>).seed
     delete (raw as Record<string, unknown>).rngCounters
+    delete (raw as Record<string, unknown>).expeditions
+    delete (raw as Record<string, unknown>).exploredFactions
+    delete (raw as Record<string, unknown>).exploredPlanets
+    delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.schemaVersion).toBe(6)
     // v5 补齐必须生效：seed 在合法范围、rngCounters 空对象（否则 migrateV3ToV4 误标 5 跳级）
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
     expect(migrated.rngCounters).toEqual({})
+    // v6 补齐必须生效：探索字段默认值
+    expect(migrated.expeditions).toEqual([])
+    expect(migrated.exploredPlanets).toEqual([])
+    expect(migrated.nextExpeditionId).toBe(1)
     // v4 中间产物仍在：成就表补齐
     expect(migrated.achievements).toEqual({})
   })
 
-  it('v1 旧档链式迁移直达 v5（完整链路）', () => {
+  it('v1 旧档链式迁移直达 v6（完整链路）', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 1
@@ -199,24 +217,55 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).achievements
     delete (raw as Record<string, unknown>).seed
     delete (raw as Record<string, unknown>).rngCounters
+    delete (raw as Record<string, unknown>).expeditions
+    delete (raw as Record<string, unknown>).exploredFactions
+    delete (raw as Record<string, unknown>).exploredPlanets
+    delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(5)
+    expect(migrated.schemaVersion).toBe(6)
     expect(migrated.techLevels).toEqual({ planetDrill: 1 })
     expect(migrated.resources.military).toBe(0)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.rngCounters).toEqual({})
+    expect(migrated.expeditions).toEqual([])
+    expect(migrated.nextExpeditionId).toBe(1)
   })
 
-  it('v5 档原样返回（isValidSave 通过）', () => {
+  it('v5 档迁移为 v6：补齐探索字段默认值，保留 seed/rngCounters', () => {
     const s = createInitialState(0, 42)
     s.rngCounters.event = 3
-    const restored = deserializeSave(serializeSave(s))
-    expect(restored.schemaVersion).toBe(5)
-    expect(restored.seed).toBe(42)
-    expect(restored.rngCounters).toEqual({ event: 3 })
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 5
+    delete (raw as Record<string, unknown>).expeditions
+    delete (raw as Record<string, unknown>).exploredFactions
+    delete (raw as Record<string, unknown>).exploredPlanets
+    delete (raw as Record<string, unknown>).nextExpeditionId
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(6)
+    expect(migrated.seed).toBe(42)
+    expect(migrated.rngCounters).toEqual({ event: 3 })
+    expect(migrated.expeditions).toEqual([])
+    expect(migrated.exploredFactions).toEqual([])
+    expect(migrated.exploredPlanets).toEqual([])
+    expect(migrated.nextExpeditionId).toBe(1)
+    expect(migrated.stats.explorations).toBe(0)
   })
 
-  it('isValidSave：缺 seed/rngCounters 的 v5 档非法；v4 档（无 v5 字段）合法', () => {
+  it('v6 档原样返回（isValidSave 通过）', () => {
+    const s = createInitialState(0, 42)
+    s.rngCounters.event = 3
+    s.expeditions = [
+      { id: 1, startedAt: 0, finishAt: 3_600_000, cost: { mineral: 3000, energy: 1000, military: 40 }, result: { kind: 'resource', mineral: 1, tech: 1, energy: 1 }, resolved: false },
+    ]
+    s.exploredFactions = ['ashCommune']
+    const restored = deserializeSave(serializeSave(s))
+    expect(restored.schemaVersion).toBe(6)
+    expect(restored.seed).toBe(42)
+    expect(restored.expeditions).toHaveLength(1)
+    expect(restored.exploredFactions).toEqual(['ashCommune'])
+  })
+
+  it('isValidSave：缺 seed/rngCounters 的 v5 档非法；v4 档（无 v5 字段）合法；v6 档缺探索字段非法', () => {
     const s = createInitialState(0, 42)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     // v5 档缺 seed → 非法
@@ -227,11 +276,23 @@ describe('engine: 存档序列化往返', () => {
     const bad2 = { ...raw }
     delete (bad2 as Record<string, unknown>).rngCounters
     expect(isValidSave(bad2)).toBe(false)
-    // v4 档无 v5 字段 → 合法（since 5 不要求）
+    // v4 档无 v5/v6 字段 → 合法（since 5/6 不要求）
     const v4 = { ...raw, schemaVersion: 4 }
     delete (v4 as Record<string, unknown>).seed
     delete (v4 as Record<string, unknown>).rngCounters
+    delete (v4 as Record<string, unknown>).expeditions
+    delete (v4 as Record<string, unknown>).exploredFactions
+    delete (v4 as Record<string, unknown>).exploredPlanets
+    delete (v4 as Record<string, unknown>).nextExpeditionId
     expect(isValidSave(v4)).toBe(true)
+    // v6 档缺 expeditions → 非法
+    const bad6 = { ...raw }
+    delete (bad6 as Record<string, unknown>).expeditions
+    expect(isValidSave(bad6)).toBe(false)
+    // v6 档缺 nextExpeditionId → 非法
+    const bad6b = { ...raw }
+    delete (bad6b as Record<string, unknown>).nextExpeditionId
+    expect(isValidSave(bad6b)).toBe(false)
   })
 
   it('createInitialState 产物直接通过 isValidSave', () => {

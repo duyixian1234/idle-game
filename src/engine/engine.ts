@@ -495,6 +495,13 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.stats = { totalMineralEarned: 0, explorations: 0 }
   state.playSeconds = 0
 
+  // 探索重置：派遣中任务随 NG+ 静默丢弃不退款（决策 Q18）、发现进度清零、派遣 id 归 1
+  state.expeditions = []
+  state.exploredFactions = []
+  state.exploredPlanets = []
+  state.nextExpeditionId = 1
+  // seed/rngCounters 保留（fixed-rng 已处理：跨周目序列延续）；factionCodex 保留（新势力结盟历史继承）
+
   // 星球重置为起点；派系好感重置（图鉴派系加成）
   const planets: Record<string, { unlocked: boolean; unlockedAt?: number }> = {}
   for (const p of Object.values(PLANETS)) planets[p.id] = { unlocked: p.id === 'barren' }
