@@ -448,6 +448,9 @@ body {
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  /* 窄卡（700-820 视口 3 列 / 480-700 2 列）按钮组空间不足时换行，防横向溢出 */
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
 .build-item.locked {
@@ -1338,7 +1341,14 @@ body {
    注意：不给 .build-btn 设 width:100%（会塞进不换行的 flex 行导致按钮行溢出视口，
    历史上移动端「按钮叠在一起无法游玩」即由此而来）；全宽/堆叠由各容器显式声明。 */
 
-/* 建造卡片网格断点：480-700px 两列（spec 决策：≤480 单列 / 480-700 2 列 / ≥700 3 列） */
+/* 建造卡片网格断点：≤480 单列 / 480-700 两列 / ≥700 三列（spec 决策）；
+   auto-fill minmax(260px) 在 700-820 视口会只排 2 列（260 门槛），≥700 用显式 3 列兜底（容器封顶 860，3 列即上限） */
+@media (min-width: 700px) {
+  .build-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 700px) {
   .build-grid {
     grid-template-columns: repeat(2, 1fr);

@@ -50,7 +50,7 @@
 
 - 自绘线性 SVG，统一 24px viewBox、2px 描边、圆角协调；`fill: currentColor` 支撑状态着色。
 - `<symbol>` sprite 一次性定义（dom.ts 渲染时输出隐藏 sprite 容器），卡片用 `<use href="#ic-<id>">` 引用——250ms 重建只复制 use 节点，控制 DOM 体积与 GC 压力，不引入增量 diff。
-- 图标清单（13 建造项 + 护卫舰 + 天体 3 + 派系徽标 8），线稿概念见 Further Notes。
+- 图标清单（13 建造项 + 护卫舰 + 天体 5 + 派系徽标 8），线稿概念见 Further Notes。
 - 完整性约束：**每个建筑 id 必须有对应 symbol**（测试锁死），未知 id 渲染时缺省兜底图标。
 
 ### 卡片组件与网格（dom.ts renderBuildPanel 重构 + style.css）
