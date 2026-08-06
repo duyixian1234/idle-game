@@ -11,5 +11,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
+    // 全局测试超时：防止模拟类/慢测试挂死拖垮 CI（单用例 60s，失败即报错而非无限等待）
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 })
