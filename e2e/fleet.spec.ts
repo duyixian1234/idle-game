@@ -117,6 +117,11 @@ async function openSector(page: Page, save: Record<string, unknown>): Promise<vo
   await page.locator('[data-nav="sector"]').click()
 }
 
+/** 进入军事 tab（舰队区块所在；orbital 已解锁 → tab enabled；interstellar-build-merge 后舰队区块留此） */
+async function openFleetTab(page: Page): Promise<void> {
+  await page.locator('[data-tab="military"]').click()
+}
+
 test('船坞解锁链：星港 0 级锁定原因显示；星港 ≥1 解锁可建', async ({ page }) => {
   const now = Date.now()
 
@@ -154,6 +159,7 @@ test('造舰至上限（硬约束）：资源不足禁点、满编禁点并提�
     fleet: { count: 0 },
   })
   await openSector(page, poor)
+  await openFleetTab(page)
   const poorBtn = page.locator('[data-fleet-build]')
   await expect(poorBtn).toBeDisabled()
   await expect(poorBtn).toHaveAttribute('title', /矿物不足/)
@@ -166,6 +172,7 @@ test('造舰至上限（硬约束）：资源不足禁点、满编禁点并提�
     fleet: { count: 2 },
   })
   await openSector(page, nearCap)
+  await openFleetTab(page)
   await expect(page.locator('[data-fleet-count]')).toContainText('2.00艘/3.00艘')
   await page.locator('[data-fleet-build]').click()
   await expect(page.locator('[data-log]')).toContainText('护卫舰入列')
@@ -190,6 +197,7 @@ test('自动迎击替代弹窗：事件卡不出现 + 日志出现 + 威胁 −1
   lockAchievements(save, now)
   await page.goto('/')
   await openSector(page, save)
+  await openFleetTab(page)
 
   // 事件触发窗口内：事件卡不出现，日志出现「护卫舰队迎击」与「威胁 −15」
   await expect(page.locator('[data-log]')).toContainText('护卫舰队迎击', { timeout: 15_000 })
@@ -212,6 +220,7 @@ test('停摆与恢复：能源不足警示停摆（自动迎击失效说明）�
   })
   lockAchievements(idle, now)
   await openSector(page, idle)
+  await openFleetTab(page)
   await expect(page.locator('[data-fleet-idle]')).toBeVisible()
   await expect(page.locator('[data-fleet-warn]')).toContainText('停摆')
   await expect(page.locator('[data-fleet-power]')).toContainText('0.00')
@@ -225,6 +234,7 @@ test('停摆与恢复：能源不足警示停摆（自动迎击失效说明）�
   })
   lockAchievements(powered, now)
   await openSector(page, powered)
+  await openFleetTab(page)
   await expect(page.locator('[data-fleet-powered]')).toBeVisible()
   await expect(page.locator('[data-fleet-power]')).toContainText('3,600.00')
   await expect(page.locator('[data-fleet-idle]')).toHaveCount(0)

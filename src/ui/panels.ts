@@ -277,6 +277,8 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(TECHS)) {
+    // 军械科技线（unlockByConquest）由军事面板管理：未攻占不研发、不在科技面板出现
+    if (def.unlockByConquest) continue
     const level = techLevel(state, def.id)
     const researched = isTechResearched(state, def.id)
     const met = techRequirementsMet(state, def.id)
@@ -508,7 +510,6 @@ export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): voi
       <div class="about-version">深空拓荒 · 星系统一联邦 v${escapeHtml(status.version)}</div>
       <div class="about-status">${escapeHtml(status.statusText)}</div>
     </section>`
-  if (state && megastructurePrereqsMet(state)) renderMegastructureSection(el, state)
 }
 
 // ---- 军事面板 ----
@@ -575,7 +576,59 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   return row
 }
 
-/** 渲染军事面板：军事建筑 / 攻占列表 / 星际工程（船坞与舰队）。 */
+/** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板行式同构）：
+ * 未攻占 → 锁定文案（desc 自带「攻占…后解锁」）；已攻占未研发 → 研发按钮；已研发可升级 → 升级按钮（含 +10/+100）。 */
+function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
+  const def = TECHS.militaryTech
+  if (!def) return
+  const conquered = conquestState(state, def.unlockByConquest!).status === 'conquered'
+  const level = techLevel(state, def.id)
+  const researched = isTechResearched(state, def.id)
+  const upgradable = canTechUpgrade(def, level)
+  const canUp = canUpgradeTech(state, def.id)
+  const affordable = canResearchTech(state, def.id)
+
+  const section = document.createElement('div')
+  section.className = 'military-section'
+  const header = document.createElement('div')
+  header.className = 'conquest-header'
+  header.textContent = '军械科技'
+  section.appendChild(header)
+  const item = document.createElement('div')
+  item.className = 'build-item tech-item'
+  item.setAttribute('data-tech', def.id)
+  const mult = def.effect.kind === 'production' ? techMultiplier(def.effect, Math.max(1, level)) : 1
+  const nextMult = def.effect.kind === 'production' ? techMultiplier(def.effect, level + 1) : 1
+  const effectText = `军力产出 ${formatMultiplier(mult)}${level >= 1 ? `（Lv.${formatNumber(level)}${upgradable ? ` → ${formatMultiplier(nextMult)}` : ''}）` : ''}`
+  const info = `
+    <div class="build-info">
+      <div class="build-name">${escapeHtml(def.name)}${researched ? `<span class="build-count researched-badge">${level >= def.maxLevel! ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}</div>
+      <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
+    </div>`
+  // 未攻占且未研发 → 锁定文案；已研发（含测试预置）直接进入研发/升级分支
+  if (!conquered && !researched) {
+    item.innerHTML = `${info}
+      <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(def.desc)}</span></div>`
+  } else if (!researched) {
+    item.innerHTML = `${info}
+      <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁军械科技（${formatCost(techCost(state, def.id))}）">
+        研发 ${formatCost(techCost(state, def.id))}
+      </button>`
+  } else if (!upgradable) {
+    item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>`
+  } else {
+    item.innerHTML = `${info}
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
+        升级 ▶ ${formatCost(techCost(state, def.id))}
+      </button>
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
+      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`
+  }
+  section.appendChild(item)
+  el.appendChild(section)
+}
+
+/** 渲染军事面板：军事建筑 / 攻占列表 / 军械科技 / 舰队管理区（星际工程大件已移至建造页）。 */
 export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
   // 段 1：军事建筑（兵营/军港，含升级与 buy-max；卡片化，与民用同构；军事 tab 不启用锁定卡折叠）
@@ -594,8 +647,10 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   conquestSection.appendChild(header)
   for (const def of defs) conquestSection.appendChild(renderConquestRow(def, state))
   el.appendChild(conquestSection)
-  // 船坞与舰队集中在军事页；军械科技由科技页统一管理。
-  renderInterstellarPanel(el, state, opts)
+  // 段 3：军械科技（攻占「虫群前哨」解锁；行式，未攻占显示锁定文案）
+  renderMilitaryTechSection(el, state)
+  // 段 4：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
+  renderFleetSection(el, state)
 }
 
 // ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
@@ -603,7 +658,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
 /** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
 export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)} · 天体收获倍率上限 ${formatMultiplier(2 * JUMPGATE_HARVEST_MULT)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
 
-/** 军事页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 舰队管理区。 */
+/** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局抉择区块。 */
 export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   const section = document.createElement('div')
   section.className = 'interstellar-section'
@@ -613,8 +668,8 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts:
   header.textContent = '星际工程'
   section.appendChild(header)
   renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS, { ...opts, zoneId: 'interstellar' })
-  // 舰队管理区（船坞等级决定舰数上限；护卫舰维护费 = 能源支出开关）
-  renderFleetSection(section, state)
+  // 终局抉择区块（冶炼场 vs 跃迁枢纽互斥二选一）：星际工程分组内最后一段（还原 f6d3cd5 前挂点）
+  renderMegastructureSection(section, state)
   el.appendChild(section)
 }
 
@@ -696,7 +751,7 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
         <span class="build-count" data-fleet-count>${formatNumber(count)}艘/${formatNumber(cap)}艘</span>
         <span class="build-count">船坞 Lv.${formatNumber(level)}</span>
       </div>
-      <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。</div>
+      <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。船坞升级请前往「建造 · 星际工程」。</div>
       <div class="conquest-meta">
         <span data-fleet-maintenance>维护费 ${formatRate(-maint)} 能源</span>
         ${count > 0 && !powered ? '（停摆中未扣费）' : ''}

@@ -3,7 +3,7 @@ import { createInitialState } from '../engine/engine'
 import { fleetMaintenance, fleetPower } from '../engine/fleet'
 import { formatNumber } from '../engine/format'
 import { TECH_MAX_LEVEL } from '../engine/balance'
-import { buildLayout, renderInterstellarPanel } from './dom'
+import { buildLayout, renderInterstellarPanel, renderMilitaryPanel } from './dom'
 
 describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
   /** 星港 + 船坞已建 + 足量资源（舰队解锁前置满足） */
@@ -25,8 +25,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
     s.upgrades.deepDrill = TECH_MAX_LEVEL
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet]')).toBeTruthy()
     expect(panel.querySelector('[data-fleet-locked]')?.textContent).toContain('星港矿场')
   })
@@ -36,8 +36,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     buildLayout(container)
     const s = fleetReadyState()
     s.upgrades.dock = 0
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(0)}艘`)
     expect((panel.querySelector('[data-fleet-build]') as HTMLButtonElement).disabled).toBe(true)
     expect(panel.querySelector('[data-fleet-build]')?.textContent).toContain('建造护卫舰')
@@ -47,8 +47,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = fleetReadyState()
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(3)}艘`)
     expect((panel.querySelector('[data-fleet-build]') as HTMLButtonElement).disabled).toBe(false)
     expect(panel.querySelector('[data-fleet-maintenance]')?.textContent).toContain('0')
@@ -59,8 +59,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     buildLayout(container)
     const s = fleetReadyState()
     s.fleet.count = 3
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(3)}艘/${formatNumber(3)}艘`)
     const btn = panel.querySelector('[data-fleet-build]') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
@@ -76,8 +76,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const s = fleetReadyState()
     s.fleet.count = 3
     s.resources.energy = 1
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet-idle]')).toBeTruthy()
     expect(panel.querySelector('[data-fleet-warn]')?.textContent).toContain('停摆')
     expect(panel.querySelector('[data-fleet-power]')?.textContent).toContain('0')
@@ -89,8 +89,8 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     const s = fleetReadyState()
     s.resources.mineral = 10
     s.resources.energy = 10
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     const btn = panel.querySelector('[data-fleet-build]') as HTMLButtonElement
     expect(btn.disabled).toBe(true)
     expect(btn.title).toContain('矿物不足')
@@ -101,11 +101,15 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     buildLayout(container)
     const s = fleetReadyState()
     s.upgrades.dock = 10
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
-    const dockCard = panel.querySelector('[data-building="dock"]')
+    // 船坞卡在建造页星际工程分组
+    const buildPanel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(buildPanel, s)
+    const dockCard = buildPanel.querySelector('[data-building="dock"]')
     expect(dockCard?.querySelector('[data-upgrade="dock"]')).toBeNull()
     expect(dockCard?.textContent).toContain('已满级')
-    expect(panel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(24)}艘`)
+    // 舰队区块在军事 tab
+    const militaryPanel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(militaryPanel, s)
+    expect(militaryPanel.querySelector('[data-fleet-count]')?.textContent).toContain(`${formatNumber(0)}艘/${formatNumber(24)}艘`)
   })
 })

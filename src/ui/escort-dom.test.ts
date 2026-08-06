@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
-import { buildLayout, renderExplorePage, renderInterstellarPanel } from './dom'
+import { buildLayout, renderExplorePage, renderMilitaryPanel } from './dom'
 
 /** 通关 + 舰队可护航状态：船坞 Lv1（3 艘）+ 太阳能产出 → 能源 ≥ 维护费（护航可用） */
 function escortUiState() {
@@ -126,8 +126,8 @@ describe('ui: 舰队区护航加成说明（fleet-dock-10）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = escortUiState()
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     const escortNote = panel.querySelector('[data-fleet-escort]')
     expect(escortNote).toBeTruthy()
     expect(escortNote!.textContent).toContain('1.03倍') // 3 艘 = +3%
@@ -139,8 +139,8 @@ describe('ui: 舰队区护航加成说明（fleet-dock-10）', () => {
     buildLayout(container)
     const s = escortUiState()
     s.fleet.count = 0
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet-escort]')).toBeNull()
   })
 })

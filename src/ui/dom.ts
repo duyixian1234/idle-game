@@ -140,15 +140,33 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
       <div class="explore-slots">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
     </div>`)
+  // NG+ 终局卡（仅 infinite 周目渲染；data-ngplus 契约，main 层委托开启确认弹窗）
+  if (state.phase === 'infinite') {
+    parts.push(`
+      <div class="ngplus-terminal" data-ngplus-terminal>
+        <div class="ngplus-terminal-title">当前周目：第 ${formatNumber(state.ngPlusLevel)} 周目</div>
+        <div class="ngplus-terminal-desc">遗产与永久加成已生效。开启新周目将清空本周目进度（建筑/资源/科技/军力），永久加成与探索发现保留；此操作不可撤销。</div>
+        <button type="button" class="ending-btn primary" data-ngplus>开启新周目</button>
+      </div>`)
+  }
   el.innerHTML = parts.join('')
 }
 
-/** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜） */
+/** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜，产出型不参与切换） */
 export function renderPlanetBar(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(PLANETS)) {
     if (state.hiddenPlanets.includes(def.id)) continue
     el.appendChild(renderPlanetChip(def, state))
+  }
+  // 探索产出型天体：发现后以纯展示 chip 出现（不带 data-planet，产出型不参与切换）
+  for (const def of Object.values(EXPLORE_PLANETS)) {
+    const discovered = state.exploredPlanets.includes(def.id) || state.planets[def.id]?.unlocked === true
+    if (!discovered) continue
+    const chip = document.createElement('span')
+    chip.className = 'planet-chip explore'
+    chip.textContent = `◈ ${def.name}`
+    el.appendChild(chip)
   }
 }
 

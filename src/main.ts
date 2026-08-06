@@ -34,6 +34,7 @@ import {
   renderLogInto,
   renderMegastructureModal,
   renderMilitaryPanel,
+  renderInterstellarPanel,
   renderNgPlusModal,
   renderPendingEvents,
   renderPlanetBar,
@@ -167,6 +168,8 @@ async function main(): Promise<void> {
     // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
     const flashId = Date.now() < justUpgradedUntil ? justUpgradedId : null
     renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded, flashId })
+    // 星际工程分组（星系间建造物 + 终局抉择）紧随民用建筑之后（interstellar-build-merge）
+    renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state, { flashId })
@@ -272,13 +275,8 @@ async function main(): Promise<void> {
     updatePanelTabs()
   })
 
-  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变）
+  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局抉择已移至建造页星际工程分组）
   els.navPages.settings.addEventListener('click', (e) => {
-    const megaCard = (e.target as HTMLElement).closest<HTMLElement>('[data-megastructure]')
-    if (megaCard && !megaCard.hasAttribute('data-chosen') && !megaCard.hasAttribute('data-locked')) {
-      openMegastructureModal(megaCard.dataset.megastructure ?? '')
-      return
-    }
     const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
     if (actionBtn?.dataset.settingAction === 'ngplus') {
       openNgPlusModal()
@@ -625,12 +623,16 @@ async function main(): Promise<void> {
     }
   })
 
-  // ---- 探索页（一级 tab）：派遣 + 自动探索 ----
+  // ---- 探索页（一级 tab）：派遣 + 自动探索 + NG+ 终局卡 ----
   // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
   const exploreEscortChecked = new Set<number>()
-  // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理；值 = 槽位号 1|2|3，
-  // 护航状态从同槽 data-escort-toggle 读取拼接为 "slot:0|1"）
+  // NG+ 终局卡（data-ngplus，仅 infinite 渲染）→ 开启确认弹窗
   els.navPages.explore.addEventListener('click', (e) => {
+    const ngplusBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-ngplus]')
+    if (ngplusBtn) {
+      openNgPlusModal()
+      return
+    }
     const dispatchBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-dispatch]')
     if (dispatchBtn) {
       const slotNo = dispatchBtn.dataset.exploreDispatch ?? '1'

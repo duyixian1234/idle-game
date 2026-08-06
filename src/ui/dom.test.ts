@@ -551,17 +551,17 @@ describe('ui: 星球机制状态条', () => {
 })
 
 describe('ui: 一键买满按钮与确认弹窗', () => {
-  it('建造面板渲染买满按钮，禁用态与主按钮一致', () => {
+  it('建造面板渲染 +10/+100 批量按钮，禁用态与主按钮一致', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
     s.resources.mineral = 5 // 买不起
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const buyBtn = container.querySelector<HTMLButtonElement>('[data-build="miner"]')
-    const maxBtn = container.querySelector<HTMLButtonElement>('[data-buy-max="miner"]')
+    const maxBtn = container.querySelector<HTMLButtonElement>('[data-buy-limit="miner:10"]')
     expect(maxBtn).toBeTruthy()
     expect(maxBtn!.disabled).toBe(buyBtn!.disabled)
-    expect(maxBtn!.textContent).toContain('买满')
+    expect(maxBtn!.textContent).toContain('+10')
   })
 
   it('已建建筑显示升级与升满按钮', () => {
@@ -571,10 +571,10 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     s.resources.mineral = 1000
     s.buildings.miner = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    expect(container.querySelector('[data-upgrade-max="miner"]')).toBeTruthy()
+    expect(container.querySelector('[data-upgrade-limit="miner:10"]')).toBeTruthy()
     expect(container.querySelector('[data-upgrade="miner"]')).toBeTruthy()
     // 未建建筑无升满按钮
-    expect(container.querySelector('[data-upgrade-max="solar"]')).toBeNull()
+    expect(container.querySelector('[data-upgrade-limit="solar:10"]')).toBeNull()
   })
 
   it('科技面板升满按钮仅在可升级时渲染（Lv1-9）', () => {
@@ -585,16 +585,16 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     s.resources.tech = 10_000
     s.techLevels.planetDrill = 1 // 已研发可升级
     renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
-    expect(container.querySelector('[data-upgrade-tech-max="planetDrill"]')).toBeTruthy()
+    expect(container.querySelector('[data-upgrade-tech-limit="planetDrill:10"]')).toBeTruthy()
     // 未研发科技无升满按钮
-    expect(container.querySelector('[data-upgrade-tech-max="nanoFab"]')).toBeNull()
+    expect(container.querySelector('[data-upgrade-tech-limit="nanoFab:10"]')).toBeNull()
     // 满级无升满按钮
     s.techLevels.planetDrill = TECH_MAX_LEVEL
     renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
-    expect(container.querySelector('[data-upgrade-tech-max="planetDrill"]')).toBeNull()
+    expect(container.querySelector('[data-upgrade-tech-limit="planetDrill:10"]')).toBeNull()
   })
 
-  it('外交面板：贸易/技术共享有买满按钮，威慑/结盟无', () => {
+  it('外交面板：贸易/技术共享有批量按钮，威慑/结盟无', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
@@ -602,10 +602,10 @@ describe('ui: 一键买满按钮与确认弹窗', () => {
     s.resources.mineral = 3_000_000
     s.resources.tech = 200_000
     renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
-    expect(container.querySelector('[data-diplomacy-max="ferro:trade"]')).toBeTruthy()
-    expect(container.querySelector('[data-diplomacy-max="ferro:techshare"]')).toBeTruthy()
-    expect(container.querySelector('[data-diplomacy-max="ferro:alliance"]')).toBeNull()
-    expect(container.querySelector('[data-diplomacy-max="ferro:intimidate"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:trade:10"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:techshare:10"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:alliance:10"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:intimidate:10"]')).toBeNull()
   })
 
   it('确认弹窗渲染花费/剩余与确认取消按钮', () => {
@@ -1102,8 +1102,8 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     s.buildings.starportMine = 1
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
-    expect(panel.querySelector('[data-buy-max="starportMine"]')).toBeNull()
-    expect(panel.querySelector('[data-upgrade-max="starportMine"]')).toBeNull()
+    expect(panel.querySelector('[data-buy-limit="starportMine:10"]')).toBeNull()
+    expect(panel.querySelector('[data-upgrade-limit="starportMine:10"]')).toBeNull()
     expect(panel.querySelector('[data-upgrade="starportMine"]')).toBeTruthy()
     // 建造按钮隐藏（已建造）
     expect(panel.querySelector('[data-build="starportMine"]')).toBeNull()
@@ -1125,7 +1125,7 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
       const card = panel.querySelector(`[data-building="${id}"]`) as HTMLElement
       expect(card.textContent).toContain('已满级（Lv.10.00）')
       expect(card.querySelector(`[data-upgrade="${id}"]`)).toBeNull()
-      expect(card.querySelector(`[data-upgrade-max="${id}"]`)).toBeNull()
+      expect(card.querySelector(`[data-upgrade-limit="${id}:10"]`)).toBeNull()
       expect(card.getAttribute('data-unique')).toBe('')
       expect(buildCardAction(s, id)).toBeNull()
     }
@@ -1205,8 +1205,8 @@ describe('ui: 建造卡片（building-cards）', () => {
     expect(card!.querySelector('.build-upgrade-preview')).toBeTruthy()
     expect(card!.querySelector('.build-buy-preview')).toBeTruthy()
     expect(card!.querySelector('[data-upgrade="miner"]')).toBeTruthy()
-    expect(card!.querySelector('[data-upgrade-max="miner"]')).toBeTruthy()
-    expect(card!.querySelector('[data-buy-max="miner"]')).toBeTruthy()
+    expect(card!.querySelector('[data-upgrade-limit="miner:10"]')).toBeTruthy()
+    expect(card!.querySelector('[data-buy-limit="miner:10"]')).toBeTruthy()
   })
 
   it('sprite 容器随布局输出一次（卡片只复制 use 引用）', () => {
