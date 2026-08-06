@@ -1,4 +1,5 @@
 import { CONQUESTS } from './data'
+import { playMilestone } from './story'
 import type { ConquestState, GameState } from './types'
 
 /**
@@ -76,6 +77,11 @@ export function settleConquests(state: GameState, nowMs: number, rng: () => numb
         rewards.push(`解锁「军械科技」`)
       }
       logs.push(`【军事捷报】「${def.name}」攻占成功！获得 ${rewards.join('、') || '无'}。`)
+      // 首次攻占与全肃清叙事（storyFlags 防重复）
+      playMilestone(state, 'firstConquest')
+      if (Object.values(CONQUESTS).every((d) => state.conquest[d.id]?.status === 'conquered')) {
+        playMilestone(state, 'conquestAll')
+      }
     } else {
       // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
       state.conquest[def.id] = { status: 'available' }

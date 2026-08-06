@@ -152,3 +152,28 @@ describe('engine: 离线骚扰结算', () => {
     expect(r.logs).toEqual([])
   })
 })
+
+describe('engine: 叙事闭环（母巢攻占）', () => {
+  /** 隔离骚扰源：全部派系威胁归零，确保候选池只含静态事件 */
+  function noRaidState(): GameState {
+    const s = createInitialState(0)
+    s.factions.ferro.threat = 0
+    s.factions.vox.threat = 0
+    s.factions.cygnus.threat = 0
+    s.factions.lumen.threat = 0
+    return s
+  }
+
+  it('母巢被攻占后虫族警报不再进入候选', () => {
+    const s = noRaidState()
+    s.conquest.nest = { status: 'conquered' }
+    // rng 0.9 原本命中 bug（bug 权重 2/9 区段），现在应落到 meteor/trade
+    const def = pickEventDef(s, () => 0.9)
+    expect(def.id).not.toBe('bug')
+  })
+
+  it('母巢未攻占时虫族警报正常参与', () => {
+    const s = noRaidState()
+    expect(pickEventDef(s, () => 0.9).id).toBe('bug')
+  })
+})

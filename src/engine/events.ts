@@ -63,9 +63,11 @@ export function raidableFaction(state: GameState): { id: string; name: string; t
   return { id: best.id, name: FACTIONS[best.id]?.name ?? best.id, threat: best.threat }
 }
 
-/** 按权重随机选择事件定义（raid 为动态项：有威胁派系时进入候选） */
+/** 按权重随机选择事件定义（raid 为动态项：有威胁派系时进入候选；母巢攻占后虫族警报权重归 0） */
 export function pickEventDef(state: GameState, rng: () => number = Math.random): RandomEventDef {
-  const pool = [...EVENT_DEFS]
+  // 叙事闭环：虫群母巢被攻占后，虫族警报事件不再触发（母巢被端、虫灾绝迹）
+  const nestConquered = state.conquest.nest?.status === 'conquered'
+  const pool = EVENT_DEFS.filter((d) => !(d.id === 'bug' && nestConquered))
   if (raidableFaction(state)) pool.push({ id: 'raid', name: '军事骚扰', weight: RAID_EVENT_WEIGHT, kind: 'raid' })
   const total = pool.reduce((sum, d) => sum + d.weight, 0)
   let roll = rng() * total
