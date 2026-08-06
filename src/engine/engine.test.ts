@@ -23,7 +23,7 @@ import {
 } from './engine'
 import { netProduction, productionMultipliers, productionReport, simulateProductionDelta } from './production'
 import { pushLog } from './core'
-import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
+import { LEVEL_PRODUCTION_BONUS, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
 
 describe('engine: 初始状态', () => {
   it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {
@@ -119,14 +119,41 @@ describe('engine: 建筑升级', () => {
     expect(netProduction(s).mineral).toBe(2 * 1.5)
   })
 
-  it('升级成本随等级增长（1.6 倍/级）', () => {
+  it('升级成本公式：产出等价折算（P=2，count/L 双参数）', () => {
     const s = createInitialState(0)
-    s.resources.mineral = 10_000
     s.buildings.miner = 1
-    const c0 = upgradeCost(s, 'miner').mineral
+    // count=1, Lv.0：buyCost = floor(10×1.15^1)=11，mult = P×0.5×count/levelMult(0) = 2×0.5×1/1 = 1
+    expect(upgradeCost(s, 'miner').mineral).toBe(11)
+    // Lv.0→1：levelMultiplier 1→1.5，mult = 2×0.5×1/1.5 = 2/3 → floor(11×2/3)=7（升级作用 1 台，成本随等级相对下降）
     s.upgrades.miner = 1
-    const c1 = upgradeCost(s, 'miner').mineral
-    expect(c1).toBe(Math.floor(c0 * 1.6))
+    expect(upgradeCost(s, 'miner').mineral).toBe(7)
+    // 多台语义：count 进公式，升级作用于全部单位
+    s.upgrades.miner = 0
+    s.buildings.miner = 2
+    // buyCost = floor(10×1.15²) = 13；mult = 2×0.5×2/1 = 2 → floor(13×2)=26（升级 2 台 = 单台成本的 2 倍）
+    expect(upgradeCost(s, 'miner').mineral).toBe(26)
+  })
+
+  it('ROI 恒等于 UPGRADE_PREMIUM：升级每 +1/s 成本 ÷ 买入每 +1/s 成本 ≈ 2（任意 count/L）', () => {
+    // 大 count 组合：floor 一次引入 <1 的绝对误差，经 0.5×count×buy 归一后相对误差 ~1e-8
+    const combos = [
+      { count: 100, level: 0 },
+      { count: 100, level: 11 },
+      { count: 100, level: 20 },
+      { count: 500, level: 50 },
+    ]
+    for (const { count, level } of combos) {
+      const s = createInitialState(0)
+      s.buildings.miner = count
+      s.upgrades.miner = level
+      const buy = buildingCost(s, 'miner').mineral
+      const up = upgradeCost(s, 'miner').mineral
+      const lm = 1 + LEVEL_PRODUCTION_BONUS * level
+      // 买入每 +1/s = buy / (1×lm)；升级每 +1/s = up / (0.5×count)
+      const buyPerRate = buy / lm
+      const upPerRate = up / (0.5 * count)
+      expect(upPerRate / buyPerRate).toBeCloseTo(UPGRADE_PREMIUM, 4)
+    }
   })
 
   it('未建造建筑不可升级', () => {
@@ -137,6 +164,7 @@ describe('engine: 建筑升级', () => {
 
   it('资源不足时升级失败', () => {
     const s = createInitialState(0)
+    s.resources.mineral = 0
     s.buildings.miner = 1
     expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '资源不足' })
   })

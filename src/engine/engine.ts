@@ -7,7 +7,7 @@ import {
   TECHS,
 } from './data'
 import type { TechDef } from './data'
-import { TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
+import { LEVEL_PRODUCTION_BONUS, TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
@@ -19,7 +19,7 @@ import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
-import { netProduction, productionReport, militaryCap } from './production'
+import { netProduction, productionReport, militaryCap, levelMultiplier } from './production'
 import { computeNgPlusInheritance } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
 // re-export NG+ 常量，保持既有调用方（dom.ts / ending.test.ts）兼容
@@ -83,12 +83,20 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
   return cost
 }
 
-/** 建筑升级成本：当前购买成本 × 倍率 × 1.6^level，向下取整，至少 1 */
+/**
+ * 建筑升级成本（产出等价折算，balance-rework spec 定稿）：
+ *   upgradeCost = buyCost × UPGRADE_PREMIUM × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)
+ * 其中 count = 现有台数（升级作用于全部单位）、level = 当前等级。
+ * 数学性质：升级每 +1/s 成本 ÷ 买入每 +1/s 成本恒等于 UPGRADE_PREMIUM（=2），任意 count/L 不漂移——
+ *   买入 1 台产出 = (1+0.5L)×base×mult，升级 1 级全部 count 台产出 = 0.5×count×base×mult，
+ *   成本比 = (upCost/0.5count) / (buyCost/(1+0.5L)) = P。替代旧公式 buyCost×4×1.6^level
+ *   （count×level 双指数导致 Lv.10+ 升级 ROI 比买入差 49~15000×，详见 spec）。
+ */
 export function upgradeCost(state: GameState, id: string): Record<ResourceKey, number> {
-  const def = BUILDINGS[id]
+  const count = state.buildings[id] ?? 0
   const level = state.upgrades[id] ?? 0
   const buy = buildingCost(state, id)
-  const mult = (def.upgradeCostMult ?? 4) * Math.pow(1.6, level)
+  const mult = (UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count) / levelMultiplier(level)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     cost[key] = buy[key] > 0 ? Math.max(1, Math.floor(buy[key] * mult)) : 0

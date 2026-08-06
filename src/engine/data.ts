@@ -27,8 +27,6 @@ export interface BuildingDef {
   consumes?: Partial<Record<ResourceKey, number>>
   /** 每单位提供的资源容量（当前仅军港的军力上限） */
   capacity?: Partial<Record<ResourceKey, number>>
-  /** 升级成本倍率（相对当前购买成本） */
-  upgradeCostMult?: number
   /** 解锁前置建筑（无则始终可见） */
   requires?: string[]
   /** 解锁前置科技 */
@@ -48,7 +46,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     baseCost: { mineral: 10 },
     costGrowth: 1.15,
     produces: { mineral: 1 },
-    upgradeCostMult: 4,
   },
   solar: {
     id: 'solar',
@@ -57,7 +54,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     baseCost: { mineral: 25 },
     costGrowth: 1.18,
     produces: { energy: 1 },
-    upgradeCostMult: 4,
   },
   lab: {
     id: 'lab',
@@ -66,7 +62,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     baseCost: { mineral: 60, energy: 10 },
     costGrowth: 1.2,
     produces: { tech: 0.5 },
-    upgradeCostMult: 4,
   },
   refinery: {
     id: 'refinery',
@@ -76,7 +71,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     costGrowth: 1.25,
     produces: { mineral: 3 },
     consumes: { energy: 0.5 },
-    upgradeCostMult: 4,
     requires: ['solar'],
   },
   deepDrill: {
@@ -86,7 +80,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     baseCost: { mineral: 2500, energy: 120 },
     costGrowth: 1.3,
     produces: { mineral: 8 },
-    upgradeCostMult: 4,
     requiresTech: ['deepDrill'],
   },
   barracks: {
@@ -97,7 +90,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     baseCost: { mineral: 8_000, energy: 200 },
     costGrowth: 1.25,
     produces: { military: 0.5 },
-    upgradeCostMult: 4,
     requiresPlanet: ['orbital'],
   },
   militaryPort: {
@@ -109,7 +101,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     costGrowth: 1.3,
     produces: {},
     capacity: { military: 200 },
-    upgradeCostMult: 4,
     requiresPlanet: ['orbital'],
   },
 }
