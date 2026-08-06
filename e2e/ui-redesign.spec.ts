@@ -64,9 +64,18 @@ function buildUiSave(now: number) {
   }
 }
 
-async function seedUiSave(page: import('@playwright/test').Page): Promise<void> {
+async function seedUiSave(page: import('@playwright/test').Page, withConquest = false): Promise<void> {
   await page.goto('/')
-  await seedSave(page, buildUiSave(Date.now()))
+  const save = buildUiSave(Date.now())
+  if (withConquest) {
+    save.conquest.outpost = {
+      status: 'available',
+      startedAt: Date.now() - 10 * 60_000,
+      finishAt: Date.now() + 50 * 60_000,
+      invested: 1_000,
+    }
+  }
+  await seedSave(page, save)
   await lockSaveStore(page)
   await page.reload()
   const closeEnding = page.locator('[data-ending="close"]')
@@ -77,7 +86,7 @@ test('boot 序列首次显示、按键跳过且刷新不重放', async ({ page }
   await page.goto('/')
   const boot = page.locator('[data-boot]')
   await expect(boot).toBeVisible()
-  await page.keyboard.press('Escape')
+  await page.mouse.click(0, 0)
   await expect(boot).toBeHidden()
   await expect.poll(() => page.evaluate(() => localStorage.getItem('ui-boot-seen'))).toBe('1')
 
@@ -115,6 +124,24 @@ test('好感与派遣进度渲染 ASCII 进度条', async ({ page }) => {
 
   await page.locator('[data-nav="explore"]').click()
   await expect(page.locator('[data-expedition-progress] [data-progress]')).toContainText(/[█░]/)
+})
+
+test('攻占进度也使用 ASCII 进度条', async ({ page }) => {
+  await seedUiSave(page, true)
+  await expect(page.locator('[data-conquest-progress] [data-progress]')).toContainText(/[█░]/)
+})
+
+test('移动端可见按钮满足 44px 触控目标', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  const issues = await page.locator('button').evaluateAll((buttons) => buttons
+    .filter((button) => {
+      const rect = button.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0 && button.offsetParent !== null
+    })
+    .filter((button) => button.getBoundingClientRect().height < 44)
+    .map((button) => button.dataset.nav ?? button.dataset.tab ?? button.dataset.tool ?? 'unlabelled button'))
+  expect(issues).toEqual([])
 })
 
 test('全局 token 应用终端背景与 JetBrains Mono 字体', async ({ page }) => {
