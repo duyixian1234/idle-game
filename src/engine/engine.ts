@@ -75,6 +75,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     expeditions: [],
     exploredFactions: [],
     exploredPlanets: [],
+    hiddenPlanets: [],
     nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,

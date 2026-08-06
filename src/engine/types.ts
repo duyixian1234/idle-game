@@ -144,7 +144,7 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v10 新增虫群强度倍率） */
+/** 存档 schema 版本（v10 新增虫群强度倍率；顶部天体隐藏设置向后兼容补齐） */
 export const SCHEMA_VERSION = 10
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
@@ -276,6 +276,8 @@ export interface GameState {
   exploredFactions: string[]
   /** 已发现的探索天体 id（奖池剔除依据，周目重置；v6 新增） */
   exploredPlanets: string[]
+  /** 用户从顶部天体列表隐藏的天体 id（按存档持久化） */
+  hiddenPlanets: string[]
   /** 下一条派遣 id（递增；v6 新增） */
   nextExpeditionId: number
   /** 派系外交状态：factionId -> FactionState */

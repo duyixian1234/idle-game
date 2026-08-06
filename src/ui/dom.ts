@@ -1,5 +1,5 @@
 import type { GameState } from '../engine/types'
-import { BUILDINGS, CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatNumber, formatRate } from '../engine/format'
@@ -17,31 +17,17 @@ export type { AppElements, NavId } from './layout'
 export { appendLog, renderLogInto, renderPendingEvents, renderAutoConfigPanel } from './log'
 export { DEFAULT_LOG_DIRECTION, LOG_DIR_KEY } from './log'
 export type { LogDirection } from './log'
-import type { LogDirection } from './log'
 
 export { renderBootOverlay, renderEndingOverlay, renderTutorial } from './overlays'
 
 /** 渲染探索页（一级 tab 内嵌）：
- *  ① NG+ 终局卡：phase==='infinite' 时顶部显示「开启新周目」入口（data-ngplus 契约，与结局面板入口并存）
- *  ② 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
- *  ③ 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3）+
+ *  ① 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
+ *  ② 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3）+
  *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径） */
 export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: number = Date.now()): void {
   el.innerHTML = ''
   const parts: string[] = []
-  // ① NG+ 终局卡：infinite 模式顶部常驻入口
-  if (state.phase === 'infinite') {
-    const p = previewNewGamePlus(state)
-    parts.push(`
-      <div class="ngplus-terminal">
-        <div class="ngplus-terminal-title">第 ${formatNumber(state.ngPlusLevel)} 周目 · 无限模式</div>
-        <div class="ngplus-terminal-desc">开启新周目：继承 ${formatNumber(p.carryTech)} 科技点、${formatMultiplier(p.permanentMult)} 永久产出加成、${formatNumber(p.codexFactions.length)} 个派系图鉴（需确认，不可逆）</div>
-        <div class="ending-actions">
-          <button type="button" class="ending-btn primary" data-ngplus title="开启新周目：携带派系图鉴与永久加成重开（需确认）">开启新周目</button>
-        </div>
-      </div>`)
-  }
-  // ② 锁定占位：通关前告知终局玩法存在
+  // ① 锁定占位：通关前告知终局玩法存在
   if (!isExploreAvailable(state)) {
     parts.push(`
       <div class="explore-locked">
@@ -53,7 +39,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
     el.innerHTML = parts.join('')
     return
   }
-  // ③ 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 5：1 + 科技 2 + 跃迁枢纽 2）
+  // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 5：1 + 科技 2 + 跃迁枢纽 2）
   const slots = explorationSlots(state)
   const ongoing = state.expeditions.filter((e) => !e.resolved)
   const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
@@ -128,10 +114,7 @@ export function renderExplorePage(el: HTMLElement, state: GameState, nowMs: numb
 export function renderPlanetBar(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(PLANETS)) {
-    el.appendChild(renderPlanetChip(def, state))
-  }
-  for (const def of Object.values(EXPLORE_PLANETS)) {
-    if (!state.planets[def.id]?.unlocked) continue
+    if (state.hiddenPlanets.includes(def.id)) continue
     el.appendChild(renderPlanetChip(def, state))
   }
 }
@@ -209,7 +192,6 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
 
 export { buildCardAction, renderArchivePanel, renderAsciiBar, renderBuildPanel, renderDiplomacyPanel, renderFleetSection, renderInterstellarPanel, renderMegastructureSection, renderMilitaryPanel, renderSettingsPage, renderTechPanel } from './panels'
 export type { BuildCardAction, BuildPanelRenderOptions, SettingsStatus } from './panels'
-import { renderAsciiBar } from './panels'
 import { renderAsciiBar } from './panels'
 
 export { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from './overlays'

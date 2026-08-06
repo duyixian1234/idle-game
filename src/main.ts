@@ -31,7 +31,6 @@ import {
   renderEndingOverlay,
   renderAutoConfigPanel,
   renderExplorePage,
-  renderInterstellarPanel,
   renderLogInto,
   renderMegastructureModal,
   renderMilitaryPanel,
@@ -168,8 +167,6 @@ async function main(): Promise<void> {
     // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
     const flashId = Date.now() < justUpgradedUntil ? justUpgradedId : null
     renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded, flashId })
-    // 星际工程分组（唯一大件 + 终局抉择区块）追加在建造面板内
-    renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state, { flashId })
@@ -187,6 +184,7 @@ async function main(): Promise<void> {
       logDirection,
       statusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
       version: APP_VERSION,
+      state,
     })
     renderPendingEvents(els.logEl, state, typedEvents)
     renderAutoConfigPanel(els.autoConfigOverlay, state, autoExpandedCategory)
@@ -276,6 +274,26 @@ async function main(): Promise<void> {
 
   // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变）
   els.navPages.settings.addEventListener('click', (e) => {
+    const megaCard = (e.target as HTMLElement).closest<HTMLElement>('[data-megastructure]')
+    if (megaCard && !megaCard.hasAttribute('data-chosen') && !megaCard.hasAttribute('data-locked')) {
+      openMegastructureModal(megaCard.dataset.megastructure ?? '')
+      return
+    }
+    const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
+    if (actionBtn?.dataset.settingAction === 'ngplus') {
+      openNgPlusModal()
+      return
+    }
+    const planetBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-planet-visibility]')
+    if (planetBtn) {
+      const id = planetBtn.dataset.planetVisibility ?? ''
+      const index = state.hiddenPlanets.indexOf(id)
+      if (index >= 0) state.hiddenPlanets.splice(index, 1)
+      else state.hiddenPlanets.push(id)
+      render()
+      void saveGame(state)
+      return
+    }
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]')
     if (!btn) return
     const tool = btn.dataset.tool
@@ -351,11 +369,15 @@ async function main(): Promise<void> {
       render()
       return
     }
+    if (target.matches('[data-auto-risk], [data-auto-fallback]')) {
+      saveAutomationControl(target)
+      return
+    }
     if (target.closest('[data-auto-enabled], [data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')) return
   })
-  function saveAutomationControl(target: HTMLInputElement | HTMLSelectElement): void {
+  function saveAutomationControl(target: HTMLInputElement | HTMLButtonElement | HTMLElement): void {
     const enabled = target.closest<HTMLInputElement>('[data-auto-enabled]')
-    const field = target.closest<HTMLInputElement | HTMLSelectElement>('[data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')
+    const field = target.closest<HTMLInputElement | HTMLButtonElement>('[data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')
     if (!enabled && !field) return
     const category = (enabled?.dataset.autoEnabled ?? field?.dataset.autoRisk ?? field?.dataset.autoCooldown ?? field?.dataset.autoFallback ?? field?.dataset.autoBudget?.split(':')[0]) ?? ''
     const policy: EventAutomationPolicy = automationPolicyWithDefaults(category as EventTheme, state.automationPolicies[category], state.automationPolicies[category]?.enabled ?? false)
@@ -374,7 +396,7 @@ async function main(): Promise<void> {
     dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
   }
   els.autoConfigOverlay.addEventListener('change', (e) => {
-    const target = e.target as HTMLInputElement | HTMLSelectElement
+    const target = e.target as HTMLInputElement
     saveAutomationControl(target)
   })
   els.importFile.addEventListener('change', async (e) => {
@@ -441,15 +463,13 @@ async function main(): Promise<void> {
       endingDismissed = true
       render()
       void saveGame(state)
-    } else if (action === 'ngplus') {
-      startNewGamePlusSequence(false)
     } else if (action === 'close') {
       endingDismissed = true
       render()
     }
   })
 
-  // 手动开启新周目的统一序列（结局面板入口 + 探索页 NG+ 终局卡共用）：
+  // 手动开启新周目的统一序列（设置页入口）：
   // startNewGamePlus 内部已 push【NG+ 第 N 周目】日志；UI 重置日志流 + 角标差值（unlockedInRound 更新）
   function startNewGamePlusSequence(keepEndingDismissed: boolean): void {
     startNewGamePlus(state, Date.now())
@@ -605,14 +625,9 @@ async function main(): Promise<void> {
     }
   })
 
-  // ---- 探索页（一级 tab）：NG+ 终局卡 + 派遣 ----
-  // data-ngplus：infinite 下终局卡「开启新周目」→ 确认弹窗
+  // ---- 探索页（一级 tab）：派遣 ----
   // data-explore-dispatch：ended/infinite 下派遣（结果入账由 tick/offline 自动处理；值 = 槽位号 1|2|3）
   els.navPages.explore.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).closest('[data-ngplus]')) {
-      openNgPlusModal()
-      return
-    }
     const dispatchBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-dispatch]')
     if (dispatchBtn) {
       const slotNo = dispatchBtn.dataset.exploreDispatch ?? '1'
@@ -690,24 +705,18 @@ async function main(): Promise<void> {
       dispatch(state, actionId, payload, deps)
       return
     }
-    // 一键买满按钮（独立 data-* 属性，显式 dataset 键映射）
-    for (const [attr, dataKey, kind, isDiplomacy] of [
-      ['data-buy-max', 'buyMax', 'building', false],
-      ['data-upgrade-max', 'upgradeMax', 'buildingUpgrade', false],
-      ['data-upgrade-tech-max', 'upgradeTechMax', 'techUpgrade', false],
-      ['data-diplomacy-max', 'diplomacyMax', 'diplomacy', true],
+    // 固定次数批量按钮：资源不足时由引擎提前停止，不再提供买满/升满。
+    for (const [attr, dataKey, actionId] of [
+      ['data-buy-limit', 'buyLimit', 'buyMax'],
+      ['data-upgrade-limit', 'upgradeLimit', 'upgradeMax'],
+      ['data-upgrade-tech-limit', 'upgradeTechLimit', 'upgradeTechMax'],
+      ['data-diplomacy-limit', 'diplomacyLimit', 'diplomacyMax'],
     ] as const) {
       const btn = target.closest<HTMLElement>(`[${attr}]`)
       if (!btn) {
         continue
       }
-      const payload = String(btn.dataset[dataKey] ?? '')
-      if (isDiplomacy) {
-        const [fid, act] = payload.split(':')
-        openBuyMaxModal('diplomacy', fid, act)
-      } else {
-        openBuyMaxModal(kind, payload)
-      }
+      dispatch(state, actionId, String(btn.dataset[dataKey] ?? ''), deps)
       return
     }
     const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')

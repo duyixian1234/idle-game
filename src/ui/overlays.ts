@@ -80,7 +80,6 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
       <p class="ending-stats">派系图鉴：${escapeHtml(codex)} · NG+ 周目：${formatNumber(state.ngPlusLevel)}</p>
       <div class="ending-actions">
         <button type="button" class="ending-btn primary" data-ending="infinite">进入无限模式</button>
-        <button type="button" class="ending-btn" data-ending="ngplus">开启 NG+（继承 ${formatNumber(NG_PLUS_TECH_BASE * (state.ngPlusLevel + 1))} 科技点）</button>
         <button type="button" class="ending-btn ghost" data-ending="close">继续查看</button>
       </div>
     </div>`

@@ -282,6 +282,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
     ? { ...defaultPolicies, ...(next.automationPolicies as Record<string, unknown>) }
     : defaultPolicies
   next.automationHistory = Array.isArray(next.automationHistory) ? next.automationHistory : []
+  next.hiddenPlanets = Array.isArray(next.hiddenPlanets) ? next.hiddenPlanets : []
   for (const [category, policy] of Object.entries(next.automationPolicies as Record<string, unknown>)) {
     if (!isPlainObject(policy)) {
       ;(next.automationPolicies as Record<string, unknown>)[category] = { enabled: false, rules: [] }
