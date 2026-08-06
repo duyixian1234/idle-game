@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { dismissTutorial, lockSaveStore, seedSave } from './helpers'
+import { ACHIEVEMENTS } from '../src/engine/achievements'
 
 /**
  * 星系间工程 + 终局抉择 E2E（interstellar-buildings，存档 v7）。
@@ -85,6 +86,15 @@ function buildSave(now: number, overrides: SaveOverrides = {}) {
     createdAt: now,
   }
   return { ...base, ...overrides }
+}
+
+/** 预置全部成就已解锁（避免 tick checkAchievements 发放奖励污染资源余额断言） */
+function lockAchievements(save: Record<string, unknown>, now: number): void {
+  const achievements: Record<string, { unlockedAt: number; unlockedInRound: number }> = {}
+  for (const def of Object.values(ACHIEVEMENTS)) {
+    achievements[def.id] = { unlockedAt: now, unlockedInRound: 0 }
+  }
+  save.achievements = achievements
 }
 
 /** 注入存档并进入星域页（ended 档先关结局面板） */
@@ -172,7 +182,7 @@ test('星港矿场解锁链：dawn 未解锁 → 深钻未满级 → 满足后�
   await expect(page.locator('[data-building="thinkTank"]')).toContainText('通关后解锁')
 })
 
-test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星产出 +1000 能源/s 且维护费硬扣', async ({ page }) => {
+test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星 +1000 能源/s、智库 +200 科技/s', async ({ page }) => {
   const now = Date.now()
 
   // ① 无星港：恒星锁定（需先建造星港矿场）；智库锁定（需聚变恒星阵列）
@@ -181,7 +191,7 @@ test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星产出
   await expect(page.locator('[data-building="stellarArray"]')).toContainText('星港矿场')
   await expect(page.locator('[data-building="thinkTank"]')).toContainText('聚变恒星阵列')
 
-  // ② 星港 1 级 → 恒星可建；建恒星 → 能源 +1000.0/s
+  // ② 星港 1 级 → 恒星可建 → 建恒星 → 能源 +1000.0/s → 智库可建 → 建智库 → 科技 +200.0/s（足量资源档）
   await page.goto('/')
   const withStarport = buildSave(now, { buildings: { starportMine: 1 } })
   await openSector(page, withStarport)
@@ -192,8 +202,28 @@ test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星产出
   await expect(page.locator('[data-log]')).toContainText('建造了 聚变恒星阵列')
   await expect(page.locator('[data-resource="energy"]')).toContainText('+1000.0/s')
 
-  // ③ 维护费硬扣：矿物净增速 = 星港 500 − 恒星维护 20 = 480/s（2s 窗口读余额差值）
-  // 资源条文本形如「◆矿物50,000,000,000+480.0/s」——取「矿物」后的数值段
+  // 恒星 1 级 → 智库可建（资源充足：初始 500 亿矿）
+  await expect(page.locator('[data-building="thinkTank"] [data-build]')).toBeEnabled()
+  await page.locator('[data-building="thinkTank"] [data-build="thinkTank"]').click()
+  await expect(page.locator('[data-log]')).toContainText('建造了 星海智库')
+  await expect(page.locator('[data-resource="tech"]')).toContainText('+200.0/s')
+})
+
+test('恒星维护费硬扣：矿物净增速 = 星港 500 − 维护 20 = 480/s（2s 窗口余额差值）', async ({ page }) => {
+  const now = Date.now()
+  // 初始矿物 = 5亿 + 5000：恒星建造扣 5 亿后余额 < 1 万（数字不缩写、增量可读）；预置成就防奖励污染
+  const save = buildSave(now, {
+    buildings: { starportMine: 1 },
+    resources: { mineral: 500_005_000, energy: 10_000_000_000, tech: 5_000_000_000, military: 50_000 },
+  })
+  lockAchievements(save, now)
+  await page.goto('/')
+  await openSector(page, save)
+
+  await page.locator('[data-building="stellarArray"] [data-build="stellarArray"]').click()
+  await expect(page.locator('[data-log]')).toContainText('建造了 聚变恒星阵列')
+
+  // 资源条文本形如「◆矿物5,000+480.0/s」（余额 < 1 万不缩写）——取「矿物」后的数值段
   await page.waitForTimeout(2_000)
   const balanceOf = async (): Promise<number> => {
     const text = await page.locator('[data-resource="mineral"]').textContent()
@@ -205,12 +235,6 @@ test('通关后链式解锁：恒星需星港 → 智库需恒星；恒星产出
   // 2 秒净入账 ≈ 480 × 2 = 960（星港 +500/s、维护 -20/s；tick 250ms 粒度误差 < 500）
   const delta = balance2 - balance
   expect(Math.abs(delta - 960)).toBeLessThanOrEqual(500)
-
-  // ④ 恒星 1 级 → 智库可建
-  await expect(page.locator('[data-building="thinkTank"] [data-build]')).toBeEnabled()
-  await page.locator('[data-building="thinkTank"] [data-build="thinkTank"]').click()
-  await expect(page.locator('[data-log]')).toContainText('建造了 星海智库')
-  await expect(page.locator('[data-resource="tech"]')).toContainText('+200.0/s')
 })
 
 test('终局抉择：三星系间集齐 → 抉择区块 → 确认弹窗 → 选冶炼场后枢纽锁定', async ({ page }) => {
@@ -303,7 +327,8 @@ test('跃迁枢纽：探索页 5 槽全空闲可派（全科技 + 枢纽）；�
 
 test('v6 旧档迁移 v7：无 megastructureChoice 字段 → 正常渲染星际工程分组并游玩', async ({ page }) => {
   const now = Date.now()
-  const save = buildSave(now, { schemaVersion: 6, buildings: { starportMine: 1 } })
+  // 星港已建（1 级）需深钻满级前置成立，否则解锁判定为锁定态（升级按钮不渲染）
+  const save = buildSave(now, { schemaVersion: 6, buildings: { starportMine: 1 }, upgrades: { deepDrill: 10 } })
   delete (save as Record<string, unknown>).megastructureChoice
   await page.goto('/')
   await openSector(page, save)

@@ -115,7 +115,7 @@ test('派遣探索：页面消耗预览 → 点击派遣 → 记录生成/资源
   await expect(explorePage).toContainText('消耗')
   await expect(explorePage).toContainText('40') // 兵力自适应保底 40（1 槽）
   await expect(explorePage).toContainText('60 分钟')
-  await expect(explorePage.locator('[data-expedition-locked]')).toHaveCount(2) // 无科技 → 信道 2/3 锁定
+  await expect(explorePage.locator('[data-expedition-locked]')).toHaveCount(4) // 无科技 → 信道 2-5 锁定（5 槽上限占位）
   const dispatchBtn = page.locator('[data-explore-dispatch="1"]')
   await expect(dispatchBtn).toBeEnabled()
 
@@ -135,7 +135,7 @@ test('多槽派遣：3 槽科技解锁 → 同时派遣 2 路，双记录 + 独�
   await openExplore(page, save)
 
   const explorePage = page.locator('[data-nav-page="explore"]')
-  await expect(explorePage.locator('[data-expedition-locked]')).toHaveCount(0)
+  await expect(explorePage.locator('[data-expedition-locked]')).toHaveCount(2) // 全科技 3 槽 → 信道 4/5 锁定（跃迁枢纽占位）
   await expect(explorePage.locator('[data-explore-dispatch]')).toHaveCount(3)
 
   await explorePage.locator('[data-explore-dispatch="1"]').click()
