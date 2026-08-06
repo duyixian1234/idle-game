@@ -224,18 +224,13 @@ test('unique 大件 Lv10 封顶：满级不可升级，Lv9 仍可升级', async 
     await expect(card.locator(`[data-upgrade="${id}"]`)).toHaveCount(0)
     await expect(card.locator(`[data-upgrade-max="${id}"]`)).toHaveCount(0)
   }
-  await expect(page.locator('[data-resource="mineral"]')).toContainText('+5.24亿/s')
+  await expect(page.locator('[data-resource="mineral"]')).toContainText('+524288000.0/s')
 
   const lower = buildSave(now, {
     buildings: { starportMine: 1 },
     upgrades: { deepDrill: 10, starportMine: 9 },
   })
-  await page.goto('/')
-  await seedSave(page, lower)
-  await lockSaveStore(page)
-  await page.reload()
-  await dismissTutorial(page)
-  await page.locator('[data-nav="sector"]').click()
+  await openSector(page, lower)
   await expect(page.locator('[data-building="starportMine"] [data-upgrade="starportMine"]')).toBeVisible()
 })
 
