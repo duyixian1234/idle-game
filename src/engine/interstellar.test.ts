@@ -87,18 +87,22 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
   })
 
   it('unique 大件 Lv10 产出保持在 base × 2^10', () => {
-    const s = withThreeInterstellar(endedState())
-    s.buildings.ringSmelter = 1
-    s.megastructureChoice = 'smelter'
-    s.upgrades.starportMine = 10
-    s.upgrades.stellarArray = 10
-    s.upgrades.thinkTank = 10
-    s.upgrades.ringSmelter = 10
-    const report = productionReport(s)
-    expect(report.nominal.mineral).toBeCloseTo(500 * 1024 * 1024)
-    expect(report.nominal.energy).toBeCloseTo(1000 * 1024 * 1024)
-    expect(report.nominal.tech).toBeCloseTo(200 * 1024 * 1024)
-    expect(smelterGlobalMult(s)).toBe(1024)
+    const cases = [
+      ['starportMine', 'mineral', 500],
+      ['stellarArray', 'energy', 1000],
+      ['thinkTank', 'tech', 200],
+    ] as const
+    for (const [id, resource, base] of cases) {
+      const s = endedState()
+      s.buildings[id] = 1
+      s.upgrades[id] = 10
+      expect(productionReport(s).nominal[resource]).toBeCloseTo(base * 1024)
+    }
+    const smelter = withThreeInterstellar(endedState())
+    smelter.buildings.ringSmelter = 1
+    smelter.megastructureChoice = 'smelter'
+    smelter.upgrades.ringSmelter = 10
+    expect(smelterGlobalMult(smelter)).toBe(1024)
   })
 
   it('唯一大件禁重复建造：count 恒 1、二次购买拒绝', () => {

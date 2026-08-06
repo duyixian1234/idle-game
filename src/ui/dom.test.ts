@@ -1047,19 +1047,25 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
   })
 
   it('唯一大件满级态：显示已满级提示、移除升级按钮且卡片操作为空', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = endedState()
-    s.buildings.starportMine = 1
-    s.upgrades.starportMine = 10
-    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
-    renderInterstellarPanel(panel, s)
-    const card = panel.querySelector('[data-building="starportMine"]') as HTMLElement
-    expect(card.textContent).toContain('已满级（Lv.10）')
-    expect(card.querySelector('[data-upgrade="starportMine"]')).toBeNull()
-    expect(card.querySelector('[data-upgrade-max="starportMine"]')).toBeNull()
-    expect(card.getAttribute('data-unique')).toBe('')
-    expect(buildCardAction(s, 'starportMine')).toBeNull()
+    for (const id of ['starportMine', 'stellarArray', 'thinkTank', 'ringSmelter'] as const) {
+      const container = document.createElement('div')
+      buildLayout(container)
+      const s = endedState()
+      s.buildings.starportMine = 1
+      s.buildings.stellarArray = 1
+      s.buildings.thinkTank = 1
+      s.buildings[id] = 1
+      s.upgrades[id] = 10
+      if (id === 'ringSmelter') s.megastructureChoice = 'smelter'
+      const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+      renderInterstellarPanel(panel, s)
+      const card = panel.querySelector(`[data-building="${id}"]`) as HTMLElement
+      expect(card.textContent).toContain('已满级（Lv.10）')
+      expect(card.querySelector(`[data-upgrade="${id}"]`)).toBeNull()
+      expect(card.querySelector(`[data-upgrade-max="${id}"]`)).toBeNull()
+      expect(card.getAttribute('data-unique')).toBe('')
+      expect(buildCardAction(s, id)).toBeNull()
+    }
   })
 
   it('终局抉择区块：三星系间集齐后出现，双卡片并排；未选择均可点', () => {
