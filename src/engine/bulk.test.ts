@@ -5,7 +5,7 @@ import {
   previewDiplomacyMax,
   previewMaxBuy,
 } from './bulk'
-import { createInitialState, researchTech } from './engine'
+import { createInitialState, researchTech, upgradeCost } from './engine'
 import type { GameState } from './types'
 
 /** 构造状态：设置资源余额 */
@@ -82,8 +82,7 @@ describe('engine: upgradeBuildingMax（一键升满建筑）', () => {
     expect(v.count).toBeGreaterThan(0)
     expect(v.targetLevel).toBe(s.upgrades.miner)
     // 剩余不足下一级成本
-    const nextCost = Math.floor(Math.floor(10 * Math.pow(1.15, 1)) * 4 * Math.pow(1.6, s.upgrades.miner))
-    expect(s.resources.mineral).toBeLessThan(nextCost)
+    expect(s.resources.mineral).toBeLessThan(upgradeCost(s, 'miner').mineral)
     expect(v.spent.mineral).toBe(500 - s.resources.mineral)
   })
 

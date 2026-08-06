@@ -30,6 +30,50 @@ export const TECH_UPGRADE_GROWTH = 1.7
 /** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
 export const TECH_EXCHANGE_RATE = 100
 
+const ORDINARY_UPGRADE_BUILDING_IDS = [
+  'miner',
+  'solar',
+  'lab',
+  'refinery',
+  'deepDrill',
+  'barracks',
+  'militaryPort',
+] as const
+
+/** 普通建筑升级成本分段增长率：Lv0-Lv3 使用 early，Lv4+ 使用 late。 */
+export const ORDINARY_UPGRADE_COST_GROWTH: Record<string, { early: number; late: number }> = {
+  miner: { early: 1.15, late: 1.25 },
+  solar: { early: 1.18, late: 1.28 },
+  lab: { early: 1.2, late: 1.3 },
+  refinery: { early: 1.25, late: 1.35 },
+  deepDrill: { early: 1.3, late: 1.4 },
+  barracks: { early: 1.25, late: 1.35 },
+  militaryPort: { early: 1.3, late: 1.4 },
+}
+const ORDINARY_UPGRADE_EARLY_LEVELS = 3
+
+for (const id of ORDINARY_UPGRADE_BUILDING_IDS) {
+  if (!Object.prototype.hasOwnProperty.call(ORDINARY_UPGRADE_COST_GROWTH, id)) {
+    throw new Error(`Missing ordinary upgrade cost growth for ${id}`)
+  }
+}
+for (const [id, growth] of Object.entries(ORDINARY_UPGRADE_COST_GROWTH)) {
+  if (
+    !Number.isFinite(growth.early) ||
+    !Number.isFinite(growth.late) ||
+    growth.early < 1 ||
+    growth.late < growth.early
+  ) {
+    throw new Error(`Invalid ordinary upgrade cost growth for ${id}`)
+  }
+}
+
+export function ordinaryUpgradeCostGrowth(id: string, level: number): number {
+  const growth = ORDINARY_UPGRADE_COST_GROWTH[id]
+  if (!growth) throw new Error(`Missing ordinary upgrade cost growth for ${id}`)
+  return level <= ORDINARY_UPGRADE_EARLY_LEVELS ? growth.early : growth.late
+}
+
 // ---- 科技 ----
 
 /** 科技等级上限（产出类科技；军械科技等短升级线按 def.maxLevel） */

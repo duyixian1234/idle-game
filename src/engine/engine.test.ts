@@ -23,7 +23,8 @@ import {
 } from './engine'
 import { netProduction, productionMultipliers, productionReport, simulateProductionDelta } from './production'
 import { pushLog } from './core'
-import { LEVEL_PRODUCTION_BONUS, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
+import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
+import { RESOURCE_KEYS } from './data'
 
 describe('engine: 初始状态', () => {
   it('起始矿物 15（够买第一台采矿机），无建筑无升级', () => {
@@ -119,40 +120,58 @@ describe('engine: 建筑升级', () => {
     expect(netProduction(s).mineral).toBe(2 * 1.5)
   })
 
-  it('升级成本公式：产出等价折算（P=2，count/L 双参数）', () => {
+  it('升级成本按等级分段增长且不会下降', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
-    // count=1, Lv.0：buyCost = floor(10×1.15^1)=11，mult = P×0.5×count/levelMult(0) = 2×0.5×1/1 = 1
+    // buyCost = floor(10×1.15^1)=11；Lv0→1 的成本保持基准值。
     expect(upgradeCost(s, 'miner').mineral).toBe(11)
-    // Lv.0→1：levelMultiplier 1→1.5，mult = 2×0.5×1/1.5 = 2/3 → floor(11×2/3)=7（升级作用 1 台，成本随等级相对下降）
     s.upgrades.miner = 1
-    expect(upgradeCost(s, 'miner').mineral).toBe(7)
-    // 多台语义：count 进公式，升级作用于全部单位
-    s.upgrades.miner = 0
-    s.buildings.miner = 2
-    // buyCost = floor(10×1.15²) = 13；mult = 2×0.5×2/1 = 2 → floor(13×2)=26（升级 2 台 = 单台成本的 2 倍）
-    expect(upgradeCost(s, 'miner').mineral).toBe(26)
+    expect(upgradeCost(s, 'miner').mineral).toBe(13)
+    s.upgrades.miner = 2
+    expect(upgradeCost(s, 'miner').mineral).toBe(15)
+    s.upgrades.miner = 3
+    expect(upgradeCost(s, 'miner').mineral).toBe(17)
+    s.upgrades.miner = 4
+    expect(upgradeCost(s, 'miner').mineral).toBe(22)
+    s.upgrades.miner = 5
+    expect(upgradeCost(s, 'miner').mineral).toBe(28)
   })
 
-  it('ROI 恒等于 UPGRADE_PREMIUM：升级每 +1/s 成本 ÷ 买入每 +1/s 成本 ≈ 2（任意 count/L）', () => {
-    // 大 count 组合：floor 一次引入 <1 的绝对误差，经 0.5×count×buy 归一后相对误差 ~1e-8
-    const combos = [
-      { count: 100, level: 0 },
-      { count: 100, level: 11 },
-      { count: 100, level: 20 },
-      { count: 500, level: 50 },
-    ]
-    for (const { count, level } of combos) {
+  it('多台建筑升级成本按数量线性增长', () => {
+    const one = createInitialState(0)
+    one.buildings.miner = 1
+    const many = createInitialState(0)
+    many.buildings.miner = 2
+    expect(upgradeCost(many, 'miner').mineral).toBe(26)
+    expect(upgradeCost(many, 'miner').mineral).toBeGreaterThan(upgradeCost(one, 'miner').mineral)
+  })
+
+  it('唯一建筑和科技成本最终向上取整并随等级增长', () => {
+    const s = createInitialState(0)
+    s.buildings.starportMine = 1
+    expect(upgradeCost(s, 'starportMine').mineral).toBe(50_000_000)
+    s.upgrades.starportMine = 1
+    expect(upgradeCost(s, 'starportMine').mineral).toBe(100_000_000)
+
+    s.techLevels.planetDrill = 1
+    expect(techCost(s, 'planetDrill').mineral).toBe(850)
+    s.techLevels.planetDrill = 2
+    expect(techCost(s, 'planetDrill').mineral).toBe(1_445)
+  })
+
+  it('所有普通建筑在分段边界及后期等级成本不下降', () => {
+    for (const id of ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort']) {
       const s = createInitialState(0)
-      s.buildings.miner = count
-      s.upgrades.miner = level
-      const buy = buildingCost(s, 'miner').mineral
-      const up = upgradeCost(s, 'miner').mineral
-      const lm = 1 + LEVEL_PRODUCTION_BONUS * level
-      // 买入每 +1/s = buy / (1×lm)；升级每 +1/s = up / (0.5×count)
-      const buyPerRate = buy / lm
-      const upPerRate = up / (0.5 * count)
-      expect(upPerRate / buyPerRate).toBeCloseTo(UPGRADE_PREMIUM, 4)
+      s.buildings[id] = 2
+      let previous = upgradeCost(s, id)
+      for (let level = 1; level <= 8; level += 1) {
+        s.upgrades[id] = level
+        const current = upgradeCost(s, id)
+        for (const key of RESOURCE_KEYS) {
+          expect(current[key], `${id} ${key} Lv${level}`).toBeGreaterThanOrEqual(previous[key])
+        }
+        previous = current
+      }
     }
   })
 
@@ -461,8 +480,8 @@ describe('engine: 科技系统', () => {
     s.techLevels.planetDrill = 9
     const k = Math.pow(TECH_UPGRADE_GROWTH, 9)
     expect(techCost(s, 'planetDrill')).toEqual({
-      mineral: Math.max(1, Math.floor(500 * k)),
-      tech: Math.max(1, Math.floor(10 * k)),
+      mineral: Math.max(1, Math.ceil(500 * k)),
+      tech: Math.max(1, Math.ceil(10 * k)),
       energy: 0,
       military: 0,
     })

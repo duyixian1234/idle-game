@@ -8,7 +8,15 @@ import {
   TECHS,
 } from './data'
 import type { TechDef } from './data'
-import { LEVEL_PRODUCTION_BONUS, TECH_EXCHANGE_RATE, TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH, UNIQUE_UPGRADE_GROWTH, UPGRADE_PREMIUM } from './balance'
+import {
+  LEVEL_PRODUCTION_BONUS,
+  TECH_EXCHANGE_RATE,
+  TECH_MAX_LEVEL,
+  TECH_UPGRADE_GROWTH,
+  UNIQUE_UPGRADE_GROWTH,
+  UPGRADE_PREMIUM,
+  ordinaryUpgradeCostGrowth,
+} from './balance'
 import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
@@ -21,7 +29,7 @@ import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
-import { applyMaintenance, netProduction, productionReport, militaryCap, levelMultiplier } from './production'
+import { applyMaintenance, netProduction, productionReport, militaryCap } from './production'
 import { nextShipCost, shipCap } from './fleet'
 import { applyFleetMaintenance } from './fleet'
 import { computeNgPlusInheritance, megastructureLegacyBonus } from './ngplus'
@@ -105,12 +113,18 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
   return cost
 }
 
-/**
- * 建筑升级成本。
- * - 普通建筑：产出等价折算（balance-rework spec 定稿）upgradeCost = buyCost × UPGRADE_PREMIUM × LEVEL_PRODUCTION_BONUS × count / levelMultiplier(level)
- * - 唯一大件（unique）：独立公式 `baseCost × UNIQUE_UPGRADE_GROWTH^level`（= baseCost × 2^level）。
- *   不复用 count 折算公式——count 恒 1 时该公式随 level 递减，会破坏「升级成本与收益对称 ×2/级」的终局语义。
- */
+function ordinaryUpgradeCostValue(base: number, multiplier: number, id: string, level: number): number {
+  let cost = base * multiplier
+  if (level <= 3) return Math.max(1, Math.ceil(cost * Math.pow(ordinaryUpgradeCostGrowth(id, level), level)))
+
+  cost = Math.ceil(cost * Math.pow(ordinaryUpgradeCostGrowth(id, 3), 3))
+  for (let currentLevel = 4; currentLevel <= level; currentLevel += 1) {
+    cost = Math.ceil(cost * ordinaryUpgradeCostGrowth(id, currentLevel))
+  }
+  return Math.max(1, cost)
+}
+
+/** 建筑升级成本按对象类型与等级计算，最终逐资源向上取整。 */
 export function upgradeCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
   const level = state.upgrades[id] ?? 0
@@ -119,16 +133,16 @@ export function upgradeCost(state: GameState, id: string): Record<ResourceKey, n
     const cost = zeroResources()
     for (const key of RESOURCE_KEYS) {
       const base = def.baseCost[key] ?? 0
-      cost[key] = base > 0 ? Math.max(1, Math.floor(base * factor)) : 0
+      cost[key] = base > 0 ? Math.max(1, Math.ceil(base * factor)) : 0
     }
     return cost
   }
   const count = state.buildings[id] ?? 0
   const buy = buildingCost(state, id)
-  const mult = (UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count) / levelMultiplier(level)
+  const mult = UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
-    cost[key] = buy[key] > 0 ? Math.max(1, Math.floor(buy[key] * mult)) : 0
+    cost[key] = buy[key] > 0 ? ordinaryUpgradeCostValue(buy[key], mult, id, level) : 0
   }
   return cost
 }
@@ -304,7 +318,7 @@ export function techCost(state: GameState, id: string): Record<ResourceKey, numb
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     const base = def?.cost[key] ?? 0
-    cost[key] = base > 0 ? Math.max(1, Math.floor(base * factor)) : 0
+    cost[key] = base > 0 ? Math.max(1, Math.ceil(base * factor)) : 0
   }
   return cost
 }
