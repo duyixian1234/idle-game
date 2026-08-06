@@ -12,7 +12,7 @@ import { formatDuration, offlineCapSeconds, settleOffline } from './engine/offli
 import { deserializeSave, serializeSave } from './engine/save'
 import { OPENING_SCENES } from './engine/story'
 import { advanceTutorial, skipTutorial } from './engine/tutorial'
-import type { EventAutomationPolicy, EventRiskLevel, GameState } from './engine/types'
+import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
 // 自托管 JetBrains Mono（Q4 定案）：woff2 打进 dist，font-display: swap，避免 Google Fonts 网络依赖
@@ -112,6 +112,15 @@ async function main(): Promise<void> {
   function flashUpgrade(id: string): void {
     justUpgradedId = id
     justUpgradedUntil = Date.now() + 1200
+  }
+
+  function automationPolicyWithDefaults(category: EventTheme, current: EventAutomationPolicy | undefined, enabled: boolean): EventAutomationPolicy {
+    return {
+      ...(current ?? { rules: [] }),
+      enabled,
+      fallbackOptionId: current?.fallbackOptionId ?? DEFAULT_AUTOMATION_FALLBACK[category],
+      maxRiskLevel: current?.maxRiskLevel ?? DEFAULT_AUTOMATION_MAX_RISK[category],
+    }
   }
 
   // 本周目解锁成就数（unlockedInRound === 当前周目；声望同一口径，见 reputation.ts）
@@ -317,15 +326,7 @@ async function main(): Promise<void> {
     const toggle = (e.target as HTMLElement).closest<HTMLInputElement>('[data-auto-quick-toggle]')
     if (!toggle) return
     const category = toggle.dataset.autoQuickToggle ?? ''
-    const current = state.automationPolicies[category]
-    const policy: EventAutomationPolicy = current
-      ? { ...current, enabled: toggle.checked }
-      : {
-          enabled: toggle.checked,
-          rules: [],
-          fallbackOptionId: DEFAULT_AUTOMATION_FALLBACK[category as keyof typeof DEFAULT_AUTOMATION_FALLBACK],
-          maxRiskLevel: DEFAULT_AUTOMATION_MAX_RISK[category as keyof typeof DEFAULT_AUTOMATION_MAX_RISK],
-        }
+    const policy = automationPolicyWithDefaults(category as EventTheme, state.automationPolicies[category], toggle.checked)
     dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
   })
   els.navPages.sector.addEventListener('click', (e) => {
@@ -357,15 +358,7 @@ async function main(): Promise<void> {
     const field = target.closest<HTMLInputElement | HTMLSelectElement>('[data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')
     if (!enabled && !field) return
     const category = (enabled?.dataset.autoEnabled ?? field?.dataset.autoRisk ?? field?.dataset.autoCooldown ?? field?.dataset.autoFallback ?? field?.dataset.autoBudget?.split(':')[0]) ?? ''
-    const current = state.automationPolicies[category]
-    const policy: EventAutomationPolicy = current
-      ? { ...current }
-      : {
-          enabled: false,
-          rules: [],
-          fallbackOptionId: DEFAULT_AUTOMATION_FALLBACK[category as keyof typeof DEFAULT_AUTOMATION_FALLBACK],
-          maxRiskLevel: DEFAULT_AUTOMATION_MAX_RISK[category as keyof typeof DEFAULT_AUTOMATION_MAX_RISK],
-        }
+    const policy: EventAutomationPolicy = automationPolicyWithDefaults(category as EventTheme, state.automationPolicies[category], state.automationPolicies[category]?.enabled ?? false)
     if (enabled) policy.enabled = enabled.checked
     if (field?.dataset.autoRisk) policy.maxRiskLevel = (field.value || undefined) as EventRiskLevel | undefined
     if (field?.dataset.autoCooldown) policy.cooldownMs = Math.max(0, Number(field.value || 0)) * 60_000 || undefined

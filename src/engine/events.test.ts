@@ -95,6 +95,29 @@ describe('engine: 随机事件触发', () => {
 })
 
 describe('engine: 贸易商事件', () => {
+  it('贸易成交余额不足时自动拒绝并移入日志结算', () => {
+    const s = createInitialState(0)
+    s.automationPolicies.trade.enabled = true
+    const inst = createEventInstance(s, 'trade')
+    s.pendingEvents.push(inst)
+    const results = autoResolvePendingEvents(s, 1_000)
+    expect(results[0].status).toBe('resolved')
+    expect(results[0].outcome?.logText).toContain('婉拒')
+    expect(s.pendingEvents).toHaveLength(0)
+  })
+
+  it('贸易类别启用但未显式配置时有足够矿物自动成交', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    s.automationPolicies.trade = { enabled: true, rules: [] }
+    const inst = createEventInstance(s, 'trade')
+    s.pendingEvents.push(inst)
+    const results = autoResolvePendingEvents(s, 1_000)
+    expect(results[0].status).toBe('resolved')
+    expect(s.pendingEvents).toHaveLength(0)
+    expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'accept', status: 'resolved' })
+  })
+
   it('使用统一事件契约和可解释曲线生成贸易条款', () => {
     const s = createInitialState(0)
     s.resources.mineral = 10_000
@@ -161,6 +184,15 @@ describe('engine: 贸易商事件', () => {
 })
 
 describe('engine: 陨石雨事件', () => {
+  it('默认 policy 仅启用时使用常规采集', () => {
+    const s = createInitialState(0)
+    s.automationPolicies.disaster.enabled = true
+    const inst = createEventInstance(s, 'meteor')
+    s.pendingEvents.push(inst)
+    expect(autoResolvePendingEvents(s, 1_000)[0].status).toBe('resolved')
+    expect(s.pendingEvents).toHaveLength(0)
+  })
+
   it('灾害类别启用但未显式配置时自动采集，事件从列表移入日志', () => {
     const s = createInitialState(0)
     s.automationPolicies.disaster = { enabled: true, rules: [] }
