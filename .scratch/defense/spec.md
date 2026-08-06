@@ -1,4 +1,4 @@
-Status: draft（grill 定稿，待用户确认后改 ready-for-agent）
+Status: implemented（grill 四轮定稿 → 8 ticket 全部实现，2026-08-06；299 vitest + E2E 全绿）
 
 # Spec: 国防系统与攻占区域
 
