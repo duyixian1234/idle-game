@@ -240,6 +240,7 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
   if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: '尚未建造该建筑' }
+  if (id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
   const cost = upgradeCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]

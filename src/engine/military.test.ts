@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buyBuilding, createInitialState, isBuildingUnlocked, researchTech, tick, upgradeTech } from './engine'
+import { buyBuilding, createInitialState, isBuildingUnlocked, researchTech, tick, upgradeBuilding, upgradeTech } from './engine'
 import { canBulkBuy, executeMaxBuy, previewMaxBuy } from './bulk'
 import { militaryCap, netProduction, productionReport } from './production'
 import { settleOffline } from './offline'
@@ -49,6 +49,19 @@ describe('engine: 军力资源（military）', () => {
     expect(militaryCap(s)).toBe(300)
     buyBuilding(s, 'militaryPort')
     expect(militaryCap(s)).toBe(500)
+  })
+
+  it('兵营升级提升军力产出，军港升级提升每座容量', () => {
+    const s = stateWithMilitary({ mineral: 1_000_000, energy: 1_000_000, tech: 1_000_000 })
+    buyBuilding(s, 'barracks')
+    buyBuilding(s, 'militaryPort')
+    expect(netProduction(s).military).toBe(0.5)
+    expect(militaryCap(s)).toBe(300)
+
+    expect(upgradeBuilding(s, 'barracks')).toEqual({ ok: true })
+    expect(upgradeBuilding(s, 'militaryPort')).toEqual({ ok: true })
+    expect(netProduction(s).military).toBe(0.75)
+    expect(militaryCap(s)).toBe(400)
   })
 
   it('军力满上限时产出截断为 0（浪费语义，逼消费/扩容）', () => {
