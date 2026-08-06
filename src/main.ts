@@ -357,8 +357,15 @@ async function main(): Promise<void> {
     const field = target.closest<HTMLInputElement | HTMLSelectElement>('[data-auto-risk], [data-auto-cooldown], [data-auto-budget], [data-auto-fallback]')
     if (!enabled && !field) return
     const category = (enabled?.dataset.autoEnabled ?? field?.dataset.autoRisk ?? field?.dataset.autoCooldown ?? field?.dataset.autoFallback ?? field?.dataset.autoBudget?.split(':')[0]) ?? ''
-    const current = state.automationPolicies[category] ?? { enabled: false, rules: [] }
-    const policy: EventAutomationPolicy = { ...current }
+    const current = state.automationPolicies[category]
+    const policy: EventAutomationPolicy = current
+      ? { ...current }
+      : {
+          enabled: false,
+          rules: [],
+          fallbackOptionId: DEFAULT_AUTOMATION_FALLBACK[category as keyof typeof DEFAULT_AUTOMATION_FALLBACK],
+          maxRiskLevel: DEFAULT_AUTOMATION_MAX_RISK[category as keyof typeof DEFAULT_AUTOMATION_MAX_RISK],
+        }
     if (enabled) policy.enabled = enabled.checked
     if (field?.dataset.autoRisk) policy.maxRiskLevel = (field.value || undefined) as EventRiskLevel | undefined
     if (field?.dataset.autoCooldown) policy.cooldownMs = Math.max(0, Number(field.value || 0)) * 60_000 || undefined

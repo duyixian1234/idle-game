@@ -795,8 +795,12 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
     const top = topPriority == null ? [] : eligible.filter((candidate) => candidate.priority === topPriority)
     const conflicting = top.length > 1 && new Set(top.map((candidate) => candidate.optionId)).size > 1
     const rule = conflicting ? undefined : top[0]
-    const optionId = rule?.optionId ?? policy.fallbackOptionId
-    const fallback = !rule && optionId ? fallbackGate(state, instance, optionId, policy, nowMs) : { allowed: true }
+    const defaultFallback = DEFAULT_AUTOMATION_FALLBACK[category as EventTheme]
+    const optionId = conflicting ? undefined : rule?.optionId ?? policy.fallbackOptionId ?? defaultFallback
+    const fallbackPolicy = !rule && optionId
+      ? { ...policy, maxRiskLevel: policy.maxRiskLevel ?? DEFAULT_AUTOMATION_MAX_RISK[category as EventTheme] }
+      : policy
+    const fallback = !rule && optionId ? fallbackGate(state, instance, optionId, fallbackPolicy, nowMs) : { allowed: true }
     if (!rule && optionId && !fallback.allowed) {
       recordAutomation(state, instance, { source: 'automation', status: 'paused', reason: fallback.reason!, failureReason: fallback.reason }, nowMs)
       pushLog(state, 'warning', `自动处理暂停：${instance.title || instance.defId}。${fallback.reason}`)

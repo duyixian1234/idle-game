@@ -161,6 +161,27 @@ describe('engine: 贸易商事件', () => {
 })
 
 describe('engine: 陨石雨事件', () => {
+  it('灾害类别启用但未显式配置时自动采集，事件从列表移入日志', () => {
+    const s = createInitialState(0)
+    s.automationPolicies.disaster = { enabled: true, rules: [] }
+    const inst = createEventInstance(s, 'meteor')
+    s.pendingEvents.push(inst)
+    const results = autoResolvePendingEvents(s, 1_000)
+    expect(results[0].status).toBe('resolved')
+    expect(s.pendingEvents).toHaveLength(0)
+    expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'collect', status: 'resolved' })
+  })
+
+  it('tick 自动处理陨石雨后只保留自动结算日志，不保留事件卡数据', () => {
+    const s = createInitialState(0)
+    s.nextEventAt = 1_000
+    s.automationPolicies.disaster = { enabled: true, rules: [] }
+    tick(s, 1_000, seqRng([0.5, 0]))
+    expect(s.pendingEvents).toHaveLength(0)
+    expect(s.log[0]).toMatchObject({ autoHandled: true })
+    expect(s.log[0].text).toContain('采集')
+  })
+
   it('常规采集：获得基础矿物', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
@@ -335,15 +356,15 @@ describe('engine: 事件优先级与处理模式', () => {
       })
     })
 
-    it('高风险事件无可用规则时暂停并记录通知，不隐式选择选项', () => {
+    it('高风险事件按类别默认方式自动处理', () => {
       const s = createInitialState(0)
       const inst = createEventInstance(s, 'bug')
       s.pendingEvents.push(inst)
       s.automationPolicies.security = { enabled: true, rules: [] }
       const results = autoResolvePendingEvents(s)
-      expect(results[0].status).toBe('paused')
-      expect(s.pendingEvents).toHaveLength(1)
-      expect(s.automationHistory[0]).toMatchObject({ status: 'paused', reason: expect.stringContaining('没有可用规则') })
+      expect(results[0].status).toBe('resolved')
+      expect(s.pendingEvents).toHaveLength(0)
+      expect(s.automationHistory[0]).toMatchObject({ status: 'resolved', optionId: 'ignore' })
     })
 
     it('低风险无规则时使用安全 fallback，高风险 fallback 缺失仍暂停', () => {
