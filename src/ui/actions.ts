@@ -16,6 +16,8 @@ import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
 import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
+import { buyShip } from '../engine/engine'
+import { fleetMaintenance } from '../engine/fleet'
 import { startConquest } from '../engine/conquest'
 import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
@@ -275,6 +277,16 @@ export const ACTIONS: Record<string, GameAction> = {
     },
     feedback: () => ({ logs: [{ type: 'story', text: '探索队启程：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。' }], sound: 'upgrade' }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
+  },
+  fleetBuild: {
+    id: 'fleetBuild',
+    // 建造护卫舰（第 count+1 艘，成本逐艘 ×1.5）；硬约束与上限拦截在引擎 buyShip 内
+    run: (state) => buyShip(state),
+    feedback: (state) => ({
+      logs: [{ type: 'system', text: `护卫舰入列：舰队现有 ${state.fleet.count} 艘，总维护费 -${formatNumber(fleetMaintenance(state))} 能源/s。` }],
+      sound: 'upgrade',
+    }),
+    onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `造舰失败：${reason}。` }] }),
   },
   megastructure: {
     id: 'megastructure',

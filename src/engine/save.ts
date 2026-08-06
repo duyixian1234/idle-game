@@ -17,6 +17,8 @@ const SCHEMA_V5 = 5
 const SCHEMA_V6 = 6
 /** 首个支持终局抉择的 schema 版本（v6 基础上加 megastructureChoice，null = 未选择） */
 const SCHEMA_V7 = 7
+/** 首个支持舰队的 schema 版本（v7 基础上加 fleet.count，默认 0） */
+const SCHEMA_V8 = 8
 /** 支持的最低版本（当前全部可迁移版本） */
 const MIN_SUPPORTED_VERSION = 1
 
@@ -67,6 +69,7 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'exploredPlanets', since: 6, check: isArray },
   { key: 'nextExpeditionId', since: 6, check: isNumber },
   { key: 'megastructureChoice', since: 7, check: (v) => v === null || v === 'smelter' || v === 'jumpgate' },
+  { key: 'fleet', since: 8, check: (v) => isPlainObject(v) && typeof (v as { count?: unknown }).count === 'number' },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -208,13 +211,30 @@ function migrateV6ToV7(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * v7 → v8：补齐舰队字段（fleet spec）。
+ * - fleet 缺省 { count: 0 }（字段已有则幂等保留，count 非数值补 0）。
+ * - ⚠️ 迁移链陷阱：schemaVersion 必须写死 SCHEMA_V8（不能用 SCHEMA_VERSION）——同 fixed-rng/exploration/interstellar 教训。
+ */
+function migrateV7ToV8(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  if (next.fleet == null || typeof next.fleet !== 'object') {
+    next.fleet = { count: 0 }
+  } else if (typeof (next.fleet as { count?: unknown }).count !== 'number') {
+    ;(next.fleet as { count: number }).count = 0
+  }
+  next.schemaVersion = SCHEMA_V8
+  return next
+}
+
+/**
  * 迁移旧版本存档到当前版本。
- * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7
- * - v2 存档（无军力/区域字段）→ 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7
- * - v3 存档（无成就字段）→ 转 v4（含回溯解锁）→ 转 v5（补随机 seed）→ 转 v6（补探索字段）→ 转 v7
- * - v4 存档（无 seed/rngCounters）→ 转 v5 → 转 v6 → 转 v7
- * - v5 存档（无探索字段）→ 转 v6 → 转 v7
- * - v6 存档（无终局抉择字段）→ 转 v7
+ * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7 → 转 v8
+ * - v2 存档（无军力/区域字段）→ 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7 → 转 v8
+ * - v3 存档（无成就字段）→ 转 v4（含回溯解锁）→ 转 v5（补随机 seed）→ 转 v6（补探索字段）→ 转 v7 → 转 v8
+ * - v4 存档（无 seed/rngCounters）→ 转 v5 → 转 v6 → 转 v7 → 转 v8
+ * - v5 存档（无探索字段）→ 转 v6 → 转 v7 → 转 v8
+ * - v6 存档（无终局抉择字段）→ 转 v7 → 转 v8
+ * - v7 存档（无舰队字段）→ 转 v8
  * - 已是当前版本：原样返回
  *
  * loadGame（IndexedDB 加载路径）与 deserializeSave（导入路径）共用此入口，
@@ -230,6 +250,7 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V4) cur = migrateV4ToV5(cur)
   if (cur.schemaVersion === SCHEMA_V5) cur = migrateV5ToV6(cur)
   if (cur.schemaVersion === SCHEMA_V6) cur = migrateV6ToV7(cur)
+  if (cur.schemaVersion === SCHEMA_V7) cur = migrateV7ToV8(cur)
   return cur as unknown as GameState
 }
 

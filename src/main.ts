@@ -518,6 +518,12 @@ async function main(): Promise<void> {
   // 建造/升级/科技/兑换/外交按钮事件委托（统一走动作注册表）
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
+    // 造舰按钮（舰队管理区，data-fleet-build；硬约束与上限拦截在引擎 buyShip 内）
+    const fleetBtn = target.closest<HTMLElement>('[data-fleet-build]')
+    if (fleetBtn) {
+      dispatch(state, 'fleetBuild', 0, deps)
+      return
+    }
     // 终局抉择卡片（data-megastructure）：未选择且未锁定时弹出确认（选定/锁定卡片不可点）
     const megaCard = target.closest<HTMLElement>('[data-megastructure]')
     if (megaCard && !megaCard.hasAttribute('data-chosen') && !megaCard.hasAttribute('data-locked')) {

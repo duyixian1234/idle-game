@@ -158,7 +158,7 @@ describe('engine: 存档序列化往返', () => {
     expect(() => deserializeSave(JSON.stringify(raw))).toThrow(/版本/)
   })
 
-  it('v4 旧档迁移为 v7：补齐 seed/rngCounters 与探索字段、终局抉择字段，schemaVersion=7', () => {
+  it('v4 旧档迁移为 v8：补齐 seed/rngCounters 与探索字段、终局抉择字段，schemaVersion=8', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 4
@@ -170,7 +170,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).nextExpeditionId
     ;(raw.stats as Record<string, unknown>).explorations = undefined
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(7)
+    expect(migrated.schemaVersion).toBe(8)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
     expect(migrated.rngCounters).toEqual({})
@@ -182,7 +182,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.megastructureChoice).toBeNull()
   })
 
-  it('v3 旧档链式迁移直达 v7：不跳过 v5/v6/v7 补齐（回归迁移链陷阱）', () => {
+  it('v3 旧档链式迁移直达 v8：不跳过 v5/v6/v7 补齐（回归迁移链陷阱）', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 3
@@ -194,7 +194,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(7)
+    expect(migrated.schemaVersion).toBe(8)
     // v5 补齐必须生效：seed 在合法范围、rngCounters 空对象（否则 migrateV3ToV4 误标 5 跳级）
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
     expect(migrated.seed).toBeLessThan(0x100000000)
@@ -209,7 +209,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.achievements).toEqual({})
   })
 
-  it('v1 旧档链式迁移直达 v7（完整链路）', () => {
+  it('v1 旧档链式迁移直达 v8（完整链路）', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 1
@@ -225,7 +225,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(7)
+    expect(migrated.schemaVersion).toBe(8)
     expect(migrated.techLevels).toEqual({ planetDrill: 1 })
     expect(migrated.resources.military).toBe(0)
     expect(migrated.seed).toBeGreaterThanOrEqual(0)
@@ -233,9 +233,11 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.expeditions).toEqual([])
     expect(migrated.nextExpeditionId).toBe(1)
     expect(migrated.megastructureChoice).toBeNull()
+    // v8 补齐必须生效：舰队字段默认 0 艘
+    expect(migrated.fleet).toEqual({ count: 0 })
   })
 
-  it('v5 档迁移为 v7：补齐探索字段默认值与终局抉择字段，保留 seed/rngCounters', () => {
+  it('v5 档迁移为 v8：补齐探索字段默认值与终局抉择字段，保留 seed/rngCounters', () => {
     const s = createInitialState(0, 42)
     s.rngCounters.event = 3
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
@@ -245,7 +247,7 @@ describe('engine: 存档序列化往返', () => {
     delete (raw as Record<string, unknown>).exploredPlanets
     delete (raw as Record<string, unknown>).nextExpeditionId
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(7)
+    expect(migrated.schemaVersion).toBe(8)
     expect(migrated.seed).toBe(42)
     expect(migrated.rngCounters).toEqual({ event: 3 })
     expect(migrated.expeditions).toEqual([])
@@ -256,7 +258,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.megastructureChoice).toBeNull()
   })
 
-  it('v6 档迁移为 v7（isValidSave 通过后迁移，原字段保留）', () => {
+  it('v6 档迁移为 v8（isValidSave 通过后迁移，原字段保留）', () => {
     const s = createInitialState(0, 42)
     s.rngCounters.event = 3
     s.expeditions = [
@@ -264,14 +266,14 @@ describe('engine: 存档序列化往返', () => {
     ]
     s.exploredFactions = ['ashCommune']
     const restored = deserializeSave(serializeSave(s))
-    expect(restored.schemaVersion).toBe(7)
+    expect(restored.schemaVersion).toBe(8)
     expect(restored.seed).toBe(42)
     expect(restored.expeditions).toHaveLength(1)
     expect(restored.exploredFactions).toEqual(['ashCommune'])
     expect(restored.megastructureChoice).toBeNull()
   })
 
-  it('v6 旧档迁移为 v7：megastructureChoice 缺省 null，其余字段原值保留', () => {
+  it('v6 旧档迁移为 v8：megastructureChoice 缺省 null，其余字段原值保留', () => {
     const s = createInitialState(0, 42)
     s.resources.mineral = 123_456
     s.buildings.miner = 3
@@ -283,7 +285,7 @@ describe('engine: 存档序列化往返', () => {
     raw.schemaVersion = 6
     delete (raw as Record<string, unknown>).megastructureChoice
     const migrated = deserializeSave(JSON.stringify(raw))
-    expect(migrated.schemaVersion).toBe(7)
+    expect(migrated.schemaVersion).toBe(8)
     expect(migrated.megastructureChoice).toBeNull()
     // 既有进度无损
     expect(migrated.resources.mineral).toBe(123_456)

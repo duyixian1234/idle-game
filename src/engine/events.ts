@@ -1,4 +1,4 @@
-import type { EventInstance, GameState, ResourceKey } from './types'
+import type { EventInstance, GameState, LogType, ResourceKey } from './types'
 import { ALL_FACTIONS, FACTIONS } from './data'
 import {
   MEAN_EVENT_GAP_SECONDS,
@@ -11,6 +11,7 @@ import {
   RAID_THREAT_LOSS,
 } from './balance'
 import { netProduction } from './production'
+import { fleetPower } from './fleet'
 import { raidThreshold } from './reputation'
 import { rollDomain, streamFor } from './rng'
 import { EVENT_STORIES } from './story'
@@ -167,19 +168,22 @@ export function raidTerms(state: GameState, factionId: string): { strength: numb
   }
 }
 
-/** 生成骚扰事件实例（针对威胁度最高的未结盟派系） */
+/** 生成骚扰事件实例（针对威胁度最高的未结盟派系）。
+ * 舰队战力削减「军力击退」所需强度：repelCost = max(50, strength − fleetPower)，
+ * 固化进 payload 保证 hint 与结算一致（与 terms 同源，防双实现漂移）。 */
 function createRaidInstance(state: GameState, base: EventInstance, rng: () => number): EventInstance {
   const raider = raidableFaction(state)
   const factionId = raider?.id ?? 'unknown'
   const terms = raidTerms(state, factionId)
+  const repelCost = Math.max(50, terms.strength - fleetPower(state))
   const story = eventStory('raid', rng)
   return {
     ...base,
     title: `${raider?.name ?? '未知势力'}军事骚扰`,
     desc: story || `${raider?.name ?? '未知势力'}的舰队列阵于你的领空边缘，索要「通行税」。`,
-    payload: { factionId, ...terms },
+    payload: { factionId, ...terms, repelCost },
     options: [
-      { id: 'repel', label: '军力击退', hint: `-${terms.strength}军力（威胁 −${RAID_THREAT_LOSS}）` },
+      { id: 'repel', label: '军力击退', hint: `-${repelCost}军力（威胁 −${RAID_THREAT_LOSS}）` },
       { id: 'buyoff', label: '付税买平安', hint: `-${terms.buyoff}矿物 好感 +${RAID_BUYOFF_FAVOR_GAIN}` },
       { id: 'ignore', label: '无视', hint: `矿/能各 -${Math.round(RAID_IGNORE_LOSS_PCT * 100)}%` },
     ],
@@ -250,7 +254,8 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   return { logType: 'system', logText: '未知事件。', changed: false }
 }
 
-/** 骚扰事件结算：三选项（击退/买平安/无视），数值以实例固化 payload 为准 */
+/** 骚扰事件结算：三选项（击退/买平安/无视），数值以实例固化 payload 为准；
+ * 军力击退按残余强度（strength − 舰队战力，下限 50）——舰队已代劳的部分无需重复军力。 */
 function applyRaid(state: GameState, instance: EventInstance, optionId: string): EventOutcome {
   const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
@@ -258,12 +263,13 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
   const buyoff = Number(instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff)
   if (optionId === 'repel') {
-    if (state.resources.military < strength) {
-      return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${strength}⚔，当前 ${Math.floor(state.resources.military)}⚔）。`, changed: false }
+    const repelCost = Number(instance.payload?.repelCost ?? Math.max(50, strength - fleetPower(state)))
+    if (state.resources.military < repelCost) {
+      return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${repelCost}⚔，当前 ${Math.floor(state.resources.military)}⚔）。`, changed: false }
     }
-    state.resources.military -= strength
+    state.resources.military -= repelCost
     if (f) f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
-    return { logType: 'system', logText: `你的舰队倾巢而出，${factionName}的骚扰舰队被击退（-${strength}⚔，威胁 −${RAID_THREAT_LOSS}）。`, changed: true }
+    return { logType: 'system', logText: `你的舰队倾巢而出，${factionName}的骚扰舰队被击退（-${repelCost}⚔，威胁 −${RAID_THREAT_LOSS}）。`, changed: true }
   }
   if (optionId === 'buyoff') {
     if (state.resources.mineral < buyoff) {
@@ -288,8 +294,10 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
 export interface RaidSettlement {
   /** 日志文本（main 层 pushLog） */
   logs: string[]
-  /** 击退次数（离线自动判定） */
+  /** 击退次数（离线自动判定；舰队自动迎击与军力击退合计） */
   repelled: number
+  /** 舰队自动迎击次数（离线；够强不扣军力——成本即持续维护费） */
+  fleetRepelled: number
   /** 损失封顶后实际扣减的矿物/能源 */
   mineralLost: number
   energyLost: number
@@ -297,17 +305,19 @@ export interface RaidSettlement {
 
 /**
  * 离线骚扰结算：离线时长内每个威胁派系按 RAID_GAP_SECONDS 间隔骚扰若干次，
- * 每次自动判定——军力 ≥ 强度则自动击退（扣军力、威胁 −15），否则按无视规则扣资源；
+ * 每次自动判定——① 舰队自动迎击优先（战力 ≥ 强度则舰队代劳：不扣军力、威胁 −15）；
+ * ② 军力 ≥ 强度则军力击退（扣军力、威胁 −15）；③ 否则按无视规则扣资源；
  * 总损失封顶离线产出的 RAID_OFFLINE_LOSS_CAP（30%），保证挂机永远是净收益。
  * @param gains 离线产出（用于封顶）
  */
 export function settleOfflineRaids(state: GameState, durationSeconds: number, gains: Record<ResourceKey, number>): RaidSettlement {
   const logs: string[] = []
   let totalRepelled = 0
+  let totalFleetRepelled = 0
   let totalMineralLost = 0
   let totalEnergyLost = 0
   const raidCount = Math.floor(durationSeconds / RAID_GAP_SECONDS)
-  if (raidCount <= 0) return { logs, repelled: 0, mineralLost: 0, energyLost: 0 }
+  if (raidCount <= 0) return { logs, repelled: 0, fleetRepelled: 0, mineralLost: 0, energyLost: 0 }
 
   for (const def of Object.values(ALL_FACTIONS)) {
     const f = state.factions[def.id]
@@ -315,9 +325,18 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     const terms = raidTerms(state, def.id)
     const cap = Math.max(0, gains.mineral * RAID_OFFLINE_LOSS_CAP)
     let repelled = 0
+    let fleetRepelled = 0
     let mineralLost = 0
     let energyLost = 0
     for (let i = 0; i < raidCount; i++) {
+      // ① 舰队自动迎击优先：够强不扣军力（舰队战力随停摆/科技动态，每轮重取）
+      if (fleetPower(state) >= terms.strength) {
+        f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
+        fleetRepelled += 1
+        repelled += 1
+        continue
+      }
+      // ② 军力击退
       if (state.resources.military >= terms.strength) {
         state.resources.military -= terms.strength
         f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
@@ -332,22 +351,47 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
       }
     }
     totalRepelled += repelled
+    totalFleetRepelled += fleetRepelled
     totalMineralLost += mineralLost
     totalEnergyLost += energyLost
+    const fleetText = fleetRepelled > 0 ? `，${fleetRepelled} 次被护卫舰队迎击` : ''
+    const militaryText = repelled - fleetRepelled > 0 ? `，${repelled - fleetRepelled} 次被军力击退` : ''
     logs.push(
-      `${def.name}的舰队在离线期间${raidCount}次抵近边境：${repelled} 次被军力击退${mineralLost > 0 ? `，${mineralLost} 矿物被洗劫` : ''}。`,
+      `${def.name}的舰队在离线期间${raidCount}次抵近边境：${repelled} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${mineralLost} 矿物被洗劫` : ''}。`,
     )
   }
-  return { logs, repelled: totalRepelled, mineralLost: totalMineralLost, energyLost: totalEnergyLost }
+  return { logs, repelled: totalRepelled, fleetRepelled: totalFleetRepelled, mineralLost: totalMineralLost, energyLost: totalEnergyLost }
+}
+
+/**
+ * 舰队自动迎击（在线）：raid 事件被选中后、生成事件卡前判定——
+ * 舰队战力 ≥ 骚扰强度则不生成事件实例，直接结算为日志（威胁 −15、不扣军力——舰队代劳，
+ * 成本即持续维护费）；战力不足返回 null，事件照常弹窗（repel 强度按舰队战力削减，见 createRaidInstance）。
+ */
+function tryAutoIntercept(state: GameState): { logType: LogType; logText: string } | null {
+  const raider = raidableFaction(state)
+  if (!raider) return null
+  const terms = raidTerms(state, raider.id)
+  if (fleetPower(state) < terms.strength) return null
+  const f = state.factions[raider.id]
+  if (f) f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
+  return { logType: 'system', logText: `你的护卫舰队迎击了${raider.name}的骚扰舰群（威胁 −${RAID_THREAT_LOSS}）。` }
 }
 
 /**
  * 触发一次随机事件：trade/bug/meteor/raid 均进入待处理队列（交互事件）。
+ * raid 在生成事件卡前先尝试舰队自动迎击（够强不弹窗，直接结算为日志）。
  * 分层（fixed-rng）：rng 不传 → 事件类型走 event 域持久化计数器、事件文案走 seed 派生即时流
  * （计数器只 +1 不 +3）；显式传 rng → 全链注入（测试路径，行为与现状一致）。
+ * @returns 非 null = 直接结算日志（当前仅舰队自动迎击），null = 已生成待处理事件实例
  */
-export function triggerRandomEvent(state: GameState, rng?: () => number): string | null {
+export function triggerRandomEvent(state: GameState, rng?: () => number): { logType: LogType; logText: string } | null {
   const def = rng ? pickEventDef(state, rng) : pickEventDef(state)
+  // 舰队自动迎击：raid 被选中且舰队战力足够 → 不生成事件卡，直接结算为日志
+  if (def.id === 'raid') {
+    const intercept = tryAutoIntercept(state)
+    if (intercept) return intercept
+  }
   const instance = createEventInstance(state, def.id, rng ?? streamFor(state))
   state.pendingEvents.push(instance)
   return null

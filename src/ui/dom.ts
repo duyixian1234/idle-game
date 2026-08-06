@@ -42,6 +42,7 @@ import {
   upgradeCost,
 } from '../engine/engine'
 import { explorePlanetOutputs, simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult } from '../engine/production'
+import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
 import { TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
 import type { BulkPreview } from '../engine/bulk'
 import type { ActionFailure } from '../engine/engine'
@@ -566,6 +567,8 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     const canBuy = canAffordBuilding(state, def.id)
     const upCost = upgradeCost(state, def.id)
     const canUp = canAffordUpgrade(state, def.id)
+    // unique 建筑按 maxLevel 封顶：满级后升级按钮替换为「已满级」提示（如船坞 Lv3）
+    const maxed = unique && def.maxLevel != null && level >= def.maxLevel
     // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
     const showBuy = !unique || count <= 0
     const buyBtn = showBuy
@@ -578,8 +581,11 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
           买满
         </button>`
       : ''
+    // 升级按钮组：jumpgate 无升级效果（上游 f0458b0 决策）、maxLevel 满级后替换为「已满级」提示（如船坞 Lv3）
     const upgradeBtns = count > 0 && def.id !== 'jumpgate'
-      ? `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
+      ? maxed
+        ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${def.maxLevel}）</span></div>`
+        : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? '升级：产出 ×2（' + formatCost(upCost) + '）' : def.id === 'militaryPort' ? '升级：军力容量 +50%' : '升级：产出 +50%'}">
           升级 ${formatCost(upCost)}
         </button>
         ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn max-btn" data-upgrade-max="${def.id}" ${canUp ? '' : 'disabled'} title="一键升级：升到资源不足为止">
@@ -957,7 +963,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
 /** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
 const JUMPGATE_EFFECT_TEXT = `派遣槽 +${JUMPGATE_SLOT_BONUS} · 天体收获倍率上限 ×${2 * JUMPGATE_HARVEST_MULT} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
 
-/** 星域页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局抉择区块（三星系间集齐后出现） */
+/** 星域页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 舰队管理区 + 终局抉择区块（三星系间集齐后出现） */
 export function renderInterstellarPanel(el: HTMLElement, state: GameState): void {
   const section = document.createElement('div')
   section.className = 'interstellar-section'
@@ -967,8 +973,99 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState): void
   header.textContent = '星际工程'
   section.appendChild(header)
   renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS)
+  // 舰队管理区（船坞等级决定舰数上限；护卫舰维护费 = 能源支出开关）
+  renderFleetSection(section, state)
   // 终局抉择：星港/恒星/智库各 ≥1 级后出现（互斥二选一）
   renderMegastructureSection(section, state)
+  el.appendChild(section)
+}
+
+/**
+ * 舰队管理区（星域页星际工程分组内，data-fleet 契约）：
+ * 当前舰数 X/Y、建造按钮（含第 n 艘成本预览）、总维护费与战力预览（-X 能源/s）、运转/停摆状态。
+ * 船坞未建 → 锁定原因（星港前置）；船坞 Lv0 → 提示升级解锁；满编 → 按钮禁用；停摆 → 警示语。
+ */
+export function renderFleetSection(el: HTMLElement, state: GameState): void {
+  const section = document.createElement('div')
+  section.className = 'interstellar-section'
+  section.setAttribute('data-fleet', '')
+  const header = document.createElement('div')
+  header.className = 'conquest-header'
+  header.textContent = '舰队'
+  section.appendChild(header)
+
+  // 船坞未建：显示锁定原因（复用引擎判定，UI 不重写解锁链）
+  if ((state.buildings.dock ?? 0) <= 0) {
+    const lock = document.createElement('div')
+    lock.className = 'build-item'
+    lock.setAttribute('data-fleet-locked', '')
+    lock.innerHTML = `
+      <div class="build-info">
+        <div class="build-name">护卫舰队</div>
+        <div class="build-desc">斥资打造常备舰队：自动迎击派系骚扰，代价是持续能源维护费。</div>
+      </div>
+      <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(buildingLockReason(state, 'dock') ?? '需先建造船坞')}</span></div>`
+    section.appendChild(lock)
+    el.appendChild(section)
+    return
+  }
+
+  const level = dockLevel(state)
+  const cap = shipCap(state)
+  const count = state.fleet.count
+  const powered = fleetPowered(state)
+  const maint = fleetMaintenance(state)
+  const power = fleetPower(state)
+  const techLv = state.techLevels.militaryTech ?? 0
+  const nextCost = nextShipCost(state)
+
+  // 状态徽标：运转 / 停摆 / 空港（含停摆警示语义说明）
+  let statusBadge: string
+  if (count === 0) {
+    statusBadge = `<span class="build-count">空港</span>`
+  } else if (powered) {
+    statusBadge = `<span class="build-count" data-fleet-powered>运转中</span>`
+  } else {
+    statusBadge = `<span class="build-count" data-fleet-idle>⚠ 能源不足，舰队停摆</span>`
+  }
+
+  const body = document.createElement('div')
+  body.className = 'build-item'
+  body.setAttribute('data-fleet-status', '')
+  // 停摆警示（自动迎击不可用语义说明）
+  const idleWarn =
+    count > 0 && !powered
+      ? `<div class="build-lock" data-fleet-warn><span class="lock-hint">能源不足以支付总维护费：舰队停摆，自动迎击失效、战力归零；恢复供能后自动重启。</span></div>`
+      : ''
+  // 建造按钮：未满编且资源足够才可点（硬约束，与派遣/威慑同语义）
+  const affordMineral = nextCost ? state.resources.mineral >= nextCost.mineral : false
+  const affordEnergy = nextCost ? state.resources.energy >= nextCost.energy : false
+  let buyHint = ''
+  if (nextCost && !affordMineral) buyHint = '矿物不足'
+  else if (nextCost && !affordEnergy) buyHint = '能源不足'
+  else if (!nextCost && cap > 0) buyHint = `已达船坞舰数上限（${cap} 艘）`
+  const buildBtn = nextCost
+    ? `<button type="button" class="build-btn" data-fleet-build ${affordMineral && affordEnergy ? '' : 'disabled'} title="${escapeHtml(buyHint)}">建造护卫舰 ${formatCost({ mineral: nextCost.mineral, energy: nextCost.energy } as Record<ResourceKey, number>)}</button>`
+    : `<button type="button" class="build-btn" data-fleet-build disabled title="已达舰数上限">建造护卫舰</button>`
+  // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 1.5×）
+  const techNote = techLv > 0 ? `（含军械科技 Lv.${techLv} ×${formatMult(1 + 0.1 * techLv)}）` : ''
+  body.innerHTML = `
+    <div class="build-info">
+      <div class="build-name">
+        护卫舰队 ${statusBadge}
+        <span class="build-count" data-fleet-count>${count}/${cap} 艘</span>
+        <span class="build-count">船坞 Lv.${level}</span>
+      </div>
+      <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。</div>
+      <div class="conquest-meta">
+        <span data-fleet-maintenance>维护费 -${formatNumber(maint)} 能源/s</span>
+        ${count > 0 && !powered ? '（停摆中未扣费）' : ''}
+        · <span data-fleet-power>战力 ${formatNumber(power)}${techNote}</span>
+      </div>
+    </div>
+    ${idleWarn}
+    <div class="build-actions">${buildBtn}</div>`
+  section.appendChild(body)
   el.appendChild(section)
 }
 
@@ -1199,6 +1296,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
         <tr><th>派系</th><td>${facText}</td></tr>
         <tr><th>攻占</th><td>${lost.conquered}/${Object.keys(CONQUESTS).length} 区域</td></tr>
         <tr><th>探索</th><td>${lost.exploredCount} 个发现物 · ${lost.activeExpeditions} 支探索队（派遣中，将失去）</td></tr>
+        <tr><th>舰队</th><td>${lost.fleetCount} 艘护卫舰（随星际工程重置）</td></tr>
         <tr><th>声望</th><td>${lost.reputation}</td></tr>
         <tr><th>统计</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
       </table>

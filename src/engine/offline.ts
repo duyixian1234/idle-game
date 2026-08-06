@@ -1,4 +1,5 @@
 import { applyMaintenance, militaryCap, productionReport } from './production'
+import { applyFleetMaintenance } from './fleet'
 import { settleConquests } from './conquest'
 import { settleExpeditions } from './exploration'
 import type { ExpeditionLog } from './exploration'
@@ -71,6 +72,9 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   }
   // 星系间建筑维护费：硬扣、独立结算（与 tick 同口径；离线时长内维护费正常累计）
   applyMaintenance(state, duration)
+  // 舰队维护费离线口径：整段硬扣（可为负，随后 clamp 0）——防「离线前把能源降到 0 → 整段免费舰队」刷法；
+  // 离线骚扰的舰队自动迎击在 settleOfflineRaids 内已按当前能源判定（够强优先舰队、不足回退军力/无视）
+  applyFleetMaintenance(state, duration, true)
   if (state.resources.energy < 0) state.resources.energy = 0
   if (state.resources.military > militaryCap(state)) state.resources.military = militaryCap(state)
   // 离线收益计入累计采集统计

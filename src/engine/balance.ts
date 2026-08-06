@@ -176,3 +176,23 @@ export const JUMPGATE_SLOT_BONUS = 2
 export const JUMPGATE_HARVEST_MULT = 2
 /** 跃迁枢纽：离线结算封顶额外放宽时长（8h → 12h） */
 export const JUMPGATE_OFFLINE_EXTRA_SECONDS = 4 * 3600
+
+// ---- 舰队（fleet，能源消耗途径 + 防御系统） ----
+
+/** 逐艘递增系数：第 n 艘成本/维护 = base × SHIP_GROWTH^(n-1)（几何级数） */
+export const SHIP_GROWTH = 1.5
+/** 单艘基础战力（fleetPower = count × SHIP_POWER_BASE × 科技倍率）。
+ * balance-sim 校准锚点：Lv1 船坞满编（3 艘）= 3,600 ≥ 铁卫 70 强度 3,500 → 可自动迎击；
+ * 沃克斯 60（强度 3,000）在 2 艘（2,400）需科技 Lv3（×1.3 = 3,120）才够——科技改变判定边界。 */
+export const SHIP_POWER_BASE = 1_200
+/** 第 1 艘购买矿物成本（n 艘 = base × 1.5^(n-1)）：星港解锁时可负担（星港造价 5 亿矿的 0.2% 量级） */
+export const SHIP_BUY_COST_BASE = 1_000_000
+/** 第 1 艘购买一次性能源成本（n 艘 = base × 1.5^(n-1)） */
+export const SHIP_BUY_ENERGY = 200_000
+/** 第 1 艘持续能源维护费（能源/s；总维护 = 几何级数求和）：
+ * balance-sim 校准定稿（ticket 06）：Lv1 满编 3 艘 119/s（星港时代产出 4%）、Lv2 满编 6 艘 520/s（~18.5%，
+ * 落 15~30% 取舍带）、Lv3 满编 10 艘 2,833/s（恒星阵列 Lv3+ 时代 ~26%）——生产 vs 军备的真实取舍，
+ * 满编永不超过当期产出 30%（不破产） */
+export const SHIP_MAINT_BASE = 25
+/** 军械科技每级舰队战力加成（+10%/级，满级 Lv5 = ×1.5 基础） */
+export const FLEET_POWER_TECH_PER_LEVEL = 0.1

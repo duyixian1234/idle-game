@@ -38,8 +38,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations；7：+终局抉择 megastructureChoice——由 save.ts 迁移链支撑） */
-export const SCHEMA_VERSION = 7
+/** 存档 schema 版本（2：researched → techLevels 等级化；3：+military 资源/军事建筑/区域攻占/永久加成表；4：+成就解锁集合 achievements；5：+固定随机种子 seed / 分域计数器 rngCounters；6：+探索派遣 expeditions/发现进度/nextExpeditionId/stats.explorations；7：+终局抉择 megastructureChoice；8：+舰队 fleet.count——由 save.ts 迁移链支撑） */
+export const SCHEMA_VERSION = 8
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -140,6 +140,8 @@ export interface GameState {
   conquest: Record<string, ConquestState>
   /** 终局抉择（究极建筑二选一，周目内硬锁）：'smelter' = 星环冶炼场、'jumpgate' = 跃迁枢纽、null = 未选择；NG+ 重置可重选（v7 新增） */
   megastructureChoice: 'smelter' | 'jumpgate' | null
+  /** 舰队状态（v8 新增）：周目内，NG+ 归零；船坞等级派生自 buildings/upgrades.dock，不重复存档；powered 为派生状态（每 tick 判定），不存档 */
+  fleet: { count: number }
   /** 累计统计 */
   stats: GameStats
   /** 成就解锁状态：achievementId -> AchievementState（跨周目图鉴，NG+ 不清空） */

@@ -49,6 +49,8 @@ export interface NgPlusLost {
   exploredCount: number
   /** 派遣中探索队数量（NG+ 将静默丢弃不退款；多槽下数量化） */
   activeExpeditions: number
+  /** 本周目舰队护卫舰数量（NG+ 随星际工程一并重置） */
+  fleetCount: number
 }
 
 /** 确认弹窗预览契约（纯数据，无方法） */
@@ -117,6 +119,7 @@ export function previewNewGamePlus(state: GameState): NgPlusPreview {
       playSeconds: state.playSeconds,
       exploredCount: state.exploredFactions.length + state.exploredPlanets.length,
       activeExpeditions: state.expeditions.filter((e) => !e.resolved).length,
+      fleetCount: state.fleet.count,
     },
   }
 }

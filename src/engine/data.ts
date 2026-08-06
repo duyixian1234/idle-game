@@ -35,6 +35,8 @@ export interface BuildingDef {
   requiresPlanet?: string[]
   /** 唯一大件：count 恒 1、禁止重复建造；购买/升级入口语义变为「建造/升一级」；成本/产出/维护/能耗均走独立 ×2^level 分支（不复用 count 折算公式）；bulk 买满/升满禁用 */
   unique?: boolean
+  /** 升级上限（仅 unique 建筑使用，如船坞 Lv1-3；缺省 = 不限级；科技 TECHS 已有 maxLevel 先例） */
+  maxLevel?: number
   /** 维护费（唯一大件专属）：按 tick 硬扣对应资源、不参与 settleEnergyRatio 能源打折结算；数值随等级 ×2^level（与产出对称增长，占比恒定） */
   maintenance?: Partial<Record<ResourceKey, number>>
   /** 通关后解锁（phase ∈ {ended, infinite}） */
@@ -183,6 +185,18 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     requires: ['starportMine', 'stellarArray', 'thinkTank'],
     exclusiveMegastructure: 'smelter',
     megastructureValue: 'jumpgate',
+  },
+  dock: {
+    id: 'dock',
+    name: '船坞',
+    desc: '泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv1 3 艘 / Lv2 6 艘 / Lv3 10 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。',
+    category: 'interstellar',
+    unique: true,
+    maxLevel: 3,
+    baseCost: { mineral: 20_000_000, tech: 500_000 },
+    costGrowth: 2,
+    produces: {},
+    requires: ['starportMine'],
   },
 }
 

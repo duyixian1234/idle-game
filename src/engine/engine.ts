@@ -22,6 +22,8 @@ import type { FactionState, GameState, ResourceKey } from './types'
 import { pushLog, zeroResources } from './core'
 import { formatPlayTime } from './format'
 import { applyMaintenance, netProduction, productionReport, militaryCap, levelMultiplier } from './production'
+import { nextShipCost, shipCap } from './fleet'
+import { applyFleetMaintenance } from './fleet'
 import { computeNgPlusInheritance, megastructureLegacyBonus } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
 import { randSeed, streamFor } from './rng'
@@ -50,6 +52,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     permanentBonuses: {},
     conquest,
     megastructureChoice: null,
+    fleet: { count: 0 },
     stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
     seed,
@@ -235,16 +238,40 @@ export function buyBuilding(state: GameState, id: string): ActionResult {
   return { ok: true }
 }
 
-/** 升级建筑（每级产出 +50%） */
+/** 升级建筑（每级产出 +50%；unique 建筑按 maxLevel 封顶） */
 export function upgradeBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
   if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: '尚未建造该建筑' }
+  // 跃迁枢纽无升级效果（上游 f0458b0 决策：纯机制流建筑，升级无收益；NG+ 遗产不受影响）
   if (id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
+  // unique 建筑按 maxLevel 封顶（如船坞 Lv1-3）
+  if (def.maxLevel != null && (state.upgrades[id] ?? 0) >= def.maxLevel) {
+    return { ok: false, reason: `已达最高等级（Lv.${def.maxLevel}）` }
+  }
   const cost = upgradeCost(state, id)
   if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.upgrades[id] = (state.upgrades[id] ?? 0) + 1
+  return { ok: true }
+}
+
+// ---- 舰队（fleet spec：能源消耗途径 + 防御系统）----
+
+/** 购买护卫舰：扣矿物+一次性能源（第 n 艘成本 base × 1.5^(n-1)），硬约束（付不起不可点）；
+ * 船坞等级决定上限（DOCK_SHIP_CAP 显式表），满编后不可购买 */
+export function buyShip(state: GameState): ActionResult {
+  const cap = shipCap(state)
+  if (cap <= 0) return { ok: false, reason: '需先建造并升级船坞（Lv1 解锁 3 艘）' }
+  if (state.fleet.count >= cap) return { ok: false, reason: `已达船坞舰数上限（${cap} 艘）` }
+  const next = nextShipCost(state)
+  if (!next) return { ok: false, reason: '已达船坞舰数上限' }
+  const cost = zeroResources()
+  cost.mineral = next.mineral
+  cost.energy = next.energy
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  state.fleet.count += 1
   return { ok: true }
 }
 
@@ -380,6 +407,8 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   }
   // 星系间建筑维护费：硬扣对应资源（独立结算、不参与能源打折；与 consumes 语义隔离）
   applyMaintenance(state, dt)
+  // 舰队维护费（软降级）：能源 ≥ 总维护费 → 扣费运转；不足 → 不扣费、停摆（恢复供能自动重启）
+  applyFleetMaintenance(state, dt)
   // 能源余额兜底不为负（消耗类建筑已按比例结算）
   if (state.resources.energy < 0) state.resources.energy = 0
   // 军力容量兜底：截断累计超上限的部分（秒级近似下的保险）
@@ -396,11 +425,12 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
 
   // 随机事件：到点触发一次并安排下一次（无限模式更密）
   // 事件类型走持久域（triggerRandomEvent 内部 rng undefined → rollDomain），间隔抖动走即时流（streamFor）
+  // 舰队自动迎击在 triggerRandomEvent 内结算（raid 够强不弹窗，直接返回系统日志）
   if (nowMs >= state.nextEventAt) {
-    const outcomeText = triggerRandomEvent(state, rng)
+    const outcome = triggerRandomEvent(state, rng)
     scheduleNextEvent(state, nowMs, rng ?? streamFor(state), eventGapScale(state))
-    if (outcomeText) {
-      pushLog(state, 'event', outcomeText)
+    if (outcome) {
+      pushLog(state, outcome.logType, outcome.logText)
     }
   }
   // 星球机制周期效果（风暴收获）
@@ -567,6 +597,8 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   // achievements 图鉴保留（跨周目永久记录），unlockedInRound 不匹配 → 声望自动归零
   state.stats = { totalMineralEarned: 0, explorations: 0 }
   state.playSeconds = 0
+  // 舰队重置：护卫舰随星际工程一并归零（新周目从零规划，遗产体系不膨胀）
+  state.fleet = { count: 0 }
 
   // 探索重置：派遣中任务随 NG+ 静默丢弃不退款（决策 Q18）、发现进度清零、派遣 id 归 1
   state.expeditions = []
