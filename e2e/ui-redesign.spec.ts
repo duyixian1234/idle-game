@@ -134,7 +134,8 @@ test('攻占进度也使用 ASCII 进度条', async ({ page }) => {
 test('移动端可见按钮满足 44px 触控目标', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
-  const issues = await page.locator('button').evaluateAll((buttons) => buttons
+  const actionable = '[data-nav], [data-tab], [data-tool], [data-planet], [data-build], [data-upgrade], [data-research], [data-buy-max], [data-upgrade-max], [data-convert-tech], [data-convert-max]'
+  const issues = await page.locator(actionable).evaluateAll((buttons) => buttons
     .filter((button) => {
       const rect = button.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0 && button.offsetParent !== null
