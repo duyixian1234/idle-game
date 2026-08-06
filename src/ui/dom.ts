@@ -1,4 +1,7 @@
 import type { GameState, LogEntry, ResourceKey } from '../engine/types'
+import { ACHIEVEMENTS } from '../engine/achievements'
+import { reputation, reputationBonuses } from '../engine/reputation'
+import type { ReputationBonuses } from '../engine/reputation'
 import { BUILDINGS, CONQUESTS, FACTIONS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, PlanetDef, TechDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
@@ -82,11 +85,13 @@ export function buildLayout(container: HTMLElement): AppElements {
         <button type="button" class="tab" data-tab="tech">科技</button>
         <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
         <button type="button" class="tab" data-tab="military" disabled>军事</button>
+        <button type="button" class="tab" data-tab="archive">档案</button>
       </div>
       <div class="panel-body" data-panel="build"></div>
       <div class="panel-body hidden" data-panel="tech"></div>
       <div class="panel-body hidden" data-panel="diplomacy"></div>
       <div class="panel-body hidden" data-panel="military"></div>
+      <div class="panel-body hidden" data-panel="archive"></div>
     </section>
     <footer class="toolbar" aria-label="工具">
       <button type="button" class="tool-btn" data-tool="mute">🔊 静音</button>
@@ -702,8 +707,90 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState): void {
   }
 }
 
-/** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */
-export interface BuyMaxModalData {
+/** 当前生效的声望加成文本（无声望时显示解锁提示） */
+function reputationBonusText(b: ReputationBonuses): string {
+  const parts: string[] = []
+  if (b.tradeDiscount > 0) parts.push(`贸易折扣 ${Math.round(b.tradeDiscount * 100)}%`)
+  if (b.raidThresholdBonus > 0) parts.push(`骚扰阈值 ${55 + b.raidThresholdBonus}`)
+  if (b.militaryCapBonus > 0) parts.push(`军力上限 +${Math.round(b.militaryCapBonus * 100)}%`)
+  if (b.conquestSuccessBonus > 0) parts.push(`攻占成功率 +${Math.round(b.conquestSuccessBonus * 100)}%`)
+  if (parts.length === 0) return '未解锁加成（声望 ≥20 解锁贸易折扣）'
+  return parts.join(' · ')
+}
+
+/** 渲染档案面板（第 5 面板）：星系统一声望 + 成就网格 + 本周目统计。纯展示，无交互按钮 */
+export function renderArchivePanel(el: HTMLElement, state: GameState): void {
+  el.innerHTML = ''
+  const rep = reputation(state)
+  const bonuses = reputationBonuses(state)
+
+  // 段 1：声望
+  const repSection = document.createElement('div')
+  repSection.className = 'military-section'
+  repSection.innerHTML = `
+    <div class="rep-card">
+      <div class="rep-title">星系统一声望 <span class="rep-value">${rep} / 100</span></div>
+      <div class="rep-bonuses">${escapeHtml(reputationBonusText(bonuses))}</div>
+      <div class="rep-hint">声望由成就解锁驱动，影响外交与军事，不直接改变产出。</div>
+    </div>`
+  el.appendChild(repSection)
+
+  // 段 2：成就网格（叙事 / 收集 / 终局 三组）
+  const groups: { key: string; title: string }[] = [
+    { key: 'story', title: '叙事里程碑' },
+    { key: 'collect', title: '收集目标' },
+    { key: 'finale', title: '终局传奇' },
+  ]
+  for (const g of groups) {
+    const defs = Object.values(ACHIEVEMENTS).filter((d) => d.category === g.key)
+    if (defs.length === 0) continue
+    const section = document.createElement('div')
+    section.className = 'military-section'
+    const header = document.createElement('div')
+    header.className = 'conquest-header'
+    const doneCount = defs.filter((d) => state.achievements[d.id]).length
+    header.textContent = `${g.title}（${doneCount}/${defs.length}）`
+    section.appendChild(header)
+    for (const def of defs) {
+      const unlocked = Boolean(state.achievements[def.id])
+      const item = document.createElement('div')
+      item.className = unlocked ? 'ach-item done' : 'ach-item locked'
+      const rewardParts: string[] = []
+      if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
+      if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
+      const rewardText = rewardParts.length > 0 ? ` · ${rewardParts.join('、')}` : ''
+      item.innerHTML = `
+        <div class="ach-name">${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)} <span class="ach-state">+${def.rep} 声望</span></div>
+        <div class="ach-desc">${escapeHtml(def.desc)}</div>
+        <div class="ach-reward">奖励：${rewardText || '无'}</div>`
+      section.appendChild(item)
+    }
+    el.appendChild(section)
+  }
+
+  // 段 3：本周目统计
+  const statSection = document.createElement('div')
+  statSection.className = 'military-section'
+  const statHeader = document.createElement('div')
+  statHeader.className = 'conquest-header'
+  statHeader.textContent = '本周目统计'
+  statSection.appendChild(statHeader)
+  const tradeSum = Object.values(state.factions).reduce((a, f) => a + f.tradeCount, 0)
+  const intimiSum = Object.values(state.factions).reduce((a, f) => a + f.intimidateCount, 0)
+  const conquered = Object.values(state.conquest).filter((c) => c.status === 'conquered').length
+  const stats = document.createElement('div')
+  stats.className = 'rep-stats'
+  stats.innerHTML = `
+    <div>在线时长：${formatPlayTime(state.playSeconds)}</div>
+    <div>累计采集矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
+    <div>外交贸易：${tradeSum} 次 · 威慑：${intimiSum} 次</div>
+    <div>星域肃清：${conquered}/${Object.keys(CONQUESTS).length}</div>
+    <div>NG+ 周目：${state.ngPlusLevel}</div>`
+  statSection.appendChild(stats)
+  el.appendChild(statSection)
+}
+
+/** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */export interface BuyMaxModalData {
   title: string
   summary: string
   preview: BulkPreview

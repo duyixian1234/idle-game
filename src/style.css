@@ -1012,6 +1012,84 @@ body {
   color: var(--good);
 }
 
+/* ---- 档案面板（成就 + 声望）---- */
+.rep-card {
+  border-left: 2px solid var(--accent);
+  padding: 8px 10px;
+}
+
+.rep-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rep-value {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  margin-left: 8px;
+}
+
+.rep-bonuses {
+  color: var(--good);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.rep-hint {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.ach-item {
+  border-left: 2px solid #5a4a3a;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.ach-item.done {
+  border-left-color: var(--good);
+  opacity: 0.92;
+}
+
+.ach-item.locked {
+  opacity: 0.55;
+}
+
+.ach-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ach-state {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 400;
+  margin-left: 6px;
+  font-family: var(--font-mono);
+}
+
+.ach-desc {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.ach-reward {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+.rep-stats {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text);
+  border-left: 2px solid #5a4a3a;
+  padding: 6px 10px;
+}
+
 .conquest-actions {
   gap: 6px;
 }

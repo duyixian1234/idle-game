@@ -31,6 +31,7 @@ import {
   renderTechPanel,
   renderTutorial,
   unlockRequirementText,
+  renderArchivePanel,
 } from './ui/dom'
 import type { LogDirection } from './ui/dom'
 import { dispatch } from './ui/actions'
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state)
     renderMilitaryPanel(panels['military'], state)
+    renderArchivePanel(panels['archive'], state)
     renderPendingEvents(els.logEl, state)
     // 增量渲染新增日志，并按方向自动滚动
     const beforeId = lastLogId

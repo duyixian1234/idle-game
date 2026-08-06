@@ -4,10 +4,12 @@ import { previewMaxBuy } from '../engine/bulk'
 import { netProduction } from '../engine/production'
 import { pushLog } from '../engine/core'
 import { createEventInstance } from '../engine/events'
+import { ACHIEVEMENTS, checkAchievements } from '../engine/achievements'
 import { BUILDINGS, PLANETS, TECH_MAX_LEVEL } from '../engine/data'
 import {
   appendLog,
   buildLayout,
+  renderArchivePanel,
   renderBuildPanel,
   renderBuyMaxModal,
   renderDiplomacyPanel,
@@ -28,7 +30,7 @@ describe('ui: 布局与冒烟', () => {
     expect(els.resourceBar).toBeTruthy()
     expect(els.logEl).toBeTruthy()
     expect(els.panel).toBeTruthy()
-    expect(container.querySelectorAll('.tab')).toHaveLength(4)
+    expect(container.querySelectorAll('.tab')).toHaveLength(5)
   })
 
   it('资源条渲染四资源与速率（军力显示当前/上限）', () => {
@@ -627,5 +629,56 @@ describe('ui: 军事面板', () => {
     const techPanel = container.querySelector('[data-panel="tech"]') as HTMLElement
     expect(techPanel.querySelector('[data-tech="militaryTech"]')).toBeNull()
     expect(techPanel.querySelector('[data-tech="planetDrill"]')).toBeTruthy()
+  })
+
+  it('档案面板：声望条 + 三组成就网格 + 本周目统计', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    // 解锁两个成就（firstBuild + firstTech → 声望 4）
+    s.storyFlags.firstBuild = true
+    s.storyFlags.firstTech = true
+    checkAchievements(s, 1000)
+    renderArchivePanel(container.querySelector('[data-panel="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="archive"]') as HTMLElement
+    // 声望条
+    expect(panel.textContent).toContain('声望')
+    expect(panel.textContent).toContain('4 / 100')
+    // 三组标题
+    expect(panel.textContent).toContain('叙事里程碑')
+    expect(panel.textContent).toContain('收集目标')
+    expect(panel.textContent).toContain('终局传奇')
+    // 已解锁/未解锁状态
+    expect(panel.textContent).toContain('✓ 第一块领地')
+    expect(panel.textContent).toContain('🔒 亿万矿藏')
+    // 本周目统计
+    expect(panel.textContent).toContain('NG+ 周目：0')
+    expect(panel.textContent).toContain('在线时长')
+  })
+
+  it('档案面板：档案 tab 开局即开放（无 disabled）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const tab = container.querySelector<HTMLButtonElement>('.tab[data-tab="archive"]')
+    expect(tab).toBeTruthy()
+    expect(tab?.disabled).toBe(false)
+    // 开局默认面板是建造，但 archive panel-body 存在
+    expect(container.querySelector('[data-panel="archive"]')).toBeTruthy()
+  })
+
+  it('档案面板：满声望显示全部加成', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    // 解锁全部成就 → 声望 100
+    for (const def of Object.values(ACHIEVEMENTS)) {
+      s.achievements[def.id] = { unlockedAt: 1, unlockedInRound: 0 }
+    }
+    renderArchivePanel(container.querySelector('[data-panel="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="archive"]') as HTMLElement
+    expect(panel.textContent).toContain('贸易折扣 15%')
+    expect(panel.textContent).toContain('骚扰阈值 65')
+    expect(panel.textContent).toContain('军力上限 +20%')
+    expect(panel.textContent).toContain('攻占成功率 +15%')
   })
 })
