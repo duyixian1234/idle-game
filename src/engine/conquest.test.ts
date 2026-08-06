@@ -70,7 +70,7 @@ describe('engine: 攻占系统（conquest）', () => {
 
   it('薄投博彩：低投入按概率失败，军力全损、可立即重试', () => {
     const s = conquestState()
-    startConquest(s, 'outpost', 1_000, 0) // 投入 1000/2000 = 50%
+    startConquest(s, 'outpost', 200, 0) // 投入 200/500 = 40%
     const logs = settleConquests(s, 60 * 60_000, () => 0.999) // rng 高 → 落入失败区间（0.999 > 0.5）
     expect(logs[0]).toContain('失利')
     expect(s.conquest.outpost.status).toBe('available')

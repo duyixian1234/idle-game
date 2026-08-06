@@ -27,7 +27,7 @@ export const EVENT_DEFS: RandomEventDef[] = [
  * - 离线自动结算：军力足够自动击退，否则按无视规则（叠加离线 30% 封顶）
  */
 export const RAID_THREAT_THRESHOLD = 55
-export const RAID_STRENGTH_MULT = 200
+export const RAID_STRENGTH_MULT = 50
 export const RAID_THREAT_LOSS = 15
 export const RAID_BUYOFF_FAVOR_GAIN = 5
 export const RAID_IGNORE_LOSS_PCT = 0.05

@@ -67,7 +67,7 @@ describe('engine: 派系骚扰（raid）', () => {
     const inst = createEventInstance(s, 'raid', () => 0)
     expect(inst.defId).toBe('raid')
     expect(inst.payload?.factionId).toBe('ferro')
-    expect(inst.payload?.strength).toBe(70 * 200)
+    expect(inst.payload?.strength).toBe(70 * 50)
     expect(inst.options.map((o) => o.id)).toEqual(['repel', 'buyoff', 'ignore'])
   })
 
@@ -77,7 +77,7 @@ describe('engine: 派系骚扰（raid）', () => {
     const before = s.factions.ferro.threat
     const out = applyEvent(s, inst, 'repel')
     expect(out.changed).toBe(true)
-    expect(s.resources.military).toBe(100_000 - 70 * 200)
+    expect(s.resources.military).toBe(100_000 - 70 * 50)
     expect(s.factions.ferro.threat).toBe(before - RAID_THREAT_LOSS)
   })
 
@@ -119,7 +119,7 @@ describe('engine: 离线骚扰结算', () => {
     expect(r.repelled).toBe(2)
     // 离线结算 terms 一次固化（与事件 payload 固化口径一致）：两次均按 strength = 70×200
     expect(s.factions.ferro.threat).toBe(70 - 2 * RAID_THREAT_LOSS)
-    expect(s.resources.military).toBe(100_000 - 2 * 70 * 200)
+    expect(s.resources.military).toBe(100_000 - 2 * 70 * 50)
     expect(r.mineralLost).toBe(0)
     expect(r.logs.length).toBe(1)
   })
