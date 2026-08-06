@@ -33,6 +33,8 @@ function escortState(): GameState {
   s.fleet.count = 3
   s.buildings.solar = 100
   s.upgrades.solar = 5 // levelMultiplier(5) = 1 + 0.5×5 = 3.5 → 350 能源/s
+  s.buildings.miner = 100
+  s.upgrades.miner = 5 // → 350 矿物/s（护航 mineral 折算锚定需矿物产出 > 0）
   s.resources.mineral = 10_000_000_000
   s.resources.energy = 100_000_000_000
   s.resources.military = 50_000
@@ -91,12 +93,10 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     expect(s.resources.military).toBe(before.military - cost.military)
   })
 
-  it('返还锚定（基础成本 + 远征费）× 护航返还率 ×（科技 × 护航倍率），只作用 resource 分支', () => {
+  it('返还锚定（基础成本 + 远征费折算）× 护航返还率 ×（科技 × 护航倍率），只作用 resource 分支', () => {
     const s = escortState()
     s.techLevels.deepSpaceNav = 1 // 科技倍率 1.1
     const fee = escortFee(s)
-    const cost = { mineral: 3000, energy: 1000, military: 40 } // 手工构造与实际不符？——直接断言 result 与公式一致
-    // 用真实 cost：先查 expeditionCost
     const r = startExpedition(s, 0, () => 0.99, 0, true)
     const res = r.value!.result
     expect(res.kind).toBe('resource')
@@ -104,11 +104,13 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     const techMult = 1.1 // deepSpaceNav Lv1
     const escortMult = 1 + FLEET_HARVEST_PCT_PER_SHIP * 3
     const mult = techMult * escortMult
+    // 极后期防印钞锚定：mineral 分支按远征费的当期矿物等价折算（mineralFee = fee × 矿物产出/能源产出）
+    const prod = productionReport(s).nominal
+    const mineralFee = fee * (prod.mineral / prod.energy)
     const rr = res as { mineral: number; tech: number; energy: number }
-    expect(rr.mineral).toBe(Math.floor((realCost.mineral + fee) * ESCORT_COMPENSATE_RATIO.mineral * mult))
+    expect(rr.mineral).toBe(Math.floor((realCost.mineral + mineralFee) * ESCORT_COMPENSATE_RATIO.mineral * mult))
     expect(rr.energy).toBe(Math.floor((realCost.energy + fee) * ESCORT_COMPENSATE_RATIO.energy * mult))
     expect(rr.tech).toBe(Math.floor((realCost.mineral + fee) * ESCORT_COMPENSATE_RATIO.techPerMineral * mult))
-    void cost
   })
 
   it('护航只作用于 resource 分支：faction/planet 分支无额外补偿（远征费照扣）', () => {

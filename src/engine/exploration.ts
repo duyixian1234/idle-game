@@ -160,19 +160,25 @@ export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
 
 /** 资源补偿数值（按当前投入比例返还 + 科技点出口；mult 放大 resource 分支，与成本同源缩放保持收益比锚点）。
  * 护航（escortFee > 0）：返还锚定「基础成本 + 远征费」，走护航专属返还率（ESCORT_COMPENSATE_RATIO，能源分支压低、矿物/科技突出）——
- * 海量投入 → 海量回报；非护航沿用 EXPEDITION_COMPENSATE_RATIO（与现状一致）。 */
+ * 海量投入 → 海量回报。⚠️ 极后期防印钞锚定（balance-sim 校准定稿）：mineral 分支按「远征费的当期矿物等价」
+ * （mineralFee = fee × 矿物产出/能源产出）折算——时间等价恒 = 返还率 × 倍率，与场景无关（能源产出 >> 矿物产出时
+ * 不出现 240s 能源 → 数十万秒矿物的结构性印钞）；energy/tech 分支保持锚定远征费本身（能源返能源压低、
+ * 科技点出口量级匹配，sim 验证不印钞）。非护航沿用 EXPEDITION_COMPENSATE_RATIO（与现状一致）。 */
 function compensationFor(
   cost: { mineral: number; energy: number },
   mult: number,
   escortFee: number = 0,
+  mineralFee: number = 0,
 ): { mineral: number; tech: number; energy: number } {
   const ratio = escortFee > 0 ? ESCORT_COMPENSATE_RATIO : EXPEDITION_COMPENSATE_RATIO
-  const mineralBase = cost.mineral + escortFee
+  const mineralBase = cost.mineral + mineralFee
   const energyBase = cost.energy + escortFee
   return {
     mineral: Math.floor(mineralBase * ratio.mineral * mult),
     energy: Math.floor(energyBase * ratio.energy * mult),
-    tech: Math.floor(mineralBase * ratio.techPerMineral * mult),
+    // 科技点出口锚定远征费量级（cost.mineral + escortFee）：科技点无产线竞争（消耗型资源），
+    // sim 验证满负荷 0.41× 科技产线/小时——大额但不印钞（spec「科技突出」达标）
+    tech: Math.floor((cost.mineral + escortFee) * ratio.techPerMineral * mult),
   }
 }
 
@@ -180,7 +186,7 @@ function compensationFor(
  * 奖池轮盘 roll：`roll() * totalWeight` 逐项减权重（与 pickEventDef 同法）。
  * roll 由调用方提供（startExpedition 内 `rng ?? rollDomain(state, 'explore')`），
  * 测试可直接注入固定 rng 断言 result 固化。
- * escortFee 仅用于 resource 分支补偿锚定（faction/planet 分支不涉及补偿数值）。
+ * escortFee / mineralFee 仅用于 resource 分支补偿锚定（faction/planet 分支不涉及补偿数值）。
  */
 function rollFromPool(
   pool: ExpeditionPoolEntry[],
@@ -188,6 +194,7 @@ function rollFromPool(
   cost: { mineral: number; energy: number },
   mult: number = 1,
   escortFee: number = 0,
+  mineralFee: number = 0,
 ): ExpeditionResult {
   const total = pool.reduce((s, e) => s + e.weight, 0)
   let value = roll() * total
@@ -196,14 +203,14 @@ function rollFromPool(
     if (value <= 0) {
       if (entry.kind === 'faction') return { kind: 'faction', factionId: entry.id! }
       if (entry.kind === 'planet') return { kind: 'planet', planetId: entry.id! }
-      return { kind: 'resource', ...compensationFor(cost, mult, escortFee) }
+      return { kind: 'resource', ...compensationFor(cost, mult, escortFee, mineralFee) }
     }
   }
   // 浮点边界兜底：最后一项
   const last = pool[pool.length - 1]
   if (last.kind === 'faction') return { kind: 'faction', factionId: last.id! }
   if (last.kind === 'planet') return { kind: 'planet', planetId: last.id! }
-  return { kind: 'resource', ...compensationFor(cost, mult, escortFee) }
+  return { kind: 'resource', ...compensationFor(cost, mult, escortFee, mineralFee) }
 }
 
 /**
@@ -235,7 +242,10 @@ export function startExpedition(state: GameState, nowMs: number, rng?: () => num
   const pool = expeditionPool(state)
   // 护航：科技收获倍率 × 护航倍率（乘法叠加，只作用 resource 分支补偿）
   const mult = escortOn ? explorationHarvestMult(state) * escortHarvestMult(state) : explorationHarvestMult(state)
-  const result = rollFromPool(pool, rng ?? rollDomain(state, 'explore'), cost, mult, fee)
+  // 极后期防印钞：远征费的当期矿物等价（mineral 分支锚定用；能源/科技分支锚定远征费本身）
+  const prod = netProduction(state)
+  const mineralFee = escortOn && prod.energy > 0 ? fee * (prod.mineral / prod.energy) : 0
+  const result = rollFromPool(pool, rng ?? rollDomain(state, 'explore'), cost, mult, fee, mineralFee)
   const id = state.nextExpeditionId
   state.nextExpeditionId += 1
   const exp: ExpeditionState = {
