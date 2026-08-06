@@ -1532,6 +1532,20 @@ body {
     gap: 4px;
     padding: 6px 8px;
   }
+  /* 机制条横向滚动（Q12 定案：tmux status 式，单指滑动；nowrap 不换行不挤日志区高度） */
+  .mechanic-bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+    gap: 12px;
+  }
+  .mechanic-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .mechanic-bar .mech-desc {
+    flex: none;
+    max-width: 180px;
+  }
   .resource {
     padding: 3px 8px;
     font-size: 12px;

@@ -95,7 +95,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     </header>
     <main class="content">
       <section class="nav-page" data-nav-page="sector" aria-label="星域">
-        <div class="mechanic-bar" aria-label="星球机制"></div>
+        <div class="mechanic-bar" data-mechanic aria-label="星球机制"></div>
         <div class="log-head" aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></div>
         <div class="log-area" data-log aria-label="日志流"></div>
         <section class="panel" aria-label="操作面板">

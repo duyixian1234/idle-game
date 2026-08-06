@@ -74,11 +74,22 @@ function auditLayout(): AuditIssue[] {
     issues.push({ kind: 'overflow', detail: `页面 scrollWidth=${document.documentElement.scrollWidth} > 视口 ${vw}` })
   }
   // 容器选择器保留样式类（CSS 引用范畴，非断言）；日志区改用语义化 [data-log]
-  for (const sel of ['.panel-body', '[data-log]', '.mechanic-bar', '.favor-row', '.resource-bar', '.planet-bar', '.panel-tabs', '.event-options', '.exchange-row', '.nav-bar']) {
+  // 机制条（[data-mechanic]）从水平溢出检查中豁免——Q12 定案为横向滚动容器，见下方专项检查
+  for (const sel of ['.panel-body', '[data-log]', '.favor-row', '.resource-bar', '.planet-bar', '.panel-tabs', '.event-options', '.exchange-row', '.nav-bar']) {
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
       if (el.scrollWidth > el.clientWidth + 1) {
         issues.push({ kind: 'overflow', detail: `${sel} scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}` })
       }
+    }
+  }
+
+  // 1a) 机制条横向滚动专项（Q12 定案）：内容允许横滚（scrollWidth ≥ clientWidth），
+  //     但容器本身不得越出视口（横滚由容器内滚动承担，不产生页面级横向溢出）
+  const mechBar = document.querySelector('[data-mechanic]')
+  if (mechBar && isVisible(mechBar as HTMLElement)) {
+    const mr = mechBar.getBoundingClientRect()
+    if (mr.left < -1 || mr.right > vw + 1) {
+      issues.push({ kind: 'overflow', detail: `[data-mechanic] x=[${Math.round(mr.left)},${Math.round(mr.right)}] 越出视口 ${vw}` })
     }
   }
 
@@ -160,6 +171,16 @@ function auditLayout(): AuditIssue[] {
     const top = document.elementsFromPoint(cx, cy).at(-1)
     if (top && top !== b && !b.contains(top) && !top.contains(b)) {
       issues.push({ kind: 'covered', detail: `<button .${b.className}> 中心 (${Math.round(cx)},${Math.round(cy)}) 顶层元素为 <${top.tagName.toLowerCase()} .${(top as HTMLElement).className}>` })
+    }
+  }
+
+  // 4b) 触控目标 ≥44px（Q6-A 全局校准：全部可点击按钮 min-height 44；扫描线层 pointer-events:none
+  //     elementsFromPoint 已豁免，不影响本项）
+  for (const b of buttons) {
+    const r = b.getBoundingClientRect()
+    if (r.height < 44) {
+      const tag = b.dataset.build || b.dataset.upgrade || b.dataset.research || b.dataset.upgradeTech || b.dataset.diplomacy || b.dataset.buyMax || b.dataset.upgradeMax || b.dataset.tab || b.dataset.tool || b.dataset.planet || b.className
+      issues.push({ kind: 'tapTarget', detail: `<button .${b.className.replace(/\s+/g, '.')} ${tag}> 高 ${Math.round(r.height)}px < 44px` })
     }
   }
 
