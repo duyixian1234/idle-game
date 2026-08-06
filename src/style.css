@@ -2,5 +2,7 @@
 @import './styles/shell.css';
 @import './styles/log-panels-pages.css';
 @import './styles/overlays.css';
+@import './styles/settings-explore.css';
+@import './styles/transient-overlays.css';
 @import './styles/responsive.css';
 @import './styles/pages-late.css';
