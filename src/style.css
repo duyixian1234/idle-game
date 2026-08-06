@@ -144,7 +144,7 @@ body {
 }
 
 .nav-item:active {
-  background: rgba(88, 166, 255, 0.08);
+  background: rgba(51, 255, 0, 0.08);
 }
 
 .nav-label {
@@ -253,20 +253,24 @@ body {
   border: 1px solid var(--border);
   color: var(--text-dim);
   padding: 4px 10px;
-  border-radius: 12px;
   cursor: pointer;
   font-size: 12px;
+  /* 触控目标 ≥44px（Q6-A 定案：全局 tap target 校准） */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
 }
 
 .planet-chip:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
 }
 
 .planet-chip.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(88, 166, 255, 0.08);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  background: rgba(51, 255, 0, 0.08);
 }
 
 .planet-chip.locked {
@@ -323,7 +327,7 @@ body {
   display: flex;
   gap: 10px;
   padding: 2px 0;
-  border-bottom: 1px dashed #21262d;
+  border-bottom: 1px dashed var(--border);
 }
 
 .log-time {
@@ -337,7 +341,8 @@ body {
   color: var(--text);
 }
 .log-story {
-  color: #7ee787;
+  /* 亮度分层（Q8 定案）：故事线高亮磷光绿，与正文 --text 淡绿白靠亮度区分 */
+  color: var(--phosphor);
 }
 .log-event {
   color: var(--accent);
@@ -370,15 +375,17 @@ body {
   border-bottom: none;
   color: var(--text-dim);
   padding: 6px 16px;
-  border-radius: 6px 6px 0 0;
   cursor: pointer;
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 13px;
+  /* 触控目标 ≥44px */
+  min-height: 44px;
 }
 
 .tab.active {
-  color: var(--text);
+  color: var(--phosphor);
   background: var(--bg-inset);
+  border-bottom: 2px solid var(--phosphor);
 }
 
 .tab:disabled {
@@ -446,14 +453,15 @@ body {
 
 .build-btn {
   flex-shrink: 0;
-  background: #21262d;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 8px 14px;
-  border-radius: 4px;
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 12px;
+  /* 触控目标 ≥44px（Q6-A 定案） */
+  min-height: 44px;
   transition:
     background-color 0.12s ease,
     border-color 0.12s ease,
@@ -463,10 +471,10 @@ body {
 }
 
 .build-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background-color: rgba(88, 166, 255, 0.08);
-  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  background-color: rgba(51, 255, 0, 0.08);
+  box-shadow: 0 0 0 1px rgba(51, 255, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
   /* hover 态禁用 transition：游戏每 250ms 全量重建面板 DOM，新建按钮若带过渡
      会从基础态重放渐变 → 边框/背景持续闪烁。禁用后 hover 立即生效、稳定。 */
   transition: none;
@@ -476,17 +484,82 @@ body {
    mouseleave/mouseenter 振荡，边框在高亮/基础两态间闪烁） */
 .build-btn:active:not(:disabled) {
   transform: translateY(1px);
-  background-color: rgba(88, 166, 255, 0.16);
+  background-color: rgba(51, 255, 0, 0.16);
 }
 
 .build-btn:disabled {
-  opacity: 0.45;
+  color: var(--text-faint);
+  border-color: var(--border);
+  background: transparent;
   cursor: not-allowed;
+}
+
+/* ---- 主操作按钮：方括号「命令」语言 + 磷光绿底黑字瞬间反转（Q10/Q5 定案） ----
+ * 零 DOM 改动：纯 CSS ::before/::after + 属性选择器驱动；
+ * 反转是瞬间生效（hover 无 transition，250ms 重建不重放）。 */
+.build-btn[data-build]::before,
+.build-btn[data-upgrade]::before,
+.build-btn[data-research]::before,
+.build-btn[data-upgrade-tech]::before,
+.build-btn[data-buy-max]::before,
+.build-btn[data-upgrade-max]::before,
+.build-btn[data-upgrade-tech-max]::before,
+.build-btn[data-diplomacy-max]::before,
+.build-btn[data-conquest]::before,
+.build-btn[data-fleet-build]::before,
+.ending-btn[data-explore-dispatch]::before,
+.ending-btn[data-ngplus]::before,
+.ending-btn[data-ngplus-confirm]::before,
+.ending-btn[data-buy-max-confirm]::before,
+.ending-btn[data-megastructure-confirm]::before,
+.ending-btn[data-ending='infinite']::before {
+  content: '[ ';
+}
+.build-btn[data-build]::after,
+.build-btn[data-upgrade]::after,
+.build-btn[data-research]::after,
+.build-btn[data-upgrade-tech]::after,
+.build-btn[data-buy-max]::after,
+.build-btn[data-upgrade-max]::after,
+.build-btn[data-upgrade-tech-max]::after,
+.build-btn[data-diplomacy-max]::after,
+.build-btn[data-conquest]::after,
+.build-btn[data-fleet-build]::after,
+.ending-btn[data-explore-dispatch]::after,
+.ending-btn[data-ngplus]::after,
+.ending-btn[data-ngplus-confirm]::after,
+.ending-btn[data-buy-max-confirm]::after,
+.ending-btn[data-megastructure-confirm]::after,
+.ending-btn[data-ending='infinite']::after {
+  content: ' ]';
+}
+
+/* 主操作 hover/active：磷光绿底黑字瞬间反转（覆盖 .build-btn:hover 的浅 tint；
+   外交结盟/威慑走语义色，不在此反转集合内） */
+.build-btn[data-build]:hover:not(:disabled),
+.build-btn[data-upgrade]:hover:not(:disabled),
+.build-btn[data-research]:hover:not(:disabled),
+.build-btn[data-upgrade-tech]:hover:not(:disabled),
+.build-btn[data-buy-max]:hover:not(:disabled),
+.build-btn[data-upgrade-max]:hover:not(:disabled),
+.build-btn[data-upgrade-tech-max]:hover:not(:disabled),
+.build-btn[data-diplomacy-max]:hover:not(:disabled),
+.build-btn[data-conquest]:hover:not(:disabled),
+.build-btn[data-fleet-build]:hover:not(:disabled),
+.ending-btn[data-explore-dispatch]:hover,
+.ending-btn[data-ngplus]:hover,
+.ending-btn[data-ngplus-confirm]:hover,
+.ending-btn[data-buy-max-confirm]:hover,
+.ending-btn[data-megastructure-confirm]:hover,
+.ending-btn[data-ending='infinite']:hover {
+  background: var(--phosphor);
+  color: #000;
+  border-color: var(--phosphor);
+  box-shadow: none;
 }
 
 .upgrade-btn {
   margin-left: 8px;
-  border-color: #3a5b7a;
 }
 
 .upgrade-btn:hover:not(:disabled) {
@@ -541,7 +614,7 @@ body {
 }
 
 .build-card:hover {
-  border-color: #3d4650;
+  border-color: var(--border-bright);
 }
 
 .build-card:active {
@@ -614,17 +687,18 @@ body {
   padding: 8px;
   background: var(--bg-inset);
   border: 1px dashed var(--border);
-  border-radius: 6px;
   color: var(--text-dim);
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
   font-size: 12px;
   cursor: pointer;
+  /* 触控目标 ≥44px */
+  min-height: 44px;
   transition: none;
 }
 
 .locked-collapse:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
 }
 
 /* 探索页天体徽标（产出型天体贡献行）与外交派系徽标（同一 SVG 资产，building-cards ticket 06） */
@@ -746,10 +820,9 @@ body {
 }
 
 .event-card {
-  border: 1px solid #4a3a6a;
+  border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
   background: var(--bg-panel);
-  border-radius: 6px;
   padding: 10px 12px;
 }
 
@@ -773,18 +846,20 @@ body {
 }
 
 .event-option {
-  background: #21262d;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 6px 12px;
-  border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  font-family: var(--font-mono);
+  /* 触控目标 ≥44px */
+  min-height: 44px;
 }
 
 .event-option:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
 }
 
 .event-hint {
@@ -833,7 +908,7 @@ body {
 }
 
 .favor-empty {
-  color: #30363d;
+  color: var(--border);
 }
 
 .favor-num {
@@ -890,7 +965,7 @@ body {
 .megastructure-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 12, 0.88);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1159,18 +1234,19 @@ body {
 }
 
 .ending-btn {
-  background: #21262d;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 12px 16px;
-  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
+  font-family: var(--font-mono);
+  min-height: 44px;
 }
 
 .ending-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
 }
 
 .ending-btn.primary {
@@ -1208,11 +1284,11 @@ body {
   border: 1px solid var(--border);
   color: var(--text-dim);
   padding: 10px 16px;
-  min-height: 40px;
-  border-radius: 4px;
+  /* 触控目标 ≥44px（原 40px，Q6-A 全局校准） */
+  min-height: 44px;
   cursor: pointer;
   font-size: 13px;
-  font-family: var(--font-ui);
+  font-family: var(--font-mono);
 }
 
 .tool-btn:hover {
@@ -1318,7 +1394,7 @@ body {
 .tutorial {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 12, 0.72);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1367,13 +1443,14 @@ body {
 }
 
 .tutorial-btn {
-  background: #21262d;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 8px 16px;
-  border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
+  font-family: var(--font-mono);
+  min-height: 44px;
 }
 
 .tutorial-btn.primary {
@@ -1632,16 +1709,16 @@ body {
 }
 
 .conquest-btn {
-  border-color: #5a4a3a;
+  border-color: var(--border);
 }
 
 .conquest-btn:hover:not(:disabled) {
-  border-color: #c8a050;
-  color: #c8a050;
-  background-color: rgba(200, 160, 80, 0.08);
-  box-shadow: 0 0 0 1px rgba(200, 160, 80, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  background-color: rgba(51, 255, 0, 0.08);
+  box-shadow: 0 0 0 1px rgba(51, 255, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .conquest-btn:active:not(:disabled) {
-  background-color: rgba(200, 160, 80, 0.16);
+  background-color: rgba(51, 255, 0, 0.16);
 }
