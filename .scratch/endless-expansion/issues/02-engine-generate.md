@@ -1,6 +1,6 @@
 # 02 - 程序生成器 + 保底池数据 + 数量上限
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01-save-v12
 

@@ -1,6 +1,6 @@
 # 03 - 探索奖池注入 + 结算直接创建 + 攻占双遍历
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01-save-v12、02-engine-generate
 

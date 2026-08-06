@@ -1,6 +1,6 @@
 # 05 - balance-sim 数值校准
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 02-engine-generate
 

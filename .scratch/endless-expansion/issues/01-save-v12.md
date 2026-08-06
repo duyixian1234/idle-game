@@ -1,6 +1,6 @@
 # 01 - 存档 v12：生成目标数组 + 归档周目标记
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** —
 

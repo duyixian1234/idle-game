@@ -1,6 +1,6 @@
 # 04 - UI 归档折叠 + 保底锁定占位
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 03-engine-pool-settle
 
