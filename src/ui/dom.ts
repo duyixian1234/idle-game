@@ -67,6 +67,7 @@ export interface AppElements {
   navBar: HTMLElement
   navPages: Record<NavId, HTMLElement>
   importFile: HTMLInputElement
+  boot: HTMLElement
 }
 
 const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
@@ -128,6 +129,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
     <div class="scanline" data-scanline aria-hidden="true"></div>
+    <div class="boot-overlay hidden" data-boot aria-label="开机序列"></div>
     ${iconSpriteHtml()}
   `
   const root = container
@@ -149,7 +151,25 @@ export function buildLayout(container: HTMLElement): AppElements {
     navBar: container.querySelector('.nav-bar') as HTMLElement,
     navPages,
     importFile: container.querySelector('#import-file') as HTMLInputElement,
+    boot: container.querySelector('[data-boot]') as HTMLElement,
   }
+}
+
+/** boot 浮层内容（Q13 定案）：ASCII 标题 + 3 行 SYSTEM INIT；
+ *  容器由 buildLayout 一次性构建（非重建元素），显隐由 main 层控制。 */
+export function renderBootOverlay(el: HTMLElement, version: string): void {
+  el.innerHTML = `
+    <pre class="boot-art" aria-hidden="true">  ██╗██████╗ ██╗     ███████╗
+  ██║██╔══██╗██║     ██╔════╝
+  ██║██║  ██║██║     █████╗
+  ██║██║  ██║██║     ██╔══╝
+  ██║██████╔╝███████╗███████╗
+  ╚═╝╚═════╝ ╚══════╝╚══════╝</pre>
+    <div class="boot-title">深空拓荒 · 星系统一联邦 <span class="boot-version">v${escapeHtml(version)}</span></div>
+    <div class="boot-line">&gt; SYSTEM INIT...</div>
+    <div class="boot-line">&gt; 导航阵列就绪</div>
+    <div class="boot-line">&gt; 采矿协议加载</div>
+    <div class="boot-skip">[ 任意键跳过 ]</div>`
 }
 
 /** 渲染新手引导浮层（未完成时显示） */

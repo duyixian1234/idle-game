@@ -1498,6 +1498,57 @@ body {
   color: var(--text-dim);
 }
 
+/* ---- boot 开机序列（Q13 定案）----
+ * 全屏 #050505，z-index 60 最高层；pointer-events:none → 不拦截任何点击
+ * （E2E elementsFromPoint 豁免、playwright 命中测试不受遮挡），
+ * 跳过由 main 层 document 级 click/keydown 监听承担。 */
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  pointer-events: none;
+}
+
+.boot-overlay.hidden {
+  display: none;
+}
+
+.boot-art {
+  color: var(--phosphor);
+  font-size: 13px;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.boot-title {
+  color: var(--text);
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.boot-version {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.boot-line {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.boot-skip {
+  color: var(--text-faint);
+  font-size: 11px;
+  margin-top: 18px;
+}
+
 /* ---- 矮屏兜底（移动端横屏/小高度）：面板压缩到最低限度，保住日志区 ---- */
 @media (max-height: 480px) {
   .panel-body {

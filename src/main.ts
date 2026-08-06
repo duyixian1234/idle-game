@@ -41,9 +41,12 @@ import {
   renderSettingsPage,
   renderTechPanel,
   renderTutorial,
+  renderBootOverlay,
   unlockRequirementText,
 } from './ui/dom'
 import type { LogDirection, NavId } from './ui/dom'
+import { prefersReducedMotion } from './ui/typewriter'
+import { markBootSeen, shouldShowBoot } from './ui/boot'
 import { dispatch } from './ui/actions'
 import type { ActionDeps } from './ui/actions'
 
@@ -55,6 +58,30 @@ const APP_VERSION = '0.1.0'
 async function main(): Promise<void> {
   const container = document.getElementById('app') as HTMLElement
   const els = buildLayout(container)
+
+  // boot 开机序列（Q13 定案）：localStorage ui-boot-seen 仅首次；reduced-motion 直跳；
+  // 1.2s 自动关闭 / 任意点击·按键跳过。浮层 pointer-events:none（CSS）不拦截点击，
+  // 跳过由 document 级监听承担——E2E 与正常游玩互不干扰。
+  renderBootOverlay(els.boot, APP_VERSION)
+  if (shouldShowBoot(localStorage, prefersReducedMotion())) {
+    markBootSeen(localStorage) // 展示即标记：刷新不重放
+    els.boot.classList.remove('hidden')
+    let bootDismissed = false
+    const dismissBoot = (): void => {
+      if (bootDismissed) return
+      bootDismissed = true
+      els.boot.classList.add('hidden')
+      window.clearTimeout(bootTimer)
+      document.removeEventListener('click', dismissBoot)
+      document.removeEventListener('keydown', onBootKey)
+    }
+    const onBootKey = (): void => {
+      dismissBoot()
+    }
+    const bootTimer = window.setTimeout(dismissBoot, 1_200)
+    document.addEventListener('click', dismissBoot)
+    document.addEventListener('keydown', onBootKey)
+  }
 
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
   // 结局面板临时收起标记
