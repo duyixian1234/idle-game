@@ -718,6 +718,28 @@ body {
   flex: 1;
 }
 
+.build-card .build-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  align-content: end;
+  width: 100%;
+  margin-top: auto;
+}
+
+.build-card .build-actions .build-btn,
+.build-card .build-actions .build-lock {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.build-card .build-actions .build-lock {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
 /* 刚升级高亮：一次性动画（仅当渲染时卡片带 just-upgraded 类触发；
    窗口过期后渲染不带类 → 后续 250ms 重建不重放） */
 .build-card.just-upgraded {
@@ -1658,6 +1680,9 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
+  }
+  .build-card .build-actions {
+    grid-template-columns: 1fr;
   }
   /* 外交操作同样显式纵向堆叠（不再依赖被移除的 width:100% 规则） */
   .faction-actions {
