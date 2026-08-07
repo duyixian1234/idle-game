@@ -5,7 +5,7 @@ import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
 import type { EventAutomationPolicy, EventTheme, GameState, ResourceKey } from '../../engine/types'
 import type { AppElements, NavId } from '../layout'
 import { dispatch } from '../actions'
-import type { ActionDeps } from '../actions'
+import type { ActionDeps, ActionId, ActionPayloads, DiplomacyAction } from '../actions'
 import { buildCardAction } from '../panels'
 import { unlockRequirementText } from '../bars'
 import type { LogDirection } from '../log'
@@ -33,7 +33,8 @@ export interface SessionUiState {
   endingDismissed: boolean
   logDirection: LogDirection
   lastLogId: number
-  buyMaxPending: { actionId: string; payload: string | number } | null
+  /** 买满确认弹窗待执行动作（actionId + 结构化 payload；运行时联合，dispatch 时断言） */
+  buyMaxPending: { actionId: ActionId; payload: ActionPayloads[ActionId] } | null
   exploreEscortChecked: Set<number>
 }
 
@@ -149,7 +150,7 @@ export function bindListeners(ctx: SessionCtx): void {
     const state = getState()
     const category = toggle.dataset.autoQuickToggle ?? ''
     const policy = ctx.automationPolicyWithDefaults(category as EventTheme, state.automationPolicies[category], toggle.checked)
-    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
+    dispatch(state, 'setAutomationPolicy', { category, policy }, deps)
   })
 
   // 星域页自动配置入口（data-auto-config-trigger → 打开自动配置浮层）
@@ -243,7 +244,8 @@ export function bindListeners(ctx: SessionCtx): void {
       if (ui.buyMaxPending) {
         const { actionId, payload } = ui.buyMaxPending
         ctx.closeBuyMaxModal()
-        dispatch(getState(), actionId, payload, deps)
+        // buyMaxPending 由 openBuyMaxModal 按 action 组装（运行时联合），此处断言
+        dispatch(getState(), actionId as ActionId, payload as never, deps)
       }
       return
     }
@@ -297,7 +299,7 @@ export function bindListeners(ctx: SessionCtx): void {
     if (t.closest('[data-megastructure-confirm]')) {
       const id = (t.closest('[data-megastructure-confirm]') as HTMLElement).dataset.megastructureConfirm ?? ''
       ctx.closeMegastructureModal()
-      if (id) dispatch(getState(), 'megastructure', id, deps)
+      if (id) dispatch(getState(), 'megastructure', { id }, deps)
     }
   })
 
@@ -322,8 +324,8 @@ export function bindListeners(ctx: SessionCtx): void {
       const slotNo = dispatchBtn.dataset.exploreDispatch ?? '1'
       const slotCard = dispatchBtn.closest<HTMLElement>('[data-expedition-slot]')
       const escortToggle = slotCard?.querySelector<HTMLInputElement>('[data-escort-toggle]')
-      const escortFlag = escortToggle?.checked ? '1' : '0'
-      dispatch(getState(), 'explore', `${slotNo}:${escortFlag}`, deps)
+      const escortFlag = escortToggle?.checked
+      dispatch(getState(), 'explore', { slot: Number(slotNo || '1'), escort: escortFlag === true }, deps)
     }
   })
   // 手动护航勾选（change）：更新跨渲染勾选集合并重渲染（预览数据在渲染时实时计算）
@@ -340,13 +342,13 @@ export function bindListeners(ctx: SessionCtx): void {
     // 自动探索开关（data-auto-explore-toggle）→ 持久化到存档 v11 字段
     const autoToggle = target.closest<HTMLInputElement>('[data-auto-explore-toggle]')
     if (autoToggle) {
-      dispatch(getState(), 'setAutoExplore', JSON.stringify({ enabled: autoToggle.checked }), deps)
+      dispatch(getState(), 'setAutoExplore', { enabled: autoToggle.checked }, deps)
       return
     }
     // 自动探索护航勾选（data-auto-escort）→ 持久化
     const autoEscort = target.closest<HTMLInputElement>('[data-auto-escort]')
     if (autoEscort) {
-      dispatch(getState(), 'setAutoExplore', JSON.stringify({ escort: autoEscort.checked }), deps)
+      dispatch(getState(), 'setAutoExplore', { escort: autoEscort.checked }, deps)
     }
   })
 
@@ -364,7 +366,7 @@ export function bindListeners(ctx: SessionCtx): void {
       }
       return
     }
-    dispatch(state, 'setPlanet', id, deps)
+    dispatch(state, 'setPlanet', { id }, deps)
   })
 
   // 建造/升级/科技/外交按钮事件委托（统一走动作注册表）
@@ -374,7 +376,7 @@ export function bindListeners(ctx: SessionCtx): void {
     // 造舰按钮（舰队管理区，data-fleet-build；硬约束与上限拦截在引擎 buyShip 内）
     const fleetBtn = target.closest<HTMLElement>('[data-fleet-build]')
     if (fleetBtn) {
-      dispatch(state, 'fleetBuild', 0, deps)
+      dispatch(state, 'fleetBuild', {}, deps)
       return
     }
     // 终局工程卡片（data-megastructure）：未建造时弹出确认（已建造卡片不可点）
@@ -422,7 +424,15 @@ export function bindListeners(ctx: SessionCtx): void {
       }
       // 单次升级（data-upgrade）：卡片短暂高亮（按钮 disabled 时不发 click，此处安全）
       if (actionId === 'upgrade') ctx.flashUpgrade(String(payload))
-      dispatch(state, actionId, payload, deps)
+      // 动态分发（data-* 运行时契约）：按 actionId 组装结构化载荷
+      if (actionId === 'diplomacy') {
+        const idx = String(payload).lastIndexOf(':')
+        const fid = String(payload).slice(0, idx)
+        const act = String(payload).slice(idx + 1) as DiplomacyAction
+        dispatch(state, 'diplomacy', { factionId: fid, action: act }, deps)
+      } else {
+        dispatch(state, actionId as ActionId, { id: String(payload) } as never, deps)
+      }
       return
     }
     // 固定次数批量按钮：资源不足时由引擎提前停止，不再提供买满/升满。
@@ -436,7 +446,18 @@ export function bindListeners(ctx: SessionCtx): void {
       if (!btn) {
         continue
       }
-      dispatch(state, actionId, String(btn.dataset[dataKey] ?? ''), deps)
+      const raw = String(btn.dataset[dataKey] ?? '')
+      // 动态分发（data-* 运行时契约）：diplomacyMax 载荷为 "factionId:action[:limit]"，其余为 "id[:limit]"
+      if (actionId === 'diplomacyMax') {
+        const idx = raw.lastIndexOf(':')
+        const fid = raw.slice(0, idx)
+        const tail = raw.slice(idx + 1)
+        const [act, limitText] = tail.split(':')
+        dispatch(state, 'diplomacyMax', { factionId: fid, action: (act === 'techshare' ? 'techshare' : 'trade'), ...(limitText ? { limit: Number(limitText) } : {}) }, deps)
+      } else {
+        const [id, limitText] = raw.split(':')
+        dispatch(state, actionId as ActionId, { id, ...(limitText ? { limit: Number(limitText) } : {}) } as never, deps)
+      }
       return
     }
     const conquestBtn = target.closest<HTMLElement>('[data-conquest]')
@@ -444,7 +465,7 @@ export function bindListeners(ctx: SessionCtx): void {
       const id = conquestBtn.dataset.conquest ?? ''
       const input = ctx.panels['military'].querySelector<HTMLInputElement>(`[data-conquest-input="${id}"]`)
       const invest = Number(input?.value ?? 0)
-      dispatch(state, 'conquest', `${id}:${invest}`, deps)
+      dispatch(state, 'conquest', { id, invest }, deps)
       return
     }
     // 锁定卡折叠行（data-locked-collapse）：展开/收起对应分区全部锁定卡（UI 内存态，250ms 重建不重置）
@@ -476,7 +497,7 @@ export function bindListeners(ctx: SessionCtx): void {
         return
       }
       if (act.kind === 'upgrade') ctx.flashUpgrade(id)
-      dispatch(state, act.kind, id, deps)
+      dispatch(state, act.kind === 'buy' ? 'buy' : 'upgrade', { id }, deps)
       return
     }
   })
@@ -486,7 +507,9 @@ export function bindListeners(ctx: SessionCtx): void {
   els.logEl.addEventListener('click', (e) => {
     const eventBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-event-resolve]')
     if (!eventBtn) return
-    dispatch(getState(), 'resolveEvent', eventBtn.dataset.eventResolve ?? '', deps)
+    const raw = eventBtn.dataset.eventResolve ?? ''
+    const [uidText, optionId] = raw.split(':')
+    dispatch(getState(), 'resolveEvent', { uid: Number(uidText), optionId }, deps)
   })
 
   // 页面关闭前尽力保存（main 的 loop/存档节流外，关闭瞬间的兜底）

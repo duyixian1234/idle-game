@@ -24,7 +24,11 @@ import { isActionFailure } from './helpers'
 /**
  * 动作注册表：把「引擎动作 → 日志/音效 → 渲染 → 保存」样板收敛为一个 dispatch。
  * 每个动作自描述：run 调引擎，feedback 把引擎结果映射为 UI 反馈（文案/音效/保存条件），
- * onFailure 可选补失败日志（默认失败静默）。main.ts 的委托只做 data-* → dispatch 映射。
+ * onFailure 可选补失败日志（默认失败静默）。调用点只做 data-* → 结构化 payload 映射。
+ *
+ * 载荷类型化（feat/action-typed）：payload 从 string|number 编码协议改为判别联合
+ * ActionPayloads，id 与载荷在编译期匹配（PayloadFor<K> 映射）。DOM 契约解析
+ * （split(':')/JSON.parse）收口在调用点，action 内部不再自解析。
  */
 
 export interface ActionLog {
@@ -39,14 +43,41 @@ export interface ActionFeedback {
   save?: boolean
 }
 
-export interface GameAction {
-  id: string
-  /** 执行引擎动作；payload 为 DOM data-* 原始值（string | number），动作内部自行解析 */
-  run(state: GameState, payload: string | number): unknown
+/** 外交动作（diplomacy payload 的 action 字段；8 分支对应 runDiplomacy 分发） */
+export type DiplomacyAction = 'trade' | 'alliance' | 'techshare' | 'extort' | 'treaty' | 'subjugate' | 'atone' | 'intimidate'
+
+/** 各 action 的结构化载荷（单一事实源；dispatch 泛型据此约束 payload） */
+export interface ActionPayloads {
+  setAutomationPolicy: { category: string; policy: EventAutomationPolicy }
+  buy: { id: string }
+  upgrade: { id: string }
+  research: { id: string }
+  upgradeTech: { id: string }
+  diplomacy: { factionId: string; action: DiplomacyAction }
+  buyMax: { id: string; limit?: number }
+  upgradeMax: { id: string; limit?: number }
+  upgradeTechMax: { id: string; limit?: number }
+  diplomacyMax: { factionId: string; action: 'trade' | 'techshare'; limit?: number }
+  resolveEvent: { uid: number; optionId: string }
+  setPlanet: { id: string }
+  conquest: { id: string; invest: number }
+  explore: { slot: number; escort: boolean }
+  setAutoExplore: { enabled?: boolean; escort?: boolean }
+  fleetBuild: Record<string, never>
+  megastructure: { id: string }
+}
+
+export type ActionId = keyof ActionPayloads
+export type PayloadFor<K extends ActionId> = ActionPayloads[K]
+
+export interface GameAction<K extends ActionId = ActionId> {
+  id: K
+  /** 执行引擎动作；payload 为类型化载荷 */
+  run(state: GameState, payload: PayloadFor<K>): unknown
   /** 成功后的反馈：日志文本（依赖 run 后的状态）与音效 */
-  feedback?(state: GameState, result: unknown, payload: string | number): ActionFeedback
+  feedback?(state: GameState, result: unknown, payload: PayloadFor<K>): ActionFeedback
   /** 失败钩子：返回需补写的日志（默认失败静默） */
-  onFailure?(state: GameState, payload: string | number, reason: string): { logs: ActionLog[] }
+  onFailure?(state: GameState, payload: PayloadFor<K>, reason: string): { logs: ActionLog[] }
 }
 
 /** dispatch 依赖注入：测试注入假实现，断言副作用顺序 */
@@ -74,31 +105,20 @@ function bulkFeedbackText(result: unknown, prefix: string): ActionFeedback {
   }
 }
 
-function bulkOnFailure(_state: GameState, _payload: string | number, reason: string): { logs: ActionLog[] } {
+/** 批量失败反馈（buyMax/upgradeMax/upgradeTechMax/diplomacyMax 共享；payload 仅取 id/factionId 命名用） */
+function bulkOnFailure(_state: GameState, _payload: { id?: string; factionId?: string }, reason: string): { logs: ActionLog[] } {
   return { logs: [{ type: 'warning', text: `一键买满失败：${reason}。` }] }
 }
 
-/** payload 尾部固定段解析（探索发现的 endless:/gen: 目标 id 自身含 ':'，必须从右往左切）：
- * - "factionId:action"（tailCount=1）→ [factionId, action]
- * - "factionId:action:limit" / "conquestId:invest"（tailCount=2）→ 尾部两段为 action/limit 或 invest，其余全为 id
- * 段数不足 tailCount 时按旧 split 行为返回（缺段为 undefined）——如 'ferro:trade' 解析为 ['ferro','trade'] */
-function splitActionPayload(payload: string | number, tailCount: 1 | 2): string[] {
-  const parts = String(payload).split(':')
-  if (parts.length <= tailCount) return parts
-  const id = parts.slice(0, parts.length - tailCount).join(':')
-  return [id, ...parts.slice(parts.length - tailCount)]
+/** 外交批量执行（payload 结构化：factionId + action + 可选 limit） */
+function runDiplomacyMax(state: GameState, payload: ActionPayloads['diplomacyMax']): unknown {
+  if (payload.limit != null) return executeLimitedDiplomacy(state, payload.factionId, payload.action === 'techshare' ? 'techShare' : 'trade', payload.limit)
+  return executeDiplomacyMax(state, payload.factionId, payload.action === 'techshare' ? 'techShare' : 'trade')
 }
 
-/** 外交批量：payload 为 "factionId:action[:limit]"（id 可含 ':'） */
-function runDiplomacyMax(state: GameState, payload: string | number): unknown {
-  const [factionId, action, limitText] = splitActionPayload(payload, 2)
-  if (limitText) return executeLimitedDiplomacy(state, factionId, action === 'techshare' ? 'techShare' : 'trade', Number(limitText))
-  return executeDiplomacyMax(state, factionId, action === 'techshare' ? 'techShare' : 'trade')
-}
-
-/** 外交动作分发：payload 为 "factionId:action"（id 可含 ':'） */
-function runDiplomacy(state: GameState, payload: string | number): unknown {
-  const [factionId, action] = splitActionPayload(payload, 1)
+/** 外交动作分发（payload 结构化：factionId + action） */
+function runDiplomacy(state: GameState, payload: ActionPayloads['diplomacy']): unknown {
+  const { factionId, action } = payload
   if (action === 'trade') return factionTrade(state, factionId)
   if (action === 'alliance') return factionAlliance(state, factionId)
   if (action === 'techshare') return factionTechShare(state, factionId)
@@ -109,8 +129,8 @@ function runDiplomacy(state: GameState, payload: string | number): unknown {
   return factionIntimidate(state, factionId)
 }
 
-function diplomacyFeedback(state: GameState, _result: unknown, payload: string | number): ActionFeedback {
-  const [factionId, action] = splitActionPayload(payload, 1)
+function diplomacyFeedback(state: GameState, _result: unknown, payload: ActionPayloads['diplomacy']): ActionFeedback {
+  const { factionId, action } = payload
   const def = factionDef(state, factionId)
   const f = state.factions[factionId]
   const favor = f?.favor ?? 0
@@ -138,56 +158,47 @@ function diplomacyFeedback(state: GameState, _result: unknown, payload: string |
   return { logs, sound: action === 'alliance' ? 'success' : 'click' }
 }
 
-export const ACTIONS: Record<string, GameAction> = {
+export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
   setAutomationPolicy: {
     id: 'setAutomationPolicy',
     run: (state, payload) => {
-      let input: { category: string; policy: EventAutomationPolicy }
-      try {
-        input = JSON.parse(String(payload)) as { category: string; policy: EventAutomationPolicy }
-      } catch {
-        return { ok: false, reason: '配置格式无效' }
-      }
-      if (!input.category || !input.policy || !Array.isArray(input.policy.rules)) return { ok: false, reason: '配置格式无效' }
-      state.automationPolicies[input.category] = { ...input.policy, rules: input.policy.rules.slice().sort((a, b) => b.priority - a.priority) }
-      return { ok: true, value: input.category }
+      if (!payload.category || !payload.policy || !Array.isArray(payload.policy.rules)) return { ok: false, reason: '配置格式无效' }
+      state.automationPolicies[payload.category] = { ...payload.policy, rules: payload.policy.rules.slice().sort((a, b) => b.priority - a.priority) }
+      return { ok: true, value: payload.category }
     },
     feedback: () => ({ logs: [], save: true }),
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `自动处理配置失败：${reason}。` }] }),
   },
   buy: {
     id: 'buy',
-    run: (state, id) => buyBuilding(state, String(id)),
-    feedback: (state, _r, id) => {
-      const buildingId = String(id).split(':')[0]
-      const name = BUILDINGS[buildingId]?.name ?? buildingId
-      return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${formatNumber(state.buildings[String(id)] ?? 0)} 台）。` }], sound: 'click' }
+    run: (state, payload) => buyBuilding(state, payload.id),
+    feedback: (state, _r, payload) => {
+      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${formatNumber(state.buildings[payload.id] ?? 0)} 台）。` }], sound: 'click' }
     },
   },
   upgrade: {
     id: 'upgrade',
-    run: (state, id) => upgradeBuilding(state, String(id)),
-    feedback: (state, _r, id) => {
-      const buildingId = String(id).split(':')[0]
-      const name = BUILDINGS[buildingId]?.name ?? buildingId
-      return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${formatNumber(state.upgrades[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
+    run: (state, payload) => upgradeBuilding(state, payload.id),
+    feedback: (state, _r, payload) => {
+      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${formatNumber(state.upgrades[payload.id] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
   research: {
     id: 'research',
-    run: (state, id) => researchTech(state, String(id)),
-    feedback: (_state, _r, id) => {
-      const techId = String(id).split(':')[0]
-      const name = TECHS[techId]?.name ?? techId
+    run: (state, payload) => researchTech(state, payload.id),
+    feedback: (_state, _r, payload) => {
+      const name = TECHS[payload.id]?.name ?? payload.id
       return { logs: [{ type: 'reward', text: `科技「${name}」研发完成，新能力已生效。` }], sound: 'success' }
     },
   },
   upgradeTech: {
     id: 'upgradeTech',
-    run: (state, id) => upgradeTech(state, String(id)),
-    feedback: (state, _r, id) => {
-      const name = TECHS[String(id)]?.name ?? String(id)
-      return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${formatNumber(state.techLevels[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
+    run: (state, payload) => upgradeTech(state, payload.id),
+    feedback: (state, _r, payload) => {
+      const name = TECHS[payload.id]?.name ?? payload.id
+      return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${formatNumber(state.techLevels[payload.id] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
   diplomacy: {
@@ -197,40 +208,34 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   buyMax: {
     id: 'buyMax',
-    run: (state, id) => {
-      const [buildingId, limitText] = String(id).split(':')
-      return limitText ? executeLimitedBuy(state, 'building', buildingId, Number(limitText)) : executeMaxBuy(state, 'building', buildingId)
+    run: (state, payload) => {
+      return payload.limit != null ? executeLimitedBuy(state, 'building', payload.id, payload.limit) : executeMaxBuy(state, 'building', payload.id)
     },
-    feedback: (_state, _r, id) => {
-      const [buildingId, limitText] = String(id).split(':')
-      const name = BUILDINGS[buildingId]?.name ?? buildingId
-      return bulkFeedbackText(_r, limitText ? `批量购买「${name}」` : `一键买满「${name}」：购买`)
+    feedback: (_state, _r, payload) => {
+      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      return bulkFeedbackText(_r, payload.limit != null ? `批量购买「${name}」` : `一键买满「${name}」：购买`)
     },
     onFailure: bulkOnFailure,
   },
   upgradeMax: {
     id: 'upgradeMax',
-    run: (state, id) => {
-      const [buildingId, limitText] = String(id).split(':')
-      return limitText ? executeLimitedBuy(state, 'buildingUpgrade', buildingId, Number(limitText)) : executeMaxBuy(state, 'buildingUpgrade', buildingId)
+    run: (state, payload) => {
+      return payload.limit != null ? executeLimitedBuy(state, 'buildingUpgrade', payload.id, payload.limit) : executeMaxBuy(state, 'buildingUpgrade', payload.id)
     },
-    feedback: (_state, _r, id) => {
-      const [buildingId, limitText] = String(id).split(':')
-      const name = BUILDINGS[buildingId]?.name ?? buildingId
-      return bulkFeedbackText(_r, limitText ? `批量升级「${name}」` : `一键升满「${name}」：升级`)
+    feedback: (_state, _r, payload) => {
+      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      return bulkFeedbackText(_r, payload.limit != null ? `批量升级「${name}」` : `一键升满「${name}」：升级`)
     },
     onFailure: bulkOnFailure,
   },
   upgradeTechMax: {
     id: 'upgradeTechMax',
-    run: (state, id) => {
-      const [techId, limitText] = String(id).split(':')
-      return limitText ? executeLimitedBuy(state, 'techUpgrade', techId, Number(limitText)) : executeMaxBuy(state, 'techUpgrade', techId)
+    run: (state, payload) => {
+      return payload.limit != null ? executeLimitedBuy(state, 'techUpgrade', payload.id, payload.limit) : executeMaxBuy(state, 'techUpgrade', payload.id)
     },
-    feedback: (_state, _r, id) => {
-      const [techId, limitText] = String(id).split(':')
-      const name = TECHS[techId]?.name ?? techId
-      return bulkFeedbackText(_r, limitText ? `批量升级科技「${name}」` : `一键升满科技「${name}」：升级`)
+    feedback: (_state, _r, payload) => {
+      const name = TECHS[payload.id]?.name ?? payload.id
+      return bulkFeedbackText(_r, payload.limit != null ? `批量升级科技「${name}」` : `一键升满科技「${name}」：升级`)
     },
     onFailure: bulkOnFailure,
   },
@@ -238,18 +243,14 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'diplomacyMax',
     run: runDiplomacyMax,
     feedback: (_state, _r, payload) => {
-      const [factionId, action, limitText] = splitActionPayload(payload, 2)
-      const name = factionDef(_state, factionId)?.name ?? factionId
-      return bulkFeedbackText(_r, `与${name}${limitText ? '批量' : ''}${action === 'techshare' ? '技术共享' : '贸易'}`)
+      const name = factionDef(_state, payload.factionId)?.name ?? payload.factionId
+      return bulkFeedbackText(_r, `与${name}${payload.limit != null ? '批量' : ''}${payload.action === 'techshare' ? '技术共享' : '贸易'}`)
     },
     onFailure: bulkOnFailure,
   },
   resolveEvent: {
     id: 'resolveEvent',
-    run: (state, payload) => {
-      const [uid, optionId] = String(payload).split(':')
-      return resolveEvent(state, Number(uid), optionId)
-    },
+    run: (state, payload) => resolveEvent(state, payload.uid, payload.optionId),
     feedback: (_state, result) => {
       const outcome = result as { logType: LogType; logText: string; changed: boolean }
       return {
@@ -261,22 +262,18 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   setPlanet: {
     id: 'setPlanet',
-    run: (state, id) => setActivePlanet(state, String(id)),
-    feedback: (_state, _r, id) => {
-      const name = PLANETS[String(id)]?.name ?? String(id)
+    run: (state, payload) => setActivePlanet(state, payload.id),
+    feedback: (_state, _r, payload) => {
+      const name = PLANETS[payload.id]?.name ?? payload.id
       return { logs: [{ type: 'system', text: `舰队坐标锁定：前往「${name}」。` }] }
     },
   },
   conquest: {
     id: 'conquest',
-    // payload: "区域id:投入军力"（军力数量由 UI 输入/默认全投；探索发现目标 id 可含 ':'）
-    run: (state, payload) => {
-      const [id, invest] = splitActionPayload(payload, 1)
-      return startConquest(state, id, Number(invest), Date.now())
-    },
+    // payload: { id: 区域id, invest: 投入军力 }（探索发现目标 id 可含 ':'，结构化后无需解析）
+    run: (state, payload) => startConquest(state, payload.id, payload.invest, Date.now()),
     feedback: (_state, result, payload) => {
-      const [id] = splitActionPayload(payload, 1)
-      const name = conquestDef(_state, id)?.name ?? id
+      const name = conquestDef(_state, payload.id)?.name ?? payload.id
       const v = result as ConquestActionResult
       if (v.ok) {
         return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 10~30 分钟后结算。` }], sound: 'upgrade' }
@@ -284,21 +281,14 @@ export const ACTIONS: Record<string, GameAction> = {
       return { logs: [] }
     },
     onFailure: (_state, payload, reason) => {
-      const [id] = splitActionPayload(payload, 1)
-      const name = conquestDef(_state, id)?.name ?? id
+      const name = conquestDef(_state, payload.id)?.name ?? payload.id
       return { logs: [{ type: 'warning', text: `攻占「${name}」失败：${reason}。` }] }
     },
   },
   explore: {
     id: 'explore',
-    // 派遣探索队（结果出发时固化，回归自动入账；多槽）。payload = "槽位号[:护航0|1]"（UI data-explore-dispatch 值 = 槽位号 1|2|3，
-    // 护航状态由 main 层从 data-escort-toggle 读取拼接；缺省按第 1 槽无护航）
-    run: (state, payload) => {
-      const [slotText, escortText] = String(payload).split(':')
-      const slotNo = Number(slotText || '1')
-      const slotIndex = Math.max(0, slotNo - 1)
-      return startExpedition(state, Date.now(), undefined, slotIndex, escortText === '1')
-    },
+    // 派遣探索队（结果出发时固化，回归自动入账；多槽）。payload: { slot, escort }（结构化）
+    run: (state, payload) => startExpedition(state, Date.now(), undefined, Math.max(0, payload.slot - 1), payload.escort),
     feedback: (_state, result) => {
       const v = result as { ok: true; value?: { escort?: boolean; startedAt?: number; finishAt?: number } }
       const escortText = v.value?.escort ? '（护航编队）' : ''
@@ -310,19 +300,13 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   setAutoExplore: {
     id: 'setAutoExplore',
-    // 自动探索设置（fleet-dock-10）：payload = JSON { enabled?: boolean; escort?: boolean }，更新 state.autoExplore（存档 v11 字段）
+    // 自动探索设置（fleet-dock-10）：payload { enabled?, escort? } 更新 state.autoExplore（存档 v11 字段）
     run: (state, payload) => {
-      let input: { enabled?: boolean; escort?: boolean }
-      try {
-        input = JSON.parse(String(payload)) as { enabled?: boolean; escort?: boolean }
-      } catch {
-        return { ok: false, reason: '配置格式无效' }
-      }
       const auto = state.autoExplore ?? { enabled: false, escort: false }
-      if (input.enabled != null) auto.enabled = input.enabled
-      if (input.escort != null) auto.escort = input.escort
+      if (payload.enabled != null) auto.enabled = payload.enabled
+      if (payload.escort != null) auto.escort = payload.escort
       state.autoExplore = auto
-      if (input.enabled) state.autoExplore.pausedAt = undefined
+      if (payload.enabled) state.autoExplore.pausedAt = undefined
       return { ok: true, value: { enabled: auto.enabled, escort: auto.escort } }
     },
     feedback: (_state, result) => {
@@ -338,7 +322,7 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   fleetBuild: {
     id: 'fleetBuild',
-    // 建造护卫舰（第 count+1 艘，成本逐艘 ×1.5）；硬约束与上限拦截在引擎 buyShip 内
+    // 建造护卫舰（第 count+1 艘，成本逐艘 ×1.5）；硬约束与上限拦截在引擎 buyShip 内；无载荷
     run: (state) => buyShip(state),
     feedback: (state) => ({
       logs: [{ type: 'system', text: `护卫舰入列：舰队现有 ${formatNumber(state.fleet.count)} 艘，总维护费 ${formatNumber(-fleetMaintenance(state))} 能源/秒。` }],
@@ -349,9 +333,9 @@ export const ACTIONS: Record<string, GameAction> = {
   megastructure: {
     id: 'megastructure',
     // 终局工程：建造究极建筑（payload = buildingId；双轨开放，独立建造、互不影响）
-    run: (state, id) => buyBuilding(state, String(id)),
-    feedback: (_state, _r, id) => {
-      const name = BUILDINGS[String(id)]?.name ?? String(id)
+    run: (state, payload) => buyBuilding(state, payload.id),
+    feedback: (_state, _r, payload) => {
+      const name = BUILDINGS[payload.id]?.name ?? payload.id
       return { logs: [{ type: 'reward', text: `终局工程落定：${name} 建成。文明双轨并进，星环与星门同辉。` }], sound: 'success' }
     },
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `终局工程失败：${reason}。` }] }),
@@ -360,9 +344,10 @@ export const ACTIONS: Record<string, GameAction> = {
 
 /**
  * 统一执行「失败处理 → 日志 → 音效 → 渲染 → 保存」副作用顺序。
- * 失败时：onFailure 产生日志则写入并渲染；否则完全静默。
+ * payload 与 id 在编译期匹配（PayloadFor<K>）；动态分发点（DOM data-* 契约）
+ * 需断言——运行时契约无法静态分辨，见 listeners.ts 注释。
  */
-export function dispatch(state: GameState, id: string, payload: string | number, deps: ActionDeps): void {
+export function dispatch<K extends ActionId>(state: GameState, id: K, payload: PayloadFor<K>, deps: ActionDeps): void {
   const action = ACTIONS[id]
   if (!action) return
   const result = action.run(state, payload)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, researchTech } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
-import type { ActionDeps } from './actions'
+import type { ActionDeps, ActionId } from './actions'
 import { ACTIONS, dispatch } from './actions'
 import { formatNumber } from '../engine/format'
 
@@ -21,7 +21,7 @@ describe('actions: dispatch 副作用顺序', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'buy', 'miner', deps)
+    dispatch(s, 'buy', { id: 'miner' }, deps)
     expect(s.buildings.miner).toBe(1)
     expect(s.log[0].text).toContain(`建造了 采矿机（第 ${formatNumber(1)} 台）`)
     expect(calls).toEqual(['sound:click', 'render', 'save'])
@@ -30,7 +30,7 @@ describe('actions: dispatch 副作用顺序', () => {
   it('失败默认静默：不写日志、不渲染、不保存', () => {
     const s = createInitialState(0)
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'setPlanet', 'ice', deps) // 未解锁
+    dispatch(s, 'setPlanet', { id: 'ice' }, deps) // 未解锁
     expect(s.log).toHaveLength(0)
     expect(calls).toEqual([])
   })
@@ -40,7 +40,7 @@ describe('actions: 建造/升级/科技', () => {
   it('buy 成功写日志并扣资源', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
-    dispatch(s, 'buy', 'miner', fakeDeps().deps)
+    dispatch(s, 'buy', { id: 'miner' }, fakeDeps().deps)
     expect(s.resources.mineral).toBe(90)
     expect(s.log[0].text).toContain('建造了 采矿机')
   })
@@ -49,7 +49,7 @@ describe('actions: 建造/升级/科技', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100_000
     s.buildings.miner = 1
-    dispatch(s, 'upgrade', 'miner', fakeDeps().deps)
+    dispatch(s, 'upgrade', { id: 'miner' }, fakeDeps().deps)
     expect(s.upgrades.miner).toBe(1)
     expect(s.log[0].text).toContain('Lv.1')
   })
@@ -58,7 +58,7 @@ describe('actions: 建造/升级/科技', () => {
     const s = createInitialState(0)
     s.resources.mineral = 1000
     s.resources.tech = 100
-    dispatch(s, 'research', 'planetDrill', fakeDeps().deps)
+    dispatch(s, 'research', { id: 'planetDrill' }, fakeDeps().deps)
     expect(s.techLevels.planetDrill).toBe(1)
     expect(s.log[0].type).toBe('reward')
     expect(s.log[0].text).toContain('行星钻探')
@@ -69,7 +69,7 @@ describe('actions: 建造/升级/科技', () => {
     s.resources.mineral = 100_000
     s.resources.tech = 100_000
     s.techLevels.planetDrill = 1
-    dispatch(s, 'upgradeTech', 'planetDrill', fakeDeps().deps)
+    dispatch(s, 'upgradeTech', { id: 'planetDrill' }, fakeDeps().deps)
     expect(s.techLevels.planetDrill).toBe(2)
     expect(s.log[0].text).toContain('Lv.2')
   })
@@ -87,7 +87,7 @@ describe('actions: 外交', () => {
     const s = createInitialState(0)
     unlockDiplomacy(s)
     const favorBefore = s.factions.ferro.favor
-    dispatch(s, 'diplomacy', 'ferro:trade', fakeDeps().deps)
+    dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
     expect(s.factions.ferro.favor).toBe(favorBefore + 6)
     expect(s.log[0].text).toContain('达成贸易')
   })
@@ -96,7 +96,7 @@ describe('actions: 外交', () => {
     const s = createInitialState(0)
     unlockDiplomacy(s)
     for (const f of Object.values(s.factions)) f.favor = 100 // 全部满足统一条件
-    dispatch(s, 'diplomacy', 'ferro:alliance', fakeDeps().deps)
+    dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'alliance' }, fakeDeps().deps)
     expect(s.factions.ferro.allied).toBe(true)
     // 日志新消息置顶（unshift）：联邦日志后写在最前，结盟日志次之
     const texts = s.log.slice(0, 2).map((e) => e.text)
@@ -107,7 +107,7 @@ describe('actions: 外交', () => {
   it('intimidate 写威慑日志（system 类型）', () => {
     const s = createInitialState(0)
     unlockDiplomacy(s)
-    dispatch(s, 'diplomacy', 'ferro:intimidate', fakeDeps().deps)
+    dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'intimidate' }, fakeDeps().deps)
     expect(s.factions.ferro.threat).toBe(45) // 70 - 25
     expect(s.log[0].type).toBe('system')
     expect(s.log[0].text).toContain('威慑')
@@ -121,7 +121,7 @@ describe('actions: 事件解析', () => {
     const inst = createEventInstance(s, 'trade')
     s.pendingEvents.push(inst)
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'resolveEvent', `${inst.uid}:accept`, deps)
+    dispatch(s, 'resolveEvent', { uid: inst.uid, optionId: 'accept' }, deps)
     expect(s.pendingEvents).toHaveLength(0)
     expect(s.log[0].text).toContain('贸易达成')
     expect(calls).toEqual(['sound:click', 'render', 'save'])
@@ -132,7 +132,7 @@ describe('actions: 事件解析', () => {
     const inst = createEventInstance(s, 'trade')
     s.pendingEvents.push(inst)
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'resolveEvent', `${inst.uid}:refuse`, deps)
+    dispatch(s, 'resolveEvent', { uid: inst.uid, optionId: 'refuse' }, deps)
     expect(s.log[0].text).toContain('婉拒')
     expect(calls).toEqual(['sound:click', 'render']) // 无 save
   })
@@ -144,7 +144,7 @@ describe('actions: 星球切换', () => {
     s.resources.mineral = 50_000
     s.planets.orbital = { unlocked: true }
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'setPlanet', 'orbital', deps)
+    dispatch(s, 'setPlanet', { id: 'orbital' }, deps)
     expect(s.activePlanet).toBe('orbital')
     expect(s.log[0].text).toContain('前往「轨道工厂站·奥伯斯」')
     expect(calls).toEqual(['render', 'save']) // 无 sound
@@ -156,7 +156,7 @@ describe('actions: 一键买满（批量）', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'buyMax', 'miner', deps)
+    dispatch(s, 'buyMax', { id: 'miner' }, deps)
     expect(s.buildings.miner).toBe(6)
     expect(s.resources.mineral).toBe(1)
     expect(s.log[0].text).toContain(`一键买满「采矿机」：购买：${formatNumber(6)} 次`)
@@ -170,7 +170,7 @@ describe('actions: 一键买满（批量）', () => {
     s.resources.mineral = 200_000
     s.resources.tech = 5_000
     researchTech(s, 'planetDrill')
-    dispatch(s, 'upgradeTechMax', 'planetDrill', fakeDeps().deps)
+    dispatch(s, 'upgradeTechMax', { id: 'planetDrill' }, fakeDeps().deps)
     expect(s.techLevels.planetDrill).toBe(10)
     expect(s.log[0].text).toContain('一键升满科技「行星钻探」')
   })
@@ -178,7 +178,7 @@ describe('actions: 一键买满（批量）', () => {
   it('diplomacyMax 贸易到好感 100', () => {
     const s = createInitialState(0)
     s.resources.mineral = 3_000_000
-    dispatch(s, 'diplomacyMax', 'ferro:trade', fakeDeps().deps)
+    dispatch(s, 'diplomacyMax', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
     expect(s.factions.ferro.favor).toBe(100)
     expect(s.log[0].text).toContain('与铁卫同盟贸易')
   })
@@ -187,7 +187,7 @@ describe('actions: 一键买满（批量）', () => {
     const s = createInitialState(0)
     s.resources.mineral = 5 // 首台都买不起
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'buyMax', 'miner', deps)
+    dispatch(s, 'buyMax', { id: 'miner' }, deps)
     expect(s.log[0].type).toBe('warning')
     expect(s.log[0].text).toContain('一键买满失败：资源不足')
     expect(calls).toEqual(['render'])
@@ -222,7 +222,7 @@ describe('actions: 注册表完整性', () => {
   it('未知动作静默忽略', () => {
     const s = createInitialState(0)
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'nope', '', deps)
+    dispatch(s, 'nope' as ActionId, {} as never, deps)
     expect(s.log).toHaveLength(0)
     expect(calls).toEqual([])
   })
@@ -244,7 +244,7 @@ describe('actions: 探索派遣', () => {
     const s = endedState()
     const { deps, calls } = fakeDeps()
     const militaryBefore = s.resources.military
-    dispatch(s, 'explore', '', deps)
+    dispatch(s, 'explore', { slot: 1, escort: false }, deps)
     expect(s.expeditions).toHaveLength(1)
     expect(s.expeditions[0].resolved).toBe(false)
     expect(s.resources.military).toBe(militaryBefore - 40)
@@ -255,7 +255,7 @@ describe('actions: 探索派遣', () => {
   it('explore 失败：playing 阶段拒绝并写 warning 日志', () => {
     const s = createInitialState(0)
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'explore', '', deps)
+    dispatch(s, 'explore', { slot: 1, escort: false }, deps)
     expect(s.expeditions).toHaveLength(0)
     expect(s.log[0].type).toBe('warning')
     expect(s.log[0].text).toContain('派遣探索失败：通关后开放探索')
@@ -267,21 +267,21 @@ describe('actions: 探索派遣', () => {
     for (let i = 1; i <= 5; i++) {
       s.expeditions.push({ id: i, startedAt: 0, finishAt: 3_600_000, cost: { mineral: 1, energy: 1, military: 1 }, result: { kind: 'resource', mineral: 0, tech: 0, energy: 0 }, resolved: false })
     }
-    dispatch(s, 'explore', '', fakeDeps().deps)
+    dispatch(s, 'explore', { slot: 1, escort: false }, fakeDeps().deps)
     expect(s.expeditions).toHaveLength(5)
     expect(s.log[0].text).toContain('派遣探索失败：全部探索信道已占用，需等待返航')
     // 槽位 payload：深空导航阵列解锁 6 槽后，payload "2" 出发 → 军事点 ×2（80）
     const s2 = endedState()
     s2.techLevels.deepSpaceNav = 1
     const militaryBefore = s2.resources.military
-    dispatch(s2, 'explore', '2', fakeDeps().deps)
+    dispatch(s2, 'explore', { slot: 2, escort: false }, fakeDeps().deps)
     expect(s2.expeditions).toHaveLength(1)
     expect(s2.resources.military).toBe(militaryBefore - 80)
     // 缺省 payload 按第 1 槽（×1 = 40）
     const s3 = endedState()
     s3.techLevels.deepSpaceNav = 1
     const mb3 = s3.resources.military
-    dispatch(s3, 'explore', '', fakeDeps().deps)
+    dispatch(s3, 'explore', { slot: 1, escort: false }, fakeDeps().deps)
     expect(s3.resources.military).toBe(mb3 - 40)
   })
 })

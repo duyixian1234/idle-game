@@ -69,7 +69,7 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     settleWith(s, { kind: 'faction', factionId: 'endless:starlightLeague' })
     const favorBefore = s.factions['endless:starlightLeague'].favor
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'diplomacy', 'endless:starlightLeague:trade', deps)
+    dispatch(s, 'diplomacy', { factionId: 'endless:starlightLeague', action: 'trade' }, deps)
     expect(s.factions['endless:starlightLeague'].favor).toBe(favorBefore + 6)
     expect(s.log[0].text).toContain('星光商会')
     expect(calls).toEqual(['sound:click', 'render', 'save'])
@@ -80,14 +80,14 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     settleWith(s, { kind: 'faction', factionId: 'gen:faction:0' })
     expect(s.factions['gen:faction:0']).toBeDefined()
     const favorBefore = s.factions['gen:faction:0'].favor
-    dispatch(s, 'diplomacy', 'gen:faction:0:trade', fakeDeps().deps)
+    dispatch(s, 'diplomacy', { factionId: 'gen:faction:0', action: 'trade' }, fakeDeps().deps)
     expect(s.factions['gen:faction:0'].favor).toBe(favorBefore + 6)
   })
 
   it('外交批量 +10：endless:starlightLeague:trade:10', () => {
     const s = infiniteState()
     settleWith(s, { kind: 'faction', factionId: 'endless:starlightLeague' })
-    dispatch(s, 'diplomacyMax', 'endless:starlightLeague:trade:10', fakeDeps().deps)
+    dispatch(s, 'diplomacyMax', { factionId: 'endless:starlightLeague', action: 'trade', limit: 10 }, fakeDeps().deps)
     // 初始 favor 25 + 10×6 = 85
     expect(s.factions['endless:starlightLeague'].favor).toBe(85)
   })
@@ -96,7 +96,7 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     const s = infiniteState()
     settleWith(s, { kind: 'conquest', targetId: 'endless:warband' })
     const { deps, calls } = fakeDeps()
-    dispatch(s, 'conquest', 'endless:warband:100', deps)
+    dispatch(s, 'conquest', { id: 'endless:warband', invest: 100 }, deps)
     expect(s.conquest['endless:warband']).toMatchObject({ status: 'available', invested: 100 })
     expect(s.log[0].text).toContain('掠夺者舰队')
     expect(calls).toEqual(['sound:upgrade', 'render', 'save'])
@@ -106,17 +106,17 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     const s = infiniteState()
     settleWith(s, { kind: 'conquest', targetId: 'gen:conquest' })
     const genId = s.generatedTargets.find((t) => t.kind === 'conquest')!.id
-    dispatch(s, 'conquest', `${genId}:100`, fakeDeps().deps)
+    dispatch(s, 'conquest', { id: genId, invest: 100 }, fakeDeps().deps)
     expect(s.conquest[genId]).toMatchObject({ status: 'available', invested: 100 })
   })
 
   it('静态 id 无冒号行为不变：ferro/outpost 解析与旧实现一致', () => {
     const s = infiniteState()
-    dispatch(s, 'diplomacy', 'ferro:trade', fakeDeps().deps)
+    dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
     expect(s.factions.ferro.favor).toBe(26) // 20 + 6
-    dispatch(s, 'diplomacyMax', 'ferro:trade:10', fakeDeps().deps)
+    dispatch(s, 'diplomacyMax', { factionId: 'ferro', action: 'trade', limit: 10 }, fakeDeps().deps)
     expect(s.factions.ferro.favor).toBe(86)
-    dispatch(s, 'conquest', 'outpost:100', fakeDeps().deps)
+    dispatch(s, 'conquest', { id: 'outpost', invest: 100 }, fakeDeps().deps)
     expect(s.conquest.outpost).toMatchObject({ status: 'available', invested: 100 })
   })
 })
