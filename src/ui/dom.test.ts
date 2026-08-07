@@ -1463,8 +1463,8 @@ describe('ui: 建造卡片（building-cards）', () => {
     // 攻占列表行式契约保留
     expect(panel.querySelector('[data-conquest-input="outpost"]')).toBeTruthy()
     expect(panel.querySelector('[data-conquest="outpost"]')).toBeTruthy()
-    // 军械科技区保留（未解锁锁定文案）
-    expect(panel.textContent).toContain('攻占「虫群前哨」后解锁')
+    // 军械科技区已移至科技面板（军事面板不含其锁定文案）
+    expect(panel.textContent).not.toContain('攻占「虫群前哨」后解锁')
   })
 
   it('探索页天体/派系徽标接入 SVG 资产（building-cards ticket 06）', () => {
