@@ -1,6 +1,6 @@
 # 资源速率来源分解（production-breakdown）
 
-**Status:** in-progress
+**Status:** implemented（commit 6d2bc24，CF Pages 自动部署；3 ticket resolved，用户手动验证通过）
 
 ## Problem Statement
 
