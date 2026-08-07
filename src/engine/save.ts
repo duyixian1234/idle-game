@@ -349,6 +349,17 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
     : defaultPolicies
   next.automationHistory = Array.isArray(next.automationHistory) ? next.automationHistory : []
   next.hiddenPlanets = Array.isArray(next.hiddenPlanets) ? next.hiddenPlanets : []
+  next.hiddenBuildings = Array.isArray(next.hiddenBuildings) ? next.hiddenBuildings : []
+  // 外交自动化可选字段兜底（diplo-auto：旧档无此字段 → 默认关闭；perFaction 非对象 → 重置）
+  next.diplomacyAuto = isPlainObject(next.diplomacyAuto)
+    ? {
+        enabled: (next.diplomacyAuto as { enabled?: unknown }).enabled === true,
+        perFaction: isPlainObject((next.diplomacyAuto as { perFaction?: unknown }).perFaction)
+          ? (next.diplomacyAuto as { perFaction?: Record<string, boolean> }).perFaction
+          : {},
+        lastActionAt: typeof (next.diplomacyAuto as { lastActionAt?: unknown }).lastActionAt === 'number' ? (next.diplomacyAuto as { lastActionAt?: number }).lastActionAt : undefined,
+      }
+    : { enabled: false, perFaction: {} }
   for (const [category, policy] of Object.entries(next.automationPolicies as Record<string, unknown>)) {
     if (!isPlainObject(policy)) {
       ;(next.automationPolicies as Record<string, unknown>)[category] = { enabled: false, rules: [] }

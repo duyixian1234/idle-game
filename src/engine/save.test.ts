@@ -545,4 +545,19 @@ describe('engine: v12 → v13 胁迫外交迁移', () => {
     expect(migrated2.factions.ferro.extortCount).toBe(5)
     expect(migrated2.factions.ferro.subjugated).toBe(true)
   })
+
+  it('无 diplomacyAuto/hiddenBuildings 的旧档迁移兜底：默认关闭 + 空数组；畸形 perFaction 重置', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    delete raw.diplomacyAuto
+    delete raw.hiddenBuildings
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.hiddenBuildings).toEqual([])
+    expect(migrated.diplomacyAuto).toEqual({ enabled: false, perFaction: {} })
+    // 畸形 diplomacyAuto（perFaction 非对象）→ enabled 保留、perFaction 重置
+    const raw2 = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw2.diplomacyAuto = { enabled: true, perFaction: 'bad' }
+    const migrated2 = deserializeSave(JSON.stringify(raw2))
+    expect(migrated2.diplomacyAuto).toEqual({ enabled: true, perFaction: {} })
+  })
 })

@@ -289,6 +289,19 @@ export interface AchievementState {
 }
 
 /**
+ * 外交自动化配置（diplo-auto，2026-08-07）：只覆盖贸易/技术共享，胁迫类一律手动。
+ * 可选字段（undefined = 全默认关闭）；随存档持久化，走 hiddenPlanets 可选字段先例不升 SCHEMA。
+ * - enabled：全局总开关（默认关，用户显式开启才生效）
+ * - perFaction：派系 id -> 是否显式关闭（perFaction[id]===false 关闭；缺省 = 允许）
+ * - lastActionAt：上次自动动作时间戳（ms），冷却 20s
+ */
+export interface DiplomacyAutoConfig {
+  enabled: boolean
+  perFaction?: Record<string, boolean>
+  lastActionAt?: number
+}
+
+/**
  * 游戏全局状态（引擎数据模型）。
  * 引擎产出/修改该状态；UI 只读取渲染，不承载业务逻辑。
  */
@@ -349,6 +362,10 @@ export interface GameState {
   archivedRounds: Record<string, number>
   /** 用户从顶部天体列表隐藏的天体 id（按存档持久化） */
   hiddenPlanets: string[]
+  /** 用户从建造面板隐藏的建造物 id（按存档持久化；hiddenPlanets 同款可选字段先例，不升 SCHEMA） */
+  hiddenBuildings: string[]
+  /** 外交自动化配置（可选；undefined = 默认关闭，见 DiplomacyAutoConfig） */
+  diplomacyAuto?: DiplomacyAutoConfig
   /** 下一条派遣 id（递增；v6 新增） */
   nextExpeditionId: number
   /** 派系外交状态：factionId -> FactionState */

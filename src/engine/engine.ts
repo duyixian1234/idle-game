@@ -1,5 +1,5 @@
 import { CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS } from './data'
-import { coercionTick, createFactions, ensureCoercionUnlocked, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
+import { autoDiplomacyTick, coercionTick, createFactions, ensureCoercionUnlocked, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { autoExploreDispatch, settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
@@ -71,6 +71,8 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     generatedTargets: [],
     archivedRounds: {},
     hiddenPlanets: [],
+    hiddenBuildings: [],
+    diplomacyAuto: { enabled: false, perFaction: {} },
     nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,
@@ -124,6 +126,8 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   }
   // 胁迫外交 tick 推进：条约到期 threat 反弹、臣服叛变检查（贡税已含在 productionReport 中）
   coercionTick(state, nowMs)
+  // 外交自动化 tick（diplo-auto）：自动贸易/技术共享（好感≥40/20s 冷却/预算内；胁迫类保持手动）
+  autoDiplomacyTick(state, nowMs)
   // 胁迫外交解锁（diplomacy-coercion 解锁条件解耦）：军力上限达标即解锁（与 raid 遭遇双通道），
   // 首次解锁在 ensureCoercionUnlocked 内播报叙事（幂等；存量存档回归时自动生效）
   ensureCoercionUnlocked(state, 'military')

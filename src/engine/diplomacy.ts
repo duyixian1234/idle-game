@@ -24,6 +24,9 @@ import {
   TRADE_BASE_COST,
   TRADE_COST_GROWTH,
   TRADE_FAVOR_GAIN,
+  DIPLO_AUTO_FAVOR_THRESHOLD,
+  DIPLO_AUTO_COOLDOWN_MS,
+  DIPLO_AUTO_BUDGET_RATIO,
   TREATY_COST_GROWTH,
   TREATY_DURATION_MS,
   TREATY_ENERGY_COST,
@@ -516,4 +519,46 @@ export function diplomacyOverview(state: GameState): { total: number; satisfied:
     if (f.threat >= threshold) threatCount += 1
   }
   return { total: prog.total, satisfied: prog.satisfied, allied, threatCount }
+}
+
+/**
+ * 外交自动化 tick（diplo-auto，2026-08-07）：每冷却周期（20s）对第一个满足条件的派系执行一次
+ * 批量贸易/技术共享（≤10 次原语，预算内）。覆盖范围刻意收窄——只自动贸易/技术共享；
+ * 胁迫类（勒索/条约/臣服/赎罪）有副作用（threat 上升/叛变风险/赎罪期锁定），一律保持手动。
+ * 条件：全局开关开启 + 冷却已过 + 好感 ≥ DIPLO_AUTO_FAVOR_THRESHOLD + 未结盟未满好感
+ * + 逐派系未显式关闭 + 单次花费 ≤ 当前资源 × DIPLO_AUTO_BUDGET_RATIO（成本递增天然自稳）。
+ * nowMs 可注入（测试）。
+ */
+export function autoDiplomacyTick(state: GameState, nowMs: number): void {
+  const cfg = state.diplomacyAuto
+  if (!cfg?.enabled) return
+  if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < DIPLO_AUTO_COOLDOWN_MS) return
+  for (const id of Object.keys(state.factions)) {
+    if (!factionDef(state, id)) continue
+    const f = state.factions[id]
+    if (!f || f.allied) continue
+    if (cfg.perFaction?.[id] === false) continue
+    if (f.favor >= FAVOR_CAP || f.favor < DIPLO_AUTO_FAVOR_THRESHOLD) continue
+    let acted = false
+    // 预算内批量贸易（≤10 次；每次重算成本并校验预算，首次不满足即停）
+    for (let i = 0; i < 10; i++) {
+      const tCost = tradeCost(state, id)
+      if (tCost.mineral <= 0 || tCost.mineral > state.resources.mineral * DIPLO_AUTO_BUDGET_RATIO) break
+      if (!factionTrade(state, id, nowMs).ok) break
+      acted = true
+    }
+    // 贸易预算不可行 → 尝试技术共享（同样批量 ≤10 次、科技预算内）
+    if (!acted) {
+      for (let i = 0; i < 10; i++) {
+        const sCost = techShareCost(state, id)
+        if (sCost.tech <= 0 || sCost.tech > state.resources.tech * DIPLO_AUTO_BUDGET_RATIO) break
+        if (!factionTechShare(state, id).ok) break
+        acted = true
+      }
+    }
+    if (acted) {
+      cfg.lastActionAt = nowMs
+      return // 每冷却周期只处理一个派系，避免一轮全刷
+    }
+  }
 }
