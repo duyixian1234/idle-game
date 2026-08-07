@@ -5,6 +5,7 @@ import {
   canFactionTechShare,
   canFactionTrade,
   createFactions,
+  diplomacyOverview,
   factionAlliance,
   factionIntimidate,
   factionTechShare,
@@ -14,6 +15,7 @@ import {
   isFederationUnified,
   tradeCost,
 } from './diplomacy'
+import { raidableFaction } from './events'
 import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
@@ -194,5 +196,47 @@ describe('engine: 外交与存档协同', () => {
     factionTrade(s, 'ferro')
     tick(s, 1000)
     expect(s.resources.mineral).toBeGreaterThan(1_000_000 - tradeCost(s, 'ferro').mineral - 10)
+  })
+})
+
+describe('engine: 外交面板总览（diplomacyOverview）', () => {
+  function fullState(): ReturnType<typeof createInitialState> {
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    return s
+  }
+
+  it('初始 4 家未结盟：威胁源 = 威胁 ≥ 骚扰阈值的未结盟派系（ferro 70 / vox 60）', () => {
+    const s = fullState()
+    expect(diplomacyOverview(s)).toEqual({ total: 4, satisfied: 0, allied: 0, threatCount: 2 })
+  })
+
+  it('结盟一家后：allied/satisfied +1，该派系不再是威胁源', () => {
+    const s = fullState()
+    s.factions.ferro.favor = 85
+    factionAlliance(s, 'ferro')
+    expect(diplomacyOverview(s)).toEqual({ total: 4, satisfied: 1, allied: 1, threatCount: 1 })
+  })
+
+  it('全结盟：threatCount = 0（与 raidableFaction 返回 null 口径一致）', () => {
+    const s = fullState()
+    for (const id of Object.keys(s.factions)) {
+      s.factions[id].favor = 85
+      factionAlliance(s, id)
+    }
+    const o = diplomacyOverview(s)
+    expect(o.allied).toBe(4)
+    expect(o.satisfied).toBe(4)
+    expect(o.threatCount).toBe(0)
+    expect(raidableFaction(s)).toBeNull()
+  })
+
+  it('纯查询：调用前后 state 不变', () => {
+    const s = fullState()
+    const before = JSON.stringify(s)
+    diplomacyOverview(s)
+    expect(JSON.stringify(s)).toBe(before)
   })
 })

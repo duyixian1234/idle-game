@@ -14,7 +14,7 @@ import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, sh
 import { escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
-import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, factionDef, factionsVisible, federationProgress, intimidateCost, tradeCost } from '../engine/diplomacy'
+import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, diplomacyOverview, factionDef, factionsVisible, intimidateCost, tradeCost } from '../engine/diplomacy'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { LogDirection } from './log'
 
@@ -420,10 +420,14 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     el.innerHTML = `<div class="diplo-empty">星域中尚未探测到其他文明信号。解锁「轨道工厂站·奥伯斯」后，派系将进入舞台。</div>`
     return
   }
-  const prog = federationProgress(state)
+  const ov = diplomacyOverview(state)
   const header = document.createElement('div')
   header.className = 'diplo-header'
-  header.textContent = `星系统一联邦：${formatNumber(prog.satisfied)}/${formatNumber(prog.total)} 派系达成统一条件`
+  header.setAttribute('data-diplo-overview', '')
+  header.innerHTML = `
+    <div class="diplo-header-row" data-diplo-federation>星系统一联邦：${ov.satisfied}/${ov.total} 派系达成统一条件</div>
+    <div class="diplo-header-row" data-diplo-threat>${ov.threatCount === 0 ? '星域安宁，无派系骚扰' : `${ov.threatCount} 家派系构成骚扰威胁`}</div>
+    <div class="diplo-header-row" data-diplo-alliance>已结盟 ${ov.allied} / 已登场 ${ov.total}</div>`
   el.appendChild(header)
 
   const archived = opts.archivedExpanded ?? {}

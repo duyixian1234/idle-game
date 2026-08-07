@@ -16,7 +16,7 @@ import {
   TRADE_FAVOR_GAIN,
 } from './balance'
 import { playMilestone } from './story'
-import { reputationBonuses } from './reputation'
+import { raidThreshold, reputationBonuses } from './reputation'
 import type { FactionState, GameState, GeneratedTarget, ResourceKey } from './types'
 
 /** 外交数值策略（结盟阈值/好感上限/成本与增长倍率）集中见 balance.ts */
@@ -244,4 +244,25 @@ export function federationProgress(state: GameState): { total: number; satisfied
     return f && (f.allied || f.favor >= FEDERATION_FAVOR_THRESHOLD)
   }).length
   return { total: ids.length, satisfied }
+}
+
+/** 外交面板总览（diplomacy-overview）：联邦统一进度 + 威胁安宁 + 盟约图鉴，全派生纯查询。
+ * threatCount 与 raidableFaction 同阈值口径（未结盟且 threat ≥ 当前骚扰阈值；结盟派系不构成威胁源）。
+ * 注意：raid 候选集仅静态派系（ALL_FACTIONS，events.ts raidableFaction 遍历对象）；生成派系（endless:/gen:）
+ * 威胁 ≥ 阈值时计入总览计数（威慑可降 threat），但不会被 raid 事件选中——docstring 不承诺 raid 行为一致。 */
+export function diplomacyOverview(state: GameState): { total: number; satisfied: number; allied: number; threatCount: number } {
+  const prog = federationProgress(state)
+  let allied = 0
+  let threatCount = 0
+  const threshold = raidThreshold(state)
+  for (const id of Object.keys(state.factions)) {
+    const f = state.factions[id]
+    if (!f) continue
+    if (f.allied) {
+      allied += 1
+      continue
+    }
+    if (f.threat >= threshold) threatCount += 1
+  }
+  return { total: prog.total, satisfied: prog.satisfied, allied, threatCount }
 }
