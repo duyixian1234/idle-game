@@ -343,14 +343,14 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
 })
 
 describe('engine: 跃迁枢纽（ticket 06）——机制增强', () => {
-  it('派遣槽：无科技 1 + 枢纽 2 = 3；全科技 3 + 2 = 5（上限 5）', () => {
+  it('派遣槽：基础 5 + 枢纽 3 = 8；科技全解锁 7 + 3 = 10（上限 10）', () => {
     const s = createInitialState(0)
-    expect(explorationSlots(s)).toBe(1)
+    expect(explorationSlots(s)).toBe(5)
     s.megastructureChoice = 'jumpgate'
-    expect(explorationSlots(s)).toBe(3)
+    expect(explorationSlots(s)).toBe(8)
     s.techLevels.deepSpaceNav = 1
     s.techLevels.interstellarRelay = 1
-    expect(explorationSlots(s)).toBe(5)
+    expect(explorationSlots(s)).toBe(10)
   })
 
   it('收获倍率：科技满级 ×2 → 枢纽 ×4', () => {

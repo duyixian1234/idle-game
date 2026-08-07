@@ -306,7 +306,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     if (def.effect.kind === 'unlockBuilding') {
       effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
     } else if (def.effect.kind === 'exploration') {
-      effectText = level >= 1 ? '探索信道已解锁' : '解锁第 2/3 探索信道'
+      effectText = level >= 1 ? '探索信道已解锁' : '解锁第 6/7 探索信道'
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${RESOURCE_META[def.effect.resource].name}产出 ${formatMultiplier(cur)}`

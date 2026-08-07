@@ -976,7 +976,7 @@ describe('ui: 探索页', () => {
     expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
   })
 
-  it('ended：深空信道列表渲染（1 槽：无科技仅信道 1 空闲 + 2-5 锁定占位），消耗预览/派遣按钮可用', () => {
+  it('ended：深空信道列表渲染（5 槽：无科技默认 5 信道空闲 + 6-10 锁定占位），消耗预览/派遣按钮可用', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -987,17 +987,19 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain('40')
     expect(page.textContent).toContain('60 分钟')
     expect(page.querySelector('[data-expedition-slot="1"]')).toBeTruthy()
-    // 槽位上限 5（1 基础 + 2 科技 + 枢纽 2）：无科技仅 1 空闲，2-5 锁定占位提示解锁需求
-    expect(page.querySelectorAll('[data-expedition-slot]')).toHaveLength(5)
-    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(4)
+    // 槽位上限 10（基础 5 + 科技 2 + 枢纽 3）：无科技 5 空闲，6-10 锁定占位提示解锁需求
+    expect(page.querySelectorAll('[data-expedition-slot]')).toHaveLength(10)
+    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(5)
     expect(page.textContent).toContain('深空导航阵列')
     const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch="1"]')
     expect(btn).toBeTruthy()
     expect(btn?.disabled).toBe(false)
-    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeNull()
+    // 基础 5 槽：槽 2-5 空闲可派遣，槽 6 未解锁
+    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeTruthy()
+    expect(page.querySelector('[data-explore-dispatch="6"]')).toBeNull()
   })
 
-  it('3 槽科技解锁：三个信道全部空闲可派遣，槽位成本 ×1/×2/×3', () => {
+  it('7 槽科技解锁：七个信道全部空闲可派遣，槽位成本 ×1/×2/×3…×7', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -1005,14 +1007,18 @@ describe('ui: 探索页', () => {
     s.techLevels.interstellarRelay = 1
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    // 3 槽科技解锁：3 空闲可派遣 + 4/5 锁定（跃迁枢纽解锁需求）
-    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(2)
-    expect(page.querySelectorAll('[data-explore-dispatch]')).toHaveLength(3)
+    // 7 槽科技解锁：7 空闲可派遣 + 8/9/10 锁定（跃迁枢纽解锁需求）
+    expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(3)
+    expect(page.querySelectorAll('[data-explore-dispatch]')).toHaveLength(7)
     expect(page.textContent).toContain('跃迁枢纽')
-    // 槽 1/2/3 军事点 = 40/80/120
+    // 槽 1-7 军事点 = 40/80/120/160/200/240/280
     expect(page.textContent).toContain('⚔40')
     expect(page.textContent).toContain('⚔80')
     expect(page.textContent).toContain('⚔120')
+    expect(page.textContent).toContain('⚔160')
+    expect(page.textContent).toContain('⚔200')
+    expect(page.textContent).toContain('⚔240')
+    expect(page.textContent).toContain('⚔280')
   })
 
   it('资源不足：派遣按钮禁用且 title 给原因', () => {
@@ -1037,8 +1043,9 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain('返航倒计时')
     expect(page.querySelector('[data-expedition-timer]')).toBeTruthy()
     expect(page.querySelector('[data-expedition-slot="1"]')?.textContent).toContain('派遣中')
-    // 信道 1 派遣中无按钮；锁定信道无按钮
-    expect(page.querySelector('[data-explore-dispatch]')).toBeNull()
+    // 信道 1 派遣中无按钮；信道 2 空闲可派遣（基础 5 槽）
+    expect(page.querySelector('[data-explore-dispatch="1"]')).toBeNull()
+    expect(page.querySelector('[data-explore-dispatch="2"]')).toBeTruthy()
   })
 
   it('发现进度：显示已发现 x/9 与势力/天体拆分（4 势力 + 5 天体）', () => {

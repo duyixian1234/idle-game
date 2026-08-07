@@ -1,5 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
-import { CONQUEST_DURATION_MS } from './balance'
+import { CONQUEST_DURATION_MS, JUMPGATE_SLOT_BONUS } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 
 /** 资源显示元信息 */
@@ -181,7 +181,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   jumpgate: {
     id: 'jumpgate',
     name: '跃迁枢纽',
-    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(2)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。`,
+    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。`,
     category: 'interstellar',
     unique: true,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
@@ -432,7 +432,7 @@ export const TECHS: Record<string, TechDef> = {
   deepSpaceNav: {
     id: 'deepSpaceNav',
     name: '深空导航阵列',
-    desc: `校准跨星区航路的深空基准站：Lv${formatNumber(1)} 解锁第 ${formatNumber(2)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
+    desc: `校准跨星区航路的深空基准站：Lv${formatNumber(1)} 解锁第 ${formatNumber(6)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
     cost: { mineral: 50_000, tech: 5_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,
@@ -440,7 +440,7 @@ export const TECHS: Record<string, TechDef> = {
   interstellarRelay: {
     id: 'interstellarRelay',
     name: '星际通信中继',
-    desc: `中继星海的通信网络：Lv${formatNumber(1)} 解锁第 ${formatNumber(3)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
+    desc: `中继星海的通信网络：Lv${formatNumber(1)} 解锁第 ${formatNumber(7)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
     cost: { mineral: 200_000, tech: 20_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,

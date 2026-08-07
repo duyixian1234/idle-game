@@ -43,8 +43,8 @@ import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './ty
  *
  * 核心语义（exploration spec 定稿，2026-08-06）：
  * - 入口门控：`phase === 'ended' || 'infinite'` 才可派遣（`isExploreAvailable`）。
- * - 多槽：起始 1 槽，深空导航阵列（deepSpaceNav）Lv1 解锁 2 槽、星际通信中继（interstellarRelay）Lv1
- *   解锁 3 槽（`explorationSlots`，上限 3）；每槽独立 60 分钟，离线照常推进，不可取消。
+ * - 多槽：基础 5 槽，深空导航阵列（deepSpaceNav）Lv1 解锁第 6 槽、星际通信中继（interstellarRelay）Lv1
+ *   解锁第 7 槽，跃迁枢纽再 +3（`explorationSlots`，上限 10）；每槽独立 60 分钟，离线照常推进，不可取消。
  * - 全提交：出发时扣资源（矿物/能源动态缩放 + 军事点按槽位 ×N）+ 用 `explore` 域固定种子
  *   **roll 并固化结果**（每槽独立 rollDomain 闭包 → 计数器天然独立）；回归只入账（`settleExpeditions`），
  *   防 SL 在结构上成立。
@@ -88,15 +88,15 @@ export function isExploreAvailable(state: GameState): boolean {
   return state.phase === 'ended' || state.phase === 'infinite'
 }
 
-/** 探索槽位数量：1 + 深空导航阵列 Lv≥1 + 星际通信中继 Lv≥1 + 跃迁枢纽 +2（上限 5；枢纽与科技槽位叠加） */
+/** 探索槽位数量：基础 5 + 深空导航阵列 Lv≥1 + 星际通信中继 Lv≥1 + 跃迁枢纽 +3（上限 10；枢纽与科技槽位叠加） */
 export function explorationSlots(state: GameState): number {
   const nav = (state.techLevels?.['deepSpaceNav'] ?? 0) >= 1 ? 1 : 0
   const relay = (state.techLevels?.['interstellarRelay'] ?? 0) >= 1 ? 1 : 0
   const jumpgate = state.megastructureChoice === 'jumpgate' ? JUMPGATE_SLOT_BONUS : 0
-  return Math.min(5, 1 + nav + relay + jumpgate)
+  return Math.min(10, 5 + nav + relay + jumpgate)
 }
 
-/** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 1/2/3 槽 = base×1/2/3） */
+/** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 N 槽 = base×N） */
 export function expeditionMilitaryCost(state: GameState, slotIndex: number = 0): number {
   const base = Math.min(EXPEDITION_MILITARY_CAP, Math.max(40, Math.floor(militaryCap(state) * EXPEDITION_MILITARY_PCT)))
   return base * (slotIndex + 1)
@@ -290,7 +290,7 @@ function rollFromPool(
  * `explore` 域 roll 固化结果 → push。
  * rng 不传（undefined）→ 结果型随机走 explore 域持久化计数器（fixed-rng 防 SL，每槽独立闭包天然独立）；
  * 显式传 rng → 测试注入（跳过计数器）。
- * @param slotIndex 槽位数组索引（0-based；第 1/2/3 槽 = 0/1/2，军事点 ×1/×2/×3）
+ * @param slotIndex 槽位数组索引（0-based；第 N 槽 = N-1，军事点 ×N）
  * @param escort 是否护航远征（默认 false = 无舰队行为与现状完全一致）；护航要求 fleetPowered，
  *   停摆时护航请求被拒绝（reason 明确，可改无护航派遣）——护航条件校验先于资源扣减
  */
@@ -557,7 +557,7 @@ export function autoExploreDispatch(state: GameState, nowMs: number): Expedition
 
 /**
  * 离线自动探索续派（settleOffline 调用，在在途派遣按 nowMs 结算之后）：
- * 模拟「每 60min 结算 → 自动续派」循环（沿封顶时长推进，3-5 槽 × 8-12 轮）。
+ * 模拟「每 60min 结算 → 自动续派」循环（沿封顶时长推进，5-10 槽 × 8-12 轮）。
  * - 派遣走同一 startExpedition 路径（含护航费扣减、rng 走 explore 域持久化计数器、结果固化）——防 SL 契约不破；
  * - 资源不足 → 暂停该轮（enabled 保持开），下一轮（60min 后）自动重试，资源耗尽自然停；
  * - 离线结尾仍处派遣中的自动编队留待回归后在线续算（与手动派遣离线语义一致）。

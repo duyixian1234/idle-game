@@ -219,8 +219,8 @@ export function scaledClamp(rate: number, min: number, factor: number, cap: numb
 export const UNIQUE_UPGRADE_GROWTH = 2
 /** NG+ 遗产：究极建筑每级折算的永久产出加成（如 Lv10 冶炼场 → 全产出 +15% 进 permanentBonuses） */
 export const NG_PLUS_MEGASTRUCTURE_BONUS = 0.015
-/** 跃迁枢纽：派遣槽额外 +2（与探索科技槽位叠加，总上限 5） */
-export const JUMPGATE_SLOT_BONUS = 2
+/** 跃迁枢纽：派遣槽额外 +3（与探索科技槽位叠加，总上限 10；基础 5 槽） */
+export const JUMPGATE_SLOT_BONUS = 3
 /** 跃迁枢纽：探索收获倍率上限放宽系数（科技满级 ×2 → ×4，即科技倍率再 ×2） */
 export const JUMPGATE_HARVEST_MULT = 2
 /** 跃迁枢纽：离线结算封顶额外放宽时长（8h → 12h） */

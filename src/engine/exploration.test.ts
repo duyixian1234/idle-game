@@ -58,16 +58,18 @@ describe('engine: 探索入口与门控', () => {
     expect(isExploreAvailable(s)).toBe(true)
   })
 
-  it('多槽：1 槽（无科技）满员时拒绝再次派遣；2 槽解锁后第 2 支可出发', () => {
+  it('多槽：基础 5 槽满员时拒绝再次派遣；第 6 槽科技解锁后可续派', () => {
     const s = endedState()
-    s.expeditions.push(fakeExpedition())
-    expect(startExpedition(s, 1000)).toEqual({ ok: false, reason: '全部探索信道已占用，需等待返航' })
-    // 深空导航阵列 Lv1 → 2 槽：可派第 2 支
-    s.techLevels.deepSpaceNav = 1
+    // 基础 5 槽：4 支在途 → 第 5 支可出发
+    for (let i = 1; i <= 4; i++) s.expeditions.push(fakeExpedition({ id: i }))
     expect(startExpedition(s, 1000)).toMatchObject({ ok: true })
-    expect(s.expeditions).toHaveLength(2)
-    // 2 槽满员再拒
+    expect(s.expeditions).toHaveLength(5)
+    // 5 槽满员再拒
     expect(startExpedition(s, 2000)).toEqual({ ok: false, reason: '全部探索信道已占用，需等待返航' })
+    // 深空导航阵列 Lv1 → 6 槽：可派第 6 支
+    s.techLevels.deepSpaceNav = 1
+    expect(startExpedition(s, 3000)).toMatchObject({ ok: true })
+    expect(s.expeditions).toHaveLength(6)
   })
 
   it('资源不足分别拒绝（矿物/能源/兵力）', () => {
@@ -135,16 +137,16 @@ describe('engine: 派遣出发（全提交 + 结果固化）', () => {
 })
 
 describe('engine: 探索槽位与成本自适应', () => {
-  it('explorationSlots：0/1/2 项探索科技 → 1/2/3 槽（上限 3）', () => {
+  it('explorationSlots：默认 5 槽，nav/relay 各 +1，科技全解锁 7 槽（无枢纽）', () => {
     const s = endedState()
-    expect(explorationSlots(s)).toBe(1)
+    expect(explorationSlots(s)).toBe(5)
     s.techLevels.deepSpaceNav = 1
-    expect(explorationSlots(s)).toBe(2)
+    expect(explorationSlots(s)).toBe(6)
     s.techLevels.interstellarRelay = 1
-    expect(explorationSlots(s)).toBe(3)
-    // Lv 无关（≥1 即解锁），上限 3
+    expect(explorationSlots(s)).toBe(7)
+    // Lv 无关（≥1 即解锁），科技全解锁 7 槽
     s.techLevels.deepSpaceNav = 5
-    expect(explorationSlots(s)).toBe(3)
+    expect(explorationSlots(s)).toBe(7)
   })
 
   it('军事点自适应：随军力上限 2% 缩放，保底 40，封顶 1000，×槽位', () => {
@@ -192,16 +194,14 @@ describe('engine: 探索槽位与成本自适应', () => {
 
   it('多槽同时派遣：≤ 槽数成功、超槽拒绝、每槽独立出发时间', () => {
     const s = endedState()
-    s.techLevels.deepSpaceNav = 1
-    s.techLevels.interstellarRelay = 1
-    const r1 = startExpedition(s, 0, () => 0.99, 0)
-    const r2 = startExpedition(s, 10_000, () => 0.5, 1)
-    const r3 = startExpedition(s, 20_000, () => 0.1, 2)
-    expect(r1.ok && r2.ok && r3.ok).toBe(true)
-    expect(s.expeditions).toHaveLength(3)
-    expect(s.expeditions.map((e) => e.startedAt)).toEqual([0, 10_000, 20_000])
-    // 3 槽满员：第 4 支拒绝
-    expect(startExpedition(s, 30_000, () => 0, 0)).toEqual({ ok: false, reason: '全部探索信道已占用，需等待返航' })
+    // 默认 5 槽：5 支全出 + 第 6 支拒绝
+    const starts = [0, 10_000, 20_000, 30_000, 40_000]
+    const results = starts.map((t, i) => startExpedition(s, t, () => 0.5, i))
+    expect(results.every((r) => r.ok)).toBe(true)
+    expect(s.expeditions).toHaveLength(5)
+    expect(s.expeditions.map((e) => e.startedAt)).toEqual(starts)
+    // 5 槽满员：第 6 支拒绝
+    expect(startExpedition(s, 50_000, () => 0, 0)).toEqual({ ok: false, reason: '全部探索信道已占用，需等待返航' })
   })
 
   it('每槽独立 roll 固化：注入不同 rng → 不同 result（计数器天然独立）', () => {

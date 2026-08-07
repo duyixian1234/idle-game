@@ -26,7 +26,7 @@ export { renderBootOverlay, renderEndingOverlay, renderTutorial } from './overla
  * 渲染探索页（一级 tab 内嵌）：
  *  ① 锁定占位页：phase==='playing'（未通关）显示 🔒 + 解锁条件 + 玩法简介
  *  ② 自动探索控制面板（data-auto-explore 系列）：全局开关 + 护航勾选 + 能源/轮预览 + 暂停态
- *  ③ 派遣面板：深空信道 1/2/3 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1|2|3；
+ *  ③ 派遣面板：深空信道 1-N 列表（空闲/派遣中/锁定三态；dispatch 保留 data-explore-dispatch 契约，值 = 槽位号 1-N；
  *     护航勾选 data-escort-toggle + 费用/倍率预览 data-escort-*；停摆禁用并提示）+
  *     已发现产出型天体的贡献行（data-planet-output，与引擎生产管线同口径）
  * @param escortChecked 手动派遣护航勾选状态（main 层跨渲染记忆的 UI 偏好，不污染存档）
@@ -52,7 +52,7 @@ export function renderExplorePage(
     el.innerHTML = parts.join('')
     return
   }
-  // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 5：1 + 科技 2 + 跃迁枢纽 2）
+  // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 10：基础 5 + 科技 2 + 跃迁枢纽 3）
   const slots = explorationSlots(state)
   const ongoing = state.expeditions.filter((e) => !e.resolved)
   // 收集进度单一事实源（explore-endstate）：外交/天体 found+total 与尽览标志（与引擎奖池同口径）
@@ -61,15 +61,15 @@ export function renderExplorePage(
   const discovered = progress.factions.found + progress.planets.found
   const fleetReady = canEscort(state)
   const slotCards: string[] = []
-  // 展示上限 5 槽（1 基础 + 2 科技 + 跃迁枢纽 +2，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
-  const SLOT_CAP = 5
+  // 展示上限 10 槽（基础 5 + 科技 2 + 跃迁枢纽 +3，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
+  const SLOT_CAP = 10
   for (let i = 0; i < SLOT_CAP; i++) {
     const slotNo = i + 1
     if (i >= slots) {
       const need =
-        i === 1
+        i === 5
           ? `深空导航阵列 Lv${formatNumber(1)}（科技）`
-          : i === 2
+          : i === 6
             ? `星际通信中继 Lv${formatNumber(1)}（科技）`
             : '跃迁枢纽（终局抉择·探索路线）'
       slotCards.push(`

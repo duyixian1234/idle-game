@@ -6,6 +6,7 @@ import {
   escortFee,
   escortFeePerShip,
   escortHarvestMult,
+  expeditionCost,
   settleExpeditions,
   settleOfflineAutoExplore,
   startExpedition,
@@ -193,14 +194,14 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     const s = escortState()
     s.autoExplore = { enabled: true, escort: false }
     const logs = autoExploreDispatch(s, 0)
-    expect(logs).toHaveLength(1)
+    expect(logs).toHaveLength(5) // 基础 5 槽全空 → 一次补 5 支
     expect(logs[0].text).toContain('自动探索')
-    expect(s.expeditions).toHaveLength(1)
-    expect(s.expeditions[0].escort).toBe(false)
-    expect(s.rngCounters.explore).toBe(1)
+    expect(s.expeditions).toHaveLength(5)
+    expect(s.expeditions.every((e) => e.escort === false)).toBe(true)
+    expect(s.rngCounters.explore).toBe(5)
     // 已满员：不再续派
     expect(autoExploreDispatch(s, 1)).toHaveLength(0)
-    expect(s.expeditions).toHaveLength(1)
+    expect(s.expeditions).toHaveLength(5)
   })
 
   it('关闭时无操作；playing 阶段不续派', () => {
@@ -219,8 +220,11 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     const fee = escortFee(s)
     const beforeEnergy = s.resources.energy
     autoExploreDispatch(s, 0)
-    expect(s.expeditions[0].escort).toBe(true)
-    expect(beforeEnergy - s.resources.energy).toBe(s.expeditions[0].cost.energy + fee)
+    expect(s.expeditions).toHaveLength(5)
+    expect(s.expeditions.every((e) => e.escort === true)).toBe(true)
+    // 5 支各扣 cost.energy + 全队护航费
+    const total = s.expeditions.reduce((acc, e) => acc + e.cost.energy + fee, 0)
+    expect(beforeEnergy - s.resources.energy).toBe(total)
   })
 
   it('资源不足 → 暂停（enabled 保持开，pausedAt 冷却）；冷却后恢复自动继续', () => {
@@ -236,49 +240,51 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     // 冷却后重试仍失败 → 更新 pausedAt
     expect(autoExploreDispatch(s, 60_001)).toHaveLength(1)
     expect(s.autoExplore.pausedAt).toBe(60_001)
-    // 资源恢复 → 成功续派
+    // 资源恢复 → 成功续派（5 槽全空 → 补 5 支）
     s.resources.military = 50_000
     const ok = autoExploreDispatch(s, 120_001)
-    expect(ok).toHaveLength(1)
+    expect(ok).toHaveLength(5)
     expect(s.autoExplore.pausedAt).toBeUndefined()
-    expect(s.expeditions).toHaveLength(1)
+    expect(s.expeditions).toHaveLength(5)
   })
 
-  it('多槽逐槽续派：3 槽全空 → 一次补 3 支（每支军事点 ×槽位）', () => {
+  it('多槽逐槽续派：7 槽全空 → 一次补 7 支（每支军事点 ×槽位）', () => {
     const s = escortState()
     s.techLevels.deepSpaceNav = 1
     s.techLevels.interstellarRelay = 1
     s.autoExplore = { enabled: true, escort: false }
     const logs = autoExploreDispatch(s, 0)
-    expect(logs).toHaveLength(3)
-    expect(s.expeditions).toHaveLength(3)
-    // 军事点 ×1/×2/×3（40/80/120）
-    expect(s.resources.military).toBe(50_000 - (40 + 80 + 120))
+    expect(logs).toHaveLength(7)
+    expect(s.expeditions).toHaveLength(7)
+    // 军事点 ×1..×7（40..280，合计 1120）
+    expect(s.resources.military).toBe(50_000 - 40 * (1 + 2 + 3 + 4 + 5 + 6 + 7))
   })
 
   it('tick 接入：派遣结算后自动续派（循环挂点）', () => {
     const s = escortState()
+    s.buildings.militaryPort = 3 // cap 700：规避 tick 军力截断（无军港 cap 100）后 5 槽一轮 600 不足
+    s.buildings.barracks = 2 // 军力产出（0.5/s·座）：60min 补足下一轮 5 槽消耗
     s.autoExplore = { enabled: true, escort: false }
-    // 出发
+    // 出发（基础 5 槽全空 → 一次补 5 支）
     tick(s, 1000)
-    expect(s.expeditions).toHaveLength(1)
-    // 60min 后：结算 + 自动续派
+    expect(s.expeditions).toHaveLength(5)
+    // 60min 后：5 支结算 + 自动续派 5 支
     tick(s, 1000 + EXPEDITION_DURATION_MS)
-    expect(s.stats.explorations).toBe(1)
-    expect(s.expeditions).toHaveLength(1)
+    expect(s.stats.explorations).toBe(5)
+    expect(s.expeditions).toHaveLength(5)
     expect(s.log.some((l) => l.text.includes('自动探索'))).toBe(true)
   })
 
-  it('离线循环续派：8h ≈ 8 轮/槽（结算 7 + 在途 1），rng 走 explore 域可复现', () => {
+  it('离线循环续派：8h ≈ 8 轮/槽（结算 7 + 在途 1，基础 5 槽 = 35 结算 + 5 在途），rng 走 explore 域可复现', () => {
     const s = escortState()
     s.autoExplore = { enabled: true, escort: false }
     s.lastTick = 0
     const logs = settleOfflineAutoExplore(s, 8 * 3600_000, 8 * 3600)
-    // 8 轮：7 次结算入账 + 1 支在途（第 8 轮出发，finishAt > nowMs）
-    expect(s.stats.explorations).toBe(7)
-    expect(s.expeditions).toHaveLength(1)
-    expect(s.rngCounters.explore).toBe(8)
-    expect(logs.filter((l) => l.text.includes('自动探索（离线）'))).toHaveLength(8)
+    // 8 轮 × 5 槽：7 次结算入账 × 5 + 5 支在途（第 8 轮出发，finishAt > nowMs）
+    expect(s.stats.explorations).toBe(35)
+    expect(s.expeditions).toHaveLength(5)
+    expect(s.rngCounters.explore).toBe(40)
+    expect(logs.filter((l) => l.text.includes('自动探索（离线）'))).toHaveLength(40)
     // 可复现：同 seed 同计数的独立 state → 相同结果序列
     const s2 = escortState()
     s2.autoExplore = { enabled: true, escort: false }
@@ -292,14 +298,15 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     s.autoExplore = { enabled: true, escort: true }
     s.lastTick = 0
     const fee = escortFee(s)
-    // 只给 3 轮护航费的能源
-    s.resources.energy = fee * 3 + 100_000
+    const perShip = expeditionCost(s, 0).energy + fee
+    const perRound = 5 * perShip // 基础 5 槽：每轮 5 支
+    // 只给 2 整轮能源（第 3 轮结算返还最多约 0.2×perShip×5 = 1 支的量 → 首支即不足暂停）
+    s.resources.energy = perRound * 2
     const logs = settleOfflineAutoExplore(s, 8 * 3600_000, 8 * 3600)
-    // 第 1/2 轮护航成功（各扣 1 费），第 3 轮能源不足暂停
-    expect(s.expeditions).toHaveLength(0) // 暂停后无在途遗留（第 2 轮的在途在第 3 轮已结算）
+    // 前 2 轮护航成功（各 5 支），第 3 轮能源不足暂停（返还量不足以支撑下一轮）
+    expect(s.stats.escortedExpeditions).toBeGreaterThanOrEqual(10)
     const pause = logs.find((l) => l.text.includes('资源不足，自动探索暂停'))
     expect(pause).toBeDefined()
-    expect(s.stats.escortedExpeditions).toBeGreaterThanOrEqual(1)
     expect(s.autoExplore.pausedAt).toBeGreaterThan(0)
   })
 
@@ -308,9 +315,9 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     s.autoExplore = { enabled: true, escort: false }
     s.lastTick = 0
     const r = settleOffline(s, 4 * 3600_000)
-    // 4h：4 轮 → 3 结算 + 1 在途
-    expect(s.stats.explorations).toBe(3)
-    expect(r.expeditionLogs.filter((l) => l.text.includes('自动探索'))).toHaveLength(4)
+    // 4h：4 轮 × 5 槽 → 3 轮结算（15 支）+ 1 轮在途（5 支）
+    expect(s.stats.explorations).toBe(15)
+    expect(r.expeditionLogs.filter((l) => l.text.includes('自动探索'))).toHaveLength(20)
   })
 
   it('NG+ 重置 autoExplore 为默认关（舰队归零 → 护航自然失效）', () => {

@@ -282,8 +282,8 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   explorerDual: {
     id: 'explorerDual',
-    name: '双线作战',
-    desc: `研发「深空导航阵列」，解锁第 ${formatNumber(2)} 探索信道，两支舰队并行深入星海。`,
+    name: '六路信标',
+    desc: `研发「深空导航阵列」，解锁第 ${formatNumber(6)} 探索信道，六支舰队并行深入星海。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['deepSpaceNav'] ?? 0) >= 1,
     rewardMineral: 20_000,
@@ -291,8 +291,8 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   explorerTriple: {
     id: 'explorerTriple',
-    name: '多路并进',
-    desc: `研发「星际通信中继」，解锁第 ${formatNumber(3)} 探索信道，三路同时推进。`,
+    name: '七路星桥',
+    desc: `研发「星际通信中继」，解锁第 ${formatNumber(7)} 探索信道，七路同时推进。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['interstellarRelay'] ?? 0) >= 1,
     rewardMineral: 50_000,
