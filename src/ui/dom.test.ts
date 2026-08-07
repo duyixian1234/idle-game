@@ -983,6 +983,37 @@ describe('ui: 军事面板', () => {
     expect(panel.textContent).toContain(`攻占成功率 +${formatPercent(15)}`)
   })
 
+  it('档案面板：成就卡牌结构（三组 build-grid + ach-card 图标/状态/进度条）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.storyFlags.firstBuild = true
+    s.stats.totalMineralEarned = 500_000
+    checkAchievements(s, 1000)
+    renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
+    // 三组各一个 build-grid
+    expect(panel.querySelector('[data-ach-grid="story"]')).toBeTruthy()
+    expect(panel.querySelector('[data-ach-grid="collect"]')).toBeTruthy()
+    expect(panel.querySelector('[data-ach-grid="finale"]')).toBeTruthy()
+    // 每个成就一张 .ach-card 且带图标 use 引用
+    const cards = [...panel.querySelectorAll<HTMLElement>('[data-achievement]')]
+    expect(cards.length).toBe(Object.keys(ACHIEVEMENTS).length)
+    const firstBuild = panel.querySelector('[data-achievement="firstBuild"]')
+    expect(firstBuild).toBeTruthy()
+    expect(firstBuild!.querySelector('use')?.getAttribute('href')).toBe(`#ic-${ACHIEVEMENTS.firstBuild.icon}`)
+    // 已解锁无 ach-locked；未解锁有 ach-locked 灰阶
+    expect(firstBuild!.classList.contains('ach-locked')).toBe(false)
+    expect(panel.querySelector('[data-achievement="mineral1M"]')!.classList.contains('ach-locked')).toBe(true)
+    // 未解锁且有 progress 的成就显示进度条（500k/1M），已解锁不显示
+    const progress = panel.querySelector('[data-ach-progress="mineral1M"]')
+    expect(progress).toBeTruthy()
+    expect(progress!.textContent).toContain(`${formatNumber(500_000)}/${formatNumber(1_000_000)}`)
+    expect(panel.querySelector('[data-ach-progress="firstBuild"]')).toBeNull()
+  })
+
   it('探索页：infinite 终局卡渲染「开启新周目」（data-ngplus 契约）', () => {
     const container = document.createElement('div')
     buildLayout(container)
