@@ -73,9 +73,12 @@ export function renderExplorePage(
             ? `星际通信中继 Lv${formatNumber(1)}（科技）`
             : '跃迁枢纽（终局工程·探索路线）'
       slotCards.push(`
-        <div class="explore-slot" data-expedition-slot="${slotNo}" data-expedition-locked>
-          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state locked">🔒 未解锁</span></div>
-          <div class="explore-slot-hint">解锁需求：${need}</div>
+        <div class="build-card explore-slot locked" data-expedition-slot="${slotNo}" data-expedition-locked>
+          <div class="build-card-icon">${iconUse('dispatch')}</div>
+          <div class="build-card-body">
+            <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state locked">🔒 未解锁</span></div>
+            <div class="explore-slot-hint">解锁需求：${need}</div>
+          </div>
         </div>`)
       continue
     }
@@ -84,9 +87,12 @@ export function renderExplorePage(
       const remain = Math.max(0, exp.finishAt - nowMs)
       const ratio = 1 - remain / Math.max(1, exp.finishAt - exp.startedAt)
       slotCards.push(`
-        <div class="explore-slot" data-expedition-slot="${slotNo}">
-          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中${exp.escort ? '（护航）' : ''}</span></div>
-          <div class="explore-slot-timer" data-expedition-timer><span data-expedition-progress>${renderAsciiBar(ratio, 16)}</span>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
+        <div class="build-card explore-slot" data-expedition-slot="${slotNo}">
+          <div class="build-card-icon">${iconUse('dispatch')}</div>
+          <div class="build-card-body">
+            <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中${exp.escort ? '（护航）' : ''}</span></div>
+            <div class="explore-slot-timer" data-expedition-timer><span data-expedition-progress>${renderAsciiBar(ratio, 16)}</span>返航倒计时 ${formatDuration(Math.ceil(remain / 1000))}</div>
+          </div>
         </div>`)
       continue
     }
@@ -113,11 +119,14 @@ export function renderExplorePage(
         ${fleetReady ? `<div class="explore-slot-escort-preview" data-escort-preview>护航消耗 ${formatNumber(fee)} 能源/轮 · 当前倍率 ${formatMultiplier(mult)}</div>` : ''}
       </div>`
     slotCards.push(`
-      <div class="explore-slot" data-expedition-slot="${slotNo}">
-        <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
-        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 ${MISSION_DURATION_MIN_MINUTES}~${MISSION_DURATION_MAX_MINUTES} 分钟（随机，离线照常推进）</div>
-        ${escortBlock}
-        <div class="explore-slot-actions">
+      <div class="build-card explore-slot" data-expedition-slot="${slotNo}">
+        <div class="build-card-icon">${iconUse('dispatch')}</div>
+        <div class="build-card-body">
+          <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
+          <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 ${MISSION_DURATION_MIN_MINUTES}~${MISSION_DURATION_MAX_MINUTES} 分钟（随机，离线照常推进）</div>
+          ${escortBlock}
+        </div>
+        <div class="build-actions explore-slot-actions">
           <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">${iconUse('dispatch', 'dispatch-icon')} 派遣</button>
         </div>
       </div>`)
@@ -186,7 +195,7 @@ export function renderExplorePage(
           </div>`
         : ''}
       ${autoPanel}
-      <div class="explore-slots">${slotCards.join('')}</div>
+      <div class="explore-slots build-grid">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
       ${planetArchivedBlock}
       ${planetLockedBlock}

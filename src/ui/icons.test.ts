@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, ALL_FACTIONS, EXPLORE_PLANETS } from '../engine/data'
+import { BUILDINGS, ALL_FACTIONS, EXPLORE_PLANETS, TECHS, CONQUESTS } from '../engine/data'
 import { ICON_FALLBACK, ICONS, iconSpriteHtml, iconSymbolId, iconUse } from './icons'
 
 /** 一级导航 + 派遣图标 id（ui-redesign ticket 02：Q15 emoji→SVG） */
@@ -31,6 +31,20 @@ describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
   it('每个派系 id（初始 4 + 探索 4）都有对应 symbol', () => {
     for (const id of Object.keys(ALL_FACTIONS)) {
       expect(ICONS[id], `缺少派系徽标：${id}`).toBeTruthy()
+    }
+  })
+
+  it('每个科技 id 的 icon 资产都存在（tech-cards：icon ?? id 兜底）', () => {
+    for (const def of Object.values(TECHS)) {
+      const iconId = def.icon ?? def.id
+      expect(ICONS[iconId], `缺少科技图标：${def.id} → ${iconId}`).toBeTruthy()
+    }
+  })
+
+  it('每个攻占目标 id 的 icon 资产都存在（conquest-cards：icon ?? id 兜底）', () => {
+    for (const def of Object.values(CONQUESTS)) {
+      const iconId = def.icon ?? def.id
+      expect(ICONS[iconId], `缺少攻占图标：${def.id} → ${iconId}`).toBeTruthy()
     }
   })
 

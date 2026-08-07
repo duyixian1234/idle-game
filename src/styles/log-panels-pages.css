@@ -469,6 +469,62 @@
   }
 }
 
+/* ---- 交互组件卡片化（tech-cards / faction-cards / conquest-cards / fleet-cards / explore-slots）----
+ * 与建造物同构复用 .build-card 视觉语言（网格 + 图标区 + body + 底部按钮区）；
+ * 仅建造卡主体可点（升级×1/建造×1），交互组件卡片主体一律不可点（操作走按钮），防误导。 */
+.build-card.tech-card,
+.build-card.faction-card,
+.build-card.conquest-card,
+.build-card.fleet-card,
+.build-card.explore-slot {
+  cursor: default;
+}
+
+/* 科技卡：默认 2 列按钮网格（研发 1 格 / 升级+10+100 分两行） */
+.tech-card .build-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* 外交卡：8 按钮（贸易/共享×3 + 结盟 + 威慑）flex 换行，避免 2 列 grid 撑出 4 行过高 */
+.faction-card .build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* 攻占卡：输入框 + 攻占按钮横排（输入框弹性伸缩占满余量） */
+.conquest-card .build-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.conquest-card .conquest-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.conquest-card .conquest-btn {
+  flex-shrink: 0;
+}
+
+/* 舰队卡：单按钮区（建造护卫舰）维持 2 列 grid 左格 */
+.fleet-card .build-actions {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* 探索槽位容器：与建造物同网格（覆盖 overlays.css 的 flex column 纵向布局） */
+.explore-slots.build-grid {
+  display: grid;
+}
+
+/* 探索槽卡按钮区贴底（与建造卡一致；覆盖 .explore-slot-actions 的 margin-top:8px） */
+.explore-slot .build-actions {
+  margin-top: auto;
+}
+
 /* 锁定卡折叠行（每区 >3 张时出现；展开/收起切换，UI 内存态） */
 .locked-collapse {
   margin-top: 10px;

@@ -284,9 +284,12 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
   return card
 }
 
-/** 渲染科技面板 */
+/** 渲染科技面板（tech-cards：与建造物同构的卡片网格；data-tech 契约与按钮 data-research/data-upgrade-tech(+limit) 原样保留） */
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
+  const grid = document.createElement('div')
+  grid.className = 'build-grid'
+  grid.setAttribute('data-tech-grid', '')
   for (const def of Object.values(TECHS)) {
     // 军械科技线（unlockByConquest）由列表末尾专用分组渲染（renderMilitaryTechSection）：此处跳过防双渲染
     if (def.unlockByConquest) continue
@@ -297,9 +300,9 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     const upgradable = canTechUpgrade(def, level)
     const canUp = canUpgradeTech(state, def.id)
     const affordable = canResearchTech(state, def.id)
-    const item = document.createElement('div')
-    item.className = 'build-item tech-item'
-    item.setAttribute('data-tech', def.id)
+    const card = document.createElement('div')
+    card.className = 'build-card tech-card'
+    card.setAttribute('data-tech', def.id)
 
     // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁
     let effectText: string
@@ -324,38 +327,55 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
       </div>`
+    const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
 
     if (!researched) {
       if (!met) {
+        // 前置未满足：锁定卡（灰化 + 解锁条件）
         const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')
-        item.innerHTML = `${info}
-          <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>`
-        el.appendChild(item)
+        card.classList.add('locked')
+        card.innerHTML = `${icon}
+          <div class="build-card-body">
+            ${info}
+            <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>
+          </div>`
+        grid.appendChild(card)
         continue
       }
-      item.innerHTML = `${info}
-        <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁该科技（${formatCost(cost)}）">
-          研发 ${formatCost(cost)}
-        </button>`
-      el.appendChild(item)
+      card.innerHTML = `${icon}
+        <div class="build-card-body">${info}</div>
+        <div class="build-actions">
+          <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁该科技（${formatCost(cost)}）">
+            研发 ${formatCost(cost)}
+          </button>
+        </div>`
+      grid.appendChild(card)
       continue
     }
 
     if (!upgradable) {
-      item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>`
-      el.appendChild(item)
+      card.innerHTML = `${icon}
+        <div class="build-card-body">
+          ${info}
+          <div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>
+        </div>`
+      grid.appendChild(card)
       continue
     }
 
     // 可升级：显示升级按钮与下一级成本（语义明确为「单击升级」）
-    item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
-        升级 ▶ ${formatCost(cost)}
-      </button>
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`
-    el.appendChild(item)
+    card.innerHTML = `${icon}
+      <div class="build-card-body">${info}</div>
+      <div class="build-actions">
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
+          升级 ▶ ${formatCost(cost)}
+        </button>
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>
+      </div>`
+    grid.appendChild(card)
   }
+  el.appendChild(grid)
 
   // 军械科技线（unlockByConquest，攻占「虫群前哨」解锁）：置科技列表末尾
   renderMilitaryTechSection(el, state)
@@ -454,21 +474,24 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     const perks = factionPerkLabels(def)
 
     const item = document.createElement('div')
-    item.className = 'build-item faction-item'
+    item.className = 'build-card faction-card'
     item.setAttribute('data-faction', id)
     item.innerHTML = `
-      <div class="build-info faction-info">
-        <div class="build-name">
-          ${iconUse(id, 'faction-badge')}${escapeHtml(def.name)}
-          ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
-        </div>
-        <div class="build-desc">${escapeHtml(def.desc)}</div>
-        <div class="favor-row">
-          <span class="favor-label">好感</span>
-          ${renderFavorBar(f.favor)}
-          <span class="favor-num">${formatNumber(f.favor)}/${formatNumber(100)}</span>
-          <span class="favor-label threat-label">威胁</span>
-          <span class="threat-num">${formatNumber(f.threat)}</span>
+      <div class="build-card-icon">${iconUse(id)}</div>
+      <div class="build-card-body">
+        <div class="build-info faction-info">
+          <div class="build-name">
+            ${escapeHtml(def.name)}
+            ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
+          </div>
+          <div class="build-desc">${escapeHtml(def.desc)}</div>
+          <div class="favor-row">
+            <span class="favor-label">好感</span>
+            ${renderFavorBar(f.favor)}
+            <span class="favor-num">${formatNumber(f.favor)}/${formatNumber(100)}</span>
+            <span class="favor-label threat-label">威胁</span>
+            <span class="threat-num">${formatNumber(f.threat)}</span>
+          </div>
         </div>
       </div>
       <div class="build-actions faction-actions">
@@ -577,10 +600,10 @@ function conquestRewardText(def: ConquestDef): string {
   return parts.join('、') || '无'
 }
 
-/** 攻占区域单行（守卫/奖励/状态/发起控件） */
+/** 攻占区域单张卡片（守卫/奖励/状态/发起控件；conquest-cards：与建造物同构卡片，data-conquest 契约原样保留） */
 function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
-  const row = document.createElement('div')
-  row.className = 'build-item conquest-item'
+  const card = document.createElement('div')
+  card.className = 'build-card conquest-card'
   const cs = conquestState(state, def.id)
   const conquered = cs.status === 'conquered'
   const ongoing = cs.startedAt != null
@@ -595,16 +618,26 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
       <div class="build-desc">${escapeHtml(def.desc)}</div>
       <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}</div>
     </div>`
+  const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
   if (conquered) {
-    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint conquered-hint">✓ 已肃清</span></div>`
-    return row
+    card.classList.add('locked')
+    card.innerHTML = `${icon}
+      <div class="build-card-body">
+        ${info}
+        <div class="build-lock"><span class="lock-hint conquered-hint">✓ 已肃清</span></div>
+      </div>`
+    return card
   }
   if (ongoing) {
     const remainMs = Math.max(0, (cs.finishAt ?? 0) - Date.now())
     const durMs = Math.max(1, (cs.finishAt ?? Date.now()) - (cs.startedAt ?? Date.now()))
     const ratio = 1 - remainMs / durMs
-    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></span></div>`
-    return row
+    card.innerHTML = `${icon}
+      <div class="build-card-body">
+        ${info}
+        <div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></span></div>
+      </div>`
+    return card
   }
   if (!available) {
     const reason = state.planets[def.unlockPlanet]?.unlocked
@@ -612,23 +645,29 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
         ? '通关后开放'
         : '不可攻占'
       : `需解锁「${PLANETS[def.unlockPlanet]?.name ?? def.unlockPlanet}」`
-    row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(reason)}</span></div>`
-    return row
+    card.classList.add('locked')
+    card.innerHTML = `${icon}
+      <div class="build-card-body">
+        ${info}
+        <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(reason)}</span></div>
+      </div>`
+    return card
   }
   // 可发起：投入军力输入框（建议值 = 足额所需或当前军力）+ 攻占按钮
   const maxInvest = Math.floor(state.resources.military)
   const suggest = Math.max(1, Math.min(def.guard, maxInvest))
-  row.innerHTML = `${info}
+  card.innerHTML = `${icon}
+    <div class="build-card-body">${info}</div>
     <div class="build-actions conquest-actions">
       <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="投入军力" />
       <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="投入军力发起攻占，10~30 分钟后结算；投入达到守卫强度必成，不足则按比例成功率">
         攻占 ⚔
       </button>
     </div>`
-  return row
+  return card
 }
 
-/** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板行式同构；
+/** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板卡片同构；
  * 渲染于科技面板列表末尾分组）：
  * 未攻占 → 锁定文案（desc 自带「攻占…后解锁」）；已攻占未研发 → 研发按钮；已研发可升级 → 升级按钮（含 +10/+100）。 */
 function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
@@ -647,9 +686,9 @@ function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
   header.className = 'conquest-header'
   header.textContent = '军械科技'
   section.appendChild(header)
-  const item = document.createElement('div')
-  item.className = 'build-item tech-item'
-  item.setAttribute('data-tech', def.id)
+  const card = document.createElement('div')
+  card.className = 'build-card tech-card'
+  card.setAttribute('data-tech', def.id)
   const mult = def.effect.kind === 'production' ? techMultiplier(def.effect, Math.max(1, level)) : 1
   const nextMult = def.effect.kind === 'production' ? techMultiplier(def.effect, level + 1) : 1
   const effectText = `军力产出 ${formatMultiplier(mult)}${level >= 1 ? `（Lv.${formatNumber(level)}${upgradable ? ` → ${formatMultiplier(nextMult)}` : ''}）` : ''}`
@@ -658,26 +697,41 @@ function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
       <div class="build-name">${escapeHtml(def.name)}${researched ? `<span class="build-count researched-badge">${level >= def.maxLevel! ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}</div>
       <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
     </div>`
+  const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
   // 未攻占且未研发 → 锁定文案；已研发（含测试预置）直接进入研发/升级分支
   if (!conquered && !researched) {
-    item.innerHTML = `${info}
-      <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(def.desc)}</span></div>`
+    card.classList.add('locked')
+    card.innerHTML = `${icon}
+      <div class="build-card-body">
+        ${info}
+        <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(def.desc)}</span></div>
+      </div>`
   } else if (!researched) {
-    item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁军械科技（${formatCost(techCost(state, def.id))}）">
-        研发 ${formatCost(techCost(state, def.id))}
-      </button>`
+    card.innerHTML = `${icon}
+      <div class="build-card-body">${info}</div>
+      <div class="build-actions">
+        <button type="button" class="build-btn tech-btn" data-research="${def.id}" ${affordable ? '' : 'disabled'} title="单击研发：解锁军械科技（${formatCost(techCost(state, def.id))}）">
+          研发 ${formatCost(techCost(state, def.id))}
+        </button>
+      </div>`
   } else if (!upgradable) {
-    item.innerHTML = `${info}<div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>`
+    card.innerHTML = `${icon}
+      <div class="build-card-body">
+        ${info}
+        <div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>
+      </div>`
   } else {
-    item.innerHTML = `${info}
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
-        升级 ▶ ${formatCost(techCost(state, def.id))}
-      </button>
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
-      <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`
+    card.innerHTML = `${icon}
+      <div class="build-card-body">${info}</div>
+      <div class="build-actions">
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
+          升级 ▶ ${formatCost(techCost(state, def.id))}
+        </button>
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>
+      </div>`
   }
-  section.appendChild(item)
+  section.appendChild(card)
   el.appendChild(section)
 }
 
@@ -762,9 +816,9 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts:
 }
 
 /**
- * 舰队管理区（星域页星际工程分组内，data-fleet 契约）：
+ * 舰队管理区（星域页星际工程分组内，data-fleet 契约；fleet-cards：与建造物同构卡片）：
  * 当前舰数 X/Y、建造按钮（含第 n 艘成本预览）、总维护费与战力预览（-X 能源/s）、运转/停摆状态。
- * 船坞未建 → 锁定原因（星港前置）；船坞 Lv0 → 提示升级解锁；满编 → 按钮禁用；停摆 → 警示语。
+ * 船坞未建 → 锁定卡片（星港前置）；船坞 Lv0 → 提示升级解锁；满编 → 按钮禁用；停摆 → 警示语。
  */
 export function renderFleetSection(el: HTMLElement, state: GameState): void {
   const section = document.createElement('div')
@@ -778,14 +832,17 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   // 船坞未建：显示锁定原因（复用引擎判定，UI 不重写解锁链）
   if ((state.buildings.dock ?? 0) <= 0) {
     const lock = document.createElement('div')
-    lock.className = 'build-item'
+    lock.className = 'build-card fleet-card locked'
     lock.setAttribute('data-fleet-locked', '')
     lock.innerHTML = `
-      <div class="build-info">
-        <div class="build-name">护卫舰队</div>
-        <div class="build-desc">斥资打造常备舰队：自动迎击派系骚扰，代价是持续能源维护费。</div>
-      </div>
-      <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(buildingLockReason(state, 'dock') ?? '需先建造船坞')}</span></div>`
+      <div class="build-card-icon">${iconUse('ship')}</div>
+      <div class="build-card-body">
+        <div class="build-info">
+          <div class="build-name">护卫舰队</div>
+          <div class="build-desc">斥资打造常备舰队：自动迎击派系骚扰，代价是持续能源维护费。</div>
+        </div>
+        <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(buildingLockReason(state, 'dock') ?? '需先建造船坞')}</span></div>
+      </div>`
     section.appendChild(lock)
     el.appendChild(section)
     return
@@ -811,7 +868,7 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   }
 
   const body = document.createElement('div')
-  body.className = 'build-item'
+  body.className = 'build-card fleet-card'
   body.setAttribute('data-fleet-status', '')
   // 停摆警示（自动迎击不可用语义说明）
   const idleWarn =
@@ -833,21 +890,24 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   // 护航加成说明（fleet-dock-10）：每艘 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 舰数（探索页护航远征共用）
   const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每艘 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%）` : ''
   body.innerHTML = `
-    <div class="build-info">
-      <div class="build-name">
-        护卫舰队 ${statusBadge}
-        <span class="build-count" data-fleet-count>${formatNumber(count)}艘/${formatNumber(cap)}艘</span>
-        <span class="build-count">船坞 Lv.${formatNumber(level)}</span>
+    <div class="build-card-icon">${iconUse('ship')}</div>
+    <div class="build-card-body">
+      <div class="build-info">
+        <div class="build-name">
+          护卫舰队 ${statusBadge}
+          <span class="build-count" data-fleet-count>${formatNumber(count)}艘/${formatNumber(cap)}艘</span>
+          <span class="build-count">船坞 Lv.${formatNumber(level)}</span>
+        </div>
+        <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。船坞升级请前往「建造 · 星际工程」。</div>
+        <div class="conquest-meta">
+          <span data-fleet-maintenance>维护费 ${formatRate(-maint)} 能源</span>
+          ${count > 0 && !powered ? '（停摆中未扣费）' : ''}
+          · <span data-fleet-power>战力 ${formatNumber(power)}${techNote}</span>
+          ${escortNote ? ` · <span data-fleet-escort>${escortNote}</span>` : ''}
+        </div>
       </div>
-      <div class="build-desc">自动迎击派系骚扰（战力足够不弹窗，直接结算为日志）；军力击退所需军力按舰队战力削减。船坞升级请前往「建造 · 星际工程」。</div>
-      <div class="conquest-meta">
-        <span data-fleet-maintenance>维护费 ${formatRate(-maint)} 能源</span>
-        ${count > 0 && !powered ? '（停摆中未扣费）' : ''}
-        · <span data-fleet-power>战力 ${formatNumber(power)}${techNote}</span>
-        ${escortNote ? ` · <span data-fleet-escort>${escortNote}</span>` : ''}
-      </div>
+      ${idleWarn}
     </div>
-    ${idleWarn}
     <div class="build-actions">${buildBtn}</div>`
   section.appendChild(body)
   el.appendChild(section)

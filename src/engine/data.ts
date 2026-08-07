@@ -247,6 +247,8 @@ export interface TechDef {
   desc: string
   cost: Partial<Record<ResourceKey, number>>
   effect: TechEffect
+  /** 卡片图标资产 id（icons.ts；缺省由 iconUse 按 id 兜底 unknown） */
+  icon?: string
   /** 前置科技 */
   requires?: string[]
   /** 等级上限（缺省 TECH_MAX_LEVEL；军械科技等短升级线设 5） */
@@ -377,6 +379,7 @@ export const TECHS: Record<string, TechDef> = {
     desc: `深入行星地壳，矿物产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 500, tech: 10 },
     effect: { kind: 'production', resource: 'mineral', mult: 1.5 },
+    icon: 'drillCore',
   },
   solarEfficiency: {
     id: 'solarEfficiency',
@@ -384,6 +387,7 @@ export const TECHS: Record<string, TechDef> = {
     desc: `优化光伏材料，能源产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 900, tech: 25 },
     effect: { kind: 'production', resource: 'energy', mult: 1.5 },
+    icon: 'solar',
   },
   computingBoost: {
     id: 'computingBoost',
@@ -391,6 +395,7 @@ export const TECHS: Record<string, TechDef> = {
     desc: `升级量子计算核心，科技点产出 ${formatMultiplier(1.5)}。`,
     cost: { mineral: 1400, tech: 60 },
     effect: { kind: 'production', resource: 'tech', mult: 1.5 },
+    icon: 'quantumCore',
   },
   deepDrill: {
     id: 'deepDrill',
@@ -398,6 +403,7 @@ export const TECHS: Record<string, TechDef> = {
     desc: '解锁「深层钻机」建筑。',
     cost: { mineral: 3200, tech: 150 },
     effect: { kind: 'unlockBuilding', buildingId: 'deepDrill' },
+    icon: 'deepDrill',
   },
   fusionCell: {
     id: 'fusionCell',
@@ -406,6 +412,7 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 6000, tech: 400 },
     effect: { kind: 'production', resource: 'energy', mult: 2.5 },
     requires: ['solarEfficiency'],
+    icon: 'fusionBattery',
   },
   nanoFab: {
     id: 'nanoFab',
@@ -414,6 +421,7 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 12000, tech: 1000 },
     effect: { kind: 'production', resource: 'mineral', mult: 2 },
     requires: ['planetDrill'],
+    icon: 'nanoFab',
   },
   militaryTech: {
     id: 'militaryTech',
@@ -423,6 +431,7 @@ export const TECHS: Record<string, TechDef> = {
     effect: { kind: 'production', resource: 'military', mult: 1 },
     maxLevel: 5,
     unlockByConquest: 'outpost',
+    icon: 'militaryTech',
   },
   deepSpaceNav: {
     id: 'deepSpaceNav',
@@ -431,6 +440,7 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 50_000, tech: 5_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,
+    icon: 'navArray',
   },
   interstellarRelay: {
     id: 'interstellarRelay',
@@ -439,6 +449,7 @@ export const TECHS: Record<string, TechDef> = {
     cost: { mineral: 200_000, tech: 20_000 },
     effect: { kind: 'exploration' },
     maxLevel: 5,
+    icon: 'relay',
   },
 }
 
@@ -447,6 +458,8 @@ export interface ConquestDef {
   id: string
   name: string
   desc: string
+  /** 卡片图标资产 id（icons.ts；缺省由 iconUse 按 id 兜底 unknown） */
+  icon?: string
   /** 守卫强度（军力）：成功率 = min(100%, 投入军力/守卫强度)，足额投入必成 */
   guard: number
   /** 前置星球（需已解锁） */
@@ -475,6 +488,7 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     rewardMineral: 50_000,
     rewardTech: 5_000,
     unlockTech: 'militaryTech',
+    icon: 'outpost',
   },
   shipyard: {
     id: 'shipyard',
@@ -484,6 +498,7 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     unlockPlanet: 'gas',
     rewardMineral: 200_000,
     bonus: { kind: 'militaryCap', value: 0.2 },
+    icon: 'shipyard',
   },
   wreckage: {
     id: 'wreckage',
@@ -493,6 +508,7 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     unlockPlanet: 'dawn',
     rewardMineral: 1_000_000,
     bonus: { kind: 'production', value: 0.1 },
+    icon: 'wreckage',
   },
   nest: {
     id: 'nest',
@@ -504,6 +520,7 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     rewardMineral: 5_000_000,
     rewardTech: 500_000,
     bonus: { kind: 'production', value: 0.25 },
+    icon: 'nest',
   },
 }
 
