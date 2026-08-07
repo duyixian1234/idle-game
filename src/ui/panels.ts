@@ -444,9 +444,10 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     if (!def) continue
     const f = state.factions[id]
     if (!f) continue
-    // 已结盟 = 归档（本周目语义，archivedRounds 记录归档周目）
-    if (state.archivedRounds?.[id] != null) {
-      archivedRows.push(archiveRow(def.name, '已结盟', state.archivedRounds[id], id))
+    // 已结盟 = 归档（本周目语义，archivedRounds 记录归档周目；旧档 v11 及以下无 archivedRounds →
+    // 按 allied 判定兜底，已完成对象同样折叠，round 缺省不显示周目标记）
+    if (state.archivedRounds?.[id] != null || f.allied) {
+      archivedRows.push(archiveRow(def.name, '已结盟', state.archivedRounds?.[id], id))
       continue
     }
     const tradeC = tradeCost(state, id)
@@ -704,10 +705,10 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
-  // 静态 4 区域
+  // 静态 4 区域（旧档 v11 及以下 conquered 无 archivedRounds → 按 status 判定兜底）
   for (const def of staticDefs) {
-    if (state.archivedRounds?.[def.id] != null) {
-      archivedRows.push(archiveRow(def.name, '已肃清', state.archivedRounds[def.id], def.id))
+    if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
+      archivedRows.push(archiveRow(def.name, '已肃清', state.archivedRounds?.[def.id], def.id))
     } else {
       conquestSection.appendChild(renderConquestRow(def, state))
     }
@@ -717,8 +718,8 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (t.kind !== 'conquest') continue
     const def = conquestDef(state, t.id)
     if (!def) continue
-    if (state.archivedRounds?.[t.id] != null) {
-      archivedRows.push(archiveRow(t.name, '已肃清', state.archivedRounds[t.id], t.id))
+    if (state.archivedRounds?.[t.id] != null || conquestState(state, t.id).status === 'conquered') {
+      archivedRows.push(archiveRow(t.name, '已肃清', state.archivedRounds?.[t.id], t.id))
     } else {
       conquestSection.appendChild(renderConquestRow(def, state))
     }

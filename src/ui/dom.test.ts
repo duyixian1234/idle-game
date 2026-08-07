@@ -802,7 +802,7 @@ describe('ui: 军事面板', () => {
     expect(buildPanel.querySelector('[data-build="miner"]')).toBeTruthy()
   })
 
-  it('已占领区域显示已肃清标记且无可发起控件', () => {
+  it('已占领区域移入归档折叠区（已肃清徽章）且无可发起控件', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
@@ -813,7 +813,8 @@ describe('ui: 军事面板', () => {
     s.conquest.outpost = { status: 'conquered' }
     renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
-    expect(panel.textContent).toContain('已占领')
+    // conquered 对象进归档折叠区（徽章「已肃清」；旧档无 archivedRounds 同样折叠）
+    expect(panel.textContent).toContain('已肃清')
     expect(panel.textContent).toContain(`肃清进度：${formatNumber(1)}/${formatNumber(4)}`)
     expect(panel.querySelector('[data-conquest="outpost"]')).toBeNull()
     // 未攻占区域（船坞，gas 已解锁）仍有攻占输入框与按钮
