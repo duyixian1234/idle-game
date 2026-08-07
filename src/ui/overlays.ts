@@ -6,18 +6,7 @@ import type { NgPlusPreview } from '../engine/ngplus'
 import type { BulkPreview } from '../engine/bulk'
 import { buildingCost } from '../engine/engine'
 import { formatCost, JUMPGATE_EFFECT_TEXT } from './panels'
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;'
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '\"': return '&quot;'
-      default: return '&#39;'
-    }
-  })
-}
+import { escapeHtml } from './helpers'
 
 /** boot 浮层内容（Q13 定案）：ASCII 标题 + 3 行 SYSTEM INIT；
  *  容器由 buildLayout 一次性构建（非重建元素），显隐由 main 层控制。 */
