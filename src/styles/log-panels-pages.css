@@ -697,7 +697,14 @@
   justify-content: space-between;
 }
 
-.log-auto-config {
+.log-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-auto-config,
+.log-dir-toggle {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-dim);
@@ -706,7 +713,8 @@
   font: inherit;
 }
 
-.log-auto-config:hover {
+.log-auto-config:hover,
+.log-dir-toggle:hover {
   border-color: var(--phosphor);
   color: var(--phosphor);
 }

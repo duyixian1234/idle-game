@@ -1,5 +1,5 @@
 import type { GameState, ResourceKey } from '../engine/types'
-import { BUILDINGS, CONQUESTS, ENDLESS_CONQUESTS, ENDLESS_FACTIONS, EXPLORE_PLANETS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { BUILDINGS, CONQUESTS, ENDLESS_CONQUESTS, ENDLESS_FACTIONS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, FactionDef } from '../engine/data'
 import { ACHIEVEMENTS, type AchievementDef } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
@@ -17,7 +17,6 @@ import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
 import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
-import type { LogDirection } from './log'
 import { escapeHtml } from './helpers'
 
 export function formatCost(cost: Record<ResourceKey, number>): string {
@@ -563,33 +562,24 @@ function renderCoercionActions(state: GameState, id: string): string {
 /** 设置页 UI 状态（由 main 层组装传入，纯展示） */
 export interface SettingsStatus {
   isMuted: boolean
-  logDirection: LogDirection
   statusText: string
   version: string
   state?: GameState
 }
 
-/** 渲染设置页（一级 tab）：音频 / 日志 / 存档管理 / 危险区 / 关于 五组。250ms 重建无 transition 干扰 */
+/** 渲染设置页（一级 tab）：通用（音频）/ 存档 / 危险区（重置 + NG+）/ 关于 四组。250ms 重建无 transition 干扰；
+ * 日志方向已迁至日志页头部（data-tool="logdir"）、天体显隐已迁至探索页自动面板（data-planet-visibility）。 */
 export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): void {
   const state = status.state
-  const visiblePlanets = state
-    ? [...Object.values(PLANETS), ...Object.values(EXPLORE_PLANETS)].filter((def) => state.planets[def.id]?.unlocked || state.exploredPlanets.includes(def.id))
-    : []
   el.innerHTML = `
     <section class="settings-group">
-      <h2 class="settings-title">音频</h2>
+      <h2 class="settings-title">通用</h2>
       <div class="settings-actions">
         <button type="button" class="tool-btn" data-tool="mute">${status.isMuted ? '🔇 已静音' : '🔊 静音'}</button>
       </div>
     </section>
     <section class="settings-group">
-      <h2 class="settings-title">日志</h2>
-      <div class="settings-actions">
-        <button type="button" class="tool-btn" data-tool="logdir">${status.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'}</button>
-      </div>
-    </section>
-    <section class="settings-group">
-      <h2 class="settings-title">存档管理</h2>
+      <h2 class="settings-title">存档</h2>
       <div class="settings-actions">
         <button type="button" class="tool-btn" data-tool="export">导出存档</button>
         <button type="button" class="tool-btn" data-tool="import">导入存档</button>
@@ -600,18 +590,7 @@ export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): voi
       <p class="danger-hint">删除当前存档并重新开始，此操作不可撤销。</p>
       <div class="settings-actions">
         <button type="button" class="tool-btn danger" data-tool="reset">重置存档</button>
-      </div>
-    </section>
-    <section class="settings-group">
-      <h2 class="settings-title">周目与终局</h2>
-      <div class="settings-actions">
         ${state?.phase === 'infinite' ? '<button type="button" class="tool-btn danger" data-setting-action="ngplus">开启新周目</button>' : ''}
-      </div>
-    </section>
-    <section class="settings-group">
-      <h2 class="settings-title">顶部天体</h2>
-      <div class="settings-actions">
-        ${visiblePlanets.length > 0 ? visiblePlanets.map((def) => `<button type="button" class="tool-btn planet-visibility-btn" data-planet-visibility="${def.id}">${state?.hiddenPlanets.includes(def.id) ? '显示' : '隐藏'} ${escapeHtml(def.name)}</button>`).join('') : '<span class="settings-empty">暂无可管理天体</span>'}
       </div>
     </section>
     <section class="settings-group">

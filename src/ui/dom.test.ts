@@ -17,6 +17,8 @@ import { buildCardAction, renderArchivePanel, renderBuildPanel, renderDiplomacyP
 import { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from './overlays'
 import { renderExplorePage } from './explore-page'
 import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderResources, unlockRequirementText } from './bars'
+import { createSession } from './session'
+import type { SoundManager } from '../audio'
 
 describe('ui: 布局与冒烟', () => {
   it('buildLayout 生成 B 架构骨架：header/footer/4 页容器', () => {
@@ -1201,6 +1203,38 @@ describe('ui: 探索页', () => {
     expect(page.querySelector('[data-explore-infinite]')).toBeNull()
   })
 
+  it('顶部天体控件迁入自动探索面板：仅渲染已解锁/已探索天体，hiddenPlanets 切换按钮文案', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    // 默认仅荒芜星解锁 → 控件渲染且为「隐藏」态
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const group = page.querySelector('[data-explore-planet-visibility]')
+    expect(group).toBeTruthy()
+    expect(group!.closest('.explore-auto')).toBeTruthy() // 控件组位于自动探索面板内
+    expect(page.textContent).toContain('顶部天体')
+    const barrenBtn = page.querySelector<HTMLButtonElement>('[data-planet-visibility="barren"]')
+    expect(barrenBtn).toBeTruthy()
+    expect(barrenBtn!.textContent).toContain('隐藏 荒芜星 P-01')
+    expect(page.querySelector('[data-planet-visibility="orbital"]')).toBeNull() // 未解锁不渲染
+    // 已探索天体也渲染（exploredPlanets 口径），隐藏后按钮切为「显示」
+    s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
+    s.exploredPlanets = ['logistics']
+    renderExplorePage(page, s, 0)
+    const logisticsBtn = page.querySelector<HTMLButtonElement>('[data-planet-visibility="logistics"]')
+    expect(logisticsBtn).toBeTruthy()
+    s.hiddenPlanets.push('logistics')
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector<HTMLButtonElement>('[data-planet-visibility="logistics"]')!.textContent).toContain('显示 星际物流港')
+    // 全部无可用天体（无解锁无探索）→ 空占位
+    const s2 = endedState()
+    s2.planets.barren = { unlocked: false }
+    renderExplorePage(page, s2, 0)
+    expect(page.querySelector('[data-planet-visibility]')).toBeNull()
+    expect(page.textContent).toContain('暂无可管理天体')
+  })
+
   it('infinite 阶段（扩展池仍有目标）：静态池收集满也不显示尽览徽章/按钮（NG+ 卡在）', () => {
     const container = document.createElement('div')
     buildLayout(container)
@@ -1290,41 +1324,85 @@ describe('ui: 探索页', () => {
 })
 
 describe('ui: 设置页', () => {
-  it('renderSettingsPage 渲染五组（音频/日志/存档管理/危险区/关于）与 data-tool 契约', () => {
+  it('renderSettingsPage 渲染四组（通用/存档/危险区/关于）与 data-tool 契约；日志/天体控件已迁出', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
-    renderSettingsPage(page, { isMuted: false, logDirection: 'newest-bottom', statusText: '荒漠星 · 存档自动保存中', version: '0.1.0' })
-    expect(page.textContent).toContain('音频')
-    expect(page.textContent).toContain('日志')
-    expect(page.textContent).toContain('存档管理')
+    renderSettingsPage(page, { isMuted: false, statusText: '荒漠星 · 存档自动保存中', version: '0.1.0' })
+    expect(page.textContent).toContain('通用')
+    expect(page.textContent).toContain('存档')
     expect(page.textContent).toContain('危险区')
     expect(page.textContent).toContain('关于')
     expect(page.querySelector('[data-tool="mute"]')).toBeTruthy()
-    expect(page.querySelector('[data-tool="logdir"]')).toBeTruthy()
     expect(page.querySelector('[data-tool="export"]')).toBeTruthy()
     expect(page.querySelector('[data-tool="import"]')).toBeTruthy()
     expect(page.querySelector('[data-tool="reset"]')).toBeTruthy()
+    // 去中心化：logdir 迁至日志页头部、planet-visibility 迁至探索页，设置页不再渲染
+    expect(page.querySelector('[data-tool="logdir"]')).toBeNull()
+    expect(page.querySelector('[data-planet-visibility]')).toBeNull()
+    expect(page.textContent).not.toContain('最新在底')
+    expect(page.textContent).not.toContain('顶部天体')
     expect(page.textContent).toContain('v0.1.0')
   })
 
-  it('静音/排序按钮文案随状态切换', () => {
+  it('静音按钮文案随状态切换', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
-    renderSettingsPage(page, { isMuted: true, logDirection: 'newest-top', statusText: '', version: '0.1.0' })
+    renderSettingsPage(page, { isMuted: true, statusText: '', version: '0.1.0' })
     expect(page.querySelector('[data-tool="mute"]')?.textContent).toContain('已静音')
-    expect(page.querySelector('[data-tool="logdir"]')?.textContent).toContain('最新在顶')
   })
 
-  it('危险区重置按钮带 danger 类与警示文案', () => {
+  it('危险区重置按钮带 danger 类与警示文案；NG+ 按钮并入危险区（仅 infinite 渲染）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const page = container.querySelector('[data-nav-page="settings"]') as HTMLElement
-    renderSettingsPage(page, { isMuted: false, logDirection: 'newest-bottom', statusText: '', version: '0.1.0' })
+    renderSettingsPage(page, { isMuted: false, statusText: '', version: '0.1.0' })
     const reset = page.querySelector<HTMLButtonElement>('[data-tool="reset"]')
     expect(reset?.classList.contains('danger')).toBe(true)
     expect(page.textContent).toContain('此操作不可撤销')
+    // playing 下无 NG+ 按钮
+    expect(page.querySelector('[data-setting-action="ngplus"]')).toBeNull()
+    // infinite 下 NG+ 按钮出现在危险区组内
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.ngPlusLevel = 1
+    renderSettingsPage(page, { isMuted: false, statusText: '', version: '0.1.0', state: s })
+    const dangerZone = page.querySelector('.settings-group.danger-zone')
+    const ngplusBtn = page.querySelector<HTMLButtonElement>('[data-setting-action="ngplus"]')
+    expect(ngplusBtn).toBeTruthy()
+    expect(ngplusBtn?.textContent).toContain('开启新周目')
+    expect(dangerZone?.contains(ngplusBtn)).toBe(true)
+  })
+})
+
+describe('ui: 日志页头部控件', () => {
+  it('日志方向切换按钮位于 .log-head（data-tool="logdir" 契约），与自动处理按钮并存', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const logBody = container.querySelector('[data-panel="log"]') as HTMLElement
+    const head = logBody.querySelector('.log-head') as HTMLElement
+    expect(head).toBeTruthy()
+    const logdirBtn = head.querySelector<HTMLButtonElement>('[data-tool="logdir"]')
+    expect(logdirBtn).toBeTruthy()
+    expect(head.querySelector('[data-auto-config-trigger]')).toBeTruthy()
+    expect(logdirBtn!.textContent).toContain('最新在底')
+  })
+
+  it('日志方向切换：点击后文案切换并持久化 localStorage（最新在底 ↔ 最新在顶）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const state = createInitialState(Date.now())
+    const session = createSession({ els, sound: { isMuted: () => false, setMuted: () => {}, play: () => {} } as unknown as SoundManager, state, onSave: async () => {} })
+    session.render()
+    const btn = els.panel.querySelector<HTMLButtonElement>('[data-tool="logdir"]')!
+    expect(btn.textContent).toContain('最新在底')
+    btn.click()
+    expect(btn.textContent).toContain('最新在顶')
+    expect(localStorage.getItem('idle-game-log-direction')).toBe('newest-top')
+    btn.click()
+    expect(btn.textContent).toContain('最新在底')
+    expect(localStorage.getItem('idle-game-log-direction')).toBe('newest-bottom')
   })
 })
 

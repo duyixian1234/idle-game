@@ -1,5 +1,5 @@
 import type { GameState } from '../engine/types'
-import { ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
+import { ENDLESS_PLANETS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
@@ -9,6 +9,21 @@ import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import { iconUse } from './icons'
 import { renderAsciiBar } from './panels'
 import { escapeHtml } from './helpers'
+
+/** 顶部天体显隐控件（原设置页「顶部天体」组迁入探索页自动面板；data-planet-visibility 契约保留，
+ * 仅渲染已解锁或已探索的天体——隐藏与否由 state.hiddenPlanets 驱动，按钮文案随状态切换） */
+function planetVisibilityControls(state: GameState): string {
+  const visiblePlanets = [...Object.values(PLANETS), ...Object.values(EXPLORE_PLANETS)].filter(
+    (def) => state.planets[def.id]?.unlocked || state.exploredPlanets.includes(def.id),
+  )
+  if (visiblePlanets.length === 0) return '<span class="settings-empty">暂无可管理天体</span>'
+  return visiblePlanets
+    .map(
+      (def) =>
+        `<button type="button" class="tool-btn planet-visibility-btn" data-planet-visibility="${def.id}">${state.hiddenPlanets.includes(def.id) ? '显示' : '隐藏'} ${escapeHtml(def.name)}</button>`,
+    )
+    .join('')
+}
 
 /**
  * 渲染探索页（一级 tab 内嵌）：
@@ -130,6 +145,10 @@ export function renderExplorePage(
       <span class="explore-auto-cost" data-auto-escort-cost>自动护航预计消耗 ${formatNumber(escortFee(state))} 能源/轮</span>
       ${auto.pausedAt != null ? '<span class="escort-warn" data-auto-explore-paused>资源不足，自动探索暂停（资源恢复后自动继续）</span>' : ''}
       ${auto.enabled && progress.exhausted ? '<span class="escort-warn" data-auto-explore-exhausted>自动探索中：目标已尽览，仅回收资源</span>' : ''}
+      <div class="explore-auto-planets" data-explore-planet-visibility>
+        <div class="explore-auto-title">顶部天体</div>
+        <div class="settings-actions">${planetVisibilityControls(state)}</div>
+      </div>
     </div>`
   const outputRows = explorePlanetOutputs(state)
     .map((o) => {

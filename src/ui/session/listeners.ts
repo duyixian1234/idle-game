@@ -114,16 +114,11 @@ export function bindListeners(ctx: SessionCtx): void {
   })
 
   // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局工程已移至建造页星际工程分组）
-  // 重操作实现见 actions-heavy.ts（import/export/reset/logdir/planet-visibility）
+  // 重操作实现见 actions-heavy.ts（import/export/reset）；logdir 已迁至日志页头部、planet-visibility 已迁至探索页
   els.navPages.settings.addEventListener('click', (e) => {
     const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
     if (actionBtn?.dataset.settingAction === 'ngplus') {
       ctx.openNgPlusModal()
-      return
-    }
-    const planetBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-planet-visibility]')
-    if (planetBtn) {
-      togglePlanetVisibility(ctx, planetBtn.dataset.planetVisibility ?? '')
       return
     }
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]')
@@ -132,8 +127,6 @@ export function bindListeners(ctx: SessionCtx): void {
     if (tool === 'mute') {
       ctx.toggleMute()
       render()
-    } else if (tool === 'logdir') {
-      toggleLogDirection(ctx)
     } else if (tool === 'export') {
       exportSave(ctx)
     } else if (tool === 'import') {
@@ -141,6 +134,13 @@ export function bindListeners(ctx: SessionCtx): void {
     } else if (tool === 'reset') {
       void resetGame(ctx)
     }
+  })
+
+  // 日志页头部：日志方向切换（data-tool="logdir" → toggleLogDirection；重操作见 actions-heavy.ts）
+  els.panel.addEventListener('click', (e) => {
+    const logdirBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool="logdir"]')
+    if (!logdirBtn) return
+    toggleLogDirection(ctx)
   })
 
   // 日志区自动处理快捷开关（data-auto-quick-toggle → 事件自动化策略）
@@ -317,6 +317,12 @@ export function bindListeners(ctx: SessionCtx): void {
     const ngplusBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-ngplus]')
     if (ngplusBtn) {
       ctx.openNgPlusModal()
+      return
+    }
+    // 顶部天体显隐（data-planet-visibility → togglePlanetVisibility；重操作见 actions-heavy.ts）
+    const planetBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-planet-visibility]')
+    if (planetBtn) {
+      togglePlanetVisibility(ctx, planetBtn.dataset.planetVisibility ?? '')
       return
     }
     const dispatchBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-dispatch]')

@@ -156,11 +156,13 @@ export function createSession(args: CreateSessionArgs): Session {
       .join(' ')
     renderSettingsPage(els.navPages.settings, {
       isMuted: sound.isMuted(),
-      logDirection: ui.logDirection,
       statusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
       version: APP_VERSION,
       state,
     })
+    // 日志页头部排序按钮文案随方向同步（.log-head 静态构建，不随 250ms 重建 → 每次 render 对齐）
+    const logdirBtn = els.panel.querySelector<HTMLElement>('[data-tool="logdir"]')
+    if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
     renderPendingEvents(els.logEl, state, ui.typedEvents)
     renderAutoConfigPanel(els.autoConfigOverlay, state, ui.autoExpandedCategory)
     els.autoConfigOverlay.classList.toggle('hidden', !ui.autoConfigOpen)

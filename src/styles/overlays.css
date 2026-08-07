@@ -92,6 +92,42 @@
   font-family: var(--font-mono);
 }
 
+/* 自动探索控制面板（data-auto-explore）：分组容器 + 顶部天体显隐控件（自设置页迁入） */
+.explore-auto {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  text-align: left;
+}
+
+.explore-auto-title {
+  color: var(--text-dim);
+  font-size: 12px;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.explore-auto-cost {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.explore-auto-planets {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.explore-auto-planets .tool-btn {
+  padding: 6px 10px;
+  min-height: 32px;
+  font-size: 12px;
+}
+
 /* 探索深空信道列表（多槽，1/2/3）：卡片网格（卡片化改造 card-unify，build-grid 2 列自适应） */
 .explore-slots {
   display: flex;
