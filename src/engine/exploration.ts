@@ -31,6 +31,8 @@ import {
   MISSION_DURATION_MAX_MINUTES,
   MISSION_DURATION_MIN_MINUTES,
   SHIP_POWER_BASE,
+  WARP_ESCORT_FEE_REDUCTION,
+  WARP_EXPEDITION_COST_REDUCTION,
   scaledClamp,
 } from './balance'
 import { fleetPowered, fleetPower } from './fleet'
@@ -99,10 +101,12 @@ export function explorationSlots(state: GameState): number {
   return Math.min(10, 5 + nav + relay + jumpgate)
 }
 
-/** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 N 槽 = base×N） */
+/** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 N 槽 = base×N）；
+ * 星舰推进 Lv≥10 时 ×(1 − WARP_EXPEDITION_COST_REDUCTION)（ADR-0026 质变，摩擦降低） */
 export function expeditionMilitaryCost(state: GameState, slotIndex: number = 0): number {
   const base = Math.min(EXPEDITION_MILITARY_CAP, Math.max(40, Math.floor(militaryCap(state) * EXPEDITION_MILITARY_PCT)))
-  return base * (slotIndex + 1)
+  const cost = base * (slotIndex + 1)
+  return (state.techLevels?.warpDrive ?? 0) >= 10 ? Math.max(1, Math.floor(cost * (1 - WARP_EXPEDITION_COST_REDUCTION))) : cost
 }
 
 /** 探索收获倍率：1 + 0.1 × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0；
@@ -155,9 +159,11 @@ export function escortFeePerShip(state: GameState): number {
   return Math.max(1, Math.floor(netProduction(state).energy * ESCORT_ENERGY_SECONDS))
 }
 
-/** 总护航远征费（能源）= 单艘 × 等效舰数（0 舰/停摆 = 0）——加成与费用同一杠杆，权衡始终一致 */
+/** 总护航远征费（能源）= 单艘 × 等效舰数（0 舰/停摆 = 0）——加成与费用同一杠杆，权衡始终一致；
+ * 星舰推进 Lv≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变，锚定产出不脱钩） */
 export function escortFee(state: GameState): number {
-  return Math.floor(escortFeePerShip(state) * equivalentFleet(state))
+  const fee = Math.floor(escortFeePerShip(state) * equivalentFleet(state))
+  return (state.techLevels?.warpDrive ?? 0) >= 20 ? Math.floor(fee * (1 - WARP_ESCORT_FEE_REDUCTION)) : fee
 }
 
 /** 护航收获倍率 = 1 + FLEET_HARVEST_PCT_PER_SHIP × 等效舰数（与科技收获倍率乘法叠加，只作用 resource 分支） */

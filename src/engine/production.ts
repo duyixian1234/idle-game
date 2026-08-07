@@ -1,6 +1,6 @@
 import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC } from './balance'
+import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
 import { reputationBonuses } from './reputation'
@@ -23,7 +23,8 @@ export function levelMultiplier(level: number): number {
 /** 每座军港提供的军力容量——数值策略见 balance.ts */
 
 /**
- * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计。
+ * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计，
+ * 再乘军械科技容量加成（每级 +10%，ADR-0027）。
  * 军力是唯一有上限的资源：满上限时兵营产出截断（浪费语义，逼玩家消费/扩容）。
  */
 export function militaryCap(state: GameState): number {
@@ -31,7 +32,8 @@ export function militaryCap(state: GameState): number {
   const portLevel = state.upgrades.militaryPort ?? 0
   const bonus = state.permanentBonuses['militaryCap'] ?? 0
   const repBonus = reputationBonuses(state).militaryCapBonus
-  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus))
+  const techBonus = (state.techLevels.militaryTech ?? 0) * MILITARY_CAP_TECH_PER_LEVEL
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus) * (1 + techBonus))
 }
 
 export interface ProductionReport {

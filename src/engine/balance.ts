@@ -188,6 +188,8 @@ export const CODEX_FAVOR_BONUS = 25
 export const MILITARY_BASE_CAP = 100
 /** 每座军港提供的军力容量 */
 export const MILITARY_PORT_CAP = 200
+/** 军械科技每级军力容量加成（整体乘法，Lv5 满级 = ×1.5；ADR-0027，2026-08-08） */
+export const MILITARY_CAP_TECH_PER_LEVEL = 0.1
 
 // ---- 星球机制 ----
 
@@ -310,6 +312,13 @@ export const SHIP_BUY_ENERGY = 200_000
 export const SHIP_MAINT_BASE = 25
 /** 军械科技每级舰队战力加成（+10%/级，满级 Lv5 = ×1.5 基础） */
 export const FLEET_POWER_TECH_PER_LEVEL = 0.1
+
+// ---- 星舰推进满级质变（warpdrive-qualitative-rewards，ADR-0026，2026-08-08）----
+
+/** 星舰推进 Lv≥10：探索派遣军力消耗 −10%（摩擦降低型质变，不印钞） */
+export const WARP_EXPEDITION_COST_REDUCTION = 0.1
+/** 星舰推进 Lv≥20：护航远征费 −10%（与等效舰数杠杆同向，锚定产出不脱钩） */
+export const WARP_ESCORT_FEE_REDUCTION = 0.1
 
 // ---- 舰队护航远征（fleet-dock-10：溢出能源 → 探索收益的转换器）----
 

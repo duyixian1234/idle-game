@@ -94,6 +94,27 @@ describe('engine: 军力资源（military）', () => {
     expect(r.gains.military).toBe(100)
     expect(s.resources.military).toBe(100)
   })
+
+  it('军械科技每级 +10% 军力容量（整体乘法，Lv0 与现状一致）', () => {
+    const s = stateWithMilitary()
+    expect(militaryCap(s)).toBe(100)
+    buyBuilding(s, 'militaryPort') // 上限 300
+    expect(militaryCap(s)).toBe(300)
+    // 军械科技 Lv1：×1.1
+    s.techLevels.militaryTech = 1
+    expect(militaryCap(s)).toBe(330)
+    // Lv5（满级）：×1.5
+    s.techLevels.militaryTech = 5
+    expect(militaryCap(s)).toBe(450)
+  })
+
+  it('军械科技容量加成与永久加成/声望加成乘法叠加', () => {
+    const s = stateWithMilitary()
+    buyBuilding(s, 'militaryPort') // 300
+    s.techLevels.militaryTech = 5 // ×1.5
+    s.permanentBonuses['militaryCap'] = 0.2 // ×1.2
+    expect(militaryCap(s)).toBe(Math.floor(300 * 1.2 * 1.5))
+  })
 })
 
 describe('engine: buy-max 与军力容量', () => {

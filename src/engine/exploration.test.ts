@@ -170,6 +170,20 @@ describe('engine: 探索槽位与成本自适应', () => {
     expect(expeditionMilitaryCost(s, 0)).toBe(1000)
   })
 
+  it('warpDrive 质变：Lv≥10 派遣军力 −10%（Lv<10 与现状逐字节一致）', () => {
+    const s = endedState()
+    s.permanentBonuses['militaryCap'] = 49 // cap 5000 → 派遣军力 base 100
+    expect(expeditionMilitaryCost(s, 0)).toBe(100)
+    expect(expeditionMilitaryCost(s, 1)).toBe(200)
+    s.techLevels.warpDrive = 9
+    expect(expeditionMilitaryCost(s, 0)).toBe(100) // 未达阈值不变
+    s.techLevels.warpDrive = 10
+    expect(expeditionMilitaryCost(s, 0)).toBe(90) // 100 × 0.9
+    expect(expeditionMilitaryCost(s, 1)).toBe(180) // 200 × 0.9
+    s.techLevels.warpDrive = 20
+    expect(expeditionMilitaryCost(s, 0)).toBe(90) // 阈值后恒定 0.9
+  })
+
   it('矿物/能源 cap 随周目 ×1.5^level（0/5/10 周目断言）', () => {
     const s = endedState()
     s.buildings.miner = 30_000 // 30k/s → 30k×300=9M 打满任意周目 cap

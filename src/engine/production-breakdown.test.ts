@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { productionBreakdown, productionReport } from './production'
+import { productionBreakdown, productionReport, militaryCap } from './production'
 import { RESOURCE_KEYS } from './data'
 import type { GameState } from './types'
 
@@ -160,8 +160,8 @@ describe('engine: productionBreakdown 资源速率来源分解', () => {
   it('军力：接近上限时 capNote、total=截断值；未截断时守恒', () => {
     const s = prodState()
     s.buildings.barracks = 10 // 0.5×10 = 5/s
-    s.techLevels.militaryTech = 1 // mult 1 → ×1.5? Lv1: 1+0.5×0 = 1（无科技行）
-    s.resources.military = 100 // cap 100 → room 0
+    s.techLevels.militaryTech = 1 // 军械科技：军力产出系数 Lv1 = ×1；容量 +10%（ADR-0027）→ cap 110
+    s.resources.military = militaryCap(s) // 满 cap → room 0
     const bd = productionBreakdown(s)
     expect(bd.military.capNote).toContain('已按军力上限截断')
     expect(bd.military.total).toBe(0)

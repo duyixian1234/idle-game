@@ -1,6 +1,6 @@
 # Architecture Decision Records — idle-game
 
-25 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
+27 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
 
 ## 架构
 
@@ -51,6 +51,8 @@
 | [0023](./0023-unique-megastructure-growth.md) | 唯一大件对称增长 ×2/级 + NG+ 遗产折算 |
 | [0024](./0024-fleet-maintenance-escort.md) | 舰队维护软降级 + 护航返还锚定（防印钞） |
 | [0025](./0025-tech-economy-outlets.md) | 科技点经济出口演进：兑换移除，出口重定向 |
+| [0026](./0026-warpdrive-qualitative-rewards.md) | 星舰推进满级质变：动收益不动成本（Lv10/Lv20 摩擦降低） |
+| [0027](./0027-military-cap-tech-channel.md) | 军力容量科技通道：军械科技每级 +10% 容量（整体乘法） |
 
 ## 关联关系
 
@@ -61,3 +63,5 @@
 - 0017 → 0019：E2E 退役后，双层 seam 的 vitest 全绿是唯一事实基准。
 - 0020 → 0017：语义化 data-* 契约在 E2E 退役后延续约束 UI 冒烟测试。
 - 0014 ↔ 0013：250ms 全量重建约束直接塑造了信息架构（footer/header 不参与重建）与角标设计。
+- 0026 ↔ 0025：warpDrive 质变是科技点出口（ADR-0025）的收益侧补充——成本曲线不动，出口容量锚定保留。
+- 0027 ↔ 0024/0011：军力容量科技通道复用军械科技线，直接改变胁迫外交解锁节奏（ADR-0011）与军力-探索联动（ADR-0024）。

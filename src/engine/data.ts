@@ -431,7 +431,7 @@ export const TECHS: Record<string, TechDef> = {
   militaryTech: {
     id: 'militaryTech',
     name: '军械科技',
-    desc: `改进护卫舰武器与装甲，军力产出提升（Lv${formatNumber(1)} ${formatMultiplier(1)}，每级 +${formatNumber(0.5)}）。攻占「虫群前哨」后解锁。`,
+    desc: `改进护卫舰武器与装甲，军力产出提升（Lv${formatNumber(1)} ${formatMultiplier(1)}，每级 +${formatNumber(0.5)}），军力容量每级 +${formatPercent(10)}。攻占「虫群前哨」后解锁。`,
     cost: { mineral: 20_000, tech: 2_000 },
     effect: { kind: 'production', resource: 'military', mult: 1 },
     maxLevel: 5,
@@ -459,7 +459,7 @@ export const TECHS: Record<string, TechDef> = {
   warpDrive: {
     id: 'warpDrive',
     name: '星舰推进',
-    desc: `重构护卫舰的曲速引擎与舰体装甲：舰队战力每级 +${formatPercent(10)}，与军械科技叠加。通关后解锁。`,
+    desc: `重构护卫舰的曲速引擎与舰体装甲：舰队战力每级 +${formatPercent(10)}，与军械科技叠加。Lv${formatNumber(10)} 起派遣军力 −${formatPercent(10)}、Lv${formatNumber(20)} 起护航费 −${formatPercent(10)}。通关后解锁。`,
     cost: { mineral: 100_000, tech: 20_000 },
     effect: { kind: 'exploration', label: '舰队战力 +10%/级' },
     maxLevel: 20,

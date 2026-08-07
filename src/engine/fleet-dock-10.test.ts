@@ -78,9 +78,28 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
     expect(mult0).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 3)
     s.techLevels.warpDrive = 20
     expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 9)
-    // 同杠杆：费随 E 线性放大（×3），倍率增量随 E 线性放大（×3）——无白嫖路径
-    expect(escortFee(s) / fee0).toBeCloseTo(3)
+    // 同杠杆：倍率增量随 E 线性放大（×3）——无白嫖路径
     expect((escortHarvestMult(s) - 1) / (mult0 - 1)).toBeCloseTo(3)
+    // 护航费：E ×3 但 Lv20 质变 −10%（ADR-0026）→ 3 × 0.9 = 2.7
+    expect(escortFee(s) / fee0).toBeCloseTo(2.7)
+  })
+
+  it('warpDrive 质变：Lv≥20 护航费 −10%（Lv<20 与无折扣公式逐字节一致）', () => {
+    const s = escortState()
+    // Lv<20：escortFee = floor(每舰费 × E)，无折扣（逐字节一致）
+    s.techLevels.warpDrive = 19
+    const E19 = equivalentFleet(s)
+    expect(E19).toBeCloseTo(3 * 2.9)
+    expect(escortFee(s)).toBe(Math.floor(escortFeePerShip(s) * E19))
+    // Lv=20：同 E 下 ×0.9
+    s.techLevels.warpDrive = 20
+    const E20 = equivalentFleet(s)
+    expect(E20).toBeCloseTo(3 * 3)
+    const raw20 = Math.floor(escortFeePerShip(s) * E20)
+    expect(escortFee(s)).toBe(Math.floor(raw20 * 0.9))
+    // 停摆语义不变
+    s.fleet.count = 0
+    expect(escortFee(s)).toBe(0)
   })
 
   it('停摆时 E=0：护航费 0、倍率 1（停摆语义不变：无战力即无护航收益）', () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
-import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult } from './exploration'
-import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH } from './balance'
+import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost } from './exploration'
+import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION } from './balance'
+import { militaryCap } from './production'
 
 function simulate(seed: number) {
   const state = createInitialState(0, seed)
@@ -80,7 +81,10 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
       s.upgrades.miner = 5
       const E = equivalentFleet(s)
       expect(E).toBeCloseTo(count * (1 + 0.1 * military) * (1 + 0.1 * warp))
-      expect(escortFee(s)).toBe(Math.floor(escortFeePerShip(s) * E))
+      // 护航费 = floor(每舰费 × E)；warp≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变）
+      const fee = escortFee(s)
+      const raw = Math.floor(escortFeePerShip(s) * E)
+      expect(fee).toBe(warp >= 20 ? Math.floor(raw * (1 - WARP_ESCORT_FEE_REDUCTION)) : raw)
       expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * E)
     }
   })
@@ -90,5 +94,64 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     for (let lv = 0; lv < 20; lv++) total += Math.ceil(20_000 * Math.pow(TECH_UPGRADE_GROWTH, lv))
     expect(total).toBeGreaterThan(1_000_000_000)
     expect(total).toBeLessThan(1_300_000_000)
+  })
+
+  it('军械科技容量通道：Lv5 + 25 座军港 → 容量 7,650 ≥ 胁迫解锁阈值 5000（提前 ~32%）', () => {
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.militaryTech = 5
+    const cap = militaryCap(s)
+    expect(cap).toBe(7_650) // (100 + 200×25) × 1.5
+    expect(cap).toBeGreaterThanOrEqual(COERCION_UNLOCK_MILITARY_CAP)
+  })
+
+  it('军力容量膨胀下探索派遣军力仍受 clamp 1000 封顶（不随军械等级漂移）', () => {
+    for (const mil of [0, 3, 5]) {
+      const s = createInitialState(0)
+      s.phase = 'ended'
+      s.planets.orbital = { unlocked: true }
+      s.buildings.militaryPort = 25
+      s.techLevels.militaryTech = mil
+      s.resources.military = militaryCap(s)
+      expect(expeditionMilitaryCost(s, 0)).toBeLessThanOrEqual(1000)
+      expect(expeditionMilitaryCost(s, 3)).toBeLessThanOrEqual(1000)
+    }
+  })
+
+  it('军械容量每级 +10%：MILITARY_CAP_TECH_PER_LEVEL 常量生效（5 级 = ×1.5）', () => {
+    expect(MILITARY_CAP_TECH_PER_LEVEL).toBe(0.1)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 1
+    s.techLevels.militaryTech = 5
+    expect(militaryCap(s)).toBe(Math.floor(300 * (1 + MILITARY_CAP_TECH_PER_LEVEL * 5)))
+  })
+
+  it('星舰质变锚定：Lv10 派遣军力 = 0.9×原值、Lv20 护航费 = 0.9×原值（锚定产出不脱钩）', () => {
+    // Lv10 派遣军力（cap 5000 → base 100）
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.planets.orbital = { unlocked: true }
+    s.permanentBonuses['militaryCap'] = 49
+    const raw = expeditionMilitaryCost(s, 0)
+    s.techLevels.warpDrive = 10
+    expect(expeditionMilitaryCost(s, 0)).toBe(Math.floor(raw * (1 - WARP_EXPEDITION_COST_REDUCTION)))
+    // Lv20 护航费
+    const f = createInitialState(0)
+    f.phase = 'ended'
+    f.buildings.starportMine = 1
+    f.buildings.dock = 1
+    f.upgrades.dock = 1
+    f.fleet.count = 3
+    f.buildings.solar = 100
+    f.upgrades.solar = 5
+    f.resources.energy = 1e15
+    const rawFee = Math.floor(escortFeePerShip(f) * equivalentFleet(f))
+    f.techLevels.warpDrive = 20
+    const rawFee20 = Math.floor(escortFeePerShip(f) * equivalentFleet(f))
+    expect(escortFee(f)).toBe(Math.floor(rawFee20 * (1 - WARP_ESCORT_FEE_REDUCTION)))
+    expect(escortFeePerShip(f)).toBeGreaterThan(0)
+    expect(rawFee).toBeGreaterThan(0)
   })
 })
