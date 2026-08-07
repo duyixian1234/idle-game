@@ -14,8 +14,6 @@ import {
   endlessEventPool,
   evaluateEndlessCurve,
   evaluateEventCurve,
-  EVENT_CONTRACT_VERSION,
-  EVENT_DEFS,
   pruneStaleEvents,
   pickEndlessEventDef,
   resolveEvent,
@@ -24,6 +22,7 @@ import {
   triggerRandomEvent,
 } from './events'
 import { MEAN_EVENT_GAP_SECONDS } from './balance'
+import { EVENT_CONTRACT_VERSION, EVENT_DEFS } from './events-data'
 
 /** 固定 rng 序列 */
 function seqRng(values: number[]): () => number {

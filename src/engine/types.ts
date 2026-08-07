@@ -404,3 +404,49 @@ export interface ActionSuccess<T = undefined> {
 }
 
 export type ActionResult<T = undefined> = ActionSuccess<T> | ActionFailure
+
+
+// ---- 事件契约类型（事件定义数据与机制共用；定义数据模块 events-data.ts 据此声明）----
+
+export interface RandomEventDef {
+  id: string
+  name: string
+  /** 触发权重 */
+  weight: number
+  kind: 'trade' | 'meteor' | 'bug' | 'raid' | 'boss'
+  theme: EventTheme
+  decisionType: EventDecisionType
+  riskLevel: EventRiskLevel
+  stage: { min: number; max?: number }
+  endless: boolean
+  curveVersion: number
+  stageEligibility: { min: number; max?: number }
+  endlessEligibility: boolean
+  curve: EventCurveConfig
+  family?: string
+  variantId?: string
+  tags?: string[]
+  isBoss?: boolean
+  chain?: { id: string; step: number }
+  priority?: EventPriority
+  handlingMode?: EventHandlingMode
+}
+
+export interface EventCurveConfig {
+  baseValue: number
+  stageMultiplier?: number
+  layerMultiplier?: number
+  riskMultiplier?: number
+  capabilityModifier?: number
+  softCap?: number
+}
+
+export interface EventCurveInput {
+  stage?: number
+  layer?: number
+}
+
+export interface EventCurveResult {
+  value: number
+  breakdown: EventFormulaPart[]
+}
