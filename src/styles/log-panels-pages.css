@@ -485,23 +485,35 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* 外交卡：8 按钮（贸易/共享×3 + 结盟 + 威慑）flex 换行，避免 2 列 grid 撑出 4 行过高 */
+/* 外交卡：按钮区改 2 列 grid（贸易/共享×3 + 结盟 + 威慑 分 4 行紧凑排布，避免 flex 无限横向挤压）；
+   胁迫按钮组（勒索/条约/臣服/赎罪 + 状态徽标）独占一整行（.faction-coercion-row，grid-column 1/-1） */
 .faction-card .build-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* 覆盖 .build-card .build-actions .build-btn{width:100%}：外交按钮 grid 单元格内自然撑满列宽 */
+.faction-card .build-actions .build-btn {
+  width: auto;
+  min-width: 0;
+}
+
+/* 胁迫按钮组整行（勒索/条约/臣服/赎罪 + 状态徽标）：占满网格全宽，内部 flex 换行 */
+.faction-coercion-row {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 6px;
 }
 
-/* 覆盖 .build-card .build-actions .build-btn{width:100%}：外交按钮恢复自然宽度（flex 自动排列） */
-.faction-card .build-actions .build-btn {
-  width: auto;
-  flex: 0 0 auto;
-}
-
-/* 攻占卡：输入框 + 攻占按钮横排（输入框弹性伸缩占满余量） */
+/* 攻占卡：输入框 + 攻占按钮横排（输入框弹性伸缩占满余量）；窄卡允许按钮换行防溢出 */
 .conquest-card .build-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -512,9 +524,12 @@
   width: auto;
 }
 
-.conquest-card .conquest-btn {
-  flex-shrink: 0;
+/* 类级选择器覆盖 .build-card .build-actions .build-btn{width:100%}（(0,3,0) 平级、后加载覆盖）；
+   允许收缩（flex:0 1）以便窄卡按钮换行而非溢出 */
+.conquest-card .build-actions .conquest-btn {
+  flex: 0 1 auto;
   width: auto;
+  min-width: 0;
 }
 
 /* 舰队卡：单按钮区（建造护卫舰）维持 2 列 grid 左格 */

@@ -450,6 +450,10 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
 
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
+  // 未结盟派系卡网格（faction-grid：复用 .build-grid 断点；已结盟对象不占网格槽，入下方归档折叠区）
+  const grid = document.createElement('div')
+  grid.className = 'build-grid faction-grid'
+  grid.setAttribute('data-faction-grid', '')
   // 运行时派系集合（含无尽生成对象）；def 查不到（异常防御）跳过
   for (const id of Object.keys(state.factions)) {
     const def = factionDef(state, id)
@@ -470,6 +474,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     const canIntimidate = canFactionIntimidate(state, id)
     const canShare = canFactionTechShare(state, id)
     const perks = factionPerkLabels(def)
+    // 胁迫按钮组（勒索/条约/臣服/赎罪 + 状态徽标）：独占一整行（faction-coercion-row，grid-column 1/-1）
+    const coercionActions = renderCoercionActions(state, id)
+    const coercionRowHtml = coercionActions ? `<div class="faction-coercion-row">${coercionActions}</div>` : ''
 
     const item = document.createElement('div')
     item.className = 'build-card faction-card'
@@ -509,10 +516,11 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
         <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
           威慑 ${formatCost(intC)}
         </button>
-        ${renderCoercionActions(state, id)}
+        ${coercionRowHtml}
       </div>`
-    el.appendChild(item)
+    grid.appendChild(item)
   }
+  el.appendChild(grid)
   // 归档折叠区（已结盟外交对象）
   renderArchiveCollapse(el, 'diplomacy', '已完成外交对象', archivedRows, Boolean(archived['diplomacy']))
   // 保底锁定占位（endless-expansion：batch 2 未解锁且未获得）
@@ -782,12 +790,16 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
+  // 可发起攻占卡网格（conquest-grid：复用 .build-grid 断点；已肃清对象不占网格槽，入下方归档折叠区）
+  const conquestGrid = document.createElement('div')
+  conquestGrid.className = 'build-grid'
+  conquestGrid.setAttribute('data-conquest-grid', '')
   // 静态 4 区域（旧档 v11 及以下 conquered 无 archivedRounds → 按 status 判定兜底）
   for (const def of staticDefs) {
     if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
       archivedRows.push(archiveRow(def.name, '已肃清', state.archivedRounds?.[def.id], def.id))
     } else {
-      conquestSection.appendChild(renderConquestRow(def, state))
+      conquestGrid.appendChild(renderConquestRow(def, state))
     }
   }
   // 无尽生成军事目标（动态）
@@ -798,9 +810,10 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (state.archivedRounds?.[t.id] != null || conquestState(state, t.id).status === 'conquered') {
       archivedRows.push(archiveRow(t.name, '已肃清', state.archivedRounds?.[t.id], t.id))
     } else {
-      conquestSection.appendChild(renderConquestRow(def, state))
+      conquestGrid.appendChild(renderConquestRow(def, state))
     }
   }
+  conquestSection.appendChild(conquestGrid)
   // 归档折叠区（已肃清军事目标）
   renderArchiveCollapse(conquestSection, 'conquest', '已完成军事目标', archivedRows, Boolean(archived['conquest']))
   // 保底锁定占位（endless-expansion：batch 2 未解锁且未获得）
