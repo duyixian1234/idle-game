@@ -67,19 +67,23 @@
   margin-top: 4px;
 }
 
-.ach-item {
-  border-left: 2px solid #5a4a3a;
-  padding: 6px 8px;
-  margin-bottom: 8px;
+.ach-card {
+  cursor: default;
+  gap: 6px;
+  padding: 8px 10px;
 }
 
-.ach-item.done {
-  border-left-color: var(--good);
-  opacity: 0.92;
+.ach-card:hover {
+  border-color: var(--border);
 }
 
-.ach-item.locked {
-  opacity: 0.55;
+/* 未解锁灰阶：仅图标降透明度（文字保持可读），与 .build-card.locked 的整卡灰化区分 */
+.ach-locked .build-card-icon {
+  color: var(--text-dim);
+}
+
+.ach-locked svg {
+  opacity: 0.4;
 }
 
 .ach-name {
@@ -106,6 +110,19 @@
   font-size: 11px;
   margin-top: 2px;
   font-family: var(--font-mono);
+}
+
+.ach-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.ach-progress-text {
+  color: var(--text-dim);
 }
 
 .rep-stats {

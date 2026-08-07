@@ -1,7 +1,7 @@
 import type { GameState, ResourceKey } from '../engine/types'
 import { BUILDINGS, CONQUESTS, ENDLESS_CONQUESTS, ENDLESS_FACTIONS, EXPLORE_PLANETS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { BuildingDef, ConquestDef, FactionDef } from '../engine/data'
-import { ACHIEVEMENTS } from '../engine/achievements'
+import { ACHIEVEMENTS, type AchievementDef } from '../engine/achievements'
 import { reputation, reputationBonuses } from '../engine/reputation'
 import type { ReputationBonuses } from '../engine/reputation'
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
@@ -1007,6 +1007,46 @@ function reputationBonusText(b: ReputationBonuses): string {
   return parts.join(' · ')
 }
 
+/** 成就卡（ach-cards：与建造物同构 .build-card 视觉语言）：
+ * 图标 + 名称 + 描述（未解锁且有 hint 时优先显示 hint）+ 奖励文本 + 状态（✓/🔒）。
+ * 进度条（有 progress 且未解锁）：n/total 显示，n 超 total 时 clamp 到 total；解锁后隐藏（保持一致）。 */
+function renderAchievementCard(state: GameState, def: AchievementDef): HTMLElement {
+  const unlocked = Boolean(state.achievements[def.id])
+  const card = document.createElement('div')
+  card.className = `build-card ach-card${unlocked ? '' : ' ach-locked'}`
+  card.setAttribute('data-achievement', def.id)
+  const rewardParts: string[] = []
+  if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
+  if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
+  const rewardText = rewardParts.length > 0 ? `奖励：${rewardParts.join('、')}` : ''
+  // 未解锁且有 hint → 显示解锁提示；否则显示 desc
+  const displayDesc = !unlocked && def.hint ? def.hint : def.desc
+  let progressHtml = ''
+  if (def.progress && !unlocked) {
+    const [n, total] = def.progress(state)
+    const shown = Math.min(n, total)
+    progressHtml = `
+      <div class="ach-progress" data-ach-progress="${def.id}">
+        ${renderAsciiBar(shown / total, 12)}
+        <span class="ach-progress-text">${formatNumber(shown)}/${formatNumber(total)}</span>
+      </div>`
+  }
+  card.innerHTML = `
+    <div class="build-card-icon">${iconUse(def.icon)}</div>
+    <div class="build-card-body">
+      <div class="build-info">
+        <div class="build-name ach-name">
+          ${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)}
+          <span class="ach-state">+${formatNumber(def.rep)} 声望</span>
+        </div>
+        <div class="build-desc ach-desc">${escapeHtml(displayDesc)}</div>
+      </div>
+      <div class="ach-reward">${rewardText || '奖励：无'}</div>
+      ${progressHtml}
+    </div>`
+  return card
+}
+
 /** 渲染档案面板（第 5 面板）：星系统一声望 + 成就网格 + 本周目统计。纯展示，无交互按钮 */
 export function renderArchivePanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
@@ -1024,7 +1064,7 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
     </div>`
   el.appendChild(repSection)
 
-  // 段 2：成就网格（叙事 / 收集 / 终局 三组）
+  // 段 2：成就卡片网格（叙事 / 收集 / 终局 三组，各一个 .build-grid；条目 .build-card.ach-card）
   const groups: { key: string; title: string }[] = [
     { key: 'story', title: '叙事里程碑' },
     { key: 'collect', title: '收集目标' },
@@ -1040,20 +1080,13 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
     const doneCount = defs.filter((d) => state.achievements[d.id]).length
     header.textContent = `${g.title}（${formatNumber(doneCount)}/${formatNumber(defs.length)}）`
     section.appendChild(header)
+    const grid = document.createElement('div')
+    grid.className = 'build-grid'
+    grid.setAttribute('data-ach-grid', g.key)
     for (const def of defs) {
-      const unlocked = Boolean(state.achievements[def.id])
-      const item = document.createElement('div')
-      item.className = unlocked ? 'ach-item done' : 'ach-item locked'
-      const rewardParts: string[] = []
-      if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
-      if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
-      const rewardText = rewardParts.length > 0 ? ` · ${rewardParts.join('、')}` : ''
-      item.innerHTML = `
-        <div class="ach-name">${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)} <span class="ach-state">+${formatNumber(def.rep)} 声望</span></div>
-        <div class="ach-desc">${escapeHtml(def.desc)}</div>
-        <div class="ach-reward">奖励：${rewardText || '无'}</div>`
-      section.appendChild(item)
+      grid.appendChild(renderAchievementCard(state, def))
     }
+    section.appendChild(grid)
     el.appendChild(section)
   }
 
