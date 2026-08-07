@@ -2,6 +2,7 @@ import type { EventFormulaPart, EventTheme, GameState, LogEntry, ResourceKey } f
 import { RESOURCE_META } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { typewriter, type TypedEvents } from './typewriter'
+import { escapeHtml } from './helpers'
 
 const LOG_TYPE_CLASS: Record<LogEntry['type'], string> = {
   system: 'log-system',
@@ -203,17 +204,5 @@ function formatTime(ms: number): string {
   const d = new Date(ms)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;'
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '\"': return '&quot;'
-      default: return '&#39;'
-    }
-  })
 }
 

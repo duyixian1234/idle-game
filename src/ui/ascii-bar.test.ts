@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderAsciiBar } from './dom'
+import { renderAsciiBar } from './panels'
 
 describe('ui: renderAsciiBar（ui-redesign ticket 05，Q14 定案）', () => {
   it('0 比例 → 全空（默认宽度 20）', () => {

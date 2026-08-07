@@ -10,30 +10,26 @@ import { netProduction } from '../../engine/production'
 import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from '../../engine/types'
 import type { SoundManager } from '../../audio'
 import {
-  DEFAULT_LOG_DIRECTION,
-  LOG_DIR_KEY,
   renderArchivePanel,
   renderBuildPanel,
-  renderBuyMaxModal,
   renderDiplomacyPanel,
-  renderEndingOverlay,
-  renderAutoConfigPanel,
-  renderExplorePage,
-  renderLogInto,
-  renderMegastructureModal,
-  renderMilitaryPanel,
   renderInterstellarPanel,
-  renderNgPlusModal,
-  renderPendingEvents,
-  renderPlanetBar,
-  renderPlanetMechanic,
-  renderResources,
+  renderMilitaryPanel,
   renderSettingsPage,
   renderTechPanel,
-  renderTutorial,
-  renderBreakdownPanel,
-} from '../dom'
-import type { LogDirection, NavId } from '../dom'
+} from '../panels'
+import {
+  DEFAULT_LOG_DIRECTION,
+  LOG_DIR_KEY,
+  renderAutoConfigPanel,
+  renderLogInto,
+  renderPendingEvents,
+} from '../log'
+import type { LogDirection } from '../log'
+import { renderBuyMaxModal, renderEndingOverlay, renderMegastructureModal, renderNgPlusModal, renderTutorial } from '../overlays'
+import { renderExplorePage } from '../explore-page'
+import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderResources } from '../bars'
+import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
 import type { ActionDeps } from '../actions'

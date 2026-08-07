@@ -17,18 +17,7 @@ import { iconUse } from './icons'
 import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { LogDirection } from './log'
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;'
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '\"': return '&quot;'
-      default: return '&#39;'
-    }
-  })
-}
+import { escapeHtml } from './helpers'
 
 export function formatCost(cost: Record<ResourceKey, number>): string {
   return Object.entries(cost).filter(([, v]) => v > 0).map(([k, v]) => `${RESOURCE_META[k as ResourceKey]?.symbol ?? k}${formatNumber(v)}`).join(' · ')

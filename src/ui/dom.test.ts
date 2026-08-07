@@ -11,30 +11,12 @@ import { BUILDINGS, CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MILITARY_BUILDINGS,
 import { TECH_MAX_LEVEL } from '../engine/balance'
 import { formatMultiplier, formatNumber, formatPercent } from '../engine/format'
 import { ICONS } from './icons'
-import {
-  appendLog,
-  buildCardAction,
-  buildLayout,
-  renderArchivePanel,
-  renderAutoConfigPanel,
-  renderBuildPanel,
-  renderBuyMaxModal,
-  renderDiplomacyPanel,
-  renderExplorePage,
-  renderInterstellarPanel,
-  renderLogInto,
-  renderMegastructureModal,
-  renderMilitaryPanel,
-  renderNgPlusModal,
-  renderPendingEvents,
-  renderPlanetBar,
-  renderPlanetMechanic,
-  renderResources,
-  renderSettingsPage,
-  renderTechPanel,
-  renderBreakdownPanel,
-  unlockRequirementText,
-} from './dom'
+import { appendLog, renderAutoConfigPanel, renderLogInto, renderPendingEvents } from './log'
+import { buildLayout } from './layout'
+import { buildCardAction, renderArchivePanel, renderBuildPanel, renderDiplomacyPanel, renderInterstellarPanel, renderMilitaryPanel, renderSettingsPage, renderTechPanel } from './panels'
+import { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from './overlays'
+import { renderExplorePage } from './explore-page'
+import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderResources, unlockRequirementText } from './bars'
 
 describe('ui: 布局与冒烟', () => {
   it('buildLayout 生成 B 架构骨架：header/footer/4 页容器', () => {

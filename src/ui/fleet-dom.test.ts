@@ -3,7 +3,8 @@ import { createInitialState } from '../engine/engine'
 import { fleetMaintenance, fleetPower } from '../engine/fleet'
 import { formatNumber } from '../engine/format'
 import { TECH_MAX_LEVEL } from '../engine/balance'
-import { buildLayout, renderInterstellarPanel, renderMilitaryPanel } from './dom'
+import { buildLayout } from './layout'
+import { renderInterstellarPanel, renderMilitaryPanel } from './panels'
 
 describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
   /** 星港 + 船坞已建 + 足量资源（舰队解锁前置满足） */
