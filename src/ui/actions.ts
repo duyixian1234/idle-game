@@ -267,7 +267,7 @@ export const ACTIONS: Record<string, GameAction> = {
       const name = conquestDef(_state, id)?.name ?? id
       const v = result as ConquestActionResult
       if (v.ok) {
-        return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 60 分钟结算。` }], sound: 'upgrade' }
+        return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 10~30 分钟后结算。` }], sound: 'upgrade' }
       }
       return { logs: [] }
     },
@@ -288,9 +288,11 @@ export const ACTIONS: Record<string, GameAction> = {
       return startExpedition(state, Date.now(), undefined, slotIndex, escortText === '1')
     },
     feedback: (_state, result) => {
-      const v = result as { ok: true; value?: { escort?: boolean } }
+      const v = result as { ok: true; value?: { escort?: boolean; startedAt?: number; finishAt?: number } }
       const escortText = v.value?.escort ? '（护航编队）' : ''
-      return { logs: [{ type: 'story', text: `探索队启程${escortText}：驶向偏远星区，预计 60 分钟后返航。结果已由导航计算机锁定。` }], sound: 'upgrade' }
+      const minutes = v.value?.startedAt != null && v.value.finishAt != null ? Math.round((v.value.finishAt - v.value.startedAt) / 60_000) : null
+      const eta = minutes != null ? `${minutes} 分钟` : '10~30 分钟'
+      return { logs: [{ type: 'story', text: `探索队启程${escortText}：驶向偏远星区，预计 ${eta} 后返航。结果已由导航计算机锁定。` }], sound: 'upgrade' }
     },
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `派遣探索失败：${reason}。` }] }),
   },

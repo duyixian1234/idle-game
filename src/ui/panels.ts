@@ -7,7 +7,7 @@ import type { ReputationBonuses } from '../engine/reputation'
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { conquestDef, isConquestAvailable, conquestState } from '../engine/conquest'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL } from '../engine/balance'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL } from '../engine/balance'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
@@ -597,7 +597,8 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   }
   if (ongoing) {
     const remainMs = Math.max(0, (cs.finishAt ?? 0) - Date.now())
-    const ratio = 1 - remainMs / CONQUEST_DURATION_MS
+    const durMs = Math.max(1, (cs.finishAt ?? Date.now()) - (cs.startedAt ?? Date.now()))
+    const ratio = 1 - remainMs / durMs
     row.innerHTML = `${info}<div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></span></div>`
     return row
   }
@@ -616,7 +617,7 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   row.innerHTML = `${info}
     <div class="build-actions conquest-actions">
       <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="投入军力" />
-      <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="投入军力发起攻占，60 分钟后结算；投入达到守卫强度必成，不足则按比例成功率">
+      <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="投入军力发起攻占，10~30 分钟后结算；投入达到守卫强度必成，不足则按比例成功率">
         攻占 ⚔
       </button>
     </div>`

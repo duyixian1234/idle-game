@@ -1,6 +1,6 @@
 import { CONQUESTS } from './data'
 import type { ConquestDef } from './data'
-import { CONQUEST_DURATION_MS } from './balance'
+import { MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import { rollDomain } from './rng'
@@ -9,7 +9,7 @@ import type { ConquestState, GameState } from './types'
 
 /**
  * 攻占系统深层模块：4 个第三方区域（虫群前哨/废弃船坞/星际残骸带/虫群母巢）。
- * - 发起 = 锁定投入军力 + 60 分钟倒计时（离线照常推进）
+ * - 发起 = 锁定投入军力 + 10~30 分钟随机倒计时（离线照常推进）
  * - 结算 = 成功率 min(100%, 投入/守卫强度)，足额投入必成；失败军力全损可立即重试
  * - 成功 = 一次性奖励 + 永久全局加成（permanentBonuses）+ 个别区域解锁军械科技
  * 惩罚语义（挂机铁律）：只动可再生资源流（军力/矿/能），绝不毁建筑/科技/区域/存档。
@@ -18,6 +18,17 @@ import type { ConquestState, GameState } from './types'
 export interface ConquestActionResult {
   ok: boolean
   reason?: string
+}
+
+/**
+ * 单次攻占时长（ms）：uniform 随机整数分钟 [10, 30]（与探索共享范围常量，均值 20min = 原 60min 的 ×3 节奏）。
+ * 走 duration 域持久计数器（确定性回放，防 SL 契约不破）；发起时掷出并冻结 finishAt。
+ * 测试显式传 rng → 覆盖掷值（生产模式走持久域；startConquest 无其他 rng 消费点，顺序固定）。
+ */
+export function rollConquestDuration(state: GameState, rng?: () => number): number {
+  const roll = rng ?? rollDomain(state, 'duration')
+  const minutes = MISSION_DURATION_MIN_MINUTES + Math.floor(roll() * (MISSION_DURATION_MAX_MINUTES - MISSION_DURATION_MIN_MINUTES + 1))
+  return minutes * 60_000
 }
 
 /** 容错读取攻占状态（旧档迁移后 conquest 可能为空对象） */
@@ -37,7 +48,6 @@ export function conquestDef(state: GameState, id: string): ConquestDef | undefin
     name: t.name,
     desc: t.desc,
     guard: t.guard ?? 0,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     afterEnding: false,
     rewardMineral: t.rewardMineral,
@@ -58,15 +68,15 @@ export function isConquestAvailable(state: GameState, id: string): boolean {
   return true
 }
 
-/** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt） */
-export function startConquest(state: GameState, id: string, invest: number, nowMs: number): ConquestActionResult {
+/** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt；时长为 duration 域随机 10~30min，rng 可选注入供测试覆盖） */
+export function startConquest(state: GameState, id: string, invest: number, nowMs: number, rng?: () => number): ConquestActionResult {
   const def = conquestDef(state, id)
   if (!def) return { ok: false, reason: '未知区域' }
   if (!isConquestAvailable(state, id)) return { ok: false, reason: '该区域当前无法攻占' }
   if (!Number.isFinite(invest) || invest <= 0) return { ok: false, reason: '投入军力无效' }
   if (state.resources.military < invest) return { ok: false, reason: '军力不足' }
   state.resources.military -= invest
-  state.conquest[id] = { status: 'available', startedAt: nowMs, finishAt: nowMs + def.durationMs, invested: invest }
+  state.conquest[id] = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
   return { ok: true }
 }
 

@@ -16,7 +16,6 @@ import {
   ESCORT_ENERGY_SECONDS,
   EXPEDITION_CAP_GROWTH,
   EXPEDITION_COMPENSATE_RATIO,
-  EXPEDITION_DURATION_MS,
   EXPEDITION_ENERGY,
   EXPEDITION_MILITARY_CAP,
   EXPEDITION_MILITARY_PCT,
@@ -29,6 +28,8 @@ import {
   FLEET_HARVEST_PCT_PER_SHIP,
   JUMPGATE_HARVEST_MULT,
   JUMPGATE_SLOT_BONUS,
+  MISSION_DURATION_MAX_MINUTES,
+  MISSION_DURATION_MIN_MINUTES,
   scaledClamp,
 } from './balance'
 import { fleetPowered } from './fleet'
@@ -44,7 +45,8 @@ import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './ty
  * 核心语义（exploration spec 定稿，2026-08-06）：
  * - 入口门控：`phase === 'ended' || 'infinite'` 才可派遣（`isExploreAvailable`）。
  * - 多槽：基础 5 槽，深空导航阵列（deepSpaceNav）Lv1 解锁第 6 槽、星际通信中继（interstellarRelay）Lv1
- *   解锁第 7 槽，跃迁枢纽再 +3（`explorationSlots`，上限 10）；每槽独立 60 分钟，离线照常推进，不可取消。
+ *   解锁第 7 槽，跃迁枢纽再 +3（`explorationSlots`，上限 10）；每槽独立 10~30 分钟随机时长（duration 域掷出冻结），
+ *   离线照常推进，不可取消。
  * - 全提交：出发时扣资源（矿物/能源动态缩放 + 军事点按槽位 ×N）+ 用 `explore` 域固定种子
  *   **roll 并固化结果**（每槽独立 rollDomain 闭包 → 计数器天然独立）；回归只入账（`settleExpeditions`），
  *   防 SL 在结构上成立。
@@ -120,6 +122,17 @@ export function expeditionCost(state: GameState, slotIndex: number = 0): { miner
     energy: scaledClamp(prod.energy, EXPEDITION_ENERGY.min, EXPEDITION_ENERGY.factor, Math.floor(EXPEDITION_ENERGY.cap * capGrowth)),
     military: expeditionMilitaryCost(state, slotIndex),
   }
+}
+
+/**
+ * 单次派遣时长（ms）：uniform 随机整数分钟 [10, 30]（探索/攻占共享范围，均值 20min = 原 60min 的 ×3 节奏）。
+ * 走 duration 域持久计数器（确定性回放，防 SL 契约不破）；派遣时掷出并冻结 finishAt。
+ * 测试显式传 rng → 覆盖掷值（结果 roll 先消费注入 rng、时长 roll 后消费；生产模式各自独立域）。
+ */
+export function rollExpeditionDuration(state: GameState, rng?: () => number): number {
+  const roll = rng ?? rollDomain(state, 'duration')
+  const minutes = MISSION_DURATION_MIN_MINUTES + Math.floor(roll() * (MISSION_DURATION_MAX_MINUTES - MISSION_DURATION_MIN_MINUTES + 1))
+  return minutes * 60_000
 }
 
 // ---- 护航远征（fleet-dock-10：溢出能源 → 探索收益转换器）----
@@ -322,7 +335,7 @@ export function startExpedition(state: GameState, nowMs: number, rng?: () => num
   const exp: ExpeditionState = {
     id,
     startedAt: nowMs,
-    finishAt: nowMs + EXPEDITION_DURATION_MS,
+    finishAt: nowMs + rollExpeditionDuration(state, rng),
     cost,
     result,
     resolved: false,
@@ -557,10 +570,11 @@ export function autoExploreDispatch(state: GameState, nowMs: number): Expedition
 
 /**
  * 离线自动探索续派（settleOffline 调用，在在途派遣按 nowMs 结算之后）：
- * 模拟「每 60min 结算 → 自动续派」循环（沿封顶时长推进，5-10 槽 × 8-12 轮）。
- * - 派遣走同一 startExpedition 路径（含护航费扣减、rng 走 explore 域持久化计数器、结果固化）——防 SL 契约不破；
- * - 资源不足 → 暂停该轮（enabled 保持开），下一轮（60min 后）自动重试，资源耗尽自然停；
- * - 离线结尾仍处派遣中的自动编队留待回归后在线续算（与手动派遣离线语义一致）。
+ * 模拟「每轮结算 → 自动续派」循环（沿封顶时长推进，5-10 槽 × 8-48 轮）。
+ * - 每轮步长 = 该轮掷出的派遣时长（uniform 10~30min，duration 域持久计数器；多槽各自 finishAt 略有差异，
+ *   settleExpeditions 按 finishAt 判到期 → 早到期早结算、滞后不丢总量，与原固定 60min 步长近似度一致）；
+ * - 派遣走同一 startExpedition 路径（含护航费扣减、rng 走 explore/duration 域持久化计数器、结果固化）——防 SL 契约不破；
+ * - 资源不足 → 暂停该轮（enabled 保持开），离线结尾仍处派遣中的自动编队留待回归后在线续算（与手动派遣离线语义一致）。
  */
 export function settleOfflineAutoExplore(state: GameState, nowMs: number, durationSeconds: number): ExpeditionLog[] {
   const logs: ExpeditionLog[] = []
@@ -568,15 +582,15 @@ export function settleOfflineAutoExplore(state: GameState, nowMs: number, durati
   if (!isExploreAvailable(state)) return logs
   const slots = explorationSlots(state)
   const escort = state.autoExplore.escort
-  const expMs = EXPEDITION_DURATION_MS
   const startMs = nowMs - durationSeconds * 1000
   let t = startMs
   while (true) {
-    t += expMs
+    // 每轮步长 = 该轮派遣时长（原固定 60min → 随机 10~30min，与派遣冻结语义同源）
+    t += rollExpeditionDuration(state)
     if (t > nowMs) break
     // 到点：结算该轮到期派遣（含上一轮续派出发的；resolved 幂等）
     for (const log of settleExpeditions(state, t)) logs.push(log)
-    // 暂停冷却：距暂停不足冷却时长则跳过本轮（离线节流，防每轮日志刷屏）
+    // 暂停冷却：距暂停不足冷却时长则跳过本轮（离线节流，防每轮日志刷屏；步长最短 10min > 60s 冷却，实际不触发）
     if (state.autoExplore.pausedAt != null && t - state.autoExplore.pausedAt < AUTO_EXPLORE_RETRY_MS) continue
     let paused = false
     for (let i = state.expeditions.length; i < slots; i++) {

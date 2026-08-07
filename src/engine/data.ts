@@ -1,5 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
-import { CONQUEST_DURATION_MS, JUMPGATE_SLOT_BONUS } from './balance'
+import { JUMPGATE_SLOT_BONUS } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 
 /** 资源显示元信息 */
@@ -454,8 +454,6 @@ export interface ConquestDef {
   desc: string
   /** 守卫强度（军力）：成功率 = min(100%, 投入军力/守卫强度)，足额投入必成 */
   guard: number
-  /** 攻占倒计时（真实时间，离线照常推进） */
-  durationMs: number
   /** 前置星球（需已解锁） */
   unlockPlanet: string
   /** 通关后（无限模式）解锁 */
@@ -469,7 +467,7 @@ export interface ConquestDef {
   unlockTech?: string
 }
 
-/** 攻占倒计时统一 60 分钟——数值策略见 balance.ts CONQUEST_DURATION_MS */
+/** 攻占倒计时为 duration 域随机 10~30 分钟（探索/攻占共享，见 balance.ts MISSION_DURATION_MIN/MAX_MINUTES） */
 
 /** 攻占区域定义表（4 区域，沿主线三段 + 通关后） */
 export const CONQUESTS: Record<string, ConquestDef> = {
@@ -478,7 +476,6 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     name: '虫群前哨',
     desc: '冰封星轨道上的虫群前哨站。攻占后解锁「军械科技」线。',
     guard: 500,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'ice',
     rewardMineral: 50_000,
     rewardTech: 5_000,
@@ -489,7 +486,6 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     name: '废弃船坞',
     desc: '漂荡在气态巨星外围的旧联邦船坞残骸，藏着舰队扩编的技术。',
     guard: 2_000,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'gas',
     rewardMineral: 200_000,
     bonus: { kind: 'militaryCap', value: 0.2 },
@@ -499,7 +495,6 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     name: '星际残骸带',
     desc: '母星战役留下的舰队坟场，回收残余产能结构可提升全局产出。',
     guard: 3_000,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     rewardMineral: 1_000_000,
     bonus: { kind: 'production', value: 0.1 },
@@ -509,7 +504,6 @@ export const CONQUESTS: Record<string, ConquestDef> = {
     name: '虫群母巢',
     desc: '星系黑暗深处的主巢穴。肃清它，虫灾将永远终结。',
     guard: 3_000,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     afterEnding: true,
     rewardMineral: 5_000_000,
@@ -634,7 +628,6 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
     name: '掠夺者舰队',
     desc: '游荡在黑暗航道的拾荒舰队，靠劫掠补给站为生。肃清它可回收大量矿藏。',
     guard: 800,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     afterEnding: true,
     rewardMineral: 800_000,
@@ -645,7 +638,6 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
     name: '冰封要塞',
     desc: '建在冻云冰壳内的军事要塞，封存着旧联邦的武器蓝图。',
     guard: 1_500,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     afterEnding: true,
     rewardTech: 80_000,
@@ -656,7 +648,6 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
     name: '吞噬者母巢',
     desc: '缓慢漂移的巨型生物巢穴，吞噬一切靠近的舰船。肃清它，航道将恢复平静。',
     guard: 3_000,
-    durationMs: CONQUEST_DURATION_MS,
     unlockPlanet: 'dawn',
     afterEnding: true,
     rewardMineral: 3_000_000,

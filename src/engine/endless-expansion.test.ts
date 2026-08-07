@@ -4,10 +4,13 @@ import { expeditionPool, settleExpeditions, startExpedition } from './exploratio
 import { settleConquests, startConquest } from './conquest'
 import { factionAlliance } from './diplomacy'
 import { migrateSave, serializeSave } from './save'
-import { ENDLESS_BATCH_2_EXPLORATIONS, CONQUEST_DURATION_MS, EXPEDITION_DURATION_MS } from './balance'
+import { ENDLESS_BATCH_2_EXPLORATIONS } from './balance'
 import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, programmaticActiveCount } from './generate'
 import { CONQUESTS, ENDLESS_CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
 import type { ExpeditionState, GameState } from './types'
+
+/** 派遣/攻占时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
+const CYCLE = 30 * 60_000
 
 /** 无尽模式状态：phase=infinite、足量资源/兵力、dawn 已解锁（攻占前置） */
 function infiniteState(): GameState {
@@ -27,7 +30,7 @@ function fakeExpedition(result: ExpeditionState['result']): ExpeditionState {
   return {
     id: 1,
     startedAt: 0,
-    finishAt: EXPEDITION_DURATION_MS,
+    finishAt: CYCLE,
     cost: { mineral: 3000, energy: 1000, military: 40 },
     result,
     resolved: false,
@@ -194,7 +197,7 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
   it('军事目标（手写保底）：结算创建快照 + conquest 状态 available', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'conquest', targetId: endlessTargetId('warband') }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    const logs = settleExpeditions(s, CYCLE + 1)
     const t = s.generatedTargets.find((x) => x.id === endlessTargetId('warband'))
     expect(t).toBeDefined()
     expect(t?.guard).toBe(ENDLESS_CONQUESTS.warband.guard)
@@ -205,7 +208,7 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
   it('军事目标（程序生成）：结算实时生成（gen 域确定性）', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'conquest', targetId: 'gen:conquest' }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    settleExpeditions(s, CYCLE + 1)
     const t = s.generatedTargets.find((x) => x.kind === 'conquest' && x.id.startsWith('gen:conquest:'))
     expect(t).toBeDefined()
     expect(t?.bonus).toBeUndefined()
@@ -215,7 +218,7 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
   it('外交对象（程序生成）：结算创建派系 + 进 exploredFactions', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'faction', factionId: 'gen:faction' }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    settleExpeditions(s, CYCLE + 1)
     const t = s.generatedTargets.find((x) => x.kind === 'faction' && x.id.startsWith('gen:faction:'))
     expect(t).toBeDefined()
     expect(s.factions[t!.id]).toBeDefined()
@@ -225,7 +228,7 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
   it('天体（手写机制型）：结算解锁 + 发现即归档（一次性不可再交互）', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'planet', planetId: endlessTargetId('blackHoleObservatory') }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    settleExpeditions(s, CYCLE + 1)
     const id = endlessTargetId('blackHoleObservatory')
     expect(s.planets[id]?.unlocked).toBe(true)
     expect(s.archivedRounds[id]).toBe(0)
@@ -235,7 +238,7 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
   it('天体（程序生成产出型）：结算解锁 + 不归档（保留列表持续派遣）', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'planet', planetId: 'gen:planet' }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    settleExpeditions(s, CYCLE + 1)
     const t = s.generatedTargets.find((x) => x.kind === 'planet' && x.id.startsWith('gen:planet:'))
     expect(t).toBeDefined()
     expect(s.planets[t!.id]?.unlocked).toBe(true)
@@ -262,7 +265,7 @@ describe('engine: endless-expansion 攻占双遍历', () => {
     s.conquest[id] = { status: 'available' }
     const r = startConquest(s, id, ENDLESS_CONQUESTS.warband.guard, 0)
     expect(r.ok).toBe(true)
-    const logs = settleConquests(s, CONQUEST_DURATION_MS + 1)
+    const logs = settleConquests(s, CYCLE + 1)
     expect(s.conquest[id].status).toBe('conquered')
     expect(s.archivedRounds[id]).toBe(0)
     expect(logs.some((l) => l.includes('掠夺者舰队'))).toBe(true)
@@ -274,15 +277,15 @@ describe('engine: endless-expansion 攻占双遍历', () => {
     s.generatedTargets.push({ kind: 'conquest', id, name: '测试目标', desc: '', batch: 0, guard: 3000 })
     s.conquest[id] = { status: 'available' }
     startConquest(s, id, 1, 0)
-    const logs = settleConquests(s, CONQUEST_DURATION_MS + 1, () => 0.999)
+    const logs = settleConquests(s, CYCLE + 1, () => 0.999)
     expect(s.conquest[id].status).toBe('available')
     expect(logs.some((l) => l.includes('失利'))).toBe(true)
   })
 
   it('静态目标征服后写归档周目标记（折叠区数据源）', () => {
     const s = infiniteState()
-    s.conquest.outpost = { status: 'available', startedAt: 0, finishAt: CONQUEST_DURATION_MS, invested: CONQUESTS.outpost.guard }
-    settleConquests(s, CONQUEST_DURATION_MS + 1)
+    s.conquest.outpost = { status: 'available', startedAt: 0, finishAt: CYCLE, invested: CONQUESTS.outpost.guard }
+    settleConquests(s, CYCLE + 1)
     expect(s.conquest.outpost.status).toBe('conquered')
     expect(s.archivedRounds.outpost).toBe(0)
   })
@@ -293,7 +296,7 @@ describe('engine: endless-expansion 攻占双遍历', () => {
     s.generatedTargets.push({ kind: 'conquest', id, name: '测试目标', desc: '', batch: 0, guard: 800 })
     s.conquest[id] = { status: 'available' }
     startConquest(s, id, 800, 0)
-    settleConquests(s, CONQUEST_DURATION_MS + 1)
+    settleConquests(s, CYCLE + 1)
     // 静态 4 区域未全肃清 → 里程碑不触发（动态完成不产生 firstConquest/conquestAll 叙事）
     expect(s.storyFlags.firstConquest).toBeUndefined()
     expect(s.storyFlags.conquestAll).toBeUndefined()
@@ -324,7 +327,7 @@ describe('engine: endless-expansion 结盟归档与存档', () => {
   it('NG+ 清空生成目标与归档标记（本周目语义）；无尽继续时探索可重注入', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'conquest', targetId: 'gen:conquest' }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    settleExpeditions(s, CYCLE + 1)
     expect(s.generatedTargets.length).toBeGreaterThan(0)
     s.archivedRounds.outpost = 0
     startNewGamePlus(s, 0)

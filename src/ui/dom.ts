@@ -5,7 +5,7 @@ import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
-import { ENDLESS_BATCH_2_EXPLORATIONS, EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
+import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from '../engine/balance'
 import { isPlanetUnlocked } from '../engine/engine'
 import { explorePlanetOutputs, militaryCap, productionBreakdown } from '../engine/production'
 import type { BreakdownRow } from '../engine/production'
@@ -46,7 +46,7 @@ export function renderExplorePage(
       <div class="explore-locked">
         <div class="explore-lock-icon">🔒</div>
         <div class="explore-lock-title">通关后解锁探索</div>
-        <div class="explore-lock-desc">多信道派遣探索队（每路 60 分钟 / 离线照常推进，不可取消）：有概率发现新的派系势力、发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</div>
+        <div class="explore-lock-desc">多信道派遣探索队（每路 10~30 分钟随机 / 离线照常推进，不可取消）：有概率发现新的派系势力、发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</div>
         <div class="explore-lock-hint">解锁条件：完成「星系统一联邦」结局（统一全部派系）</div>
       </div>`)
     el.innerHTML = parts.join('')
@@ -82,7 +82,7 @@ export function renderExplorePage(
     const exp = ongoing[i]
     if (exp) {
       const remain = Math.max(0, exp.finishAt - nowMs)
-      const ratio = 1 - remain / EXPEDITION_DURATION_MS
+      const ratio = 1 - remain / Math.max(1, exp.finishAt - exp.startedAt)
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}">
           <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state active">⏳ 派遣中${exp.escort ? '（护航）' : ''}</span></div>
@@ -115,7 +115,7 @@ export function renderExplorePage(
     slotCards.push(`
       <div class="explore-slot" data-expedition-slot="${slotNo}">
         <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state idle">空闲</span></div>
-        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 60 分钟（离线照常推进）</div>
+        <div class="explore-slot-cost">消耗：${RESOURCE_META.mineral.symbol}${formatNumber(cost.mineral)} · ${RESOURCE_META.energy.symbol}${formatNumber(cost.energy)} · ${RESOURCE_META.military.symbol}${formatNumber(cost.military)} · 时长 ${MISSION_DURATION_MIN_MINUTES}~${MISSION_DURATION_MAX_MINUTES} 分钟（随机，离线照常推进）</div>
         ${escortBlock}
         <div class="explore-slot-actions">
           <button type="button" class="ending-btn primary" data-explore-dispatch="${slotNo}" ${!affordMineral || !affordEnergy || !affordMilitary ? 'disabled' : ''} title="${escapeHtml(reason)}">${iconUse('dispatch', 'dispatch-icon')} 派遣</button>

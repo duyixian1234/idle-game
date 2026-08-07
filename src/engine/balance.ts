@@ -137,15 +137,15 @@ export const REPUTATION_CAP = 100
 export const RAID_THRESHOLD_BONUS_CAP = 10
 
 /** 资源是否足够支付成本（cost 缺省键按 0 处理，兼容手写三键成本） */
-// ---- 攻占 ----
+// ---- 派遣时长（探索/攻占共享，时长缩短 spec 定稿 2026-08-07） ----
 
-/** 攻占倒计时（分钟）：统一 60 分钟 */
-export const CONQUEST_DURATION_MS = 60 * 60_000
+/** 派遣时长随机范围（分钟）：uniform 整数分钟 [10, 30]（均值 20min = 原 60min 的 ×3 节奏）；
+ * 探索与攻占共享同一范围常量；每次派遣经 duration 域掷出并冻结 finishAt（派遣时随机、离线照常推进）。
+ * 单次奖励锚定成本/静态表、不随时长缩放 → 每小时收益/节奏均值 ×3（掷出 10min = ×6、30min = ×2）。 */
+export const MISSION_DURATION_MIN_MINUTES = 10
+export const MISSION_DURATION_MAX_MINUTES = 30
 
 // ---- 探索（通关后派遣） ----
-
-/** 派遣时长（ms）：60 分钟（复用攻占倒计时语义，离线照常推进；时间自由度由多槽承担，本值不动） */
-export const EXPEDITION_DURATION_MS = 60 * 60_000
 /** 派遣军力消耗 = min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)——退役固定常量 EXPEDITION_MILITARY_COST=40，见 exploration.ts expeditionMilitaryCost */
 export const EXPEDITION_MILITARY_PCT = 0.02
 export const EXPEDITION_MILITARY_CAP = 1000

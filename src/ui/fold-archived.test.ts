@@ -3,8 +3,10 @@ import { createInitialState } from '../engine/engine'
 import { settleExpeditions } from '../engine/exploration'
 import { factionAlliance } from '../engine/diplomacy'
 import { renderDiplomacyPanel, renderMilitaryPanel } from './panels'
-import { EXPEDITION_DURATION_MS } from '../engine/balance'
 import type { GameState } from '../engine/types'
+
+/** 派遣时长上限（测试周期常量）：fake 派遣用 30min，settle 时刻同口径保证到期 */
+const CYCLE = 30 * 60_000
 
 /**
  * 回归：原生外交对象/军事对象「不可交互即折叠」（全模式语义，endless-expansion spec 决策）。
@@ -32,12 +34,12 @@ function settleWith(state: GameState, result: object): void {
   state.expeditions.push({
     id: 999,
     startedAt: 0,
-    finishAt: EXPEDITION_DURATION_MS,
+    finishAt: CYCLE,
     cost: { mineral: 3000, energy: 1000, military: 40 },
     result: result as never,
     resolved: false,
   })
-  settleExpeditions(state, EXPEDITION_DURATION_MS)
+  settleExpeditions(state, CYCLE)
 }
 
 describe('折叠：原生外交对象（结盟即折叠）', () => {
