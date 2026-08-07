@@ -15,10 +15,13 @@ import { deserializeSave, migrateSave, serializeSave } from './save'
 import { settleOffline } from './offline'
 import { productionReport } from './production'
 import { dockLevel } from './fleet'
-import { ESCORT_COMPENSATE_RATIO, ESCORT_ENERGY_SECONDS, EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from './balance'
+import { ESCORT_COMPENSATE_RATIO, ESCORT_ENERGY_SECONDS, FLEET_HARVEST_PCT_PER_SHIP } from './balance'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
+
+/** 派遣时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
+const CYCLE = 30 * 60_000
 
 /**
  * 护航/自动探索测试状态：通关 + 船坞 Lv1（3 艘满编）+ 100 台太阳能（能源产出 ~350/s 可预测）。
@@ -48,7 +51,7 @@ function fakeExp(overrides: { escort?: boolean; finishOffsetMs?: number } = {}):
   return {
     id: 99,
     startedAt: 0,
-    finishAt: EXPEDITION_DURATION_MS,
+    finishAt: CYCLE,
     cost: { mineral: 3000, energy: 1000, military: 40 },
     result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 },
     resolved: false,
@@ -166,7 +169,7 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     s.fleet.count = 0
     s.resources.energy = 0
     // 回归结算：结果不变、护航计数 +1
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs).toHaveLength(1)
     expect(logs[0].text).toContain('护航编队返航')
     expect(s.expeditions).toHaveLength(0)
@@ -179,11 +182,11 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
   it('护航返航日志明示护航；非护航日志与现状一致', () => {
     const s = escortState()
     startExpedition(s, 0, () => 0.99, 0, true)
-    const logs1 = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs1 = settleExpeditions(s, CYCLE)
     expect(logs1[0].text).toContain('护航编队返航')
     const s2 = escortState()
     startExpedition(s2, 0, () => 0.99, 0, false)
-    const logs2 = settleExpeditions(s2, EXPEDITION_DURATION_MS)
+    const logs2 = settleExpeditions(s2, CYCLE)
     expect(logs2[0].text).toContain('探索队返航')
     expect(logs2[0].text).not.toContain('护航')
   })
@@ -269,22 +272,22 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     tick(s, 1000)
     expect(s.expeditions).toHaveLength(5)
     // 60min 后：5 支结算 + 自动续派 5 支
-    tick(s, 1000 + EXPEDITION_DURATION_MS)
+    tick(s, 1000 + CYCLE)
     expect(s.stats.explorations).toBe(5)
     expect(s.expeditions).toHaveLength(5)
     expect(s.log.some((l) => l.text.includes('自动探索'))).toBe(true)
   })
 
-  it('离线循环续派：8h ≈ 8 轮/槽（结算 7 + 在途 1，基础 5 槽 = 35 结算 + 5 在途），rng 走 explore 域可复现', () => {
+  it('离线循环续派：8h ≈ 22 轮/槽（时长随机 10~30min，seed 42 推演：74 结算 + 5 在途，基础 5 槽），rng 走 explore/duration 域可复现', () => {
     const s = escortState()
     s.autoExplore = { enabled: true, escort: false }
     s.lastTick = 0
     const logs = settleOfflineAutoExplore(s, 8 * 3600_000, 8 * 3600)
-    // 8 轮 × 5 槽：7 次结算入账 × 5 + 5 支在途（第 8 轮出发，finishAt > nowMs）
-    expect(s.stats.explorations).toBe(35)
+    // 8h = 480min ÷ 平均 20min ≈ 22 轮：每轮结算到期派遣（长时长滞后由后续节点兜底），末轮 5 支在途
+    expect(s.stats.explorations).toBe(74)
     expect(s.expeditions).toHaveLength(5)
-    expect(s.rngCounters.explore).toBe(40)
-    expect(logs.filter((l) => l.text.includes('自动探索（离线）'))).toHaveLength(40)
+    expect(s.rngCounters.explore).toBe(79)
+    expect(logs.filter((l) => l.text.includes('自动探索（离线）'))).toHaveLength(79)
     // 可复现：同 seed 同计数的独立 state → 相同结果序列
     const s2 = escortState()
     s2.autoExplore = { enabled: true, escort: false }
@@ -315,9 +318,9 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     s.autoExplore = { enabled: true, escort: false }
     s.lastTick = 0
     const r = settleOffline(s, 4 * 3600_000)
-    // 4h：4 轮 × 5 槽 → 3 轮结算（15 支）+ 1 轮在途（5 支）
-    expect(s.stats.explorations).toBe(15)
-    expect(r.expeditionLogs.filter((l) => l.text.includes('自动探索'))).toHaveLength(20)
+    // 4h = 240min ÷ 平均 20min ≈ 11 轮（seed 42 推演：38 结算 + 5 在途）
+    expect(s.stats.explorations).toBe(38)
+    expect(r.expeditionLogs.filter((l) => l.text.includes('自动探索'))).toHaveLength(43)
   })
 
   it('NG+ 重置 autoExplore 为默认关（舰队归零 → 护航自然失效）', () => {
@@ -414,12 +417,12 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(false)
     // 非护航派遣结算 → 不达成
     startExpedition(s, 0, () => 0.99, 0, false)
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.stats.escortedExpeditions ?? 0).toBe(0)
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(false)
     // 护航派遣结算 → 达成
     startExpedition(s, 0, () => 0.99, 0, true)
-    settleExpeditions(s, EXPEDITION_DURATION_MS * 2)
+    settleExpeditions(s, CYCLE * 2)
     expect(s.stats.escortedExpeditions ?? 0).toBe(1)
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(true)
     const newly = checkAchievements(s, 5000)
@@ -431,7 +434,7 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     expect(checkAchievements(s, 6000).map((d) => d.id)).not.toContain('escortFirst')
     const mineralBefore = s.resources.mineral
     startExpedition(s, 0, () => 0.99, 0, true)
-    settleExpeditions(s, EXPEDITION_DURATION_MS * 3)
+    settleExpeditions(s, CYCLE * 3)
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(true)
     const newly2 = checkAchievements(s, 7000)
     expect(newly2.map((d) => d.id)).toContain('escortFirst')

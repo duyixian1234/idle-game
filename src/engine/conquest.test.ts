@@ -35,11 +35,11 @@ describe('engine: 攻占系统（conquest）', () => {
 
   it('发起攻占：扣投入军力、记录倒计时', () => {
     const s = conquestState()
-    const r = startConquest(s, 'outpost', 2_000, 1000)
+    const r = startConquest(s, 'outpost', 2_000, 1000, () => 0.99) // 注入 rng → 时长 30min 上限
     expect(r.ok).toBe(true)
     expect(s.resources.military).toBe(98_000)
     expect(s.conquest.outpost.startedAt).toBe(1000)
-    expect(s.conquest.outpost.finishAt).toBe(1000 + 60 * 60_000)
+    expect(s.conquest.outpost.finishAt).toBe(1000 + 30 * 60_000)
     expect(s.conquest.outpost.invested).toBe(2_000)
     // 进行中不可重复发起
     expect(isConquestAvailable(s, 'outpost')).toBe(false)
@@ -92,8 +92,8 @@ describe('engine: 攻占系统（conquest）', () => {
 
   it('未到倒计时不结算', () => {
     const s = conquestState()
-    startConquest(s, 'outpost', 2_000, 0)
-    const logs = settleConquests(s, 59 * 60_000, () => 0)
+    startConquest(s, 'outpost', 2_000, 0, () => 0) // 注入 rng → 时长 10min 下限
+    const logs = settleConquests(s, 10 * 60_000 - 1, () => 0)
     expect(logs).toEqual([])
     expect(s.conquest.outpost.status).toBe('available')
   })

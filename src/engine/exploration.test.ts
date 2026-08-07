@@ -17,9 +17,12 @@ import { checkAchievements } from './achievements'
 import { reputation } from './reputation'
 import { previewNewGamePlus } from './ngplus'
 import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
-import { EXPEDITION_DURATION_MS, OUTPOST_ENERGY_MULT, OUTPOST_MINERAL_MULT } from './balance'
+import { OUTPOST_ENERGY_MULT, OUTPOST_MINERAL_MULT } from './balance'
 import { productionReport, militaryCap } from './production'
 import type { ExpeditionState, GameState } from './types'
+
+/** 派遣时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
+const CYCLE = 30 * 60_000
 
 /** 通关后状态：phase=ended、足量资源、足够兵力 */
 function endedState(): GameState {
@@ -38,7 +41,7 @@ function fakeExpedition(overrides: Partial<ExpeditionState> = {}): ExpeditionSta
   return {
     id: 1,
     startedAt: 0,
-    finishAt: EXPEDITION_DURATION_MS,
+    finishAt: CYCLE,
     cost: { mineral: 3000, energy: 1000, military: 40 },
     result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 },
     resolved: false,
@@ -86,7 +89,7 @@ describe('engine: 探索入口与门控', () => {
 })
 
 describe('engine: 派遣出发（全提交 + 结果固化）', () => {
-  it('正常出发：扣动态缩放矿物/能源 + 固定兵力，finishAt = now + 60min', () => {
+  it('正常出发：扣动态缩放矿物/能源 + 固定兵力，finishAt = now + 注入时长（rng 0.99 → 30min 上限）', () => {
     const s = endedState()
     const cost = expeditionCost(s)
     const before = { mineral: s.resources.mineral, energy: s.resources.energy, military: s.resources.military }
@@ -97,7 +100,7 @@ describe('engine: 派遣出发（全提交 + 结果固化）', () => {
     expect(s.resources.energy).toBe(before.energy - cost.energy)
     expect(s.resources.military).toBe(before.military - cost.military)
     expect(exp.startedAt).toBe(1000)
-    expect(exp.finishAt).toBe(1000 + EXPEDITION_DURATION_MS)
+    expect(exp.finishAt).toBe(1000 + CYCLE)
     expect(exp.cost).toEqual(cost)
     expect(exp.cost.military).toBe(40)
     expect(s.expeditions).toHaveLength(1)
@@ -110,7 +113,7 @@ describe('engine: 派遣出发（全提交 + 结果固化）', () => {
     expect(result.kind).toBe('resource') // rng 0.99 落入末位补偿分支
     expect(s.expeditions[0].result).toEqual(result)
     // 回归（settle）不改结果
-    const logs = settleExpeditions(s, 1000 + EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, 1000 + CYCLE)
     expect(logs).toHaveLength(1)
     expect(s.expeditions).toHaveLength(0)
   })
@@ -130,7 +133,7 @@ describe('engine: 派遣出发（全提交 + 结果固化）', () => {
     const s = endedState()
     startExpedition(s, 0)
     expect(s.nextExpeditionId).toBe(2)
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     // 结算后兵力不回补
     expect(s.resources.military).toBe(50_000 - 40)
   })
@@ -244,7 +247,7 @@ describe('engine: 派遣结算（自动入账）', () => {
   it('未到期不动（不结算、不计次）', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition())
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS - 1)
+    const logs = settleExpeditions(s, CYCLE - 1)
     expect(logs).toEqual([])
     expect(s.expeditions).toHaveLength(1)
     expect(s.stats.explorations).toBe(0)
@@ -256,7 +259,7 @@ describe('engine: 派遣结算（自动入账）', () => {
     const mineralBefore = s.resources.mineral
     const techBefore = s.resources.tech
     const energyBefore = s.resources.energy
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs).toHaveLength(1)
     expect(logs[0].type).toBe('reward')
     expect(logs[0].text).toContain('回收了')
@@ -269,8 +272,8 @@ describe('engine: 派遣结算（自动入账）', () => {
 
   it('多派单一并结算（引擎不拦截，单槽由 startExpedition 保证）', () => {
     const s = endedState()
-    s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2, finishAt: EXPEDITION_DURATION_MS + 1 }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS + 1)
+    s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2, finishAt: CYCLE + 1 }))
+    const logs = settleExpeditions(s, CYCLE + 1)
     expect(logs).toHaveLength(2)
     expect(s.stats.explorations).toBe(2)
     expect(s.expeditions).toHaveLength(0)
@@ -279,7 +282,7 @@ describe('engine: 派遣结算（自动入账）', () => {
   it('tick 接入：倒计时到期自动入账并写日志', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition())
-    tick(s, EXPEDITION_DURATION_MS)
+    tick(s, CYCLE)
     expect(s.stats.explorations).toBe(1)
     expect(s.log.some((l) => l.text.includes('探索队返航'))).toBe(true)
     expect(s.expeditions).toHaveLength(0)
@@ -288,7 +291,7 @@ describe('engine: 派遣结算（自动入账）', () => {
   it('faction 分支：发现 → 运行时创建派系（favor/threat 取 def 初值）+ 记录进度', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition({ result: { kind: 'faction', factionId: 'ashCommune' } }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs).toHaveLength(1)
     expect(logs[0].text).toContain('发现「灰潮共同体」')
     expect(s.factions.ashCommune).toMatchObject({ favor: 10, threat: 35, allied: false, tradeCount: 0 })
@@ -299,10 +302,10 @@ describe('engine: 派遣结算（自动入账）', () => {
   it('planet 分支：发现 → 解锁天体（unlockedAt）+ 记录进度', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'logistics' } }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs).toHaveLength(1)
     expect(logs[0].text).toContain('发现更佳的发展天体')
-    expect(s.planets.logistics).toEqual({ unlocked: true, unlockedAt: EXPEDITION_DURATION_MS })
+    expect(s.planets.logistics).toEqual({ unlocked: true, unlockedAt: CYCLE })
     expect(s.exploredPlanets).toEqual(['logistics'])
     expect(s.stats.explorations).toBe(1)
   })
@@ -312,7 +315,7 @@ describe('engine: 派遣结算（自动入账）', () => {
     s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35 })
     s.exploredFactions = ['ashCommune']
     s.expeditions.push(fakeExpedition({ result: { kind: 'faction', factionId: 'ashCommune' } }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs[0].text).toContain('重新建立与')
     expect(logs[0].text).toContain('好感 +5')
     expect(Object.keys(s.factions)).toHaveLength(5) // 未新增
@@ -320,7 +323,7 @@ describe('engine: 派遣结算（自动入账）', () => {
     // 封顶 100
     s.factions.ashCommune.favor = 99
     s.expeditions.push(fakeExpedition({ id: 2, result: { kind: 'faction', factionId: 'ashCommune' } }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.factions.ashCommune.favor).toBe(100)
   })
 
@@ -329,13 +332,13 @@ describe('engine: 派遣结算（自动入账）', () => {
     s.planets.rubbleBelt = { unlocked: true, unlockedAt: 1000 }
     s.exploredPlanets = ['rubbleBelt']
     s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'rubbleBelt' } }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs[0].text).toContain(`产出增益 +${formatPercent(10)}`)
     expect(s.planets.rubbleBelt.outputBonus).toBe(0.1)
     // 封顶 0.5
     s.planets.rubbleBelt.outputBonus = 0.45
     s.expeditions.push(fakeExpedition({ id: 2, result: { kind: 'planet', planetId: 'rubbleBelt' } }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.planets.rubbleBelt.outputBonus).toBe(0.5)
   })
 })
@@ -344,7 +347,7 @@ describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
   it('首次探索结算触发：storyFlags.deepSpace 置位 + 碑文叙事入日志', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition())
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(s.storyFlags.deepSpace).toBe(true)
     expect(s.log.some((l) => l.text.includes('禁航航线'))).toBe(true)
     expect(s.log.some((l) => l.text.includes('警世铭'))).toBe(true)
@@ -355,14 +358,14 @@ describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
     const s = endedState()
     s.storyFlags.deepSpace = true
     s.expeditions.push(fakeExpedition())
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.log.filter((l) => l.text.includes('警世铭'))).toHaveLength(0)
   })
 
   it('多笔同批结算仅第一笔触发（playMilestone 内部 storyFlags 防重复双保险）', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2 }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.log.filter((l) => l.text.includes('警世铭'))).toHaveLength(1)
     expect(s.stats.explorations).toBe(2)
   })
@@ -370,7 +373,7 @@ describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
   it('playing 阶段不触发（isExploreAvailable 守卫：防御性，正常流程无在途派遣）', () => {
     const s = createInitialState(0)
     s.expeditions.push(fakeExpedition())
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.storyFlags.deepSpace).toBeUndefined()
   })
 
@@ -384,7 +387,7 @@ describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
     expect(s.achievements.explorerFirst).toBeTruthy()
     const repBefore = reputation(s) // federation 8 + explorerFirst 2 = 10
     s.expeditions.push(fakeExpedition())
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     const techAfterSettle = s.resources.tech // 含探索资源补偿入账（fakeExpedition +30）
     const newly = checkAchievements(s, 2)
     expect(newly.map((d) => d.id)).toEqual(['deepSpace']) // 精确集合：无其他并发成就
@@ -397,7 +400,7 @@ describe('engine: 深空碑文（deepSpace 成就挂点）', () => {
     const s = endedState()
     s.lastTick = 0
     s.expeditions.push(fakeExpedition())
-    const off = settleOffline(s, EXPEDITION_DURATION_MS)
+    const off = settleOffline(s, CYCLE)
     expect(s.storyFlags.deepSpace).toBe(true)
     expect(off.expeditionLogs).toHaveLength(1)
     expect(s.log.some((l) => l.text.includes('警世铭'))).toBe(true)
@@ -494,7 +497,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
     s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
     s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
     s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2, escort: true, result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 } }))
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs[0].text).toContain('已尽览所有已知目标，无新发现')
     expect(logs[0].text).not.toContain('未发现新文明')
     expect(logs[1].text).toContain('护航编队返航：已尽览所有已知目标，无新发现')
@@ -504,7 +507,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
     const s = endedState()
     s.exploredFactions = ['ashCommune']
     s.expeditions.push(fakeExpedition())
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs[0].text).toContain('未发现新文明')
     expect(logs[0].text).not.toContain('已尽览')
   })
@@ -513,7 +516,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
     const s = endedState()
     enterInfiniteMode(s)
     s.expeditions.push(fakeExpedition())
-    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    const logs = settleExpeditions(s, CYCLE)
     expect(logs[0].text).toContain('未发现新文明')
     expect(logs[0].text).not.toContain('已尽览')
   })
@@ -524,7 +527,7 @@ describe('engine: 离线推进', () => {
     const s = endedState()
     s.lastTick = 0
     s.expeditions.push(fakeExpedition())
-    const off = settleOffline(s, EXPEDITION_DURATION_MS + 1000)
+    const off = settleOffline(s, CYCLE + 1000)
     expect(off.expeditionLogs).toHaveLength(1)
     expect(off.expeditionLogs[0].type).toBe('reward')
     expect(s.stats.explorations).toBe(1)
@@ -602,7 +605,7 @@ describe('engine: 探索发现物（势力/天体）接入体系', () => {
     expect(s.planets.outpost?.unlocked).toBeUndefined()
     // 探索解锁后可用
     s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'outpost' } }))
-    settleExpeditions(s, EXPEDITION_DURATION_MS)
+    settleExpeditions(s, CYCLE)
     expect(s.planets.outpost?.unlocked).toBe(true)
   })
 })

@@ -965,7 +965,7 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain('深空信道 1')
     expect(page.textContent).toContain('消耗')
     expect(page.textContent).toContain('40')
-    expect(page.textContent).toContain('60 分钟')
+    expect(page.textContent).toContain('时长 10~30 分钟（随机，离线照常推进）')
     expect(page.querySelector('[data-expedition-slot="1"]')).toBeTruthy()
     // 槽位上限 10（基础 5 + 科技 2 + 枢纽 3）：无科技 5 空闲，6-10 锁定占位提示解锁需求
     expect(page.querySelectorAll('[data-expedition-slot]')).toHaveLength(10)

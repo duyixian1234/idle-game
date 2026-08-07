@@ -254,7 +254,7 @@ export interface ExpeditionState {
   id: number
   /** 出发时间戳（ms） */
   startedAt: number
-  /** 结算时间戳（ms）= startedAt + EXPEDITION_DURATION_MS */
+  /** 结算时间戳（ms）= startedAt + 派遣时长（duration 域随机 10~30min，派遣时冻结） */
   finishAt: number
   /** 出发时扣除的消耗（含固定兵力；兵力锁定不返还） */
   cost: { mineral: number; energy: number; military: number }

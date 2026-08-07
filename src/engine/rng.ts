@@ -15,7 +15,7 @@ import type { GameState } from './types'
  */
 
 /** 随机域：结果型随机按域隔离计数器，防跨域序列相关 */
-export type RngDomain = 'event' | 'conquest' | 'explore' | 'generate'
+export type RngDomain = 'event' | 'conquest' | 'explore' | 'generate' | 'duration'
 
 /** 域盐（固定常量，防同 seed 同 counter 跨域同值） */
 export const SALT: Record<RngDomain, number> = {
@@ -23,6 +23,7 @@ export const SALT: Record<RngDomain, number> = {
   conquest: 0x4a5b6c7d,
   explore: 0x8d9e0f1a,
   generate: 0x2b3c4d5e,
+  duration: 0xc1d2e3f4,
 }
 
 /**

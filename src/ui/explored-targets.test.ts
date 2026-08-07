@@ -5,8 +5,10 @@ import { conquestDef, isConquestAvailable } from '../engine/conquest'
 import { canFactionTrade, factionDef } from '../engine/diplomacy'
 import { renderDiplomacyPanel, renderMilitaryPanel } from './panels'
 import { dispatch, type ActionDeps } from './actions'
-import { EXPEDITION_DURATION_MS } from '../engine/balance'
 import type { GameState } from '../engine/types'
+
+/** 派遣时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意派遣到期；fake 数据与 settle 时刻同口径 */
+const CYCLE = 30 * 60_000
 
 /**
  * 回归：探索发现的新目标（endless:/gen: 前缀，id 自身含 ':'）在 dispatch payload
@@ -53,12 +55,12 @@ function settleWith(state: GameState, result: object): void {
   state.expeditions.push({
     id: 999,
     startedAt: 0,
-    finishAt: EXPEDITION_DURATION_MS,
+    finishAt: CYCLE,
     cost: { mineral: 3000, energy: 1000, military: 40 },
     result: result as never,
     resolved: false,
   })
-  settleExpeditions(state, EXPEDITION_DURATION_MS)
+  settleExpeditions(state, CYCLE)
 }
 
 describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', () => {
@@ -162,9 +164,9 @@ describe('回归：真实探索流程（20 轮）发现对象全部可操作', (
     s.resources.military = 1e12
     s.resources.tech = 1e12
     for (let i = 0; i < 20; i++) {
-      const r = startExpedition(s, i * EXPEDITION_DURATION_MS)
+      const r = startExpedition(s, i * CYCLE)
       if (!r.ok) throw new Error(`dispatch fail: ${r.reason}`)
-      settleExpeditions(s, (i + 1) * EXPEDITION_DURATION_MS)
+      settleExpeditions(s, (i + 1) * CYCLE)
     }
     const newFactions = Object.keys(s.factions).filter((id) => id.startsWith('endless:') || id.startsWith('gen:'))
     const targets = s.generatedTargets.filter((t) => t.kind === 'conquest')
