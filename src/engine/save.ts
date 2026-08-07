@@ -17,7 +17,7 @@ const SCHEMA_V4 = 4
 const SCHEMA_V5 = 5
 /** 当前 schema 版本（写死，防未来升级后迁移函数标错版本导致跳级） */
 const SCHEMA_V6 = 6
-/** 首个支持终局抉择的 schema 版本（v6 基础上加 megastructureChoice，null = 未选择） */
+/** 首个支持终局工程的 schema 版本（v6 基础上加 megastructureChoice，null = 未选择） */
 const SCHEMA_V7 = 7
 /** 首个支持舰队的 schema 版本（v7 基础上加 fleet.count，默认 0） */
 const SCHEMA_V8 = 8
@@ -222,7 +222,7 @@ function migrateV5ToV6(raw: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
- * v6 → v7：补齐终局抉择字段（interstellar-buildings）。
+ * v6 → v7：补齐终局工程字段（interstellar-buildings）。
  * - megastructureChoice 缺省 null（未选择），建筑等级复用 buildings 宽松对象校验，无需额外迁移。
  * - ⚠️ 迁移链陷阱：schemaVersion 必须写死 SCHEMA_V7（不能用 SCHEMA_VERSION）——同 fixed-rng/exploration 教训。
  */
@@ -404,7 +404,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
  * - v3 存档（无成就字段）→ 转 v4（含回溯解锁）→ 转 v5（补随机 seed）→ 转 v6（补探索字段）→ 转 v7 → 转 v8
  * - v4 存档（无 seed/rngCounters）→ 转 v5 → 转 v6 → 转 v7 → 转 v8
  * - v5 存档（无探索字段）→ 转 v6 → 转 v7 → 转 v8
- * - v6 存档（无终局抉择字段）→ 转 v7 → 转 v8
+ * - v6 存档（无终局工程字段）→ 转 v7 → 转 v8
  * - v7 存档（无舰队字段）→ 转 v8
  * - v8 存档（无无尽状态字段）→ 转 v9
  * - v9 存档（无虫群强度倍率字段）→ 转 v10

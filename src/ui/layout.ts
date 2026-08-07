@@ -69,7 +69,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     <div class="ending-overlay hidden" data-overlay="ending" aria-label="结局"></div>
     <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
     <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
-    <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局抉择确认"></div>
+    <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局工程确认"></div>
     <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="自动处理配置"></div>
     <div class="tutorial hidden" aria-label="新手引导"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />

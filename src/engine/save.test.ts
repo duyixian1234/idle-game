@@ -158,7 +158,7 @@ describe('engine: 存档序列化往返', () => {
     expect(() => deserializeSave(JSON.stringify(raw))).toThrow(/版本/)
   })
 
-  it('v4 旧档迁移为 v8：补齐 seed/rngCounters 与探索字段、终局抉择字段，schemaVersion=8', () => {
+  it('v4 旧档迁移为 v8：补齐 seed/rngCounters 与探索字段、终局工程字段，schemaVersion=8', () => {
     const s = createInitialState(0)
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 4
@@ -203,7 +203,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.expeditions).toEqual([])
     expect(migrated.exploredPlanets).toEqual([])
     expect(migrated.nextExpeditionId).toBe(1)
-    // v7 补齐必须生效：终局抉择缺省 null
+    // v7 补齐必须生效：终局工程缺省 null
     expect(migrated.megastructureChoice).toBeNull()
     // v4 中间产物仍在：成就表补齐
     expect(migrated.achievements).toEqual({})
@@ -237,7 +237,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.fleet).toEqual({ count: 0 })
   })
 
-  it('v5 档迁移为 v8：补齐探索字段默认值与终局抉择字段，保留 seed/rngCounters', () => {
+  it('v5 档迁移为 v8：补齐探索字段默认值与终局工程字段，保留 seed/rngCounters', () => {
     const s = createInitialState(0, 42)
     s.rngCounters.event = 3
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>

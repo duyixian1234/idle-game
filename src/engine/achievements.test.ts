@@ -10,9 +10,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：33 个（含护航/船坞新成就）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：34 个（含护航/船坞/双轨终章新成就）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(33)
+    expect(defs).toHaveLength(34)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
