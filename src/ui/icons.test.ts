@@ -5,6 +5,9 @@ import { ICON_FALLBACK, ICONS, iconSpriteHtml, iconSymbolId, iconUse } from './i
 /** 一级导航 + 派遣图标 id（ui-redesign ticket 02：Q15 emoji→SVG） */
 const NAV_ICONS = ['nav-sector', 'nav-archive', 'nav-explore', 'nav-settings', 'dispatch'] as const
 
+/** 成就专用图标 id（ach-cards：成就卡牌化配套图标） */
+const ACHIEVEMENT_ICONS = ['handshake', 'trade', 'federation-seal', 'infinity', 'colony', 'favor', 'clock', 'extort', 'shackle', 'olive', 'reborn', 'dual-gate'] as const
+
 describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
   it('每个建筑 id 都有对应 symbol', () => {
     for (const id of Object.keys(BUILDINGS)) {
@@ -45,6 +48,12 @@ describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
     for (const def of Object.values(CONQUESTS)) {
       const iconId = def.icon ?? def.id
       expect(ICONS[iconId], `缺少攻占图标：${def.id} → ${iconId}`).toBeTruthy()
+    }
+  })
+
+  it('12 个成就专用图标都有对应 symbol（ach-cards）', () => {
+    for (const id of ACHIEVEMENT_ICONS) {
+      expect(ICONS[id], `缺少成就图标：${id}`).toBeTruthy()
     }
   })
 

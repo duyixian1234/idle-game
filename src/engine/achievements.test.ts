@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { formatNumber } from './format'
+import { ICONS } from '../ui/icons'
 import type { GameState } from './types'
 
 /** 构造带指定 conditions 的测试状态 */
@@ -247,5 +248,61 @@ describe('achievements: 胁迫外交', () => {
     expect(newly.map((d) => d.id)).not.toContain('extortFirst')
     expect(newly.map((d) => d.id)).not.toContain('subjugateFirst')
     expect(newly.map((d) => d.id)).not.toContain('atoneFirst')
+  })
+})
+
+describe('achievements: 卡片化数据（icon/progress）', () => {
+  it('37 个成就 icon 非空且命中 ICONS 表', () => {
+    const defs = Object.values(ACHIEVEMENTS)
+    expect(defs).toHaveLength(37)
+    for (const d of defs) {
+      expect(d.icon, `缺少成就图标：${d.id}`).toBeTruthy()
+      expect(ICONS[d.icon], `成就图标不在 ICONS 表：${d.id} → ${d.icon}`).toBeTruthy()
+    }
+  })
+
+  it('story 类不配 progress，收集/终局按 spec 配 progress', () => {
+    const defs = Object.values(ACHIEVEMENTS)
+    // story 类：12 个全部无 progress（叙事里程碑无量化进度）
+    const story = defs.filter((d) => d.category === 'story')
+    expect(story).toHaveLength(12)
+    for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
+    // 有 progress 的成就数量与 spec 映射一致（17 个）
+    const withProgress = defs.filter((d) => d.progress)
+    expect(withProgress.map((d) => d.id).sort()).toEqual(
+      [
+        'mineral1M', 'mineral100M', 'mineral1B', 'trades50', 'intimidates10', 'allies3',
+        'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'explorerFirst', 'explorerContact',
+        'explorerDual', 'explorerTriple', 'explorerComplete', 'escortFirst', 'dockLord',
+      ].sort(),
+    )
+  })
+
+  it('有 progress 的成就 progress() 返回 [n, total] 形状且 total 为正', () => {
+    const s = makeState()
+    for (const d of Object.values(ACHIEVEMENTS)) {
+      if (!d.progress) continue
+      const [n, total] = d.progress(s)
+      expect(Array.isArray([n, total])).toBe(true)
+      expect(typeof n).toBe('number')
+      expect(typeof total).toBe('number')
+      expect(Number.isFinite(n)).toBe(true)
+      expect(total).toBeGreaterThan(0)
+    }
+  })
+
+  it('progress 读数随状态派生：矿物/贸易/好感/探索', () => {
+    const s = makeState()
+    s.stats.totalMineralEarned = 2_000_000
+    expect(ACHIEVEMENTS.mineral1M.progress!(s)).toEqual([2_000_000, 1_000_000])
+    for (const id of Object.keys(s.factions)) s.factions[id].tradeCount = 13
+    expect(ACHIEVEMENTS.trades50.progress!(s)).toEqual([52, 50])
+    for (const id of Object.keys(s.factions)) s.factions[id].favor = 75
+    expect(ACHIEVEMENTS.favor300.progress!(s)).toEqual([300, 300])
+    s.exploredFactions = ['ashCommune']
+    s.exploredPlanets = ['outpost']
+    const [n, total] = ACHIEVEMENTS.explorerComplete.progress!(s)
+    expect(n).toBe(2)
+    expect(total).toBeGreaterThanOrEqual(2)
   })
 })

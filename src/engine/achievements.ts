@@ -21,6 +21,12 @@ export interface AchievementDef {
   name: string
   desc: string
   category: AchievementCategory
+  /** 卡片图标（icons.ts 的 symbol id；成就卡牌化后必填） */
+  icon: string
+  /** 进度读数（分子/分母，UI 层 clamp；未解锁时显示进度条） */
+  progress?: (s: GameState) => [number, number]
+  /** 未解锁时的解锁提示文案（缺省回退 desc） */
+  hint?: string
   /** 条件谓词：当前状态是否达成（周目内口径） */
   condition: (state: GameState) => boolean
   /** 一次性资源奖励（小奖为主，终局成就大奖；实现期模拟定标量级） */
@@ -55,11 +61,12 @@ export function endlessIIUnlocked(s: GameState): boolean {
   return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
 }
 
-/** 成就定义表（34 个：叙事 12 + 收集 16 + 终局 6；文案实现期定稿） */
+/** 成就定义表（37 个：叙事 12 + 收集 16 + 终局 6 + 胁迫外交 3；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
     id: 'firstBuild',
+    icon: 'miner',
     name: '第一块领地',
     desc: '建造第一台采矿机，让钻头第一次咬进 P-01 的地壳。',
     category: 'story',
@@ -70,6 +77,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   firstTech: {
     id: 'firstTech',
+    icon: 'lab',
     name: '逻辑的黎明',
     desc: '完成第一项科技研发，让公式照亮荒芜。',
     category: 'story',
@@ -79,6 +87,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   orbitalUnlocked: {
     id: 'orbitalUnlocked',
+    icon: 'dock',
     name: '轨道站苏醒',
     desc: '重新启动奥伯斯工业站，唤醒沉睡四百年的钢铁巨环。',
     category: 'story',
@@ -88,6 +97,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   firstAlliance: {
     id: 'firstAlliance',
+    icon: 'handshake',
     name: '第一块基石',
     desc: '与某个派系正式结盟，在真空边缘握手。',
     category: 'story',
@@ -97,6 +107,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   firstIntimidate: {
     id: 'firstIntimidate',
+    icon: 'militaryPort',
     name: '威慑的艺术',
     desc: '第一次向派系展示威慑——安全往往也种下敌意。',
     category: 'story',
@@ -106,6 +117,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   tradeRich: {
     id: 'tradeRich',
+    icon: 'trade',
     name: '贸易网络成型',
     desc: `累计完成 ${formatNumber(10)} 次贸易，让生意人的数字变得漂亮。`,
     category: 'story',
@@ -115,6 +127,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   deepSpace: {
     id: 'deepSpace',
+    icon: 'riftChasm',
     name: '深空碑文',
     desc: '抵达星系外围的黑暗区域，读罢旧联邦的警世铭。',
     category: 'story',
@@ -124,6 +137,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   firstWarp: {
     id: 'firstWarp',
+    icon: 'jumpgate',
     name: '第一次跃迁',
     desc: '启动曲率引擎，让星光在舷窗外被拉成光弧。',
     category: 'story',
@@ -133,6 +147,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   federationPending: {
     id: 'federationPending',
+    icon: 'federation-seal',
     name: '联邦前夜',
     desc: '四个派系中已有三个站在你这一边，统一近在咫尺。',
     category: 'story',
@@ -142,6 +157,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   firstConquest: {
     id: 'firstConquest',
+    icon: 'shipyard',
     name: '首面战旗',
     desc: '攻占第一片星域，让远征军的旗帜插上新的疆土。',
     category: 'story',
@@ -151,6 +167,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   endless: {
     id: 'endless',
+    icon: 'infinity',
     name: '无限启程',
     desc: '进入无限模式，星海无垠，旅程没有终点。',
     category: 'story',
@@ -160,6 +177,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   endlessII: {
     id: 'endlessII',
+    icon: 'colony',
     name: '永恒殖民',
     desc: `累计采集 ${formatNumber(10_000_000_000)} 矿物。把石头变成城市，把荒芜变成星海——日志仍在书写。`,
     category: 'story',
@@ -169,6 +187,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   conquestAll: {
     id: 'conquestAll',
+    icon: 'nest',
     name: '星海肃清',
     desc: `肃清全部 ${formatNumber(4)} 片星域，让虫群的信号从星图上彻底消失。`,
     category: 'finale',
@@ -182,83 +201,101 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 收集类（state 派生，周目内口径）----
   mineral1M: {
     id: 'mineral1M',
+    icon: 'refinery',
     name: '亿万矿藏',
     desc: `本局累计采集 ${formatNumber(1_000_000)} 矿物。`,
     category: 'collect',
     condition: (s) => s.stats.totalMineralEarned >= 1_000_000,
+    progress: (s) => [s.stats.totalMineralEarned, 1_000_000],
     rewardMineral: 10_000,
     rep: 3,
   },
   mineral100M: {
     id: 'mineral100M',
+    icon: 'deepDrill',
     name: '深空富矿',
     desc: `本局累计采集 ${formatNumber(100_000_000)} 矿物。`,
     category: 'collect',
     condition: (s) => s.stats.totalMineralEarned >= 100_000_000,
+    progress: (s) => [s.stats.totalMineralEarned, 100_000_000],
     rewardTech: 10_000,
     rep: 5,
   },
   trades50: {
     id: 'trades50',
+    icon: 'trade',
     name: '老练的商人',
     desc: `本局累计完成 ${formatNumber(50)} 次外交贸易。`,
     category: 'collect',
     condition: (s) => sumTradeCount(s) >= 50,
+    progress: (s) => [sumTradeCount(s), 50],
     rewardMineral: 20_000,
     rep: 4,
   },
   intimidates10: {
     id: 'intimidates10',
+    icon: 'militaryPort',
     name: '星辰的阴影',
     desc: `本局累计威慑派系 ${formatNumber(10)} 次。`,
     category: 'collect',
     condition: (s) => sumIntimidateCount(s) >= 10,
+    progress: (s) => [sumIntimidateCount(s), 10],
     rewardTech: 5_000,
     rep: 4,
   },
   allies3: {
     id: 'allies3',
+    icon: 'handshake',
     name: '三方会盟',
     desc: `本局与 ${formatNumber(3)} 个派系正式结盟。`,
     category: 'collect',
     condition: (s) => alliedCount(s) >= 3,
+    progress: (s) => [alliedCount(s), 3],
     rewardMineral: 50_000,
     rep: 4,
   },
   favor300: {
     id: 'favor300',
+    icon: 'favor',
     name: '众望所归',
     desc: `本局四派系好感总和达到 ${formatNumber(300)}。`,
     category: 'collect',
     condition: (s) => sumFavor(s) >= 300,
+    progress: (s) => [sumFavor(s), 300],
     rewardMineral: 30_000,
     rep: 4,
   },
   militaryCap5k: {
     id: 'militaryCap5k',
+    icon: 'barracks',
     name: '军港林立',
     desc: `军力容量上限达到 ${formatNumber(COERCION_UNLOCK_MILITARY_CAP)}。`,
     category: 'collect',
     // 与胁迫外交解锁阈值共享同一常量（balance.ts，军力威慑成型里程碑），单侧改动不失配
     condition: (s) => militaryCap(s) >= COERCION_UNLOCK_MILITARY_CAP,
+    progress: (s) => [militaryCap(s), COERCION_UNLOCK_MILITARY_CAP],
     rewardTech: 5_000,
     rep: 4,
   },
   play24h: {
     id: 'play24h',
+    icon: 'clock',
     name: '征途二十四小时',
     desc: `本局在线游玩累计 ${formatNumber(24)} 小时。`,
     category: 'collect',
     condition: (s) => s.playSeconds >= 24 * HOUR,
+    progress: (s) => [s.playSeconds, 24 * HOUR],
     rewardMineral: 50_000,
     rep: 4,
   },
   conquests2: {
     id: 'conquests2',
+    icon: 'wreckage',
     name: '双线告捷',
     desc: `本局成功攻占 ${formatNumber(2)} 个区域。`,
     category: 'collect',
     condition: (s) => conqueredCount(s) >= 2,
+    progress: (s) => [conqueredCount(s), 2],
     rewardMineral: 50_000,
     rep: 4,
   },
@@ -266,42 +303,51 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 探索类（通关后派遣，周目重解锁）----
   explorerFirst: {
     id: 'explorerFirst',
+    icon: 'ship',
     name: '启程',
     desc: '完成探索派遣，让舰队的尾迹延伸向未知星区。',
     category: 'collect',
     condition: (s) => (s.stats.explorations ?? 0) >= 1,
+    progress: (s) => [s.stats.explorations ?? 0, 1],
     rewardMineral: 5_000,
     rep: 2,
   },
   explorerContact: {
     id: 'explorerContact',
+    icon: 'outpost',
     name: '初识',
     desc: '发现首个偏远星区势力，星海比你想象的更热闹。',
     category: 'collect',
     condition: (s) => (s.exploredFactions?.length ?? 0) >= 1,
+    progress: (s) => [(s.exploredFactions ?? []).length, 1],
     rewardMineral: 10_000,
     rep: 2,
   },
   explorerDual: {
     id: 'explorerDual',
+    icon: 'navArray',
     name: '六路信标',
     desc: `研发「深空导航阵列」，解锁第 ${formatNumber(6)} 探索信道，六支舰队并行深入星海。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['deepSpaceNav'] ?? 0) >= 1,
+    progress: (s) => [s.techLevels?.deepSpaceNav ?? 0, 1],
     rewardMineral: 20_000,
     rep: 2,
   },
   explorerTriple: {
     id: 'explorerTriple',
+    icon: 'relay',
     name: '七路星桥',
     desc: `研发「星际通信中继」，解锁第 ${formatNumber(7)} 探索信道，七路同时推进。`,
     category: 'collect',
     condition: (s) => (s.techLevels?.['interstellarRelay'] ?? 0) >= 1,
+    progress: (s) => [s.techLevels?.interstellarRelay ?? 0, 1],
     rewardMineral: 50_000,
     rep: 3,
   },
   explorerComplete: {
     id: 'explorerComplete',
+    icon: 'nav-explore',
     name: '群星尽览',
     desc: '发现全部探索势力与探索天体，星图的迷雾彻底散去。',
     category: 'collect',
@@ -316,26 +362,31 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     },
     rewardMineral: 50_000,
     rep: 3, // 声望 cap 溢出接受（图鉴价值为主，spec Q12）
+    progress: (s) => [(s.exploredFactions ?? []).length + (s.exploredPlanets ?? []).length, Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length],
   },
 
   // ---- 舰队类（fleet-dock-10：护航/船坞长线目标，周目重解锁）----
   escortFirst: {
     id: 'escortFirst',
+    icon: 'ship',
     name: '编队护航',
     desc: '首次带舰队完成护航远征，让钢铁之翼为探索开路。',
     category: 'collect',
     // 谓词与结算口径同源（settleExpeditions 对护航派遣计 stats.escortedExpeditions，无硬编码漂移）
     condition: (s) => (s.stats.escortedExpeditions ?? 0) >= 1,
+    progress: (s) => [s.stats.escortedExpeditions ?? 0, 1],
     rewardMineral: 100_000,
     rep: 4,
   },
   dockLord: {
     id: 'dockLord',
+    icon: 'dock',
     name: '星海霸主',
     desc: '将船坞升至 Lv.10，舰队规模上限达到 24 艘——星海尽在麾下。',
     category: 'collect',
     // 谓词与船坞数值同源（dockLevel 派生自 DOCK_SHIP_CAP 显式表，无硬编码漂移）
     condition: (s) => dockLevel(s) >= 10,
+    progress: (s) => [dockLevel(s), 10],
     rewardMineral: 500_000,
     rep: 8,
   },
@@ -343,8 +394,10 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 终局类 ----
   federation: {
     id: 'federation',
+    icon: 'federation-seal',
     name: '星系统一联邦',
     desc: '四派系归一，旧时代的裂痕愈合，联邦重生。',
+    hint: '与全部四个派系结盟，触发星系统一联邦终局。',
     category: 'finale',
     condition: (s) => Boolean(s.endingTriggered),
     rewardMineral: 500_000,
@@ -353,17 +406,21 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   mineral1B: {
     id: 'mineral1B',
+    icon: 'starportMine',
     name: '星海之王',
     desc: `本局累计采集 ${formatNumber(1_000_000_000)} 矿物。`,
     category: 'finale',
     condition: (s) => s.stats.totalMineralEarned >= 1_000_000_000,
+    progress: (s) => [s.stats.totalMineralEarned, 1_000_000_000],
     rewardMineral: 500_000,
     rep: 8,
   },
   ng2: {
     id: 'ng2',
+    icon: 'reborn',
     name: '二周目启程',
     desc: '带着旧世界的记忆与答案，再次降落。',
+    hint: '进入无限模式后开启新周目（NG+）。',
     category: 'finale',
     condition: (s) => s.ngPlusLevel >= 1,
     rewardMineral: 100_000,
@@ -371,8 +428,10 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   ng3: {
     id: 'ng3',
+    icon: 'reborn',
     name: '三周目传说',
     desc: '第三次殖民之旅，星海已在你掌心。',
+    hint: '在二周目基础上再次开启新周目（NG+ Lv.2）。',
     category: 'finale',
     condition: (s) => s.ngPlusLevel >= 2,
     rewardMineral: 200_000,
@@ -380,8 +439,10 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   dualMega: {
     id: 'dualMega',
+    icon: 'dual-gate',
     name: '双轨终章',
     desc: '星环与星门同立，文明双轨并进。',
+    hint: '同时建造星环冶炼场与跃迁枢纽。',
     category: 'finale',
     condition: (s) => (s.buildings.ringSmelter ?? 0) >= 1 && (s.buildings.jumpgate ?? 0) >= 1,
     rewardMineral: 200_000,
@@ -392,6 +453,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 胁迫外交（diplomacy-coercion）----
   extortFirst: {
     id: 'extortFirst',
+    icon: 'extort',
     name: '敲诈者的第一课',
     desc: '第一次向派系勒索资源——力量第一次有了价格。',
     category: 'collect',
@@ -401,6 +463,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   subjugateFirst: {
     id: 'subjugateFirst',
+    icon: 'shackle',
     name: '铁腕臣服',
     desc: '第一次让派系在军力面前低头臣服。',
     category: 'collect',
@@ -410,6 +473,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   },
   atoneFirst: {
     id: 'atoneFirst',
+    icon: 'olive',
     name: '悔过者的选择',
     desc: '第一次完成赎罪，让铁腕与善意和解。',
     category: 'collect',
