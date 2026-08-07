@@ -140,18 +140,46 @@
     flex-direction: column;
     align-items: stretch;
   }
-  /* 建造卡片 ≤480px 单列（延续 mobile-layout 铁律：按钮列式堆叠、不设 width:100% 于不换行 flex 行） */
+  /* 建造卡片 ≤480px：双列自适应（auto-fit，< 320px 极窄自动降单列）；卡片紧凑化 */
   .build-grid {
-    grid-template-columns: 1fr;
-  }
-  /* 建造/升级/买满/升满纵向堆叠，按钮撑满列宽（与外交/科技面板一致） */
-  .build-actions {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 6px;
   }
+  /* 窄卡 padding / gap 收紧：避免行高过度膨胀挤占日志/面板高度 */
+  .build-card {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  /* 建造/升级/买满/升满按钮组：恢复基类 2 列 grid（覆盖原 column override）；
+     2 列排布让 6 按钮（buy×1/+10/+100 + upgrade×1/+10/+100）分 3 行，不挤行高 */
+  .build-actions {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 4px;
+  }
   .build-card .build-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* 窄卡下按钮文字收紧、padding 缩到 6px 防溢出（min-height 44 保留以维持 tap target） */
+  .build-btn {
+    padding: 8px 6px;
+    font-size: 11px;
+  }
+  .upgrade-btn {
+    margin-left: 0;
+  }
+  /* 窄卡：标题/描述字号微调，描述两行截断避免撑高 */
+  .build-name {
+    font-size: 13px;
+    gap: 4px;
+  }
+  .build-desc {
+    font-size: 11px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
   /* 外交操作同样显式纵向堆叠（不再依赖被移除的 width:100% 规则） */
   .faction-actions {
