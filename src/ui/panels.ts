@@ -694,7 +694,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   buildSection.className = 'military-section'
   renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)
   el.appendChild(buildSection)
-  // 段 2：攻占列表（静态 4 区域 + 无尽动态目标；已肃清 → 归档折叠区；肃清进度总览在面板底部收束）
+  // 段 4：攻占列表（静态 4 区域 + 无尽动态目标；已肃清 → 归档折叠区）——置面板底部（攻占 + 进度总览收束在最下方）
   const conquestSection = document.createElement('div')
   conquestSection.className = 'military-section'
   const staticDefs = Object.values(CONQUESTS)
@@ -733,11 +733,12 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     )
     renderEndlessLockedHint(conquestSection, 'conquest', locked.length)
   }
-  el.appendChild(conquestSection)
-  // 段 3：军械科技（攻占「虫群前哨」解锁；行式，未攻占显示锁定文案）
+  // 段 2：军械科技（攻占「虫群前哨」解锁；行式，未攻占显示锁定文案）
   renderMilitaryTechSection(el, state)
-  // 段 4：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
+  // 段 3：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
   renderFleetSection(el, state)
+  // 段 4：攻占列表（构建于上方，收束在舰队之后）
+  el.appendChild(conquestSection)
   // 段 5：肃清进度总览（静态 4 区口径）——置面板底部作收束，攻占列表上方不再占用
   const progress = document.createElement('div')
   progress.className = 'conquest-header'
