@@ -493,6 +493,12 @@
   gap: 6px;
 }
 
+/* 覆盖 .build-card .build-actions .build-btn{width:100%}：外交按钮恢复自然宽度（flex 自动排列） */
+.faction-card .build-actions .build-btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 /* 攻占卡：输入框 + 攻占按钮横排（输入框弹性伸缩占满余量） */
 .conquest-card .build-actions {
   display: flex;
@@ -508,6 +514,7 @@
 
 .conquest-card .conquest-btn {
   flex-shrink: 0;
+  width: auto;
 }
 
 /* 舰队卡：单按钮区（建造护卫舰）维持 2 列 grid 左格 */
@@ -515,10 +522,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-/* 探索槽位容器：与建造物同网格（覆盖 overlays.css 的 flex column 纵向布局） */
-.explore-slots.build-grid {
-  display: grid;
-}
+/* 探索槽位容器：与建造物同网格（具体 display 规则见 overlays.css，此处仅保留类挂钩） */
 
 /* 探索槽卡按钮区贴底（与建造卡一致；覆盖 .explore-slot-actions 的 margin-top:8px） */
 .explore-slot .build-actions {

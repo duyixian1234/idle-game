@@ -92,12 +92,18 @@
   font-family: var(--font-mono);
 }
 
-/* 探索深空信道列表（多槽，1/2/3） */
+/* 探索深空信道列表（多槽，1/2/3）：卡片网格（卡片化改造 card-unify，build-grid 2 列自适应） */
 .explore-slots {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin: 10px 0;
+}
+
+.explore-slots.build-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
 }
 
 .explore-slot {
