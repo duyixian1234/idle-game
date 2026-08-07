@@ -56,6 +56,42 @@
   margin: 6px 0 14px;
 }
 
+/* 探索尽览终态（explore-endstate）：群星尽览徽章 + 引导 + 无限入口按钮 */
+.explore-endstate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--mineral);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.explore-endstate-badge {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.explore-endstate-text {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+/* 自动探索尽览常驻横幅（data-auto-explore-exhausted；escort-warn 为无样式语义 class，样式走属性选择器） */
+[data-auto-explore-exhausted] {
+  display: block;
+  margin-top: 6px;
+  color: var(--warn);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
 /* 探索深空信道列表（多槽，1/2/3） */
 .explore-slots {
   display: flex;

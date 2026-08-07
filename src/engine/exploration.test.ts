@@ -6,6 +6,7 @@ import {
   expeditionPool,
   explorationHarvestMult,
   explorationSlots,
+  exploreProgress,
   isExploreAvailable,
   settleExpeditions,
   startExpedition,
@@ -430,6 +431,91 @@ describe('engine: 奖池（剔除制 + 权重）', () => {
     s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
     s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
     expect(expeditionPool(s)).toEqual([{ kind: 'resource', weight: 2 }])
+  })
+})
+
+describe('engine: 探索收集进度（explore-endstate）', () => {
+  it('exploreProgress 空态：0/4 势力、0/5 天体、未尽览', () => {
+    const s = endedState()
+    expect(exploreProgress(s)).toEqual({
+      factions: { found: 0, total: 4 },
+      planets: { found: 0, total: 5 },
+      exhausted: false,
+    })
+  })
+
+  it('exploreProgress 部分收集：found 随 explored* 计数，未尽览', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder']
+    s.exploredPlanets = ['logistics', 'rubbleBelt']
+    expect(exploreProgress(s)).toEqual({
+      factions: { found: 2, total: 4 },
+      planets: { found: 2, total: 5 },
+      exhausted: false,
+    })
+  })
+
+  it('exploreProgress 集齐（4 势力 + 5 天体）：exhausted=true', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    expect(exploreProgress(s)).toEqual({
+      factions: { found: 4, total: 4 },
+      planets: { found: 5, total: 5 },
+      exhausted: true,
+    })
+  })
+
+  it('infinite 扩展池仍有目标（军事/外交/天体）→ exhausted=false（作用域：无尽目标入池）', () => {
+    const s = endedState()
+    enterInfiniteMode(s)
+    expect(exploreProgress(s)).toEqual({
+      factions: { found: 0, total: 4 },
+      planets: { found: 0, total: 5 },
+      exhausted: false,
+    })
+  })
+
+  it('found clamp 到 total：infinite 程序生成天体也会进 exploredPlanets，超额不溢出（避免「天体 8/5」）', () => {
+    const s = endedState()
+    enterInfiniteMode(s)
+    // 4 静态势力 + 6 个天体（静态 5 + 程序生成 1）→ found 显示 clamp 到 5
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect', 'endless:extraFaction']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm', 'gen:planet']
+    expect(exploreProgress(s)).toEqual({
+      factions: { found: 4, total: 4 },
+      planets: { found: 5, total: 5 },
+      exhausted: false,
+    })
+  })
+
+  it('结算日志：集齐后资源补偿宣告终态（含护航变体）', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2, escort: true, result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 } }))
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(logs[0].text).toContain('已尽览所有已知目标，无新发现')
+    expect(logs[0].text).not.toContain('未发现新文明')
+    expect(logs[1].text).toContain('护航编队返航：已尽览所有已知目标，无新发现')
+  })
+
+  it('结算日志：未尽览保持「未发现新文明」', () => {
+    const s = endedState()
+    s.exploredFactions = ['ashCommune']
+    s.expeditions.push(fakeExpedition())
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(logs[0].text).toContain('未发现新文明')
+    expect(logs[0].text).not.toContain('已尽览')
+  })
+
+  it('结算日志：infinite 扩展池有目标时不含「已尽览」', () => {
+    const s = endedState()
+    enterInfiniteMode(s)
+    s.expeditions.push(fakeExpedition())
+    const logs = settleExpeditions(s, EXPEDITION_DURATION_MS)
+    expect(logs[0].text).toContain('未发现新文明')
+    expect(logs[0].text).not.toContain('已尽览')
   })
 })
 

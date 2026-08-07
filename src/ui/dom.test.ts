@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from '../engine/engine'
+import { createInitialState, enterInfiniteMode } from '../engine/engine'
 import { createFactionState } from '../engine/diplomacy'
 import { previewMaxBuy } from '../engine/bulk'
 import { previewNewGamePlus } from '../engine/ngplus'
@@ -1037,6 +1037,85 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain(`已发现：${formatNumber(2)} / ${formatNumber(9)}`)
     expect(page.textContent).toContain(`势力 ${formatNumber(1)}/${formatNumber(4)}`)
     expect(page.textContent).toContain(`天体 ${formatNumber(1)}/${formatNumber(5)}`)
+  })
+
+  it('收集尽览（ended 集齐 4+5）：进度行 data-explore-progress + 群星尽览徽章 + 无限入口按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector('[data-explore-progress]')?.textContent).toContain(`已发现：${formatNumber(9)} / ${formatNumber(9)}`)
+    const endstate = page.querySelector('[data-explore-exhausted]')
+    expect(endstate).toBeTruthy()
+    expect(endstate!.textContent).toContain('群星尽览')
+    expect(endstate!.textContent).toContain('进入无限模式可发现军事目标与程序生成天体')
+    const btn = page.querySelector<HTMLButtonElement>('[data-explore-infinite]')
+    expect(btn).toBeTruthy()
+    expect(btn?.textContent).toContain('进入无限模式')
+  })
+
+  it('未尽览（ended 部分收集）：无群星尽览徽章、无无限入口按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.exploredFactions = ['ashCommune']
+    s.exploredPlanets = ['logistics']
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector('[data-explore-exhausted]')).toBeNull()
+    expect(page.querySelector('[data-explore-infinite]')).toBeNull()
+  })
+
+  it('infinite 阶段（扩展池仍有目标）：静态池收集满也不显示尽览徽章/按钮（NG+ 卡在）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    enterInfiniteMode(s)
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector('[data-explore-exhausted]')).toBeNull()
+    expect(page.querySelector('[data-explore-infinite]')).toBeNull()
+    expect(page.querySelector('[data-ngplus]')).toBeTruthy()
+  })
+
+  it('自动探索尽览横幅：开启 + 尽览时渲染；未尽览或未开启不渲染', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    // 开启 + 尽览 → 渲染
+    const s = endedState()
+    s.autoExplore.enabled = true
+    s.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    let page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const banner = page.querySelector('[data-auto-explore-exhausted]')
+    expect(banner).toBeTruthy()
+    expect(banner!.textContent).toContain('目标已尽览，仅回收资源')
+    // 开启 + 未尽览 → 不渲染
+    const s2 = endedState()
+    s2.autoExplore.enabled = true
+    page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s2, 0)
+    expect(page.querySelector('[data-auto-explore-exhausted]')).toBeNull()
+    // 未开启 + 尽览 → 不渲染
+    const s3 = endedState()
+    s3.autoExplore.enabled = false
+    s3.exploredFactions = ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']
+    s3.exploredPlanets = ['logistics', 'outpost', 'rubbleBelt', 'heliumNebula', 'riftChasm']
+    page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s3, 0)
+    expect(page.querySelector('[data-auto-explore-exhausted]')).toBeNull()
+    // 未开启 + 未尽览 → 不渲染
+    const s4 = endedState()
+    s4.autoExplore.enabled = false
+    page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s4, 0)
+    expect(page.querySelector('[data-auto-explore-exhausted]')).toBeNull()
   })
 
   it('产出型天体发现后：渲染贡献行（data-planet-output 显示基础+比例+增益实时值）', () => {

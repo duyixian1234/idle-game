@@ -658,6 +658,14 @@ async function main(): Promise<void> {
   const exploreEscortChecked = new Set<number>()
   // NG+ 终局卡（data-ngplus，仅 infinite 渲染）→ 开启确认弹窗
   els.navPages.explore.addEventListener('click', (e) => {
+    // 探索页无限入口（data-explore-infinite，仅 ended 且尽览渲染）：行为与结局面板 data-ending="infinite" 一致
+    const infiniteBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-infinite]')
+    if (infiniteBtn) {
+      enterInfiniteMode(state)
+      render()
+      void saveGame(state)
+      return
+    }
     const ngplusBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-ngplus]')
     if (ngplusBtn) {
       openNgPlusModal()

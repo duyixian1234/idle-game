@@ -207,6 +207,26 @@ export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
   return pool
 }
 
+/** 探索收集进度（explore-endstate）：外交/天体已发现数与总数、是否尽览——单一事实源。
+ * found = exploredFactions/exploredPlanets 长度；total = 静态探索表条目数（4 势力 + 5 天体）。
+ * exhausted = 奖池无非 resource 条目（ended 静态池集齐 → true；infinite 扩展池仍有军事/外交/天体
+ * 或程序生成占位 → false）——直接复用 expeditionPool 的剔除/作用域计算（含 endless-expansion
+ * batch 门控与 generatedCap），不引入第二套口径。派生纯函数，不写存档。 */
+export interface ExploreProgress {
+  factions: { found: number; total: number }
+  planets: { found: number; total: number }
+  exhausted: boolean
+}
+
+export function exploreProgress(state: GameState): ExploreProgress {
+  // found clamp 到 total：infinite 程序生成天体也会进 exploredPlanets，可能超过静态表条目数——
+  // 显示口径保持"静态池收集进度"，超额不溢出（避免「天体 8/5」）
+  const factions = { found: Math.min(state.exploredFactions.length, Object.keys(EXPLORE_FACTIONS).length), total: Object.keys(EXPLORE_FACTIONS).length }
+  const planets = { found: Math.min(state.exploredPlanets.length, Object.keys(EXPLORE_PLANETS).length), total: Object.keys(EXPLORE_PLANETS).length }
+  const exhausted = !expeditionPool(state).some((e) => e.kind !== 'resource')
+  return { factions, planets, exhausted }
+}
+
 /** 资源补偿数值（按当前投入比例返还 + 科技点出口；mult 放大 resource 分支，与成本同源缩放保持收益比锚点）。
  * 护航（escortFee > 0）：返还锚定「基础成本 + 远征费」，走护航专属返还率（ESCORT_COMPENSATE_RATIO，能源分支压低、矿物/科技突出）——
  * 海量投入 → 海量回报。⚠️ 极后期防印钞锚定（balance-sim 校准定稿）：mineral 分支按「远征费的当期矿物等价」
@@ -386,11 +406,14 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
   state.resources.mineral += r.mineral
   state.resources.energy += r.energy
   state.resources.tech += r.tech
+  // 尽览宣告（explore-endstate）：奖池无未发现目标时，资源补偿日志由「未发现新文明」改为明确终态——
+  // 自动探索每笔结算由此天然宣告"无新内容"，不额外加日志、不刷屏。实时计算反映同循环先前结算的最新集合。
+  const headText = exploreProgress(state).exhausted ? '已尽览所有已知目标，无新发现' : '未发现新文明'
   return {
     type: 'reward',
     text: exp.escort
-      ? `护航编队返航：未发现新文明，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`
-      : `探索队返航：未发现新文明，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`,
+      ? `护航编队返航：${headText}，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`
+      : `探索队返航：${headText}，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`,
   }
 }
 

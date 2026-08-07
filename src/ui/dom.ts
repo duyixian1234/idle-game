@@ -1,10 +1,10 @@
 import type { GameState, ResourceKey } from '../engine/types'
-import { ENDLESS_PLANETS, EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { ENDLESS_PLANETS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
+import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
 import { ENDLESS_BATCH_2_EXPLORATIONS, EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { isPlanetUnlocked } from '../engine/engine'
 import { explorePlanetOutputs, militaryCap, productionBreakdown } from '../engine/production'
@@ -55,8 +55,10 @@ export function renderExplorePage(
   // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 5：1 + 科技 2 + 跃迁枢纽 2）
   const slots = explorationSlots(state)
   const ongoing = state.expeditions.filter((e) => !e.resolved)
-  const totalPool = Object.keys(EXPLORE_FACTIONS).length + Object.keys(EXPLORE_PLANETS).length
-  const discovered = state.exploredFactions.length + state.exploredPlanets.length
+  // 收集进度单一事实源（explore-endstate）：外交/天体 found+total 与尽览标志（与引擎奖池同口径）
+  const progress = exploreProgress(state)
+  const totalPool = progress.factions.total + progress.planets.total
+  const discovered = progress.factions.found + progress.planets.found
   const fleetReady = canEscort(state)
   const slotCards: string[] = []
   // 展示上限 5 槽（1 基础 + 2 科技 + 跃迁枢纽 +2，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
@@ -130,6 +132,7 @@ export function renderExplorePage(
       <label class="escort-toggle-label"><input type="checkbox" data-auto-escort ${auto.escort ? 'checked' : ''} ${autoEscortDisabled ? 'disabled' : ''}> 自动护航</label>
       <span class="explore-auto-cost" data-auto-escort-cost>自动护航预计消耗 ${formatNumber(escortFee(state))} 能源/轮</span>
       ${auto.pausedAt != null ? '<span class="escort-warn" data-auto-explore-paused>资源不足，自动探索暂停（资源恢复后自动继续）</span>' : ''}
+      ${auto.enabled && progress.exhausted ? '<span class="escort-warn" data-auto-explore-exhausted>自动探索中：目标已尽览，仅回收资源</span>' : ''}
     </div>`
   const outputRows = explorePlanetOutputs(state)
     .map((o) => {
@@ -174,7 +177,14 @@ export function renderExplorePage(
     <div class="explore-card">
       <h1 class="ending-title">派遣探索</h1>
       <p class="ending-stats">通关后的新航路：深空信道并行派遣，有概率发现新的派系势力或发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
-      <div class="explore-progress">已发现：${formatNumber(discovered)} / ${formatNumber(totalPool)}（势力 ${formatNumber(state.exploredFactions.length)}/${formatNumber(Object.keys(EXPLORE_FACTIONS).length)} · 天体 ${formatNumber(state.exploredPlanets.length)}/${formatNumber(Object.keys(EXPLORE_PLANETS).length)}）</div>
+      <div class="explore-progress" data-explore-progress>已发现：${formatNumber(discovered)} / ${formatNumber(totalPool)}（势力 ${formatNumber(progress.factions.found)}/${formatNumber(progress.factions.total)} · 天体 ${formatNumber(progress.planets.found)}/${formatNumber(progress.planets.total)}）</div>
+      ${progress.exhausted
+        ? `<div class="explore-endstate" data-explore-exhausted>
+            <span class="explore-endstate-badge">群星尽览</span>
+            <span class="explore-endstate-text">已尽览所有已知目标。继续探索仅回收资源；${state.phase === 'ended' ? '进入无限模式可发现军事目标与程序生成天体。' : ''}</span>
+            ${state.phase === 'ended' ? '<button type="button" class="ending-btn primary" data-explore-infinite>进入无限模式</button>' : ''}
+          </div>`
+        : ''}
       ${autoPanel}
       <div class="explore-slots">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
