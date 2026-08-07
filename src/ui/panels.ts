@@ -14,7 +14,7 @@ import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, sh
 import { escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
-import { canFactionAlliance, canFactionIntimidate, canFactionTechShare, canFactionTrade, diplomacyOverview, factionDef, factionsVisible, intimidateCost, tradeCost } from '../engine/diplomacy'
+import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { LogDirection } from './log'
 
@@ -449,6 +449,14 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     <div class="diplo-header-row" data-diplo-threat>${ov.threatCount === 0 ? '星域安宁，无派系骚扰' : `${ov.threatCount} 家派系构成骚扰威胁`}</div>
     <div class="diplo-header-row" data-diplo-alliance>已结盟 ${ov.allied} / 已登场 ${ov.total}</div>`
   el.appendChild(header)
+  // 胁迫外交解锁提示（diplomacy-coercion：首次遭遇 raid 后解锁）
+  if (!coercionUnlocked(state)) {
+    const lockHint = document.createElement('div')
+    lockHint.className = 'diplo-coercion-lock'
+    lockHint.setAttribute('data-diplo-coercion-lock', '')
+    lockHint.textContent = '遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。'
+    el.appendChild(lockHint)
+  }
 
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
@@ -511,6 +519,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
         <button type="button" class="build-btn diplo-btn intimidate-btn" data-diplomacy="${id}:intimidate" ${canIntimidate ? '' : 'disabled'} title="消耗资源降低对方军力，但好感下降">
           威慑 ${formatCost(intC)}
         </button>
+        ${renderCoercionActions(state, id)}
       </div>`
     el.appendChild(item)
   }
@@ -523,6 +532,34 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     )
     renderEndlessLockedHint(el, 'diplomacy', locked.length)
   }
+}
+
+/** 胁迫外交按钮区（diplomacy-coercion）：未解锁返回空；按派系状态渲染状态徽标与勒索/条约/臣服/赎罪按钮 */
+function renderCoercionActions(state: GameState, id: string): string {
+  const f = state.factions[id]
+  if (!f || !coercionUnlocked(state)) return ''
+  const parts: string[] = []
+  // 状态徽标（臣服中 / 赎罪期 / 已洗白）
+  if (f.subjugated) parts.push('<span class="faction-state-badge subjugated" data-faction-state="subjugated">臣服中 · 锁定军力维持</span>')
+  if (f.atoningUntil !== undefined && f.atoningUntil > Date.now()) parts.push('<span class="faction-state-badge atoning" data-faction-state="atoning">赎罪期 · 贸易加成</span>')
+  if (f.atoned) parts.push('<span class="faction-state-badge atoned" data-faction-state="atoned">已洗白 · 不可再胁迫</span>')
+  const canExtort = canFactionExtort(state, id)
+  const canTreaty = canFactionTreaty(state, id)
+  const canSubjugate = canFactionSubjugate(state, id)
+  const canAtone = canFactionAtone(state, id)
+  if (canExtort) {
+    parts.push(`<button type="button" class="build-btn diplo-btn extort-btn" data-diplomacy="${id}:extort" title="以军事力量敲诈资源——高收益，代价是好感暴跌与威胁飙升">勒索 ${formatCost(extortCost(state, id))}</button>`)
+  }
+  if (canTreaty) {
+    parts.push(`<button type="button" class="build-btn diplo-btn treaty-btn" data-diplomacy="${id}:treaty" title="12 小时进贡条约：被动矿物税（离线结算），到期威胁反弹">条约 ${formatCost(treatyCost(state, id))}</button>`)
+  }
+  if (canSubjugate) {
+    parts.push(`<button type="button" class="build-btn diplo-btn subjugate-btn" data-diplomacy="${id}:subjugate" title="武力压服：锁定军力维持臣服，双倍贡税；军力不足将叛变">臣服</button>`)
+  }
+  if (canAtone) {
+    parts.push(`<button type="button" class="build-btn diplo-btn atone-btn" data-diplomacy="${id}:atone" title="赔偿洗白：解除臣服/条约并开启赎罪期，赎罪后不可再胁迫">赎罪 ${formatCost(atoneCost(state, id))}</button>`)
+  }
+  return parts.join('')
 }
 
 /** 设置页 UI 状态（由 main 层组装传入，纯展示） */

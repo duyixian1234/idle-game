@@ -75,6 +75,57 @@ export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, en
 export const TECH_SHARE_FAVOR_GAIN = 15
 export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000, military: 0 }
 
+// ---- 胁迫外交（diplomacy-coercion，初稿待 balance-sim 校准） ----
+
+/** 解锁标记（storyFlags）：首次遭遇 raid 后置位 */
+export const COERCION_UNLOCK_FLAG = 'coercionUnlocked'
+/** 勒索：军力 ≥ 军力上限 × 此比例 可勒索（基础门槛） */
+export const EXTORT_MILITARY_PCT = 0.4
+/** 勒索：军力 ≥ 军力上限 × 此比例 解锁"威慑报价"（收益 ×EXTORT_OFFER_MULT） */
+export const EXTORT_OFFER_PCT = 0.7
+/** 勒索：能源消耗基准（×EXTORT_COST_GROWTH^extortCount 递增） */
+export const EXTORT_ENERGY_COST = 20_000
+/** 勒索：矿物收益基准（≈贸易 5 次累计；威慑报价 ×1.5） */
+export const EXTORT_MINERAL_BASE = 60_000
+export const EXTORT_COST_GROWTH = 1.5
+export const EXTORT_OFFER_MULT = 1.5
+/** 勒索：好感代价（grill Q6: −30~−40 取 30） */
+export const EXTORT_FAVOR_LOSS = 30
+/** 勒索：威胁代价（grill Q6: +20~30 取 25） */
+export const EXTORT_THREAT_GAIN = 25
+
+/** 进贡条约：固定时长（12h，grill Q9/Q12 定稿） */
+export const TREATY_DURATION_MS = 12 * 3600_000
+/** 条约：签定能源成本基准（×TREATY_COST_GROWTH^treatyCount 续签递增） */
+export const TREATY_ENERGY_COST = 20_000
+export const TREATY_COST_GROWTH = 1.5
+/** 条约：每秒矿物税（12h ≈ 24 万矿 ≈ 勒索 4 次量；并入 productionReport 离线自动结算） */
+export const TREATY_MINERAL_PER_SEC = 5.56
+/** 条约到期 threat 反弹 */
+export const TREATY_EXPIRE_THREAT_GAIN = 10
+
+/** 臣服：好感上限要求（favor ≤ 此值可臣服） */
+export const SUBJUGATE_FAVOR_MAX = 20
+/** 臣服：威胁下限要求（threat ≥ 此值可臣服） */
+export const SUBJUGATE_THREAT_MIN = 70
+/** 臣服：军力门槛（≥ 军力上限 × 此比例） */
+export const SUBJUGATE_MILITARY_PCT = 0.6
+/** 臣服：锁定军力（= 军力上限 × 此比例，从当前 military 扣除，不可他用） */
+export const SUBJUGATE_LOCK_PCT = 0.25
+/** 臣服：每秒矿物税（≈ 条约 ×2） */
+export const SUBJUGATE_MINERAL_PER_SEC = 11.1
+/** 叛变：threat 爆炸增量 */
+export const REVOLT_THREAT_GAIN = 50
+/** 叛变：好感清零 */
+export const REVOLT_FAVOR_RESET = 0
+
+/** 三重赎罪：赔偿金基准（×ATONE_COST_GROWTH^extortCount 递增，赎罪总成本 > 直刷好感） */
+export const ATONE_MINERAL_BASE = 60_000
+export const ATONE_COST_GROWTH = 1.5
+/** 赎罪期时长（12h：期内贸易好感增益 ×ATONE_TRADE_FAVOR_MULT） */
+export const ATONE_DURATION_MS = 12 * 3600_000
+export const ATONE_TRADE_FAVOR_MULT = 1.5
+
 // ---- 事件 / 骚扰 ----
 
 /** 派系骚扰（raid）参数族 */

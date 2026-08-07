@@ -144,8 +144,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 12
+/** 存档 schema 版本（v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 13
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -169,7 +169,7 @@ export interface PlanetState {
   outputBonus?: number
 }
 
-/** 派系外交状态 */
+/** 派系外交状态（v13 新增胁迫字段：subjugated/treaty/extort/atoned/everCoerced） */
 export interface FactionState {
   /** 好感度 0-100 */
   favor: number
@@ -181,6 +181,20 @@ export interface FactionState {
   intimidateCount: number
   /** 军力威胁度 0-100（威慑可降） */
   threat: number
+  /** v13：是否臣服中（臣服=锁定军力+持续税，与结盟互斥） */
+  subjugated?: boolean
+  /** v13：进贡条约到期时间戳（ms）；无条约时不存 */
+  treatyUntil?: number
+  /** v13：已签条约次数（续签成本递增；旧档缺省 0） */
+  treatyCount?: number
+  /** v13：已勒索次数（成本/赎罪赔偿递增；旧档缺省 0） */
+  extortCount?: number
+  /** v13：已完成赎罪（永久禁胁迫 + 成就；旧档缺省 false） */
+  atoned?: boolean
+  /** v13：任一胁迫手段发生过（结局文本分支"征服者统一"；跨周目保留） */
+  everCoerced?: boolean
+  /** v13：赎罪期截止时间戳（ms）；赎罪期内贸易好感增益 ×ATONE_TRADE_FAVOR_MULT */
+  atoningUntil?: number
 }
 
 /** 游戏阶段：进行中 / 已通关（结局演出后）/ 无限模式 */

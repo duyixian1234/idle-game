@@ -7,6 +7,7 @@ import { migrateSave, serializeSave } from './save'
 import { ENDLESS_BATCH_2_EXPLORATIONS } from './balance'
 import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, programmaticActiveCount } from './generate'
 import { CONQUESTS, ENDLESS_CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
+import { SCHEMA_VERSION } from './types'
 import type { ExpeditionState, GameState } from './types'
 
 /** 派遣/攻占时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
@@ -312,14 +313,14 @@ describe('engine: endless-expansion 结盟归档与存档', () => {
     expect(s.archivedRounds.ferro).toBe(0)
   })
 
-  it('v11 → v12 迁移：补默认空数组，写死目标版本', () => {
+  it('v11 → v13 迁移：补默认空数组与胁迫字段，写死目标版本为当前', () => {
     const s = infiniteState()
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 11
     delete raw.generatedTargets
     delete raw.archivedRounds
     const migrated = migrateSave(raw as unknown as GameState)
-    expect(migrated.schemaVersion).toBe(12)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.generatedTargets).toEqual([])
     expect(migrated.archivedRounds).toEqual({})
   })

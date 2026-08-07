@@ -1,6 +1,6 @@
 import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UPGRADE_GROWTH } from './balance'
+import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC } from './balance'
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
 import { reputationBonuses } from './reputation'
@@ -144,10 +144,24 @@ export function productionReport(state: GameState): ProductionReport {
     }
   }
 
+  // 胁迫贡税（diplomacy-coercion）：进贡条约 + 臣服派系的矿物税流。
+  // 政治收入：不依赖能源、不吃冶炼场倍率/NG+ 加成，纯粹按派系状态产生；并入 nominal → tick/离线/UI 同源。
+  nominal.mineral += tributePerSec(state)
+
   // 军力容量截断：剩余容量为 0 时产出停摆，接近上限时按剩余容量打折（秒级口径）
   const room = militaryCap(state) - state.resources.military
   nominal.military = Math.max(0, Math.min(nominal.military, room))
   return { nominal, energyRatio }
+}
+
+/** 贡税流：进行中条约 + 臣服派系的每秒矿物税（diplomacy-coercion；nowMs 可注入便于测试） */
+export function tributePerSec(state: GameState, nowMs = Date.now()): number {
+  let total = 0
+  for (const f of Object.values(state.factions)) {
+    if (f.subjugated) total += SUBJUGATE_MINERAL_PER_SEC
+    else if (f.treatyUntil !== undefined && nowMs < f.treatyUntil) total += TREATY_MINERAL_PER_SEC
+  }
+  return total
 }
 
 /** 探索产出型天体当前每秒贡献明细（UI data-planet-output 单一真源，与 productionReport 同口径含 permMult 与冶炼场乘数） */

@@ -10,7 +10,7 @@ import { executeDiplomacyMax, executeLimitedBuy, executeLimitedDiplomacy, execut
 import type { BulkSpend } from '../engine/bulk'
 import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
-import { factionAlliance, factionDef, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
+import { factionAlliance, factionAtone, factionDef, factionExtort, factionIntimidate, factionSubjugate, factionTechShare, factionTrade, factionTreaty, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
 import { buyShip } from '../engine/engine'
 import { fleetMaintenance } from '../engine/fleet'
@@ -102,6 +102,10 @@ function runDiplomacy(state: GameState, payload: string | number): unknown {
   if (action === 'trade') return factionTrade(state, factionId)
   if (action === 'alliance') return factionAlliance(state, factionId)
   if (action === 'techshare') return factionTechShare(state, factionId)
+  if (action === 'extort') return factionExtort(state, factionId)
+  if (action === 'treaty') return factionTreaty(state, factionId)
+  if (action === 'subjugate') return factionSubjugate(state, factionId)
+  if (action === 'atone') return factionAtone(state, factionId)
   return factionIntimidate(state, factionId)
 }
 
@@ -120,6 +124,14 @@ function diplomacyFeedback(state: GameState, _result: unknown, payload: string |
     }
   } else if (action === 'techshare') {
     logs.push({ type: 'system', text: `向${def?.name}共享技术情报，好感 +${formatNumber(15)}（当前 ${formatNumber(favor)}）。` })
+  } else if (action === 'extort') {
+    logs.push({ type: 'warning', text: `你对${def?.name}展示舰队，勒索了一笔资源——好感 -${formatNumber(30)}，威胁 +${formatNumber(25)}（当前 ${formatNumber(favor)}）。` })
+  } else if (action === 'treaty') {
+    logs.push({ type: 'system', text: `${def?.name}签署进贡条约：12 小时内持续进贡矿物（离线照常结算）。` })
+  } else if (action === 'subjugate') {
+    logs.push({ type: 'warning', text: `${def?.name}在军力面前臣服——但你需要持续派驻军力维持，否则将叛变。` })
+  } else if (action === 'atone') {
+    logs.push({ type: 'story', text: `你向${def?.name}支付赔偿，解除胁迫并开启赎罪期——洗白之路开启。` })
   } else {
     logs.push({ type: 'system', text: `对${def?.name}展示威慑，其军力下降，好感 -${formatNumber(8)}（当前 ${formatNumber(favor)}）。` })
   }

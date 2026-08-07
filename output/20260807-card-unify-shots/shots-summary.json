@@ -1,0 +1,53 @@
+{
+  "build": {
+    "buildCards": 13,
+    "buildGrids": 3,
+    "megaCards": 2,
+    "interstellarSection": true
+  },
+  "tech": {
+    "techCards": 9,
+    "techGrid": true,
+    "techIcons": [
+      "#ic-drillCore",
+      "#ic-solar",
+      "#ic-quantumCore",
+      "#ic-deepDrill",
+      "#ic-fusionBattery",
+      "#ic-nanoFab",
+      "#ic-navArray",
+      "#ic-relay",
+      "#ic-militaryTech"
+    ],
+    "researchBtns": 0,
+    "upgradeBtns": 8
+  },
+  "diplomacy": {
+    "factionCards": 4,
+    "factionIcons": [
+      "#ic-ferro",
+      "#ic-lumen",
+      "#ic-cygnus",
+      "#ic-vox"
+    ],
+    "diploBtns": 16,
+    "diploLimitBtns": 16
+  },
+  "military": {
+    "conquestCards": 4,
+    "fleetCard": true,
+    "fleetStatus": true,
+    "fleetBuildBtn": true,
+    "conquestBtns": 4,
+    "conquestInputs": 4,
+    "militaryBuildCards": 13
+  },
+  "explore": {
+    "slots": 10,
+    "slotCards": 10,
+    "lockedSlots": 3,
+    "slot1Text": "\n          \n          \n            深空信道 1⏳ 派遣中（护航）\n            ████████░░░░░░░░返航倒计时 9分钟\n          \n        ",
+    "dispatchBtns": 6,
+    "escortToggle": true
+  }
+}

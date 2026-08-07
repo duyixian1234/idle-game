@@ -314,3 +314,36 @@
   color: var(--text-dim);
 }
 
+
+/* 胁迫外交状态徽标（diplomacy-coercion：臣服中 / 赎罪期 / 已洗白） */
+.faction-state-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+.faction-state-badge.subjugated {
+  border: 1px solid var(--danger, #e24b4a);
+  color: var(--danger, #e24b4a);
+}
+.faction-state-badge.atoning {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.faction-state-badge.atoned {
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+/* 胁迫外交解锁提示（外交面板头部） */
+.diplo-coercion-lock {
+  margin: 6px 0 10px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}

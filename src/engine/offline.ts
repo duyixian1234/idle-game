@@ -4,6 +4,7 @@ import { settleConquests } from './conquest'
 import { settleExpeditions, settleOfflineAutoExplore } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
+import { coercionTick } from './diplomacy'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { pushLog, zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
@@ -87,6 +88,8 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   if (gains.mineral > 0) {
     state.stats.totalMineralEarned += gains.mineral
   }
+  // 离线期间条约到期/臣服叛变照常推进（贡税已含在 productionReport 的 gains 中）
+  coercionTick(state, nowMs)
   state.lastTick = nowMs
   state.playSeconds += duration
 

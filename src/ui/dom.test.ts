@@ -565,6 +565,71 @@ describe('ui: 外交面板', () => {
     expect(container.querySelector('[data-diplo-overview]')).toBeNull()
     expect(container.querySelector('[data-panel="diplomacy"]')!.textContent).toContain('尚未探测到其他文明信号')
   })
+
+  it('胁迫外交：未解锁时显示解锁提示且无勒索按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.military = 100
+    s.resources.energy = 100_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const hint = container.querySelector('[data-diplo-coercion-lock]')
+    expect(hint).toBeTruthy()
+    expect(hint!.textContent).toContain('遭遇派系骚扰')
+    expect(container.querySelector('[data-diplomacy="ferro:extort"]')).toBeNull()
+  })
+
+  it('胁迫外交：解锁后勒索按钮按门槛渲染', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.storyFlags['coercionUnlocked'] = true
+    s.resources.military = 100
+    s.resources.energy = 100_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const extort = container.querySelector<HTMLButtonElement>('[data-diplomacy="ferro:extort"]')
+    expect(extort).toBeTruthy()
+    expect(extort!.disabled).toBe(false)
+    expect(container.querySelector('[data-diplo-coercion-lock]')).toBeNull()
+  })
+
+  it('胁迫外交：臣服中渲染徽标与赎罪按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.storyFlags['coercionUnlocked'] = true
+    s.resources.mineral = 1_000_000
+    s.factions.vox.subjugated = true
+    s.factions.vox.extortCount = 2
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const badge = container.querySelector('[data-faction-state="subjugated"]')
+    expect(badge).toBeTruthy()
+    expect(badge!.textContent).toContain('臣服中')
+    const atone = container.querySelector<HTMLButtonElement>('[data-diplomacy="vox:atone"]')
+    expect(atone).toBeTruthy()
+    expect(atone!.disabled).toBe(false)
+  })
+
+  it('胁迫外交：赎罪后渲染已洗白徽标且不再有勒索按钮', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.storyFlags['coercionUnlocked'] = true
+    s.factions.ferro.atoned = true
+    s.resources.military = 100
+    s.resources.energy = 100_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const badge = container.querySelector('[data-faction-state="atoned"]')
+    expect(badge).toBeTruthy()
+    expect(badge!.textContent).toContain('已洗白')
+    expect(container.querySelector('[data-diplomacy="ferro:extort"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy="ferro:treaty"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy="ferro:subjugate"]')).toBeNull()
+  })
 })
 
 describe('ui: 事件科技分支', () => {

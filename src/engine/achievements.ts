@@ -387,6 +387,34 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     // 建筑 NG+ 清零，周目内重新达成可重解锁（与收集类一致）
     recurring: true,
   },
+  // ---- 胁迫外交（diplomacy-coercion）----
+  extortFirst: {
+    id: 'extortFirst',
+    name: '敲诈者的第一课',
+    desc: '第一次向派系勒索资源——力量第一次有了价格。',
+    category: 'collect',
+    condition: (s) => Object.values(s.factions).some((f) => (f.extortCount ?? 0) >= 1),
+    rewardMineral: 5_000,
+    rep: 3,
+  },
+  subjugateFirst: {
+    id: 'subjugateFirst',
+    name: '铁腕臣服',
+    desc: '第一次让派系在军力面前低头臣服。',
+    category: 'collect',
+    condition: (s) => Object.values(s.factions).some((f) => f.subjugated),
+    rewardMineral: 15_000,
+    rep: 4,
+  },
+  atoneFirst: {
+    id: 'atoneFirst',
+    name: '悔过者的选择',
+    desc: '第一次完成赎罪，让铁腕与善意和解。',
+    category: 'collect',
+    condition: (s) => Object.values(s.factions).some((f) => f.atoned),
+    rewardMineral: 10_000,
+    rep: 3,
+  },
 }
 
 /** 成就条件判定（checkAchievements 与存档回溯迁移共用，保证口径一致） */

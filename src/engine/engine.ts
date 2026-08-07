@@ -19,13 +19,13 @@ import {
   UNIQUE_UPGRADE_GROWTH,
   UPGRADE_PREMIUM,
 } from './balance'
-import { createFactions, federationProgress, isFederationUnified } from './diplomacy'
+import { coercionTick, createFactions, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { autoExploreDispatch, settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
 import { autoResolvePendingEvents, createDefaultAutomationPolicies, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
 import { PLANET_MECHANICS } from './mechanics'
-import { ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
+import { CONQUEROR_ENDING_SCENES, ENDING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { checkAchievements, endlessIIUnlocked } from './achievements'
 import { SCHEMA_VERSION } from './types'
 import type { FactionState, GameState, ResourceKey } from './types'
@@ -429,6 +429,8 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   if (state.resources.military > militaryCap(state)) {
     state.resources.military = militaryCap(state)
   }
+  // 胁迫外交 tick 推进：条约到期 threat 反弹、臣服叛变检查（贡税已含在 productionReport 中）
+  coercionTick(state, nowMs)
   state.lastTick = nowMs
   state.playSeconds += dt
 
@@ -540,13 +542,15 @@ export function setActivePlanet(state: GameState, id: string): ActionResult {
 
 // ---- 结局、无限模式与 NG+ ----
 
-/** 结局：星系统一联邦达成时触发演出（仅一次），返回是否触发 */
+/** 结局：星系统一联邦达成时触发演出（仅一次），返回是否触发。
+ * 结局判定不动（全员好感 ≥100/alied）；文本按是否曾被胁迫分支（diplomacy-coercion Q10 叙事痕迹）。 */
 export function checkEnding(state: GameState): boolean {
   if (state.endingTriggered) return false
   if (!isFederationUnified(state)) return false
   state.endingTriggered = true
   state.phase = 'ended'
-  for (const scene of ENDING_SCENES) pushLog(state, 'story', scene)
+  const scenes = isConquerorEnding(state) ? CONQUEROR_ENDING_SCENES : ENDING_SCENES
+  for (const scene of scenes) pushLog(state, 'story', scene)
   pushLog(
     state,
     'system',

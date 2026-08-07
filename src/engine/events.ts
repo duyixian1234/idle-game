@@ -27,6 +27,7 @@ import {
 import { netProduction } from './production'
 import { fleetPower } from './fleet'
 import { raidThreshold } from './reputation'
+import { unlockCoercion } from './diplomacy'
 import { rollDomain, streamFor } from './rng'
 import { EVENT_STORIES } from './story'
 import { pushLog } from './core'
@@ -841,6 +842,8 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
   const factionName = FACTIONS[factionId]?.name ?? '未知势力'
+  // 首次遭遇 raid 解锁胁迫外交（diplomacy-coercion；处理 raid 即"遭遇"）
+  unlockCoercion(state)
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
   const buyoff = Number(instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff)
   if (optionId === 'repel') {
@@ -914,6 +917,15 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
       mineralLost: 0,
       energyLost: 0,
       settlement: eventSettlement({}, 0),
+    }
+  }
+
+  // 首次遭遇 raid 解锁胁迫外交（diplomacy-coercion；离线骚扰同样算"遭遇"）
+  for (const def of Object.values(ALL_FACTIONS)) {
+    const f = state.factions[def.id]
+    if (f && !f.allied && f.threat >= raidThreshold(state)) {
+      if (unlockCoercion(state)) pushLog(state, 'story', '威胁可以成为筹码——外交压制手段已解锁。')
+      break
     }
   }
 

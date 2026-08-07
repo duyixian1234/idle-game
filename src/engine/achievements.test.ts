@@ -10,9 +10,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：34 个（含护航/船坞/双轨终章新成就）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：37 个（含护航/船坞/双轨终章/胁迫外交新成就）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(34)
+    expect(defs).toHaveLength(37)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -214,5 +214,38 @@ describe('achievements', () => {
       expect(s.achievements.endlessII?.unlockedInRound).toBe(0)
       expect(s.resources.mineral - before).toBe(100_000) // 仅 ng2 的 10 万，无 endlessII 的 500 万
     })
+  })
+})
+
+describe('achievements: 胁迫外交', () => {
+  it('extortFirst：任一派系勒索过即解锁', () => {
+    const s = makeState()
+    s.factions.ferro.extortCount = 1
+    const newly = checkAchievements(s, 1000)
+    expect(newly.map((d) => d.id)).toContain('extortFirst')
+    expect(s.achievements.extortFirst).toEqual({ unlockedAt: 1000, unlockedInRound: 0 })
+    expect(s.resources.mineral).toBe(15 + (ACHIEVEMENTS.extortFirst.rewardMineral ?? 0))
+  })
+
+  it('subjugateFirst：任一派系臣服中即解锁', () => {
+    const s = makeState()
+    s.factions.vox.subjugated = true
+    const newly = checkAchievements(s, 1000)
+    expect(newly.map((d) => d.id)).toContain('subjugateFirst')
+  })
+
+  it('atoneFirst：任一派系完成赎罪即解锁', () => {
+    const s = makeState()
+    s.factions.ferro.atoned = true
+    const newly = checkAchievements(s, 1000)
+    expect(newly.map((d) => d.id)).toContain('atoneFirst')
+  })
+
+  it('未触发不解锁', () => {
+    const s = makeState()
+    const newly = checkAchievements(s, 1000)
+    expect(newly.map((d) => d.id)).not.toContain('extortFirst')
+    expect(newly.map((d) => d.id)).not.toContain('subjugateFirst')
+    expect(newly.map((d) => d.id)).not.toContain('atoneFirst')
   })
 })

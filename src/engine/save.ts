@@ -29,6 +29,8 @@ const SCHEMA_V10 = 10
 const SCHEMA_V11 = 11
 /** 首个支持无尽模式生成目标与归档标记的存档版本（endless-expansion 占用） */
 const SCHEMA_V12 = 12
+/** 首个支持胁迫外交派系状态的存档版本（diplomacy-coercion 占用） */
+const SCHEMA_V13 = 13
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -300,6 +302,24 @@ function migrateV11ToV12(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** v12 → v13：胁迫外交派系状态补齐（旧档派系无胁迫字段，补默认值） */
+function migrateV12ToV13(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const factions = isPlainObject(next.factions) ? { ...(next.factions as Record<string, unknown>) } : {}
+  for (const f of Object.values(factions)) {
+    if (!isPlainObject(f)) continue
+    const faction = f as Record<string, unknown>
+    if (faction.subjugated === undefined) faction.subjugated = false
+    if (faction.treatyCount === undefined) faction.treatyCount = 0
+    if (faction.extortCount === undefined) faction.extortCount = 0
+    if (faction.atoned === undefined) faction.atoned = false
+    if (faction.everCoerced === undefined) faction.everCoerced = false
+  }
+  next.factions = factions
+  next.schemaVersion = SCHEMA_V13
+  return next
+}
+
 /**
  * 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。
  * 幂等（hadContract 检查）：eventConfigVersion 已达标 → 只归一化默认策略，不写迁移摘要。
@@ -431,7 +451,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V9) cur = migrateV9ToV10(cur)
   if (cur.schemaVersion === SCHEMA_V10) cur = migrateV10ToV11(cur)
   if (cur.schemaVersion === SCHEMA_V11) cur = migrateV11ToV12(cur)
-  // 事件契约迁移对任意进入版本执行：v1-v11 链式迁移后必已 ≥ v11，v12 档幂等跳过（migrateEventContract 不改主版本）
+  if (cur.schemaVersion === SCHEMA_V12) cur = migrateV12ToV13(cur)
+  // 事件契约迁移对任意进入版本执行：v1-v12 链式迁移后必已 ≥ v12，v13 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }

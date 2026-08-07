@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
+import { CONQUEROR_ENDING_SCENES, ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { buyBuilding, checkPlanetUnlocks, createInitialState, tick } from './engine'
 import { pushLog } from './core'
 import { PLANETS } from './data'
@@ -33,6 +33,13 @@ describe('engine: 剧情文本内容', () => {
   it('开局叙事 3 段、结局叙事 3 段', () => {
     expect(OPENING_SCENES.length).toBeGreaterThanOrEqual(3)
     expect(ENDING_SCENES.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('征服者结局叙事 3 段（diplomacy-coercion Q10 叙事痕迹）', () => {
+    expect(CONQUEROR_ENDING_SCENES.length).toBeGreaterThanOrEqual(3)
+    for (const scene of CONQUEROR_ENDING_SCENES) {
+      expect(chineseCharCount(scene)).toBeGreaterThan(20)
+    }
   })
 
   it('关键节点叙事非空', () => {

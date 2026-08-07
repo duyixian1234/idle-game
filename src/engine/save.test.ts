@@ -511,3 +511,38 @@ describe('engine: 存档序列化往返', () => {
     expect(JSON.stringify(s.rngCounters)).toBe(JSON.stringify(countersBefore))
   })
 })
+
+describe('engine: v12 → v13 胁迫外交迁移', () => {
+  it('v12 档迁移为 v13：派系补胁迫默认字段、旧字段保留', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 12
+    // 模拟 v12 派系：无胁迫字段，仅旧字段
+    raw.factions = {
+      ferro: { favor: 20, allied: false, tradeCount: 3, intimidateCount: 1, threat: 70 },
+      vox: { favor: 15, allied: false, tradeCount: 0, intimidateCount: 0, threat: 60 },
+    }
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.factions.ferro).toMatchObject({
+      favor: 20,
+      allied: false,
+      tradeCount: 3,
+      threat: 70,
+      subjugated: false,
+      treatyCount: 0,
+      extortCount: 0,
+      atoned: false,
+      everCoerced: false,
+    })
+    expect(migrated.factions.vox.subjugated).toBe(false)
+    // 已存在的胁迫字段不被覆盖（幂等）
+    const s2 = createInitialState(0)
+    const raw2 = JSON.parse(serializeSave(s2)) as Record<string, unknown>
+    raw2.schemaVersion = 12
+    raw2.factions = { ferro: { favor: 20, allied: false, tradeCount: 0, intimidateCount: 0, threat: 70, extortCount: 5, subjugated: true } }
+    const migrated2 = deserializeSave(JSON.stringify(raw2))
+    expect(migrated2.factions.ferro.extortCount).toBe(5)
+    expect(migrated2.factions.ferro.subjugated).toBe(true)
+  })
+})
