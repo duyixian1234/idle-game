@@ -19,7 +19,7 @@ import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
 import type { EventAutomationPolicy, GameState, LogType, ResourceKey } from '../engine/types'
 import type { SoundName } from '../audio'
-import { isActionFailure } from './dom'
+import { isActionFailure } from './helpers'
 
 /**
  * 动作注册表：把「引擎动作 → 日志/音效 → 渲染 → 保存」样板收敛为一个 dispatch。
