@@ -186,13 +186,6 @@
     flex-direction: column;
     align-items: stretch;
   }
-  /* 兑换行换行：输入框独占一行，按钮紧随其后 */
-  .exchange-row {
-    flex-wrap: wrap;
-  }
-  .exchange-input {
-    flex-basis: 100%;
-  }
 }
 
 /* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：进一步收紧间距 */

@@ -34,16 +34,6 @@ describe('actions: dispatch 副作用顺序', () => {
     expect(s.log).toHaveLength(0)
     expect(calls).toEqual([])
   })
-
-  it('onFailure 钩子写 warning 并渲染（convert 输入不足）', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 50 // 不足 100
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'convert', 50, deps)
-    expect(s.log[0].type).toBe('warning')
-    expect(s.log[0].text).toContain('兑换失败')
-    expect(calls).toEqual(['render']) // 无音效、无保存
-  })
 })
 
 describe('actions: 建造/升级/科技', () => {
@@ -82,36 +72,6 @@ describe('actions: 建造/升级/科技', () => {
     dispatch(s, 'upgradeTech', 'planetDrill', fakeDeps().deps)
     expect(s.techLevels.planetDrill).toBe(2)
     expect(s.log[0].text).toContain('Lv.2')
-  })
-})
-
-describe('actions: 科技点兑换', () => {
-  it('convert 成功按 100:1 结算并写日志', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 250
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'convert', 250, deps)
-    expect(s.resources.mineral).toBe(50) // 按 100 整数倍扣 200
-    expect(s.resources.tech).toBe(2)
-    expect(s.log[0].text).toContain(`兑换完成：-${formatNumber(200)} 矿物，+${formatNumber(2)} 科技点`)
-    expect(calls[0]).toBe('sound:click')
-  })
-
-  it('convertMax 按最大可兑换量结算', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 1050
-    dispatch(s, 'convertMax', 0, fakeDeps().deps)
-    expect(s.resources.mineral).toBe(50)
-    expect(s.resources.tech).toBe(10)
-  })
-
-  it('convertMax 矿物不足 100 时走失败路径', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 50
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'convertMax', 0, deps)
-    expect(s.log[0].type).toBe('warning')
-    expect(calls).toEqual(['render'])
   })
 })
 
@@ -235,14 +195,12 @@ describe('actions: 一键买满（批量）', () => {
 })
 
 describe('actions: 注册表完整性', () => {
-  it('十九个动作全部注册（含 setAutoExplore）', () => {
+  it('十七个动作全部注册（含 setAutoExplore）', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
         'buyMax',
         'conquest',
-        'convert',
-        'convertMax',
         'diplomacy',
         'diplomacyMax',
         'explore',

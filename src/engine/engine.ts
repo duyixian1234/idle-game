@@ -14,7 +14,6 @@ import {
   POST100_BUY_TARGET_SECONDS,
   POST100_GROWTH,
   POST100_THRESHOLD,
-  TECH_EXCHANGE_RATE,
   TECH_MAX_LEVEL,
   TECH_UPGRADE_GROWTH,
   UNIQUE_UPGRADE_GROWTH,
@@ -404,25 +403,6 @@ export function upgradeTech(state: GameState, id: string): ActionResult {
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.techLevels[id] = level + 1
   return { ok: true }
-}
-
-/** 当前矿物可兑换的科技点数上限（= floor(mineral/100)，兑换时按 100 整数倍扣矿物） */
-export function maxConvertibleTechPoints(state: GameState): number {
-  return Math.floor(state.resources.mineral / TECH_EXCHANGE_RATE)
-}
-
-/** 兑换矿物为科技点（单向 100:1，按 100 整数倍取整） */
-export function convertMineralToTech(
-  state: GameState,
-  mineralAmount: number,
-): ActionResult<{ mineralSpent: number; techGained: number }> {
-  if (!Number.isFinite(mineralAmount) || mineralAmount <= 0) return { ok: false, reason: '兑换数量无效' }
-  const spent = Math.floor(mineralAmount / TECH_EXCHANGE_RATE) * TECH_EXCHANGE_RATE
-  if (spent <= 0) return { ok: false, reason: '兑换数量不足 100 矿物' }
-  if (state.resources.mineral < spent) return { ok: false, reason: '资源不足' }
-  state.resources.mineral -= spent
-  state.resources.tech += spent / TECH_EXCHANGE_RATE
-  return { ok: true, value: { mineralSpent: spent, techGained: spent / TECH_EXCHANGE_RATE } }
 }
 
 /**

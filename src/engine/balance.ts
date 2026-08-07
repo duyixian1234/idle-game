@@ -9,7 +9,7 @@ import type { ResourceKey } from './types'
  *
  * 设计原则（grill 四轮 18 决策）：
  * - 共享数学族根因子化：LEVEL_PRODUCTION_BONUS（合并 TECH_PER_LEVEL_BONUS）、
- *   UPGRADE_PREMIUM、TECH_UPGRADE_GROWTH、TECH_EXCHANGE_RATE——调参只动根因子。
+ *   UPGRADE_PREMIUM、TECH_UPGRADE_GROWTH——调参只动根因子。
  * - 内容数据保持显式：建筑 baseCost/produces/costGrowth、星球解锁阈值、攻占 guard
  *   属手工调校内容，留在 data.ts 不派生。
  */
@@ -33,8 +33,6 @@ export const UPGRADE_PREMIUM = 2
 export const ORDINARY_UPGRADE_LEVEL_GROWTH = 0.15
 /** 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)；满级 5 项合计 42.8 万科技点） */
 export const TECH_UPGRADE_GROWTH = 1.7
-/** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
-export const TECH_EXCHANGE_RATE = 100
 
 // ---- 非唯一建筑 100 台后置成本曲线（post100-cost-curve，2026-08-07）----
 

@@ -7,7 +7,7 @@ import type { ReputationBonuses } from '../engine/reputation'
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { conquestDef, isConquestAvailable, conquestState } from '../engine/conquest'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL, TECH_EXCHANGE_RATE } from '../engine/balance'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, CONQUEST_DURATION_MS, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL } from '../engine/balance'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
@@ -357,21 +357,8 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     el.appendChild(item)
   }
 
-  // 军械科技线（unlockByConquest，攻占「虫群前哨」解锁）：置科技列表末尾、兑换区块之前
+  // 军械科技线（unlockByConquest，攻占「虫群前哨」解锁）：置科技列表末尾
   renderMilitaryTechSection(el, state)
-
-  // 底部兑换区块：矿物 → 科技点（固定 100:1，单向）
-  const canConvert = state.resources.mineral >= TECH_EXCHANGE_RATE
-  const exchange = document.createElement('div')
-  exchange.className = 'tech-exchange'
-  exchange.innerHTML = `
-    <div class="exchange-hint">矿物兑换科技点（${formatNumber(100)} 矿物 → ${formatNumber(1)} 科技点）</div>
-    <div class="exchange-row">
-      <input type="number" class="exchange-input" data-exchange-input min="0" step="100" placeholder="矿物数量" />
-      <button type="button" class="build-btn tech-btn" data-convert-tech ${canConvert ? '' : 'disabled'}>兑换</button>
-      <button type="button" class="build-btn tech-btn" data-convert-max ${canConvert ? '' : 'disabled'}>最大</button>
-    </div>`
-  el.appendChild(exchange)
 }
 
 /** ASCII 进度条（Q14 定案）：█ 填充 + ░ 空余，纯文本零 DOM 成本；

@@ -1,9 +1,6 @@
 import { BUILDINGS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
-import { TECH_EXCHANGE_RATE } from '../engine/balance'
 import {
   buyBuilding,
-  convertMineralToTech,
-  maxConvertibleTechPoints,
   researchTech,
   setActivePlanet,
   upgradeBuilding,
@@ -57,16 +54,6 @@ export interface ActionDeps {
   render: () => void
   save: () => void
   playSound: (name: SoundName) => void
-}
-
-/** convert / convertMax 共享的成功反馈与失败日志 */
-function convertFeedback(_state: GameState, result: unknown): ActionFeedback {
-  const v = (result as { ok: true; value: { mineralSpent: number; techGained: number } }).value
-  return { logs: [{ type: 'system', text: `兑换完成：-${formatNumber(v.mineralSpent)} 矿物，+${formatNumber(v.techGained)} 科技点。` }], sound: 'click' }
-}
-
-function convertOnFailure(_state: GameState, _payload: string | number, reason: string): { logs: ActionLog[] } {
-  return { logs: [{ type: 'warning', text: `兑换失败：${reason}。` }] }
 }
 
 // ---- 一键买满（批量购买/升级） ----
@@ -190,18 +177,6 @@ export const ACTIONS: Record<string, GameAction> = {
       const name = TECHS[String(id)]?.name ?? String(id)
       return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${formatNumber(state.techLevels[String(id)] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
-  },
-  convert: {
-    id: 'convert',
-    run: (state, amount) => convertMineralToTech(state, Number(amount)),
-    feedback: convertFeedback,
-    onFailure: convertOnFailure,
-  },
-  convertMax: {
-    id: 'convertMax',
-    run: (state) => convertMineralToTech(state, maxConvertibleTechPoints(state) * TECH_EXCHANGE_RATE),
-    feedback: convertFeedback,
-    onFailure: convertOnFailure,
   },
   diplomacy: {
     id: 'diplomacy',

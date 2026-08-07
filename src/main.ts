@@ -749,7 +749,7 @@ async function main(): Promise<void> {
     dispatch(state, 'setPlanet', id, deps)
   })
 
-  // 建造/升级/科技/兑换/外交按钮事件委托（统一走动作注册表）
+  // 建造/升级/科技/外交按钮事件委托（统一走动作注册表）
   els.panel.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
     // 造舰按钮（舰队管理区，data-fleet-build；硬约束与上限拦截在引擎 buyShip 内）
@@ -820,18 +820,6 @@ async function main(): Promise<void> {
       dispatch(state, actionId, String(btn.dataset[dataKey] ?? ''), deps)
       return
     }
-    const convertBtn = target.closest<HTMLElement>('[data-convert-tech]')
-    if (convertBtn) {
-      const input = panels['tech'].querySelector<HTMLInputElement>('[data-exchange-input]')
-      dispatch(state, 'convert', Number(input?.value ?? 0), deps)
-      return
-    }
-    const convertMaxBtn = target.closest<HTMLElement>('[data-convert-max]')
-    if (convertMaxBtn) {
-      dispatch(state, 'convertMax', 0, deps)
-      return
-    }
-    // 攻占按钮：读取该区域投入输入框的值，payload "区域id:军力"
     const conquestBtn = target.closest<HTMLElement>('[data-conquest]')
     if (conquestBtn) {
       const id = conquestBtn.dataset.conquest ?? ''

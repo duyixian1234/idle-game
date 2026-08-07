@@ -261,7 +261,7 @@ export interface TechDef {
 }
 
 /** 科技等级上限（产出类科技，1 = 已研发）——数值策略见 balance.ts TECH_MAX_LEVEL */
-/** 科技等级上限与升级成本曲线（TECH_UPGRADE_GROWTH=1.7）、兑换汇率（TECH_EXCHANGE_RATE=100）
+/** 科技等级上限与升级成本曲线（TECH_UPGRADE_GROWTH=1.7）
  *  均为数值策略，见 balance.ts（含 42.8 万满级口径说明）。 */
 
 /** 星球解锁条件 */
