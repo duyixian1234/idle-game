@@ -12,7 +12,7 @@ import { formatDuration, offlineCapSeconds, settleOffline } from './engine/offli
 import { deserializeSave, serializeSave } from './engine/save'
 import { OPENING_SCENES } from './engine/story'
 import { advanceTutorial, skipTutorial } from './engine/tutorial'
-import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from './engine/types'
+import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState, ResourceKey } from './engine/types'
 import { deleteSave, loadGame, saveGame } from './persist/indexeddb'
 import { SoundManager } from './audio'
 // 自托管 JetBrains Mono（Q4 定案）：woff2 打进 dist，font-display: swap，避免 Google Fonts 网络依赖
@@ -44,6 +44,7 @@ import {
   renderTechPanel,
   renderTutorial,
   renderBootOverlay,
+  renderBreakdownPanel,
   unlockRequirementText,
 } from './ui/dom'
 import type { LogDirection, NavId } from './ui/dom'
@@ -110,6 +111,8 @@ async function main(): Promise<void> {
   let justUpgradedUntil = 0
   let autoConfigOpen = false
   let autoExpandedCategory: string | undefined
+  // 资源来源分解面板展开态（会话状态，互斥：一次只展开一个资源；null = 收起）
+  let openBreakdown: ResourceKey | null = null
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */
   function flashUpgrade(id: string): void {
     justUpgradedId = id
@@ -213,6 +216,9 @@ async function main(): Promise<void> {
     if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
     const militaryTab = els.panel.querySelector<HTMLButtonElement>('[data-tab="military"]')
     if (militaryTab) militaryTab.disabled = !state.planets.orbital?.unlocked
+    // 资源来源分解面板（会话态互斥展开；render 每 250ms 全量重建 → 面板内容实时刷新，无需额外 tick）
+    if (openBreakdown) renderBreakdownPanel(els.breakdownPanel, state, openBreakdown)
+    else els.breakdownPanel.classList.add('hidden')
   }
 
   // 一级导航页切换（互斥显隐；footer 与页容器不参与 250ms 重建，状态持久于 DOM）
@@ -267,6 +273,24 @@ async function main(): Promise<void> {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-nav]')
     if (!btn) return
     setActiveNav(btn.dataset.nav as NavId)
+  })
+
+  // 资源速率来源分解：问号点击互斥展开/再点收起（资源条 250ms 重建，容器级委托稳定）
+  els.resourceBar.addEventListener('click', (e) => {
+    const trigger = (e.target as HTMLElement).closest<HTMLElement>('[data-breakdown-trigger]')
+    if (!trigger) return
+    const res = trigger.dataset.breakdownResource
+    if (!res) return
+    openBreakdown = openBreakdown === res ? null : (res as ResourceKey)
+    render()
+  })
+  // 点击面板外任意处关闭（resourceBar 委托先于本监听执行，问号/面板内点击被排除）
+  document.addEventListener('click', (e) => {
+    if (!openBreakdown) return
+    const t = e.target as HTMLElement
+    if (t.closest('[data-breakdown-trigger]') || t.closest('[data-breakdown-panel]')) return
+    openBreakdown = null
+    render()
   })
 
   // 星域页二级 tab 切换（会话记忆：切走再切回记住上次 tab）
@@ -566,6 +590,10 @@ async function main(): Promise<void> {
     if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) closeNgPlusModal()
     if (e.key === 'Escape' && !els.megastructureOverlay.classList.contains('hidden')) closeMegastructureModal()
+    if (e.key === 'Escape' && openBreakdown) {
+      openBreakdown = null
+      render()
+    }
   })
 
   // ---- 无限模式手动开启新周目（确认弹窗） ----

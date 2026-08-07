@@ -32,6 +32,7 @@ import {
   renderResources,
   renderSettingsPage,
   renderTechPanel,
+  renderBreakdownPanel,
   unlockRequirementText,
 } from './dom'
 
@@ -71,6 +72,52 @@ describe('ui: 布局与冒烟', () => {
     expect(items[0].textContent).toContain('+1.00/秒')
     expect(items[3].textContent).toContain('军力')
     expect(items[3].textContent).toContain(`${formatNumber(0)}⚔/${formatNumber(100)}⚔`)
+  })
+
+  it('资源条问号按钮：每资源一个 data-breakdown-trigger（挂条目，独立于速率）', () => {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    renderResources(els.resourceBar, s, netProduction(s))
+    const triggers = els.resourceBar.querySelectorAll('[data-breakdown-trigger]')
+    expect(triggers).toHaveLength(4)
+    for (const k of ['mineral', 'energy', 'tech', 'military']) {
+      expect(els.resourceBar.querySelector(`[data-breakdown-resource="${k}"]`)).toBeTruthy()
+    }
+  })
+
+  it('来源分解面板：组/行/总计/占比，消耗 details 默认收起', () => {
+    const panel = document.createElement('div')
+    const s = createInitialState(0)
+    s.buildings.miner = 100
+    s.techLevels.planetDrill = 1
+    renderBreakdownPanel(panel, s, 'mineral')
+    expect(panel.classList.contains('hidden')).toBe(false)
+    expect(panel.querySelector('[data-breakdown-head]')?.textContent).toContain('矿物')
+    expect(panel.querySelector('[data-breakdown-group="building"]')).toBeTruthy()
+    expect(panel.querySelector('[data-breakdown-group="tech"]')).toBeTruthy()
+    // 建筑 100 + 科技 50 = 总计 150
+    expect(panel.querySelectorAll('[data-breakdown-row]')).toHaveLength(2)
+    expect(panel.querySelector('[data-breakdown-total]')?.textContent).toContain('+150.00/秒')
+    // 消耗组：精炼厂 + 舰队 → details 存在且默认收起
+    const s2 = createInitialState(0)
+    s2.buildings.refinery = 4
+    s2.fleet.count = 3
+    const panel2 = document.createElement('div')
+    renderBreakdownPanel(panel2, s2, 'energy')
+    const details = panel2.querySelector('[data-breakdown-consumption]')
+    expect(details).toBeTruthy()
+    expect(details?.hasAttribute('open')).toBe(false)
+    // 无能源产出 → 能源不足 note（供给率 0%）
+    expect(panel2.querySelector('[data-breakdown-note]')?.textContent).toContain('能源供给率')
+    // 军力截断 → capNote
+    const s3 = createInitialState(0)
+    s3.buildings.barracks = 10
+    s3.resources.military = 100
+    const panel3 = document.createElement('div')
+    renderBreakdownPanel(panel3, s3, 'military')
+    expect(panel3.querySelector('[data-breakdown-note]')?.textContent).toContain('已按军力上限截断')
   })
 
   it('建造面板展示建筑与成本，资源不足时按钮禁用', () => {

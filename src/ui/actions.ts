@@ -6,7 +6,6 @@ import {
   maxConvertibleTechPoints,
   researchTech,
   setActivePlanet,
-  startNewGamePlus,
   upgradeBuilding,
   upgradeTech,
 } from '../engine/engine'
@@ -269,13 +268,6 @@ export const ACTIONS: Record<string, GameAction> = {
       const name = PLANETS[String(id)]?.name ?? String(id)
       return { logs: [{ type: 'system', text: `舰队坐标锁定：前往「${name}」。` }] }
     },
-  },
-  newGamePlus: {
-    id: 'newGamePlus',
-    // 开启新一轮 NG+（引擎不设 phase 守卫，入口由 UI 门控：ended 结局面板 / infinite 工具栏）
-    run: (state) => startNewGamePlus(state, Date.now()),
-    // 【NG+ 第 N 周目】叙事日志由 startNewGamePlus 内部 push，此处不重复；UI 日志流重置由调用方处理
-    feedback: () => ({ logs: [] }),
   },
   conquest: {
     id: 'conquest',

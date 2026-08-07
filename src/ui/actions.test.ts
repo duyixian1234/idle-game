@@ -248,7 +248,6 @@ describe('actions: 注册表完整性', () => {
         'explore',
         'fleetBuild',
         'megastructure',
-        'newGamePlus',
         'research',
         'resolveEvent',
         'setAutoExplore',
@@ -268,25 +267,6 @@ describe('actions: 注册表完整性', () => {
     dispatch(s, 'nope', '', deps)
     expect(s.log).toHaveLength(0)
     expect(calls).toEqual([])
-  })
-})
-
-describe('actions: 无限模式开启新周目', () => {
-  it('newGamePlus 在 infinite 下：周目+1、回到 playing、无重复日志、渲染+保存', () => {
-    const s = createInitialState(0)
-    s.phase = 'infinite'
-    s.endingTriggered = true
-    s.ngPlusLevel = 1
-    s.resources.mineral = 50_000
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'newGamePlus', '', deps)
-    expect(s.ngPlusLevel).toBe(2)
-    expect(s.phase).toBe('playing')
-    expect(s.endingTriggered).toBe(false)
-    expect(s.resources.mineral).toBe(0)
-    // 【NG+ 第 N 周目】由 startNewGamePlus 内部 push（feedback 不重复）
-    expect(s.log[0].text).toContain(`【NG+ 第 ${formatNumber(2)} 周目】`)
-    expect(calls).toEqual(['render', 'save']) // 无音效、无额外日志
   })
 })
 

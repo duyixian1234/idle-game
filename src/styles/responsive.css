@@ -128,6 +128,16 @@
   .res-rate {
     display: none;
   }
+  /* 资源来源分解面板：窄屏全宽、字号收紧（问号按钮不随速率隐藏，保留可点） */
+  .breakdown-panel {
+    margin: 0 6px;
+    padding: 6px 8px 8px;
+    font-size: 11px;
+    max-height: 40vh;
+  }
+  .breakdown-panel .bd-pct {
+    display: none;
+  }
   .panel-body {
     padding: 8px;
   }

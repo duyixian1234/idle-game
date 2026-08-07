@@ -899,30 +899,6 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
   el.appendChild(section)
 }
 
-/** 终局抉择确认弹窗（复用 ending overlay 卡片体系）：效果预览 + 建造消耗 + 互斥警告 + 确认/取消 */
-export function renderMegastructureModal(el: HTMLElement, state: GameState, id: string): void {
-  const def = BUILDINGS[id]
-  if (!def) return
-  const effectText =
-    id === 'ringSmelter'
-      ? `全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）；耗能 ${formatRate(100, false)} 能源 × 等级（能源不足时按现有结算打折）`
-      : JUMPGATE_EFFECT_TEXT
-  el.innerHTML = `
-    <div class="megastructure-card" data-megastructure-modal>
-      <div class="buy-max-title">终局抉择：${escapeHtml(def.name)}</div>
-      <div class="buy-max-summary">${escapeHtml(def.desc)}</div>
-      <table class="buy-max-table">
-        <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
-        <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
-      </table>
-      <div class="buy-max-warn" data-megastructure-warn>⚠ 只能选择其一，本周目不可更改；另一个究极建筑将永久锁定。NG+ 重开后可重新选择。</div>
-      <div class="buy-max-actions">
-        <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">确认建造</button>
-        <button type="button" class="ending-btn ghost" data-megastructure-cancel>取消</button>
-      </div>
-    </div>`
-}
-
 /** 当前生效的声望加成文本（无声望时显示解锁提示） */
 function reputationBonusText(b: ReputationBonuses): string {
   const parts: string[] = []

@@ -20,6 +20,7 @@ export interface AppElements {
   importFile: HTMLInputElement
   boot: HTMLElement
   autoConfigOverlay: HTMLElement
+  breakdownPanel: HTMLElement
 }
 
 /** 构建应用骨架（B 架构），返回各区域元素引用。
@@ -33,6 +34,7 @@ export function buildLayout(container: HTMLElement): AppElements {
       <div class="resource-bar" aria-label="资源条"></div>
       <nav class="planet-bar" aria-label="星域总览"></nav>
     </header>
+    <div class="breakdown-panel hidden" data-breakdown-panel aria-label="资源来源分解"></div>
     <main class="content">
       <section class="nav-page" data-nav-page="sector" aria-label="星域">
         <div class="mechanic-bar" data-mechanic aria-label="星球机制"></div>
@@ -93,6 +95,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     importFile: container.querySelector('#import-file') as HTMLInputElement,
     boot: container.querySelector('[data-boot]') as HTMLElement,
     autoConfigOverlay: container.querySelector('[data-auto-config-overlay]') as HTMLElement,
+    breakdownPanel: container.querySelector('[data-breakdown-panel]') as HTMLElement,
   }
 }
 

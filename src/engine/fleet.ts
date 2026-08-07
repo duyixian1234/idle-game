@@ -41,11 +41,6 @@ export function nextShipCost(state: GameState): { mineral: number; energy: numbe
   return shipBuyCost(state.fleet.count + 1)
 }
 
-/** 单艘持续能源维护费（能源/s）：第 n 艘 = base × SHIP_GROWTH^(n-1) */
-export function shipMaintenancePerShip(n: number): number {
-  return SHIP_MAINT_BASE * Math.pow(SHIP_GROWTH, Math.max(0, Math.floor(n)) - 1)
-}
-
 /** 舰队总维护费（能源/s）：几何级数求和 Σ base × 1.5^(i-1)，i=1..count */
 export function fleetMaintenance(state: GameState): number {
   const count = state.fleet.count

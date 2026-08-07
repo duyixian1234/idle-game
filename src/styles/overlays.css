@@ -50,20 +50,6 @@
   margin: 12px auto;
 }
 
-.explore-status {
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  margin: 12px 0 8px;
-}
-
-.explore-cost {
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  margin: 6px 0;
-}
-
 .explore-progress {
   color: var(--text-dim);
   font-size: 12px;
@@ -236,20 +222,6 @@
 .buy-max-actions .ending-btn {
   padding: 8px 16px;
   font-size: 13px;
-}
-
-/* 买满/升满小按钮（虚线边框区分主操作） */
-.max-btn {
-  margin-left: 8px;
-  padding: 8px 10px;
-  font-size: 11px;
-  border-style: dashed;
-  opacity: 0.85;
-}
-
-.max-btn:hover:not(:disabled) {
-  opacity: 1;
-  border-style: dashed;
 }
 
 .ending-title {

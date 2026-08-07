@@ -797,12 +797,6 @@
   color: var(--bad);
 }
 
-.allied-badge {
-  color: var(--good);
-  font-size: 12px;
-  margin-left: 6px;
-}
-
 .faction-actions {
   flex-wrap: wrap;
   justify-content: flex-end;

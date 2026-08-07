@@ -4,6 +4,8 @@ import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, UNIQUE_UP
 import { PLANET_MECHANICS } from './mechanics'
 import { zeroResources } from './core'
 import { reputationBonuses } from './reputation'
+import { fleetMaintenance } from './fleet'
+import { formatNumber } from './format'
 import type { GameState, ResourceKey } from './types'
 
 /**
@@ -319,4 +321,230 @@ export function applyMaintenance(state: GameState, dtSeconds: number): void {
       if (m > 0) state.resources[key] -= m * mult * dtSeconds
     }
   }
+}
+
+// ================= 资源速率来源分解（production-breakdown） =================
+// 纯只读：为顶部资源条「?」面板提供每资源的精确贡献分解。
+// 构造守恒：行 = 管线逐步差分（建筑 → 科技 → 机制 → 探索 → 永久 → 能源折减 → 冶炼场），
+// Σ产出行恒等于 productionReport(state).nominal（军力截断时 = 截断后速率，另附 capNote）。
+
+export interface BreakdownRow {
+  /** 来源名（建筑名 / 机制名 / 科技等） */
+  name: string
+  /** 数量（普通建筑台数；unique 大件省略） */
+  count?: number
+  /** 等级（升级等级 >0 时） */
+  level?: number
+  /** 乘数（mult 型来源展示 ×；add 型省略） */
+  mult?: number
+  /** 贡献值 /s（负值：消耗 / 折减 / 转产） */
+  value: number
+  /** add=加法来源 mult=乘数来源 sub=消耗/折减 */
+  kind: 'add' | 'mult' | 'sub'
+}
+
+export interface BreakdownGroup {
+  id: string
+  label: string
+  rows: BreakdownRow[]
+}
+
+export interface ResourceBreakdown {
+  resource: ResourceKey
+  /** 各产出行之和（军力截断时 = 截断后速率） */
+  total: number
+  /** 管线顺序分组（空组省略） */
+  groups: BreakdownGroup[]
+  /** 消耗明细（默认收起；无消耗时省略） */
+  consumption?: BreakdownGroup
+  /** 军力容量截断说明（截断发生时） */
+  capNote?: string
+  /** 能源供给率不足说明（ratio<1 时） */
+  energyNote?: string
+}
+
+export function productionBreakdown(state: GameState): Record<ResourceKey, ResourceBreakdown> {
+  const buildingRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const buildingSum = zeroResources()
+  let energyDemand = 0
+  // 1. 建筑基础（与 pipelineNominal 同公式：数量 × 等级加成 / unique ×2^level；consumes 按台数或等级）
+  for (const [id, count] of Object.entries(state.buildings)) {
+    const def = BUILDINGS[id]
+    if (!def || count <= 0) continue
+    const level = state.upgrades[id] ?? 0
+    const mult = def.unique ? Math.pow(UNIQUE_UPGRADE_GROWTH, level) : levelMultiplier(level)
+    const per = def.unique ? 1 : count
+    const name = def.name ?? id
+    for (const key of RESOURCE_KEYS) {
+      const v = (def.produces[key] ?? 0) * per * mult
+      if (v !== 0) {
+        buildingRows[key].push({ name, count: def.unique ? undefined : count, level: level > 0 ? level : undefined, value: v, kind: 'add' })
+        buildingSum[key] += v
+      }
+    }
+    for (const key of RESOURCE_KEYS) {
+      const perUnit = def.consumes?.[key] ?? 0
+      if (perUnit > 0) energyDemand += perUnit * (def.unique ? level : count)
+    }
+  }
+
+  // 2. 科技乘数（乘在建筑聚合上：贡献 = base × (techMult−1)）
+  const techMult = productionMultipliers(state)
+  const techRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  for (const key of RESOURCE_KEYS) {
+    if (techMult[key] !== 1) {
+      const contrib = buildingSum[key] * (techMult[key] - 1)
+      if (contrib !== 0) techRows[key].push({ name: '科技加成', mult: techMult[key], value: contrib, kind: 'mult' })
+    }
+  }
+
+  // 3. 星球机制（就地修改副本；轨道工厂转产 → 跨资源行）
+  const mechBefore = zeroResources()
+  const mechView = zeroResources()
+  for (const key of RESOURCE_KEYS) {
+    mechBefore[key] = buildingSum[key] * techMult[key]
+    mechView[key] = mechBefore[key]
+  }
+  applyPlanetMechanics(state, mechView)
+  const mechRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  for (const key of RESOURCE_KEYS) {
+    const delta = mechView[key] - mechBefore[key]
+    if (delta !== 0) {
+      const name = PLANET_MECHANICS[activePlanetDef(state)?.mechanicId ?? 'none'].name
+      mechRows[key].push({ name, mult: mechBefore[key] !== 0 ? mechView[key] / mechBefore[key] : undefined, value: delta, kind: 'mult' })
+    }
+  }
+
+  // 4. 探索产出型天体（逐行；比例基数 = mechView 快照，不吃 perm/smelter 与能源折减——与真源 applyExplorePlanetOutput 同公式）
+  const exploreRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const exploreSum = zeroResources()
+  for (const [id, ps] of Object.entries(state.planets)) {
+    if (!ps?.unlocked) continue
+    const def = planetOutputDef(state, id)
+    if (!def?.output) continue
+    const bonus = 1 + (ps.outputBonus ?? 0)
+    const name = def.name ?? id
+    for (const key of RESOURCE_KEYS) {
+      const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * mechView[key]
+      if (base === 0) continue
+      const v = base * bonus
+      exploreRows[key].push({ name, value: v, kind: 'add' })
+      exploreSum[key] += v
+    }
+  }
+
+  // 5. NG+ 永久加成（×permMult：NG+ 遗产 + 攻占奖励 + 冶炼场遗产）
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  const permRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  if (permMult !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      const contrib = (mechView[key] + exploreSum[key]) * (permMult - 1)
+      if (contrib !== 0) permRows[key].push({ name: '永久加成', mult: permMult, value: contrib, kind: 'mult' })
+    }
+  }
+
+  // 6. 能源结算折减（ratio<1 时，消耗能源建筑的产出按 (1−ratio) 折——与真源同公式）
+  const afterPerm = zeroResources()
+  for (const key of RESOURCE_KEYS) afterPerm[key] = (mechView[key] + exploreSum[key]) * permMult
+  const energyRatio = settleEnergyRatio(state, afterPerm.energy, energyDemand)
+  const ratioRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  if (energyRatio < 1) {
+    for (const [id, count] of Object.entries(state.buildings)) {
+      const def = BUILDINGS[id]
+      if (!def || count <= 0 || !def.consumes) continue
+      const mul = levelMultiplier(state.upgrades[id] ?? 0)
+      for (const key of RESOURCE_KEYS) {
+        const prod = (def.produces[key] ?? 0) * count * mul
+        if (prod === 0) continue
+        const loss = prod * techMult[key] * permMult * (1 - energyRatio)
+        if (loss !== 0) ratioRows[key].push({ name: `${def.name ?? id}（能源不足）`, value: -loss, kind: 'sub' })
+      }
+    }
+  }
+
+  // 7. 冶炼场全局乘数（能源结算后应用；军力不吃）
+  const smelterMult = smelterGlobalMult(state)
+  const smelterRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const smelterSum = zeroResources()
+  if (smelterMult !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      if (key === 'military') continue
+      const contrib = (afterPerm[key] + sumRows(ratioRows[key])) * (smelterMult - 1)
+      if (contrib !== 0) {
+        smelterRows[key].push({ name: '冶炼场', mult: smelterMult, value: contrib, kind: 'mult' })
+        smelterSum[key] = contrib
+      }
+    }
+  }
+
+  // 8. 军力容量截断
+  const room = militaryCap(state) - state.resources.military
+  const preMilitary = afterPerm.military + sumRows(ratioRows.military)
+  const cappedMilitary = Math.max(0, Math.min(preMilitary, room))
+
+  // —— 消耗明细（独立结算，不进速率）——
+  const energyConsumption: BreakdownRow[] = []
+  const mechAdj = PLANET_MECHANICS[activePlanetDef(state)?.mechanicId ?? 'none'].energyAdjust?.(state)
+  const demandMult = mechAdj?.demandMult ?? 1
+  for (const [id, count] of Object.entries(state.buildings)) {
+    const bd = BUILDINGS[id]
+    if (!bd || count <= 0) continue
+    const level = state.upgrades[id] ?? 0
+    const units = bd.unique ? level : count
+    if (units <= 0) continue
+    for (const key of RESOURCE_KEYS) {
+      const perUnit = bd.consumes?.[key] ?? 0
+      if (perUnit <= 0) continue
+      energyConsumption.push({ name: bd.name ?? id, count: bd.unique ? undefined : count, level: level > 0 ? level : undefined, value: -perUnit * units * demandMult, kind: 'sub' })
+    }
+  }
+  if (state.fleet.count > 0) {
+    energyConsumption.push({ name: '舰队维护', count: state.fleet.count, value: -fleetMaintenance(state), kind: 'sub' })
+  }
+  const mineralConsumption: BreakdownRow[] = []
+  for (const [id, count] of Object.entries(state.buildings)) {
+    const bd = BUILDINGS[id]
+    if (!bd?.maintenance || count <= 0) continue
+    const level = state.upgrades[id] ?? 0
+    const mult = Math.pow(UNIQUE_UPGRADE_GROWTH, level)
+    for (const key of RESOURCE_KEYS) {
+      const m = bd.maintenance[key] ?? 0
+      if (m > 0) mineralConsumption.push({ name: bd.name ?? id, level: level > 0 ? level : undefined, value: -m * mult, kind: 'sub' })
+    }
+  }
+
+  // —— 组装 ——
+  const out = {} as Record<ResourceKey, ResourceBreakdown>
+  for (const key of RESOURCE_KEYS) {
+    const groups: BreakdownGroup[] = []
+    if (buildingRows[key].length > 0) groups.push({ id: 'building', label: '建筑产出', rows: buildingRows[key] })
+    if (techRows[key].length > 0) groups.push({ id: 'tech', label: '科技加成', rows: techRows[key] })
+    if (mechRows[key].length > 0) groups.push({ id: 'mechanics', label: '星球机制', rows: mechRows[key] })
+    if (exploreRows[key].length > 0) groups.push({ id: 'explore', label: '探索天体', rows: exploreRows[key] })
+    if (permRows[key].length > 0) groups.push({ id: 'permanent', label: '永久加成', rows: permRows[key] })
+    if (ratioRows[key].length > 0) groups.push({ id: 'energy-ratio', label: '能源结算', rows: ratioRows[key] })
+    if (smelterRows[key].length > 0) groups.push({ id: 'smelter', label: '冶炼场', rows: smelterRows[key] })
+    const total = key === 'military' ? cappedMilitary : afterPerm[key] + sumRows(ratioRows[key]) + smelterSum[key]
+    const b: ResourceBreakdown = {
+      resource: key,
+      total,
+      groups,
+      ...(key === 'energy' && energyConsumption.length > 0 ? { consumption: { id: 'consumption', label: '消耗明细', rows: energyConsumption } } : {}),
+      ...(key === 'mineral' && mineralConsumption.length > 0 ? { consumption: { id: 'consumption', label: '消耗明细', rows: mineralConsumption } } : {}),
+      ...(key === 'military' && preMilitary > room ? { capNote: `已按军力上限截断（当前 ${formatNumber(state.resources.military)} / 上限 ${formatNumber(militaryCap(state))}）` } : {}),
+      ...(key === 'energy' && energyRatio < 1 ? { energyNote: `能源供给率 ${(energyRatio * 100).toFixed(0)}%：消耗能源建筑产出按缺口折减` } : {}),
+    }
+    out[key] = b
+  }
+  return out
+}
+
+function emptyRows(): Record<ResourceKey, BreakdownRow[]> {
+  return { mineral: [], energy: [], tech: [], military: [] }
+}
+
+function sumRows(rows: BreakdownRow[]): number {
+  let s = 0
+  for (const r of rows) s += r.value
+  return s
 }

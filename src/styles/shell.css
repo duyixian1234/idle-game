@@ -1,3 +1,8 @@
+/* ---- 全局隐藏类（组合规则特异性更高，各 overlay 的 .xxx.hidden 优先；此处兜底通用元素，如 #import-file 与 breakdown-panel） ---- */
+.hidden {
+  display: none;
+}
+
 /* ---- 顶部固定两行（资源条 + 星域条），不参与 tick 重建 ---- */
 .topbar {
   flex-shrink: 0;
@@ -154,6 +159,111 @@
   min-width: 6.5ch;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* 资源速率来源分解：问号按钮（挂资源条目，≤360 速率隐藏时仍可点） */
+.res-breakdown {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  user-select: none;
+}
+.res-breakdown:hover,
+.res-breakdown:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- 资源来源分解面板（资源条正下方就地展开，不覆盖内容） ---- */
+.breakdown-panel {
+  margin: 0 12px;
+  padding: 8px 12px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.breakdown-head {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.breakdown-group {
+  margin-bottom: 8px;
+}
+.breakdown-group h4 {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.breakdown-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 1px 0;
+}
+.breakdown-row[data-breakdown-row] {
+  font-variant-numeric: tabular-nums;
+}
+.bd-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.bd-value {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.breakdown-row[data-breakdown-kind='sub'] .bd-value {
+  color: var(--bad);
+}
+.bd-pct {
+  flex: 0 0 auto;
+  min-width: 4.5ch;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.breakdown-total {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+.breakdown-consumption summary {
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-top: 6px;
+}
+.breakdown-consumption .breakdown-row .bd-value {
+  color: var(--bad);
+}
+.breakdown-note {
+  margin-top: 6px;
+  color: var(--warn);
+  font-size: 11px;
 }
 
 /* Numeric game values stay aligned as compact units grow. */

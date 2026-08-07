@@ -484,11 +484,6 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   return state
 }
 
-/** 读取状态快照（供 UI 订阅；当前为同一引用，UI 只读） */
-export function getSnapshot(state: GameState): GameState {
-  return state
-}
-
 // ---- 星球系统 ----
 
 /** 派生查询：某星球是否已解锁 */

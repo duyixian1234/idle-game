@@ -1,4 +1,4 @@
-import type { GameState } from '../engine/types'
+import type { GameState, ResourceKey } from '../engine/types'
 import { ENDLESS_PLANETS, EXPLORE_FACTIONS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
@@ -7,7 +7,8 @@ import { formatDuration } from '../engine/offline'
 import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, isExploreAvailable } from '../engine/exploration'
 import { ENDLESS_BATCH_2_EXPLORATIONS, EXPEDITION_DURATION_MS, FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { isPlanetUnlocked } from '../engine/engine'
-import { explorePlanetOutputs, militaryCap } from '../engine/production'
+import { explorePlanetOutputs, militaryCap, productionBreakdown } from '../engine/production'
+import type { BreakdownRow } from '../engine/production'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import type { ActionFailure } from '../engine/engine'
 import { iconUse } from './icons'
@@ -276,9 +277,36 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
     item.innerHTML = `<span class="res-symbol">${meta.symbol}</span>
       <span class="res-name">${meta.name}</span>
       <span class="res-value" data-res-value>${valueText}</span>
-      <span class="res-rate">${rateText}</span>`
+      <span class="res-rate">${rateText}</span>
+      <button type="button" class="res-breakdown" data-breakdown-trigger data-breakdown-resource="${key}" aria-label="${meta.name}来源分解" title="查看来源分解">?</button>`
     el.appendChild(item)
   }
+}
+
+/** 渲染资源速率来源分解面板（问号触发；内容 = productionBreakdown 当前 tick 快照，250ms 重建随 render 实时刷新） */
+export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource: ResourceKey): void {
+  const bd = productionBreakdown(state)[resource]
+  el.classList.remove('hidden')
+  const meta = RESOURCE_META[resource]
+  const fmt = (v: number): string => `${v > 0 ? '+' : ''}${formatNumber(v)}/秒`
+  const pct = (v: number): string => (bd.total !== 0 ? ` ${((v / bd.total) * 100).toFixed(1)}%` : '')
+  const rows = (rs: BreakdownRow[]): string =>
+    rs
+      .map((r) => {
+        const name = `${escapeHtml(r.name)}${r.count && r.count > 1 ? ` ×${r.count}` : ''}${r.level ? ` Lv${r.level}` : ''}`
+        const mult = r.mult !== undefined && r.mult !== 1 ? `${formatMultiplier(r.mult)} ` : ''
+        return `<div class="breakdown-row" data-breakdown-row data-breakdown-kind="${r.kind}"><span class="bd-name">${name}</span><span class="bd-value">${mult}${fmt(r.value)}</span><span class="bd-pct">${pct(r.value)}</span></div>`
+      })
+      .join('')
+  const groups = bd.groups
+    .map((g) => (g.rows.length > 0 ? `<section class="breakdown-group" data-breakdown-group="${escapeHtml(g.id)}"><h4>${escapeHtml(g.label)}</h4>${rows(g.rows)}</section>` : ''))
+    .join('')
+  const consumption =
+    bd.consumption && bd.consumption.rows.length > 0
+      ? `<details class="breakdown-consumption" data-breakdown-consumption><summary>消耗明细</summary>${rows(bd.consumption.rows)}</details>`
+      : ''
+  const notes = [bd.capNote, bd.energyNote].filter(Boolean).map((n) => `<div class="breakdown-note" data-breakdown-note>${escapeHtml(n as string)}</div>`).join('')
+  el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(meta.name)} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
 }
 
 export { buildCardAction, renderArchivePanel, renderAsciiBar, renderBuildPanel, renderDiplomacyPanel, renderFleetSection, renderInterstellarPanel, renderMegastructureSection, renderMilitaryPanel, renderSettingsPage, renderTechPanel } from './panels'
