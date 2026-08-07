@@ -267,13 +267,14 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     const story = defs.filter((d) => d.category === 'story')
     expect(story).toHaveLength(12)
     for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
-    // 有 progress 的成就数量与 spec 映射一致（17 个）
+    // 有 progress 的成就数量与 spec 映射一致（19 个）
     const withProgress = defs.filter((d) => d.progress)
     expect(withProgress.map((d) => d.id).sort()).toEqual(
       [
         'mineral1M', 'mineral100M', 'mineral1B', 'trades50', 'intimidates10', 'allies3',
         'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'explorerFirst', 'explorerContact',
         'explorerDual', 'explorerTriple', 'explorerComplete', 'escortFirst', 'dockLord',
+        'ng2', 'ng3',
       ].sort(),
     )
   })
@@ -304,5 +305,24 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     const [n, total] = ACHIEVEMENTS.explorerComplete.progress!(s)
     expect(n).toBe(2)
     expect(total).toBeGreaterThanOrEqual(2)
+  })
+
+  it('ng2/ng3 progress：随 ngPlusLevel 钳制到各自目标', () => {
+    const s = makeState()
+    // 初始：未开启 NG+，两成就未达标
+    expect(ACHIEVEMENTS.ng2.progress!(s)).toEqual([0, 1])
+    expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([0, 2])
+    // 二周目：ng2 满、ng3 读数为 1
+    s.ngPlusLevel = 1
+    expect(ACHIEVEMENTS.ng2.progress!(s)).toEqual([1, 1])
+    expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([1, 2])
+    // 三周目：两成就均满
+    s.ngPlusLevel = 2
+    expect(ACHIEVEMENTS.ng2.progress!(s)).toEqual([1, 1])
+    expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([2, 2])
+    // 超量（如 Lv.3+）：钳制不越界
+    s.ngPlusLevel = 5
+    expect(ACHIEVEMENTS.ng2.progress!(s)).toEqual([1, 1])
+    expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([2, 2])
   })
 })
