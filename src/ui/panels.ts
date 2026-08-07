@@ -288,7 +288,7 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(TECHS)) {
-    // 军械科技线（unlockByConquest）由军事面板管理：未攻占不研发、不在科技面板出现
+    // 军械科技线（unlockByConquest）由列表末尾专用分组渲染（renderMilitaryTechSection）：此处跳过防双渲染
     if (def.unlockByConquest) continue
     const level = techLevel(state, def.id)
     const researched = isTechResearched(state, def.id)
@@ -356,6 +356,9 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`
     el.appendChild(item)
   }
+
+  // 军械科技线（unlockByConquest，攻占「虫群前哨」解锁）：置科技列表末尾、兑换区块之前
+  renderMilitaryTechSection(el, state)
 
   // 底部兑换区块：矿物 → 科技点（固定 100:1，单向）
   const canConvert = state.resources.mineral >= TECH_EXCHANGE_RATE
@@ -633,7 +636,8 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   return row
 }
 
-/** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板行式同构）：
+/** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板行式同构；
+ * 渲染于科技面板列表末尾分组）：
  * 未攻占 → 锁定文案（desc 自带「攻占…后解锁」）；已攻占未研发 → 研发按钮；已研发可升级 → 升级按钮（含 +10/+100）。 */
 function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
   const def = TECHS.militaryTech
@@ -685,7 +689,7 @@ function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
   el.appendChild(section)
 }
 
-/** 渲染军事面板：军事建筑 / 攻占列表 / 军械科技 / 舰队管理区（星际工程大件已移至建造页）。
+/** 渲染军事面板：军事建筑 / 舰队管理区 / 攻占列表 / 肃清进度总览（军械科技已移至科技面板）。
  * 攻占列表 = 静态 4 区域 + 无尽生成军事目标（endless-expansion）；已归档（征服）目标移列表末尾折叠区。 */
 export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
@@ -733,13 +737,11 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     )
     renderEndlessLockedHint(conquestSection, 'conquest', locked.length)
   }
-  // 段 2：军械科技（攻占「虫群前哨」解锁；行式，未攻占显示锁定文案）
-  renderMilitaryTechSection(el, state)
-  // 段 3：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
+  // 段 2：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
   renderFleetSection(el, state)
-  // 段 4：攻占列表（构建于上方，收束在舰队之后）
+  // 段 3：攻占列表（构建于上方，收束在舰队之后）
   el.appendChild(conquestSection)
-  // 段 5：肃清进度总览（静态 4 区口径）——置面板底部作收束，攻占列表上方不再占用
+  // 段 4：肃清进度总览（静态 4 区口径）——置面板底部作收束，攻占列表上方不再占用
   const progress = document.createElement('div')
   progress.className = 'conquest-header'
   progress.setAttribute('data-conquest-progress-header', '')

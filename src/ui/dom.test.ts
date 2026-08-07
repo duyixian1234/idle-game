@@ -822,31 +822,35 @@ describe('ui: 军事面板', () => {
     expect(panel.querySelector('[data-conquest="shipyard"]')).toBeTruthy()
   })
 
-  it('军械科技：未解锁显示锁提示，解锁后显示升级按钮', () => {
+  it('军械科技在科技面板出现（未攻占锁定，攻占后研发，研发后可升级）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.orbital = { unlocked: true }
-    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
-    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
-    expect(panel.textContent).toContain('攻占「虫群前哨」后解锁')
-    // 解锁 Lv1 后显示升级按钮
-    s.techLevels.militaryTech = 1
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    const techPanel = container.querySelector('[data-panel="tech"]') as HTMLElement
+    expect(techPanel.querySelector('[data-tech="militaryTech"]')).toBeTruthy()
+    expect(techPanel.textContent).toContain('攻占「虫群前哨」后解锁')
+    // 攻占后显示研发按钮
+    s.conquest.outpost = { status: 'conquered' }
     s.resources.mineral = 1_000_000
     s.resources.tech = 1_000_000
-    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
-    expect(panel.querySelector('[data-upgrade-tech="militaryTech"]')).toBeTruthy()
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    expect(techPanel.querySelector('[data-research="militaryTech"]')).toBeTruthy()
+    // 研发 Lv1 后显示升级按钮
+    s.techLevels.militaryTech = 1
+    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
+    expect(techPanel.querySelector('[data-upgrade-tech="militaryTech"]')).toBeTruthy()
   })
 
-  it('军械科技不在科技面板出现', () => {
+  it('军械科技不在军事面板出现', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
     s.techLevels.militaryTech = 1
-    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
-    const techPanel = container.querySelector('[data-panel="tech"]') as HTMLElement
-    expect(techPanel.querySelector('[data-tech="militaryTech"]')).toBeNull()
-    expect(techPanel.querySelector('[data-tech="planetDrill"]')).toBeTruthy()
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panel.querySelector('[data-tech="militaryTech"]')).toBeNull()
   })
 
   it('档案面板：声望条 + 三组成就网格 + 本周目统计', () => {

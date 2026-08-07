@@ -256,7 +256,7 @@ export interface TechDef {
   requires?: string[]
   /** 等级上限（缺省 TECH_MAX_LEVEL；军械科技等短升级线设 5） */
   maxLevel?: number
-  /** 攻占区域后解锁（军事科技线；显示于军事面板而非科技面板） */
+  /** 攻占区域后解锁（军事线科技；渲染于科技面板列表末尾的分组） */
   unlockByConquest?: string
 }
 
