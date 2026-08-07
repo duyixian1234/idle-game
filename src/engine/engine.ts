@@ -11,6 +11,9 @@ import type { TechDef } from './data'
 import {
   LEVEL_PRODUCTION_BONUS,
   ORDINARY_UPGRADE_LEVEL_GROWTH,
+  POST100_BUY_TARGET_SECONDS,
+  POST100_GROWTH,
+  POST100_THRESHOLD,
   TECH_EXCHANGE_RATE,
   TECH_MAX_LEVEL,
   TECH_UPGRADE_GROWTH,
@@ -102,7 +105,15 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
 
 /** 建筑购买成本：baseCost × (count+1)^costExponent，向下取整，至少 1。
  * 多项式软上限（cost-softcap 2026-08-07）：早期（count 小）贴近原几何曲线，后期增长放缓，杜绝天文数字死区。
- * 唯一大件（unique）：首购恒为 baseCost（count 恒 1、不随 count 增长） */
+ * 唯一大件（unique）：首购恒为 baseCost（count 恒 1、不随 count 增长）。
+ *
+ * post100-cost-curve（2026-08-07）：count > POST100_THRESHOLD 时叠加后置因子与动态下限：
+ * - postFactor = POST100_GROWTH^(count - 100)：指数增长，使后期快速变贵。
+ * - dynamicFloor = POST100_BUY_TARGET_SECONDS × netProduction[key]：挂当前产出，自动跟随
+ *   NG+ ×64/×1024 等所有乘数，高加成下仍有摩擦。
+ * - buyCost = max(staticCost, dynamicFloor) × postFactor：保证不低于静态曲线、不低于动态下限。
+ * - ≤100 台 excess=0 → 完全不变（postFactor=1、dynamicFloor 不介入）。
+ */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
   if (def.unique) {
@@ -114,11 +125,22 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
     return cost
   }
   const count = state.buildings[id] ?? 0
+  const excess = Math.max(0, count - POST100_THRESHOLD)
   const factor = Math.pow(count + 1, def.costExponent)
+  const postFactor = excess > 0 ? Math.pow(POST100_GROWTH, excess) : 1
+  const netProd = excess > 0 ? netProduction(state) : null
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     const base = def.baseCost[key] ?? 0
-    cost[key] = base > 0 ? Math.max(1, Math.floor(base * factor)) : 0
+    if (base <= 0) continue
+    const staticCost = Math.max(1, Math.floor(base * factor))
+    if (excess === 0) {
+      cost[key] = staticCost
+    } else {
+      const np = netProd![key]
+      const dynamicFloor = np > 0 ? Math.floor(POST100_BUY_TARGET_SECONDS * np) : 0
+      cost[key] = Math.max(1, Math.floor(Math.max(staticCost, dynamicFloor) * postFactor))
+    }
   }
   return cost
 }

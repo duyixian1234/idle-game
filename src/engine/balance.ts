@@ -36,6 +36,15 @@ export const TECH_UPGRADE_GROWTH = 1.7
 /** 矿物→科技点兑换汇率（矿物 : 科技点，单向） */
 export const TECH_EXCHANGE_RATE = 100
 
+// ---- 非唯一建筑 100 台后置成本曲线（post100-cost-curve，2026-08-07）----
+
+/** 后置触发台数：每种建筑各自计数，≤此值曲线完全不变 */
+export const POST100_THRESHOLD = 100
+/** 超阈后每多 1 台的乘数（150 台 ×12、200 台 ×132、300 台 ×1.7 万）；balance-sim 校准 */
+export const POST100_GROWTH = 1.05
+/** 阈值点买入动态下限 = 该秒数 × 当前净产出；使 100 台/低等级时升级自然落在 ≈5 分钟 */
+export const POST100_BUY_TARGET_SECONDS = 3
+
 // ---- 科技 ----
 
 /** 科技等级上限（产出类科技；军械科技等短升级线按 def.maxLevel） */
