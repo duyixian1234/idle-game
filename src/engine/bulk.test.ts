@@ -5,7 +5,9 @@ import {
   previewDiplomacyMax,
   previewMaxBuy,
 } from './bulk'
-import { createInitialState, researchTech, upgradeCost } from './engine'
+import { createInitialState } from './engine'
+import { upgradeCost } from './buildings'
+import { researchTech } from './tech'
 import type { GameState } from './types'
 
 /** 构造状态：设置资源余额 */

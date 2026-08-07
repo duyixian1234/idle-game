@@ -1,4 +1,5 @@
-import { checkPlanetUnlocks, createInitialState, tick } from './engine/engine'
+import { createInitialState, tick } from './engine/engine'
+import { checkPlanetUnlocks } from './engine/planets'
 import { RESOURCE_META } from './engine/data'
 import { formatNumber } from './engine/format'
 import { pushLog } from './engine/core'

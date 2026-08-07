@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildingLockReason, buyBuilding, createInitialState, isBuildingUnlocked, startNewGamePlus, tick, upgradeBuilding } from './engine'
+import { createInitialState, startNewGamePlus, tick } from './engine'
+import { buildingLockReason, buyBuilding, isBuildingUnlocked, upgradeBuilding } from './buildings'
 import { CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS } from './data'
 import { productionReport, smelterGlobalMult } from './production'
 import { explorationHarvestMult, explorationSlots } from './exploration'

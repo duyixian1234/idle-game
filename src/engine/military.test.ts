@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { buyBuilding, createInitialState, isBuildingUnlocked, researchTech, tick, upgradeBuilding, upgradeTech } from './engine'
+import { createInitialState, tick } from './engine'
+import { buyBuilding, isBuildingUnlocked, upgradeBuilding } from './buildings'
+import { researchTech, upgradeTech } from './tech'
 import { canBulkBuy, executeMaxBuy, previewMaxBuy } from './bulk'
 import { militaryCap, netProduction, productionReport } from './production'
 import { settleOffline } from './offline'

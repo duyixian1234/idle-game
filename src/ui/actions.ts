@@ -1,18 +1,14 @@
 import { BUILDINGS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
-import {
-  buyBuilding,
-  researchTech,
-  setActivePlanet,
-  upgradeBuilding,
-  upgradeTech,
-} from '../engine/engine'
+import { buyBuilding, upgradeBuilding } from '../engine/buildings'
+import { setActivePlanet } from '../engine/planets'
+import { researchTech, upgradeTech } from '../engine/tech'
 import { executeDiplomacyMax, executeLimitedBuy, executeLimitedDiplomacy, executeMaxBuy } from '../engine/bulk'
 import type { BulkSpend } from '../engine/bulk'
 import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
 import { factionAlliance, factionAtone, factionDef, factionExtort, factionIntimidate, factionSubjugate, factionTechShare, factionTrade, factionTreaty, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
-import { buyShip } from '../engine/engine'
+import { buyShip } from '../engine/fleet'
 import { fleetMaintenance } from '../engine/fleet'
 import { conquestDef, startConquest } from '../engine/conquest'
 import { startExpedition } from '../engine/exploration'

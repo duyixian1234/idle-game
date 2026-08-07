@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, setActivePlanet, startNewGamePlus, tick } from './engine'
+import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
+import { checkPlanetUnlocks, setActivePlanet } from './planets'
 import {
   expeditionCost,
   expeditionMilitaryCost,

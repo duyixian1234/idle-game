@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, researchTech } from '../engine/engine'
+import { createInitialState } from '../engine/engine'
+import { researchTech } from '../engine/tech'
 import { createEventInstance } from '../engine/events'
 import type { ActionDeps, ActionId } from './actions'
 import { ACTIONS, dispatch } from './actions'

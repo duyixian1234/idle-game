@@ -12,7 +12,8 @@
 import { describe, expect, it } from 'vitest'
 import { BUILDINGS } from './data'
 import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD, UPGRADE_PREMIUM, LEVEL_PRODUCTION_BONUS } from './balance'
-import { buildingCost, createInitialState, upgradeCost } from './engine'
+import { createInitialState } from './engine'
+import { buildingCost, upgradeCost } from './buildings'
 import { netProduction } from './production'
 
 /** 高产出态：100 台 miner + 高 NG+ 永久加成 */

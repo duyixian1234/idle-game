@@ -388,3 +388,19 @@ export interface GameState {
   /** 总游玩秒数（在线累计） */
   playSeconds: number
 }
+
+// ---- 引擎动作结果（域模块与 UI 层共用；各域自持的 ActionResult 变体见 diplomacy/bulk/conquest）----
+
+/** 失败结果：ok === false 判失败（isActionFailure type guard） */
+export interface ActionFailure {
+  ok: false
+  reason: string
+}
+
+/** 成功结果：可选附带值 */
+export interface ActionSuccess<T = undefined> {
+  ok: true
+  value?: T
+}
+
+export type ActionResult<T = undefined> = ActionSuccess<T> | ActionFailure

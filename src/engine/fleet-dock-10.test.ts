@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState, startNewGamePlus, tick, upgradeBuilding } from './engine'
+import { createInitialState, startNewGamePlus, tick } from './engine'
+import { upgradeBuilding } from './buildings'
 import {
   autoExploreDispatch,
   canEscort,
