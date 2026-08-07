@@ -4,8 +4,8 @@ import { settleConquests } from './conquest'
 import { settleExpeditions, settleOfflineAutoExplore } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
-import { coercionTick, ensureCoercionUnlocked } from './diplomacy'
-import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
+import { autoDiplomacyTick, coercionTick, ensureCoercionUnlocked } from './diplomacy'
+import { DIPLO_AUTO_COOLDOWN_MS, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { pushLog, zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
@@ -90,6 +90,16 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   }
   // 离线期间条约到期/臣服叛变照常推进（贡税已含在 productionReport 的 gains 中）
   coercionTick(state, nowMs)
+  // 外交自动化离线推进（diplo-auto）：在线为每 20s 冷却执行一次；离线按冷却周期批量结算，
+  // 与在线同口径（预算内贸易/技术共享，好感≥40；nowMs 虚拟推进使冷却判定逐周期生效）。
+  // 放在资源入账之后——贸易预算按离线结算后的资源判定，避免离线前资源不足导致整段空转。
+  if (state.diplomacyAuto?.enabled) {
+    const autoStart = nowMs - duration * 1000
+    const steps = Math.max(0, Math.floor((duration * 1000) / DIPLO_AUTO_COOLDOWN_MS))
+    for (let i = 0; i < steps; i++) {
+      autoDiplomacyTick(state, autoStart + (i + 1) * DIPLO_AUTO_COOLDOWN_MS)
+    }
+  }
   // 胁迫外交解锁（军力达标即解锁，与 raid 遭遇双通道）：离线回归兜底置位（存量存档立即生效）
   ensureCoercionUnlocked(state, 'military')
   state.lastTick = nowMs

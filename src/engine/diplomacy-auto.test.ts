@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { autoDiplomacyTick } from './diplomacy'
+import { settleOffline } from './offline'
 
 const NOW = 1_000_000_000
 const FERRO = 'ferro'
@@ -86,5 +87,29 @@ describe('autoDiplomacyTick（diplo-auto）', () => {
     s.factions[FERRO].favor = 100
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
+  })
+})
+
+describe('settleOffline 离线推进自动外交（diplo-auto，2026-08-07）', () => {
+  it('离线 60s（3 个冷却周期）→ 好感上升且 lastActionAt 推进', () => {
+    const s = baseState()
+    // 贸易成本 5000，预算 10% → 需矿物 ≥ 50,000；矿物 1M 充足
+    settleOffline(s, NOW + 60_000)
+    expect(s.factions[FERRO].favor).toBeGreaterThan(50)
+    expect(s.diplomacyAuto?.lastActionAt).toBeDefined()
+  })
+
+  it('全局开关关闭 → 离线不推进', () => {
+    const s = baseState()
+    s.diplomacyAuto = undefined
+    settleOffline(s, NOW + 60_000)
+    expect(s.factions[FERRO].favor).toBe(50)
+  })
+
+  it('好感低于阈值（<40）→ 离线不推进', () => {
+    const s = baseState()
+    s.factions[FERRO].favor = 10
+    settleOffline(s, NOW + 60_000)
+    expect(s.factions[FERRO].favor).toBe(10)
   })
 })
