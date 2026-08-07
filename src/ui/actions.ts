@@ -1,4 +1,4 @@
-import { BUILDINGS, CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
+import { BUILDINGS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
 import { TECH_EXCHANGE_RATE } from '../engine/balance'
 import {
   buyBuilding,
@@ -13,11 +13,11 @@ import { executeDiplomacyMax, executeLimitedBuy, executeLimitedDiplomacy, execut
 import type { BulkSpend } from '../engine/bulk'
 import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
-import { factionAlliance, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
+import { factionAlliance, factionDef, factionIntimidate, factionTechShare, factionTrade, isFederationUnified } from '../engine/diplomacy'
 import { resolveEvent } from '../engine/events'
 import { buyShip } from '../engine/engine'
 import { fleetMaintenance } from '../engine/fleet'
-import { startConquest } from '../engine/conquest'
+import { conquestDef, startConquest } from '../engine/conquest'
 import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
 import type { EventAutomationPolicy, GameState, LogType, ResourceKey } from '../engine/types'
@@ -91,16 +91,27 @@ function bulkOnFailure(_state: GameState, _payload: string | number, reason: str
   return { logs: [{ type: 'warning', text: `一键买满失败：${reason}。` }] }
 }
 
-/** 外交批量：payload 为 "factionId:action"（trade | techshare） */
+/** payload 尾部固定段解析（探索发现的 endless:/gen: 目标 id 自身含 ':'，必须从右往左切）：
+ * - "factionId:action"（tailCount=1）→ [factionId, action]
+ * - "factionId:action:limit" / "conquestId:invest"（tailCount=2）→ 尾部两段为 action/limit 或 invest，其余全为 id
+ * 段数不足 tailCount 时按旧 split 行为返回（缺段为 undefined）——如 'ferro:trade' 解析为 ['ferro','trade'] */
+function splitActionPayload(payload: string | number, tailCount: 1 | 2): string[] {
+  const parts = String(payload).split(':')
+  if (parts.length <= tailCount) return parts
+  const id = parts.slice(0, parts.length - tailCount).join(':')
+  return [id, ...parts.slice(parts.length - tailCount)]
+}
+
+/** 外交批量：payload 为 "factionId:action[:limit]"（id 可含 ':'） */
 function runDiplomacyMax(state: GameState, payload: string | number): unknown {
-  const [factionId, action, limitText] = String(payload).split(':')
+  const [factionId, action, limitText] = splitActionPayload(payload, 2)
   if (limitText) return executeLimitedDiplomacy(state, factionId, action === 'techshare' ? 'techShare' : 'trade', Number(limitText))
   return executeDiplomacyMax(state, factionId, action === 'techshare' ? 'techShare' : 'trade')
 }
 
-/** 外交动作分发：payload 为 "factionId:action" */
+/** 外交动作分发：payload 为 "factionId:action"（id 可含 ':'） */
 function runDiplomacy(state: GameState, payload: string | number): unknown {
-  const [factionId, action] = String(payload).split(':')
+  const [factionId, action] = splitActionPayload(payload, 1)
   if (action === 'trade') return factionTrade(state, factionId)
   if (action === 'alliance') return factionAlliance(state, factionId)
   if (action === 'techshare') return factionTechShare(state, factionId)
@@ -108,8 +119,8 @@ function runDiplomacy(state: GameState, payload: string | number): unknown {
 }
 
 function diplomacyFeedback(state: GameState, _result: unknown, payload: string | number): ActionFeedback {
-  const [factionId, action] = String(payload).split(':')
-  const def = FACTIONS[factionId]
+  const [factionId, action] = splitActionPayload(payload, 1)
+  const def = factionDef(state, factionId)
   const f = state.factions[factionId]
   const favor = f?.favor ?? 0
   const logs: ActionLog[] = []
@@ -240,8 +251,8 @@ export const ACTIONS: Record<string, GameAction> = {
     id: 'diplomacyMax',
     run: runDiplomacyMax,
     feedback: (_state, _r, payload) => {
-      const [factionId, action, limitText] = String(payload).split(':')
-      const name = FACTIONS[factionId]?.name ?? factionId
+      const [factionId, action, limitText] = splitActionPayload(payload, 2)
+      const name = factionDef(_state, factionId)?.name ?? factionId
       return bulkFeedbackText(_r, `与${name}${limitText ? '批量' : ''}${action === 'techshare' ? '技术共享' : '贸易'}`)
     },
     onFailure: bulkOnFailure,
@@ -271,14 +282,14 @@ export const ACTIONS: Record<string, GameAction> = {
   },
   conquest: {
     id: 'conquest',
-    // payload: "区域id:投入军力"（军力数量由 UI 输入/默认全投）
+    // payload: "区域id:投入军力"（军力数量由 UI 输入/默认全投；探索发现目标 id 可含 ':'）
     run: (state, payload) => {
-      const [id, invest] = String(payload).split(':')
+      const [id, invest] = splitActionPayload(payload, 1)
       return startConquest(state, id, Number(invest), Date.now())
     },
     feedback: (_state, result, payload) => {
-      const [id] = String(payload).split(':')
-      const name = CONQUESTS[id]?.name ?? id
+      const [id] = splitActionPayload(payload, 1)
+      const name = conquestDef(_state, id)?.name ?? id
       const v = result as ConquestActionResult
       if (v.ok) {
         return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 60 分钟结算。` }], sound: 'upgrade' }
@@ -286,8 +297,8 @@ export const ACTIONS: Record<string, GameAction> = {
       return { logs: [] }
     },
     onFailure: (_state, payload, reason) => {
-      const [id] = String(payload).split(':')
-      const name = CONQUESTS[id]?.name ?? id
+      const [id] = splitActionPayload(payload, 1)
+      const name = conquestDef(_state, id)?.name ?? id
       return { logs: [{ type: 'warning', text: `攻占「${name}」失败：${reason}。` }] }
     },
   },

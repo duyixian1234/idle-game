@@ -1,6 +1,7 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from './engine/events'
-import { BUILDINGS, CIVIL_BUILDINGS, FACTIONS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, CIVIL_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { factionDef } from './engine/diplomacy'
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
 import type { BulkPreview } from './engine/bulk'
@@ -530,7 +531,7 @@ async function main(): Promise<void> {
 
     if (kind === 'diplomacy') {
       const act = action ?? 'trade'
-      const factionName = FACTIONS[id]?.name ?? id
+      const factionName = factionDef(state, id)?.name ?? id
       preview = previewDiplomacyMax(state, id, act === 'techshare' ? 'techShare' : 'trade')
       title = act === 'techshare' ? `共享满：${factionName}` : `买满贸易：${factionName}`
       summary = act === 'techshare' ? `将技术共享 ${preview.count} 次直至好感上限` : `将贸易 ${preview.count} 次直至好感上限`
@@ -759,7 +760,10 @@ async function main(): Promise<void> {
       }
       if (e.shiftKey && kind !== 'none') {
         if (kind === 'diplomacy') {
-          const [fid, act] = String(payload).split(':')
+          // payload "factionId:action"（探索发现目标 id 可含 ':'）→ 从右往左切
+          const idx = String(payload).lastIndexOf(':')
+          const fid = String(payload).slice(0, idx)
+          const act = String(payload).slice(idx + 1)
           if (act === 'trade' || act === 'techshare') {
             openBuyMaxModal('diplomacy', fid, act)
             return
