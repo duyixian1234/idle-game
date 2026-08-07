@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
+import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult } from './exploration'
+import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH } from './balance'
 
 function simulate(seed: number) {
   const state = createInitialState(0, seed)
@@ -50,5 +52,43 @@ describe('balance: deterministic event simulation', () => {
       expect(sample.counts.trade).toBeGreaterThan(25)
       expect(sample.counts.bug).toBeGreaterThan(10)
     }
+  })
+})
+
+describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 03）', () => {
+  it('护航投入产出比不漂移：费/E 恒 = 每舰费、倍率增量/E 恒 = 1%（任意舰数×科技组合）', () => {
+    const combos: Array<[number, number, number]> = [
+      [3, 0, 0],
+      [3, 5, 0],
+      [3, 0, 20],
+      [3, 5, 20],
+      [24, 5, 20],
+      [1, 3, 7],
+    ]
+    for (const [count, military, warp] of combos) {
+      const s = createInitialState(0)
+      s.phase = 'ended'
+      s.buildings.dock = 1
+      s.upgrades.dock = 1
+      s.fleet.count = count
+      s.resources.energy = 1e15
+      s.techLevels.militaryTech = military
+      s.techLevels.warpDrive = warp
+      s.buildings.solar = 100
+      s.upgrades.solar = 5
+      s.buildings.miner = 100
+      s.upgrades.miner = 5
+      const E = equivalentFleet(s)
+      expect(E).toBeCloseTo(count * (1 + 0.1 * military) * (1 + 0.1 * warp))
+      expect(escortFee(s)).toBe(Math.floor(escortFeePerShip(s) * E))
+      expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * E)
+    }
+  })
+
+  it('星舰线科技点出口容量量级：Lv1-20 累计 ≈ 11.6 亿（> 枢纽 5000 万 ×20，出口容量两个数量级）', () => {
+    let total = 0
+    for (let lv = 0; lv < 20; lv++) total += Math.ceil(20_000 * Math.pow(TECH_UPGRADE_GROWTH, lv))
+    expect(total).toBeGreaterThan(1_000_000_000)
+    expect(total).toBeLessThan(1_300_000_000)
   })
 })

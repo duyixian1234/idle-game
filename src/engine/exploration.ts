@@ -30,9 +30,10 @@ import {
   JUMPGATE_SLOT_BONUS,
   MISSION_DURATION_MAX_MINUTES,
   MISSION_DURATION_MIN_MINUTES,
+  SHIP_POWER_BASE,
   scaledClamp,
 } from './balance'
-import { fleetPowered } from './fleet'
+import { fleetPowered, fleetPower } from './fleet'
 import { playMilestone } from './story'
 import { militaryCap, netProduction } from './production'
 import { formatNumber, formatPercent } from './format'
@@ -135,11 +136,18 @@ export function rollExpeditionDuration(state: GameState, rng?: () => number): nu
   return minutes * 60_000
 }
 
-// ---- 护航远征（fleet-dock-10：溢出能源 → 探索收益转换器）----
+// ---- 护航远征（fleet-dock-10：溢出能源 → 探索收益转换器；fleet-power-exploration：收益/费用改挂等效舰数）----
 
 /** 护航可用：舰队运转（有舰且能源 ≥ 总维护费）——停摆语义一致（无战力即无护航） */
 export function canEscort(state: GameState): boolean {
   return fleetPowered(state)
+}
+
+/** 等效舰数 E = 舰队战力 / 单舰基础战力（= 舰数 × 军械倍率 × 星舰倍率）：护航倍率与费用共用同一杠杆——
+ * 任何战力来源（买船/军械科技/星舰科技）涨倍率必涨费用，投入产出比例恒定，结构上无印钞路径；
+ * 无科技时 E = 舰数，行为与 fleet-dock-10 原式逐字节一致。 */
+export function equivalentFleet(state: GameState): number {
+  return fleetPower(state) / SHIP_POWER_BASE
 }
 
 /** 单艘护航远征费（能源）= 能源净产出 × ESCORT_ENERGY_SECONDS（锚定当期产出，永不失效） */
@@ -147,14 +155,14 @@ export function escortFeePerShip(state: GameState): number {
   return Math.max(1, Math.floor(netProduction(state).energy * ESCORT_ENERGY_SECONDS))
 }
 
-/** 总护航远征费（能源）= 单艘 × 当前舰数（0 舰 = 0）——加成与费用同一杠杆，权衡始终一致 */
+/** 总护航远征费（能源）= 单艘 × 等效舰数（0 舰/停摆 = 0）——加成与费用同一杠杆，权衡始终一致 */
 export function escortFee(state: GameState): number {
-  return Math.floor(escortFeePerShip(state) * state.fleet.count)
+  return Math.floor(escortFeePerShip(state) * equivalentFleet(state))
 }
 
-/** 护航收获倍率 = 1 + FLEET_HARVEST_PCT_PER_SHIP × 舰数（与科技收获倍率乘法叠加，只作用 resource 分支） */
+/** 护航收获倍率 = 1 + FLEET_HARVEST_PCT_PER_SHIP × 等效舰数（与科技收获倍率乘法叠加，只作用 resource 分支） */
 export function escortHarvestMult(state: GameState): number {
-  return 1 + FLEET_HARVEST_PCT_PER_SHIP * state.fleet.count
+  return 1 + FLEET_HARVEST_PCT_PER_SHIP * equivalentFleet(state)
 }
 
 /** 奖池候选条目 */

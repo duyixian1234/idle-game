@@ -11,9 +11,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：37 个（含护航/船坞/双轨终章/胁迫外交新成就）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：39 个（含护航/船坞/星舰线/双轨终章/胁迫外交新成就）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(39)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -252,9 +252,9 @@ describe('achievements: 胁迫外交', () => {
 })
 
 describe('achievements: 卡片化数据（icon/progress）', () => {
-  it('37 个成就 icon 非空且命中 ICONS 表', () => {
+  it('39 个成就 icon 非空且命中 ICONS 表', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(39)
     for (const d of defs) {
       expect(d.icon, `缺少成就图标：${d.id}`).toBeTruthy()
       expect(ICONS[d.icon], `成就图标不在 ICONS 表：${d.id} → ${d.icon}`).toBeTruthy()
@@ -267,13 +267,14 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     const story = defs.filter((d) => d.category === 'story')
     expect(story).toHaveLength(12)
     for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
-    // 有 progress 的成就数量与 spec 映射一致（19 个）
+    // 有 progress 的成就数量与 spec 映射一致（21 个）
     const withProgress = defs.filter((d) => d.progress)
     expect(withProgress.map((d) => d.id).sort()).toEqual(
       [
         'mineral1M', 'mineral100M', 'mineral1B', 'trades50', 'intimidates10', 'allies3',
         'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'explorerFirst', 'explorerContact',
         'explorerDual', 'explorerTriple', 'explorerComplete', 'escortFirst', 'dockLord',
+        'warpVeteran', 'warpMaster',
         'ng2', 'ng3',
       ].sort(),
     )

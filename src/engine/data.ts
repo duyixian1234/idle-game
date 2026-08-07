@@ -234,9 +234,12 @@ export interface TechEffectUnlock {
   buildingId: string
 }
 
-/** 科技效果：探索（深空信道槽位解锁，Lv≥1 生效；无数值效果，门控由 explorationSlots 派生） */
+/** 科技效果：探索（深空信道槽位解锁，Lv≥1 生效；无数值效果，门控由 explorationSlots 派生；
+ * 带 label 时（如星舰科技线）仅在 UI 显示该文案，不触发信道/倍率逻辑） */
 export interface TechEffectExploration {
   kind: 'exploration'
+  /** UI 效果文案（可选；缺省 = 信道口径文案） */
+  label?: string
 }
 
 export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration
@@ -255,6 +258,8 @@ export interface TechDef {
   maxLevel?: number
   /** 攻占区域后解锁（军事线科技；渲染于科技面板列表末尾的分组） */
   unlockByConquest?: string
+  /** 通关后解锁（ended/infinite 才可研发；渲染为锁定卡直到通关） */
+  afterEnding?: boolean
 }
 
 /** 科技等级上限（产出类科技，1 = 已研发）——数值策略见 balance.ts TECH_MAX_LEVEL */
@@ -450,6 +455,16 @@ export const TECHS: Record<string, TechDef> = {
     effect: { kind: 'exploration' },
     maxLevel: 5,
     icon: 'relay',
+  },
+  warpDrive: {
+    id: 'warpDrive',
+    name: '星舰推进',
+    desc: `重构护卫舰的曲速引擎与舰体装甲：舰队战力每级 +${formatPercent(10)}，与军械科技叠加。通关后解锁。`,
+    cost: { mineral: 100_000, tech: 20_000 },
+    effect: { kind: 'exploration', label: '舰队战力 +10%/级' },
+    maxLevel: 20,
+    afterEnding: true,
+    icon: 'ship',
   },
 }
 

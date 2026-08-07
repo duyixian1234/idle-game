@@ -157,6 +157,27 @@ describe('engine: 舰队数据模型（ticket 01 + fleet-dock-10）——船坞/
     s.resources.energy = 1
     expect(fleetPower(s)).toBe(0)
   })
+
+  it('fleetPower 乘星舰倍率：count×1200×(1+0.1×军事)×(1+0.1×星舰)（fleet-power-exploration）', () => {
+    const s = fleetState()
+    s.upgrades.dock = 1
+    s.fleet.count = 3
+    s.resources.energy = 10_000
+    s.techLevels.militaryTech = 5
+    s.techLevels.warpDrive = 20
+    expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 5) * (1 + FLEET_POWER_TECH_PER_LEVEL * 20))
+  })
+
+  it('warpDrive 0 级时 fleetPower 与现状一致（倍率 ×1）', () => {
+    const s = fleetState()
+    s.upgrades.dock = 1
+    s.fleet.count = 3
+    s.resources.energy = 10_000
+    s.techLevels.militaryTech = 3
+    expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 3))
+    s.techLevels.warpDrive = 0
+    expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 3))
+  })
 })
 
 describe('engine: 造舰（ticket 03）——硬约束/上限拦截/持久化', () => {

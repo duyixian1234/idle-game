@@ -12,7 +12,7 @@ import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, 
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techCost, techLevel, techRequirementsMet } from '../engine/tech'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
-import { escortHarvestMult } from '../engine/exploration'
+import { equivalentFleet, escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
 import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
@@ -337,12 +337,16 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     card.className = 'build-card tech-card'
     card.setAttribute('data-tech', def.id)
 
-    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁
+    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁；带 label 的探索类（星舰线）显示自定义文案
     let effectText: string
     if (def.effect.kind === 'unlockBuilding') {
       effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
     } else if (def.effect.kind === 'exploration') {
-      effectText = level >= 1 ? '探索信道已解锁' : '解锁第 6/7 探索信道'
+      if (def.effect.label) {
+        effectText = level >= 1 ? `${def.effect.label}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）` : def.effect.label
+      } else {
+        effectText = level >= 1 ? '探索信道已解锁' : '解锁第 6/7 探索信道'
+      }
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${RESOURCE_META[def.effect.resource].name}产出 ${formatMultiplier(cur)}`
@@ -356,11 +360,23 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(def.name)}
-          ${researched ? `<span class="build-count researched-badge">${level >= TECH_MAX_LEVEL ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}
+          ${researched ? `<span class="build-count researched-badge">${level >= (def.maxLevel ?? TECH_MAX_LEVEL) ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
       </div>`
     const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
+
+    if (!researched && def.afterEnding && state.phase === 'playing') {
+      // 通关后解锁科技：锁定卡（灰化 + 解锁条件）
+      card.classList.add('locked')
+      card.innerHTML = `${icon}
+        <div class="build-card-body">
+          ${info}
+          <div class="build-lock"><span class="lock-hint">🔒 通关后解锁</span></div>
+        </div>`
+      grid.appendChild(card)
+      continue
+    }
 
     if (!researched) {
       if (!met) {
@@ -964,8 +980,8 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
     : `<button type="button" class="build-btn" data-fleet-build disabled title="已达舰数上限">建造护卫舰</button>`
   // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 1.5×）
   const techNote = techLv > 0 ? `（含军械科技 Lv.${formatNumber(techLv)} ${formatMultiplier(1 + 0.1 * techLv)}）` : ''
-  // 护航加成说明（fleet-dock-10）：每艘 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 舰数（探索页护航远征共用）
-  const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每艘 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%）` : ''
+  // 护航加成说明（fleet-power-exploration）：每等效舰 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 等效舰数（战力/单舰基础战力，探索页护航远征共用）
+  const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每等效舰 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%，战力等效 ${formatNumber(Math.round(equivalentFleet(state)))} 艘）` : ''
   body.innerHTML = `
     <div class="build-card-icon">${iconUse('ship')}</div>
     <div class="build-card-body">

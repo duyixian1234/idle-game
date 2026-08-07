@@ -2,7 +2,7 @@ import type { GameState } from '../engine/types'
 import { ENDLESS_PLANETS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { canEscort, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
+import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
 import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from '../engine/balance'
 import { explorePlanetOutputs } from '../engine/production'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
@@ -112,11 +112,12 @@ export function renderExplorePage(
     const escortDisabled = !fleetReady
     const fee = escortFee(state)
     const mult = escortHarvestMult(state)
+    const equiv = Math.round(equivalentFleet(state))
     const escortBlock = `
       <div class="explore-slot-escort" data-escort-option>
         <label class="escort-toggle-label">
           <input type="checkbox" data-escort-toggle="${slotNo}" ${checked ? 'checked' : ''} ${escortDisabled ? 'disabled' : ''}>
-          护航编队（每艘 +${formatPercent(FLEET_HARVEST_PCT_PER_SHIP * 100)} 收获倍率）
+          护航编队（每等效舰 +${formatPercent(FLEET_HARVEST_PCT_PER_SHIP * 100)} 收获倍率，战力等效 ${formatNumber(equiv)} 艘）
         </label>
         ${escortDisabled ? '<span class="escort-warn" data-escort-disabled>舰队能源不足，护航不可用</span>' : ''}
         ${fleetReady ? `<div class="explore-slot-escort-preview" data-escort-preview>护航消耗 ${formatNumber(fee)} 能源/轮 · 当前倍率 ${formatMultiplier(mult)}</div>` : ''}

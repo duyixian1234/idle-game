@@ -50,12 +50,13 @@ export function techRequirementsMet(state: GameState, id: string): boolean {
   return def.requires.every((t) => techLevel(state, t) > 0)
 }
 
-/** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置） */
+/** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置 + 通关门控） */
 export function canResearchTech(state: GameState, id: string): boolean {
   const def = TECHS[id]
   if (!def) return false
   if (isTechResearched(state, id)) return false
   if (!techRequirementsMet(state, id)) return false
+  if (def.afterEnding && state.phase === 'playing') return false
   return canAfford(state.resources, techCost(state, id))
 }
 
@@ -73,6 +74,7 @@ export function researchTech(state: GameState, id: string): ActionResult {
   const def = TECHS[id]
   if (!def) return { ok: false, reason: '未知科技' }
   if (isTechResearched(state, id)) return { ok: false, reason: '已研发' }
+  if (def.afterEnding && state.phase === 'playing') return { ok: false, reason: '通关后解锁' }
   if (!techRequirementsMet(state, id)) {
     const names = def.requires!.map((t) => TECHS[t]?.name ?? t).join('、')
     return { ok: false, reason: `需先研发：${names}` }

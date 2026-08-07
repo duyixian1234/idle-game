@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { canResearchTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
+import { canResearchTech, canUpgradeTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
 import { buyBuilding, isBuildingUnlocked } from './buildings'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 import { netProduction, productionMultipliers } from './production'
@@ -159,5 +159,47 @@ describe('engine: 科技系统（补充）', () => {
   it('科技成本为固定值（Lv0 即基础成本）', () => {
     const s = createInitialState(0)
     expect(techCost(s, 'planetDrill')).toEqual({ mineral: 500, tech: 10, energy: 0, military: 0 })
+  })
+})
+
+describe('engine: 星舰科技线（fleet-power-exploration ticket 01）', () => {
+  it('通关前不可研发（afterEnding 门控，playing 拒绝）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000_000
+    s.resources.tech = 10_000_000
+    expect(canResearchTech(s, 'warpDrive')).toBe(false)
+    const r = researchTech(s, 'warpDrive')
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { reason: string }).reason).toContain('通关后')
+    expect(isTechResearched(s, 'warpDrive')).toBe(false)
+  })
+
+  it('通关后可研发，成本 = 100k 矿物 + 20k 科技点', () => {
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.resources.mineral = 10_000_000
+    s.resources.tech = 10_000_000
+    expect(canResearchTech(s, 'warpDrive')).toBe(true)
+    expect(techCost(s, 'warpDrive')).toMatchObject({ mineral: 100_000, tech: 20_000 })
+    expect(researchTech(s, 'warpDrive')).toEqual({ ok: true })
+    expect(s.techLevels.warpDrive).toBe(1)
+    expect(s.resources.mineral).toBe(9_900_000)
+    expect(s.resources.tech).toBe(9_980_000)
+  })
+
+  it('Lv1→20 逐级可升（成本 1.7^n），Lv20 后不可升', () => {
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.resources.mineral = 10_000_000_000
+    s.resources.tech = 10_000_000_000
+    researchTech(s, 'warpDrive')
+    expect(techCost(s, 'warpDrive').tech).toBe(Math.ceil(20_000 * TECH_UPGRADE_GROWTH))
+    for (let i = 1; i < 20; i++) {
+      expect(canUpgradeTech(s, 'warpDrive')).toBe(true)
+      expect(upgradeTech(s, 'warpDrive')).toEqual({ ok: true })
+    }
+    expect(s.techLevels.warpDrive).toBe(20)
+    expect(canUpgradeTech(s, 'warpDrive')).toBe(false)
+    expect(upgradeTech(s, 'warpDrive')).toMatchObject({ ok: false, reason: '已满级' })
   })
 })

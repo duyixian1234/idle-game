@@ -390,6 +390,30 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     rewardMineral: 500_000,
     rep: 8,
   },
+  warpVeteran: {
+    id: 'warpVeteran',
+    icon: 'ship',
+    name: '星舰先锋',
+    desc: '将星舰推进科技升至 Lv.10——舰队战力翻倍在望。',
+    category: 'collect',
+    // 谓词与 techLevels 同源（升级动作唯一写入口），无硬编码漂移
+    condition: (s) => (s.techLevels.warpDrive ?? 0) >= 10,
+    progress: (s) => [s.techLevels.warpDrive ?? 0, 20],
+    rewardMineral: 500_000,
+    rep: 5,
+  },
+  warpMaster: {
+    id: 'warpMaster',
+    icon: 'ship',
+    name: '星海主宰',
+    desc: '将星舰推进科技升至 Lv.20——满配舰队战力 ×4.5，深空尽在麾下。',
+    category: 'collect',
+    condition: (s) => (s.techLevels.warpDrive ?? 0) >= 20,
+    progress: (s) => [s.techLevels.warpDrive ?? 0, 20],
+    rewardMineral: 2_000_000,
+    rewardTech: 200_000,
+    rep: 8,
+  },
 
   // ---- 终局类 ----
   federation: {

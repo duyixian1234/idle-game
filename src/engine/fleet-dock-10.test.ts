@@ -4,6 +4,7 @@ import { upgradeBuilding } from './buildings'
 import {
   autoExploreDispatch,
   canEscort,
+  equivalentFleet,
   escortFee,
   escortFeePerShip,
   escortHarvestMult,
@@ -59,6 +60,39 @@ function fakeExp(overrides: { escort?: boolean; finishOffsetMs?: number } = {}):
     escort: overrides.escort ?? false,
   }
 }
+
+describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', () => {
+  it('等效舰数 = 战力/1200：无科技 = 舰数；星舰 Lv20 = ×3；与军械乘积', () => {
+    const s = escortState()
+    expect(equivalentFleet(s)).toBe(3)
+    s.techLevels.warpDrive = 20
+    expect(equivalentFleet(s)).toBeCloseTo(9)
+    s.techLevels.militaryTech = 5
+    expect(equivalentFleet(s)).toBeCloseTo(13.5)
+  })
+
+  it('护航倍率/费随星舰等级放大，投入产出同杠杆（费与倍率增量均线性于 E）', () => {
+    const s = escortState()
+    const fee0 = escortFee(s)
+    const mult0 = escortHarvestMult(s)
+    expect(mult0).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 3)
+    s.techLevels.warpDrive = 20
+    expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 9)
+    // 同杠杆：费随 E 线性放大（×3），倍率增量随 E 线性放大（×3）——无白嫖路径
+    expect(escortFee(s) / fee0).toBeCloseTo(3)
+    expect((escortHarvestMult(s) - 1) / (mult0 - 1)).toBeCloseTo(3)
+  })
+
+  it('停摆时 E=0：护航费 0、倍率 1（停摆语义不变：无战力即无护航收益）', () => {
+    const s = escortState()
+    s.resources.energy = 0
+    expect(equivalentFleet(s)).toBe(0)
+    expect(escortFee(s)).toBe(0)
+    expect(escortHarvestMult(s)).toBe(1)
+    // 停摆下发起护航被拒（能源不足先于护航条件命中；语义=停摆无护航，与 fleet-dock-10 一致）
+    expect(startExpedition(s, 0, () => 0.99, 0, true)).toMatchObject({ ok: false })
+  })
+})
 
 describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
   it('单艘远征费 = 能源净产出 × ESCORT_ENERGY_SECONDS（10s）；总费 = 单艘 × 舰数', () => {
@@ -480,5 +514,27 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     s.upgrades.dock = 10
     expect(ACHIEVEMENTS.dockLord.condition(s)).toBe(true)
     void upgradeBuilding
+  })
+})
+
+describe('engine: 星舰科技线成就（fleet-power-exploration ticket 03）', () => {
+  it('「星舰先锋」Lv10 / 「星海主宰」Lv20：谓词随等级达成，未达不触发', () => {
+    const s = escortState()
+    expect(ACHIEVEMENTS.warpVeteran.condition(s)).toBe(false)
+    expect(ACHIEVEMENTS.warpMaster.condition(s)).toBe(false)
+    s.techLevels.warpDrive = 9
+    expect(ACHIEVEMENTS.warpVeteran.condition(s)).toBe(false)
+    s.techLevels.warpDrive = 10
+    expect(ACHIEVEMENTS.warpVeteran.condition(s)).toBe(true)
+    expect(ACHIEVEMENTS.warpMaster.condition(s)).toBe(false)
+    const newly = checkAchievements(s, 6000)
+    expect(newly.map((d) => d.id)).toContain('warpVeteran')
+    expect(newly.map((d) => d.id)).not.toContain('warpMaster')
+    s.techLevels.warpDrive = 20
+    expect(ACHIEVEMENTS.warpMaster.condition(s)).toBe(true)
+    const newly2 = checkAchievements(s, 7000)
+    expect(newly2.map((d) => d.id)).toContain('warpMaster')
+    // 谓词与升级动作同源：等级写入口唯一（upgradeTech），无硬编码漂移
+    expect(s.techLevels.warpDrive).toBe(20)
   })
 })
