@@ -40,3 +40,4 @@ blob-report/
 
 # local agent data — 本地助手数据（记忆/技能缓存），非项目交付物
 .workbuddy/
+tmp/
