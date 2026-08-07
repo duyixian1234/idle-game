@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 引擎：类别默认处理（fallback）策略门（默认表常量依赖）
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 事件卡底部渲染「以后此类自动处理」复选框（`data-auto-quick-toggle`，值 = 事件类别 theme；选中态 = 该类策略 enabled）。
 - [ ] 点击语义：只切 `enabled`；该类别从未配置过 → 用 `DEFAULT_AUTOMATION_FALLBACK` / `DEFAULT_AUTOMATION_MAX_RISK` 初始化默认策略；已配置 → 仅翻转 enabled、其余字段（风险/冷却/预算/处理方式）保持原值。

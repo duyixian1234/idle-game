@@ -14,7 +14,7 @@
 
 **Blocked by:** 01（读 bugEscalation）
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] balance.ts BUG_* 常量族（含锚点注释）
 - [ ] events.ts `bugTerms` 纯函数 + 导出

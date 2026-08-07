@@ -12,7 +12,7 @@
 
 **Blocked by:** 02（bugTerms）
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] triggerRandomEvent 接入 bug/void-swarm 迎击判定（够强不生成卡）
 - [ ] 结算：重置 escalation、日志语义化、不扣军力

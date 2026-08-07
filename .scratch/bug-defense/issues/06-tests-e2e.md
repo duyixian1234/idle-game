@@ -20,10 +20,14 @@
 
 **Blocked by:** 01、02、03、04、05
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] 引擎单测聚合（上述各文件）全绿
 - [ ] dom 冒烟补充
 - [ ] e2e/bug-defense.spec.ts 交付（data-* 断言）
 - [ ] 全仓 vitest + typecheck clean
 - [ ] （用户）手动跑 E2E 并反馈结果
+
+## Answer（2026-08-07 收尾）
+
+本 feature 实现已由并发协作者落地（main 分支 b96bedd 起，bugTerms/repel/escalation/schema v10 全部核对通过，2026-08-07 复核）；E2E spec 未单独编写，且 E2E 体系已随 7180e53 全仓移除。引擎/UI 单测已覆盖（events.test.ts / save.test.ts）。

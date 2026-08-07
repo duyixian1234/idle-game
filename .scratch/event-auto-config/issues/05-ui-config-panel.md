@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 引擎：类别默认处理（fallback）策略门；02 — 档案页：移除事件可解释性模块（先拆旧配置 UI，再落新面板）
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 日志头新增「自动处理」按钮（`data-auto-config-trigger`）；修复日志头整体 `aria-hidden` 问题——按钮不可置于 aria-hidden 容器（aria-hidden 收敛到装饰性 span，按钮可聚焦、有可访问名）。
 - [ ] 新增覆盖面板（复用 overlay 体系：fixed 遮罩 + 卡片，z-index 与既有弹窗一致；`hidden` 切换；开合为 UI 会话状态，不进存档）。

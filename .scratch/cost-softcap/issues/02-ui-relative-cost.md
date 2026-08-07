@@ -1,6 +1,6 @@
 # 02 - UI 相对价格显示：卡片「≈N 秒产出」行
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01
 

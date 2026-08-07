@@ -1,6 +1,6 @@
 # 05 - E2E 迁移与验证
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01, 02, 03
 
@@ -21,3 +21,4 @@ E2E spec 断言与迁移后的 UI 位置对齐（用户手动验证，铁律不�
 ## Answer
 
 待用户手动验证（E2E 铁律）。spec 修改已完成：fleet.spec.ts 舰队区块用例加军事 tab 切换。
+> **2026-08-07 收尾**：E2E spec 已随提交 7180e53 与全仓 E2E 一并移除，E2E 验证体系已终止。

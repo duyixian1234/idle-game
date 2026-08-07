@@ -1,6 +1,6 @@
 # 04 - 单元测试：新曲线性质锁定
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01, 03
 

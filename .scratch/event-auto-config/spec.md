@@ -1,6 +1,6 @@
 # 事件自动处理配置迁移（event-auto-config）
 
-**Status:** ready-for-implementation
+**Status:** implemented（2026-08-07 复核：实现已落地，10 项决策 + 2 缺口修订全部核对通过——档案页模块移除、日志头自动处理按钮/折叠面板、事件卡快捷开关、data-auto-handled 标注（tick/舰队迎击/离线）、automationHistory 保留写入、fallbackGate 策略门 + DEFAULT 默认表、setAutomationPolicy 静默；6 tickets resolved）
 
 ## Problem Statement
 

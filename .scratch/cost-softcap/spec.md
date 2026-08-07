@@ -1,6 +1,6 @@
 # Spec: 建筑成本软上限（cost-softcap）
 
-**Status:** ready-for-implementation（2026-08-07 grill-me 四轮盘问定稿，用户每轮"全推荐"后确认方案）
+**Status:** implemented（提交 f59ef37 实现，727 vitest 全绿 + typecheck/build 绿；tickets 01-04 resolved，05 E2E spec 已实现但随 7180e53 与全仓 E2E 一并移除，视为完成）
 **存档版本:** 无变更（成本为纯函数计算字段，改公式老存档自动套新价，零迁移）
 **关联:** `.scratch/balance-rework/`（P=2 ROI 契约来源）、`src/engine/balance.ts`（数值单一真源）
 

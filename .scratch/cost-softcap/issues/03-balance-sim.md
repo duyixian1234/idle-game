@@ -1,6 +1,6 @@
 # 03 - 数值校准：临时 sim 反推 k 与 c
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 01
 

@@ -15,7 +15,7 @@
 
 **Blocked by:** 01、02、03
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] repel 结算（扣军力 + 重置 + 军力不足 warning）
 - [ ] dispatch/jam 补重置

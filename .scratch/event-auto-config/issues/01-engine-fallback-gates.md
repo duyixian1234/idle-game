@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 新增默认表 `DEFAULT_AUTOMATION_FALLBACK`（trade=accept / disaster=collect / security=ignore / exploration / investment=undefined）与 `DEFAULT_AUTOMATION_MAX_RISK`（trade=medium / disaster=high / security=high / 其余 undefined），供快捷开关首次开启时初始化。
 - [ ] `autoResolvePendingEvents` 重构：规则（rules）优先（`ruleEligible` 机制不动）；无规则时走 fallback，移除「仅低风险」限制。

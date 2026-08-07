@@ -10,7 +10,7 @@
 
 **Blocked by:** 无
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] types.ts GameState + 初始态工厂补 `bugEscalation: 1`
 - [ ] save.ts SCHEMA_V10 / 字段表 / migrateV9ToV10（写死 SCHEMA_V10，补默认 1）

@@ -10,7 +10,7 @@
 
 **Blocked by:** 02（bugTerms）
 
-**Status:** pending
+**Status:** resolved
 
 - [ ] bug 分支 payload 加 strength/repelCost + repel 选项（含 hint，`formatNumber`）
 - [ ] void-swarm 共享路径

@@ -1,6 +1,6 @@
 # 06 - 单元测试 + E2E spec
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 03-engine-pool-settle、04-ui-archive-fold
 
@@ -27,3 +27,4 @@
 ## Answer
 
 （待实现）
+> **2026-08-07 收尾**：E2E spec 已随提交 7180e53 与全仓 E2E 一并移除，E2E 验证体系已终止。

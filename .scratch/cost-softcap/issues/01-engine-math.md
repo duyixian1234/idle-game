@@ -1,6 +1,6 @@
 # 01 - 引擎数学改造：多项式买入 + 升级温和化
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** —
 

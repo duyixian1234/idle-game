@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — 引擎：类别默认处理（fallback）策略门
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `LogEntry` 增加可选 `autoHandled` 字段；`pushLog` 支持 meta 参数透传（无该标记时行为与现状一致，零迁移——字段随日志持久化）。
 - [ ] tick 中策略自动处理：`autoResolvePendingEvents` 返回的每条结算结果写日志并标注 `autoHandled`。

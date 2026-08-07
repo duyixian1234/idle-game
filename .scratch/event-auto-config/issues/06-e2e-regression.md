@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 — 引擎：自动结算日志标注；02 — 档案页：移除事件可解释性模块；04 — UI：事件卡快捷开关；05 — UI：日志页自动处理配置面板
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `e2e/auto-config.spec.ts`（用户手动执行，agent 不跑；全 `data-*` 断言，禁类名断言）：
   - 日志头按钮开/关面板（遮罩点击/Esc）；5 类 `data-auto-cat` 渲染；点 `data-auto-cat-row` 展开明细。
@@ -15,3 +15,7 @@
 - [ ] 全量 vitest + typecheck + build 绿；`renderEventExplainability` 相关存量测试已迁移/删除。
 - [ ] spec Status → implemented，6 ticket 全部 resolved。
 - [ ] push origin main + wrangler 部署（待用户 E2E 通过后）。
+
+## Answer（2026-08-07 收尾）
+
+本 feature 实现已落地（日志页自动处理面板/快捷开关/data-auto-handled 标注/fallbackGate 策略门/默认表全部核对通过，2026-08-07 复核）；E2E spec 未单独编写，且 E2E 体系已随 7180e53 全仓移除。引擎/UI 单测已覆盖（events.test.ts / dom.test.ts / actions.test.ts）。

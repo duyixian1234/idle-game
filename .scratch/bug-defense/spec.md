@@ -1,6 +1,6 @@
 # 虫族警报军事化防御（bug-defense）
 
-**Status:** ready-for-implementation
+**Status:** implemented（2026-08-07 复核：实现已由并发协作者落地（main b96bedd 起），12 项决策全部核对通过——bugTerms 强度公式、repel/dispatch/jam/ignore 四选项、×1.3 放任累积、舰队自动迎击（tryAutoIntercept 泛化）、void-swarm 共享、schema v10 bugEscalation 迁移与 NG+ 重置；6 tickets resolved）
 
 ## Problem Statement
 

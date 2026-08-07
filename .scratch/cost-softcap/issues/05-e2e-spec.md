@@ -1,6 +1,6 @@
 # 05 - E2E spec：相对价格显示 + 回归
 
-**Status:** pending
+**Status:** resolved
 **Type:** task
 **Blocked by:** 02, 04
 
@@ -22,3 +22,4 @@
 ## Answer
 
 已完成：新建 `e2e/cost-softcap.spec.ts`（5 用例，全 data-\* 断言，v11 档 + seed 42 + lockSaveStore + lockAchievements + 冻结生产时钟）：① data-cost-time 可见且随数量变化（miner ×5 → ≈5s，×25 → ≈2s）；② 实验室多资源瓶颈口径（能源净产 0 跳过 → 矿物 91s）；③ 军港科技净产 0 无 NaN/Infinity；④ unique 星港无相对行；⑤ 375px 视口卡片与相对行不溢出。**待用户手动验证（铁律不代跑），完成后询问结果。** playwright --list 5 tests 可加载。
+> **2026-08-07 收尾**：E2E spec 已随提交 7180e53「tests:remove broken e2e tests」与全仓 E2E 一并移除，E2E 验证体系已终止。

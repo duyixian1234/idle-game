@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 删除档案页「事件可解释性」整块渲染（自动化配置 / 事件历史审计 / 迁移摘要三块）及其 main 层接线与相关 DOM 测试。
 - [ ] `automationHistory` **只停渲染、保留引擎写入**：冷却判定（`ruleEligible` 按规则、fallback 按类别查最近 resolved 审计）依赖该账本，停写即冷却失效——不得删除 `recordAutomation` 调用。
