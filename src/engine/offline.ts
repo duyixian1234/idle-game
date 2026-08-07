@@ -10,9 +10,9 @@ import type { GameState, ResourceKey } from './types'
 
 /** 离线收益封顶 8 小时——数值策略见 balance.ts OFFLINE_CAP_SECONDS（跃迁枢纽放宽至 12h，见 offlineCapSeconds） */
 
-/** 离线结算封顶（秒）：基础 8h + 跃迁枢纽 4h = 12h（全局结算参数派生，tick/UI 同源） */
+/** 离线结算封顶（秒）：基础 8h + 跃迁枢纽 4h = 12h（全局结算参数派生，tick/UI 同源；枢纽建造即生效） */
 export function offlineCapSeconds(state: GameState): number {
-  return OFFLINE_CAP_SECONDS + (state.megastructureChoice === 'jumpgate' ? JUMPGATE_OFFLINE_EXTRA_SECONDS : 0)
+  return OFFLINE_CAP_SECONDS + ((state.buildings.jumpgate ?? 0) >= 1 ? JUMPGATE_OFFLINE_EXTRA_SECONDS : 0)
 }
 
 export interface OfflineResult {

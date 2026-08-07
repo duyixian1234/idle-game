@@ -100,7 +100,6 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     }
     const smelter = withThreeInterstellar(endedState())
     smelter.buildings.ringSmelter = 1
-    smelter.megastructureChoice = 'smelter'
     smelter.upgrades.ringSmelter = 10
     expect(smelterGlobalMult(smelter)).toBe(1024)
   })
@@ -243,7 +242,7 @@ describe('engine: 恒星阵列 + 星海智库（ticket 04）——链式解锁',
   })
 })
 
-describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核心', () => {
+describe('engine: 星环冶炼场 + 双轨开放（megastructure-open）——终局工程核心', () => {
   it('解锁：通关 && 三星系间各 ≥1；缺任一锁定', () => {
     const s = endedState()
     expect(isBuildingUnlocked(s, 'ringSmelter')).toBe(false)
@@ -255,23 +254,26 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
     expect(isBuildingUnlocked(s, 'ringSmelter')).toBe(true)
   })
 
-  it('购买写入 megastructureChoice；互斥双向：选冶炼场后枢纽锁定', () => {
+  it('双轨开放：建造冶炼场后枢纽仍可解锁建造、无锁定原因（megastructureChoice 不再写入）', () => {
     const s = withThreeInterstellar(endedState())
     expect(buyBuilding(s, 'ringSmelter')).toMatchObject({ ok: true })
-    expect(s.megastructureChoice).toBe('smelter')
-    expect(isBuildingUnlocked(s, 'jumpgate')).toBe(false)
-    expect(buildingLockReason(s, 'jumpgate')).toContain('本周目已锁定')
-    // 重复购买冶炼场：唯一建筑拒绝（不覆盖选择）
+    expect(s.megastructureChoice).toBeNull()
+    expect(isBuildingUnlocked(s, 'jumpgate')).toBe(true)
+    expect(buildingLockReason(s, 'jumpgate')).toBeNull()
+    // 双轨可同时建造
+    expect(buyBuilding(s, 'jumpgate')).toMatchObject({ ok: true })
+    expect(s.buildings.ringSmelter).toBe(1)
+    expect(s.buildings.jumpgate).toBe(1)
+    // 重复购买冶炼场：唯一建筑拒绝
     expect(buyBuilding(s, 'ringSmelter')).toMatchObject({ ok: false })
-    expect(s.megastructureChoice).toBe('smelter')
   })
 
-  it('反向互斥：选枢纽后冶炼场锁定', () => {
+  it('反向：建造枢纽后冶炼场仍可解锁建造', () => {
     const s = withThreeInterstellar(endedState())
     expect(buyBuilding(s, 'jumpgate')).toMatchObject({ ok: true })
-    expect(s.megastructureChoice).toBe('jumpgate')
-    expect(isBuildingUnlocked(s, 'ringSmelter')).toBe(false)
-    expect(buildingLockReason(s, 'ringSmelter')).toContain('本周目已锁定')
+    expect(s.megastructureChoice).toBeNull()
+    expect(isBuildingUnlocked(s, 'ringSmelter')).toBe(true)
+    expect(buildingLockReason(s, 'ringSmelter')).toBeNull()
   })
 
   it('冶炼场全局乘数 ×2^level：矿/能源/科技全吃、军力不吃', () => {
@@ -279,9 +281,8 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
     // 基线：星港 500 矿/s、恒星 1000 能源/s、智库 200 科技/s
     const base = productionReport(s).nominal
     expect(smelterGlobalMult(s)).toBe(1)
-    // 购买即写入 choice（引擎 buyBuilding 语义；测试直改 state 需同步 choice——smelterGlobalMult 门控与枢纽一致）
+    // 建造即生效（双轨开放门控：buildings 存在性，无需 choice）
     s.buildings.ringSmelter = 1
-    s.megastructureChoice = 'smelter'
     s.upgrades.ringSmelter = 1
     expect(smelterGlobalMult(s)).toBe(2)
     const after = productionReport(s).nominal
@@ -293,7 +294,6 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
   it('冶炼场能耗随等级：Lv1 100/s；Lv10 与恒星 Lv0 产出恰好闭环（ratio=1）；叠加精炼厂后能源不足打折', () => {
     const s = withThreeInterstellar(endedState())
     s.buildings.ringSmelter = 1
-    s.megastructureChoice = 'smelter'
     s.resources.energy = 0
     // Lv1 能耗 100/s：恒星产 1000/s 供大于求 → 精炼厂不打折
     s.upgrades.ringSmelter = 1
@@ -312,11 +312,10 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
     expect(refineryContribution).toBeCloseTo(2 * 3 * (1000 / 1001) * 1024, 0)
   })
 
-  it('NG+ 遗产：等级 ×1.5% 折算 permanentBonuses，选择重置可重选', () => {
+  it('NG+ 遗产：双轨等级 ×1.5% 折算 permanentBonuses，选择字段重置', () => {
     const s = withThreeInterstellar(endedState())
     s.buildings.ringSmelter = 1
     s.upgrades.ringSmelter = 4
-    s.megastructureChoice = 'smelter'
     const before = s.permanentBonuses.production ?? 0
     startNewGamePlus(s, 1000)
     expect(s.megastructureChoice).toBeNull()
@@ -326,7 +325,6 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
     // 0 级不折算
     const s2 = withThreeInterstellar(endedState())
     s2.buildings.ringSmelter = 1
-    s2.megastructureChoice = 'smelter'
     startNewGamePlus(s2, 1000)
     expect(s2.permanentBonuses.production ?? 0).toBe(0)
   })
@@ -335,7 +333,6 @@ describe('engine: 星环冶炼场 + 互斥（ticket 05）——终局抉择核�
     const s = withThreeInterstellar(endedState())
     s.buildings.jumpgate = 1
     s.upgrades.jumpgate = 10
-    s.megastructureChoice = 'jumpgate'
     startNewGamePlus(s, 1000)
     expect(s.megastructureChoice).toBeNull()
     expect(s.permanentBonuses.production).toBeCloseTo(10 * 0.015)
@@ -346,7 +343,7 @@ describe('engine: 跃迁枢纽（ticket 06）——机制增强', () => {
   it('派遣槽：基础 5 + 枢纽 3 = 8；科技全解锁 7 + 3 = 10（上限 10）', () => {
     const s = createInitialState(0)
     expect(explorationSlots(s)).toBe(5)
-    s.megastructureChoice = 'jumpgate'
+    s.buildings.jumpgate = 1
     expect(explorationSlots(s)).toBe(8)
     s.techLevels.deepSpaceNav = 1
     s.techLevels.interstellarRelay = 1
@@ -358,7 +355,7 @@ describe('engine: 跃迁枢纽（ticket 06）——机制增强', () => {
     s.techLevels.deepSpaceNav = 5
     s.techLevels.interstellarRelay = 5
     expect(explorationHarvestMult(s)).toBeCloseTo(2)
-    s.megastructureChoice = 'jumpgate'
+    s.buildings.jumpgate = 1
     expect(explorationHarvestMult(s)).toBeCloseTo(4)
   })
 
@@ -373,14 +370,14 @@ describe('engine: 跃迁枢纽（ticket 06）——机制增强', () => {
     // 枢纽放宽
     const s2 = createInitialState(0)
     s2.lastTick = now - 13 * 3600 * 1000
-    s2.megastructureChoice = 'jumpgate'
+    s2.buildings.jumpgate = 1
     const off2 = settleOffline(s2, now)
     expect(off2.capped).toBe(true)
     expect(off2.durationSeconds).toBe(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS)
     // 10 小时离线在枢纽下不封顶
     const s3 = createInitialState(0)
     s3.lastTick = now - 10 * 3600 * 1000
-    s3.megastructureChoice = 'jumpgate'
+    s3.buildings.jumpgate = 1
     const off3 = settleOffline(s3, now)
     expect(off3.capped).toBe(false)
     expect(off3.durationSeconds).toBe(10 * 3600)

@@ -203,7 +203,7 @@ function isEnded(state: GameState): boolean {
 }
 
 /** 前置建筑/科技/星球是否已满足（建筑拥有 ≥1 台，科技已研发，星球已解锁）；
- * 星系间工程额外解锁链：通关后（requiresEnded）/ 建筑升级满级（requiresMaxLevel）/ 终局互斥（exclusiveMegastructure） */
+ * 星系间工程额外解锁链：通关后（requiresEnded）/ 建筑升级满级（requiresMaxLevel） */
 export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
@@ -212,17 +212,13 @@ export function isBuildingUnlocked(state: GameState, id: string): boolean {
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) return false
   if (def.requiresEnded && !isEnded(state)) return false
   if (def.requiresMaxLevel && !def.requiresMaxLevel.every((t) => (state.upgrades[t] ?? 0) >= TECH_MAX_LEVEL)) return false
-  if (def.exclusiveMegastructure && state.megastructureChoice === def.exclusiveMegastructure) return false
   return true
 }
 
-/** 建筑锁定原因（UI 锁定卡片展示；返回 null = 未锁定）。优先级：终局互斥 → 通关 → 星球 → 建筑满级 → 前置建筑/科技 */
+/** 建筑锁定原因（UI 锁定卡片展示；返回 null = 未锁定）。优先级：通关 → 星球 → 建筑满级 → 前置建筑/科技 */
 export function buildingLockReason(state: GameState, id: string): string | null {
   const def = BUILDINGS[id]
   if (!def) return '未知建筑'
-  if (def.exclusiveMegastructure && state.megastructureChoice === def.exclusiveMegastructure) {
-    return '本周目已锁定：已选择另一究极建筑'
-  }
   if (def.requiresEnded && !isEnded(state)) return '通关后解锁'
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) {
     return `需解锁星球：${def.requiresPlanet.map((p) => PLANETS[p]?.name ?? p).join('、')}`
@@ -239,7 +235,7 @@ export function buildingLockReason(state: GameState, id: string): string | null 
   return null
 }
 
-/** 终局抉择前置是否满足：通关 && 三星系间建筑各 ≥1 级（终局抉择区块/互斥基础设施共用，UI 不重写判定） */
+/** 终局工程前置是否满足：通关 && 三星系间建筑各 ≥1 级（终局工程区块入口判定，UI 不重写） */
 export function megastructurePrereqsMet(state: GameState): boolean {
   if (!isEnded(state)) return false
   return ['starportMine', 'stellarArray', 'thinkTank'].every((id) => (state.buildings[id] ?? 0) >= 1)
@@ -259,7 +255,7 @@ export function canAffordUpgrade(state: GameState, id: string): boolean {
   return canAfford(state.resources, upgradeCost(state, id))
 }
 
-/** 建造建筑（唯一大件：count 恒 1、禁重复建造；究极建筑购买即写入终局抉择） */
+/** 建造建筑（唯一大件：count 恒 1、禁重复建造） */
 export function buyBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
@@ -270,8 +266,6 @@ export function buyBuilding(state: GameState, id: string): ActionResult {
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   const wasEmpty = Object.values(state.buildings).every((c) => c <= 0)
   state.buildings[id] = def.unique ? 1 : (state.buildings[id] ?? 0) + 1
-  // 究极建筑：购买即写入终局抉择（互斥在本周目生效，NG+ 重置可重选）
-  if (def.megastructureValue) state.megastructureChoice = def.megastructureValue
   // 首次建造叙事
   if (wasEmpty) playMilestone(state, 'firstBuild')
   return { ok: true }
@@ -601,7 +595,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   if (legacy > 0) {
     state.permanentBonuses.production = (state.permanentBonuses.production ?? 0) + legacy
   }
-  // 终局抉择重置：NG+ 可重新选择另一究极建筑（防残留：所选建筑等级随 buildings/upgrades 一并清空）
+  // 终局工程兼容字段重置（v7 存档字段，已废弃语义；建筑等级随 buildings/upgrades 一并清空）
   state.megastructureChoice = null
 
   // 记录已结盟派系（图鉴）：computeNgPlusInheritance 已含本周目已结盟派系

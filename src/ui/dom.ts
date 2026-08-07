@@ -71,7 +71,7 @@ export function renderExplorePage(
           ? `深空导航阵列 Lv${formatNumber(1)}（科技）`
           : i === 6
             ? `星际通信中继 Lv${formatNumber(1)}（科技）`
-            : '跃迁枢纽（终局抉择·探索路线）'
+            : '跃迁枢纽（终局工程·探索路线）'
       slotCards.push(`
         <div class="explore-slot" data-expedition-slot="${slotNo}" data-expedition-locked>
           <div class="explore-slot-head"><span class="explore-slot-name">深空信道 ${slotNo}</span><span class="explore-slot-state locked">🔒 未解锁</span></div>

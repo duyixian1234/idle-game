@@ -294,7 +294,7 @@ export interface GameState {
   permanentBonuses: Record<string, number>
   /** 区域攻占状态：conquestId -> ConquestState */
   conquest: Record<string, ConquestState>
-  /** 终局抉择（究极建筑二选一，周目内硬锁）：'smelter' = 星环冶炼场、'jumpgate' = 跃迁枢纽、null = 未选择；NG+ 重置可重选（v7 新增） */
+  /** 终局抉择（v7 兼容保留，已废弃语义——不再消费；双轨开放后两座究极建筑独立建造）：'smelter'/'jumpgate' 为旧档历史值，null = 未选择；NG+ 重置为 null */
   megastructureChoice: 'smelter' | 'jumpgate' | null
   /** 舰队状态（v8 新增）：周目内，NG+ 归零；船坞等级派生自 buildings/upgrades.dock，不重复存档；powered 为派生状态（每 tick 判定），不存档 */
   fleet: { count: number }

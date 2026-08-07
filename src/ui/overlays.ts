@@ -85,7 +85,7 @@ export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: 
     </div>`
 }
 
-/** 终局抉择确认弹窗（复用 ending overlay 卡片体系）：效果预览 + 建造消耗 + 互斥警告 + 确认/取消 */
+/** 终局工程确认弹窗（复用 ending overlay 卡片体系）：效果预览 + 建造消耗 + 双轨提示 + 确认/取消 */
 export function renderMegastructureModal(el: HTMLElement, state: GameState, id: string): void {
   const def = BUILDINGS[id]
   if (!def) return
@@ -95,13 +95,13 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
       : JUMPGATE_EFFECT_TEXT
   el.innerHTML = `
     <div class="megastructure-card" data-megastructure-modal>
-      <div class="buy-max-title">终局抉择：${escapeHtml(def.name)}</div>
+      <div class="buy-max-title">终局工程：${escapeHtml(def.name)}</div>
       <div class="buy-max-summary">${escapeHtml(def.desc)}</div>
       <table class="buy-max-table">
         <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
         <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
       </table>
-      <div class="buy-max-warn" data-megastructure-warn>⚠ 只能选择其一，本周目不可更改；另一个究极建筑将永久锁定。NG+ 重开后可重新选择。</div>
+      <div class="buy-max-warn" data-megastructure-warn>双轨工程：星环与星门皆可铸就，二者独立建造、互不影响。</div>
       <div class="buy-max-actions">
         <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">确认建造</button>
         <button type="button" class="ending-btn ghost" data-megastructure-cancel>取消</button>

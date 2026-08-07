@@ -1,6 +1,6 @@
 import { checkPlanetUnlocks, createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine/engine'
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from './engine/events'
-import { BUILDINGS, CIVIL_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
+import { BUILDINGS, CIVIL_BUILDINGS, MEGASTRUCTURE_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from './engine/data'
 import { factionDef } from './engine/diplomacy'
 import { previewDiplomacyMax, previewMaxBuy } from './engine/bulk'
 import type { BulkKind } from './engine/bulk'
@@ -180,7 +180,7 @@ async function main(): Promise<void> {
     // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
     const flashId = Date.now() < justUpgradedUntil ? justUpgradedId : null
     renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded, flashId })
-    // 星际工程分组（星系间建造物 + 终局抉择）紧随民用建筑之后（interstellar-build-merge）
+    // 星际工程分组（星系间建造物 + 终局工程）紧随民用建筑之后（interstellar-build-merge）
     renderInterstellarPanel(panels['build'], state, { lockedExpanded, flashId })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state, { archivedExpanded })
@@ -330,7 +330,7 @@ async function main(): Promise<void> {
     }
   })
 
-  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局抉择已移至建造页星际工程分组）
+  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局工程已移至建造页星际工程分组）
   els.navPages.settings.addEventListener('click', (e) => {
     const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
     if (actionBtn?.dataset.settingAction === 'ngplus') {
@@ -654,8 +654,8 @@ async function main(): Promise<void> {
     }
   })
 
-  // ---- 终局抉择（究极建筑二选一） ----
-  // 星域页抉择卡片（data-megastructure）→ 确认弹窗 → 确认后 dispatch('megastructure') 建造并写入选择
+  // ---- 终局工程（双轨开放） ----
+  // 星域页工程卡片（data-megastructure）→ 确认弹窗 → 确认后 dispatch('megastructure') 建造
   function closeMegastructureModal(): void {
     els.megastructureOverlay.classList.add('hidden')
   }
@@ -758,9 +758,9 @@ async function main(): Promise<void> {
       dispatch(state, 'fleetBuild', 0, deps)
       return
     }
-    // 终局抉择卡片（data-megastructure）：未选择且未锁定时弹出确认（选定/锁定卡片不可点）
+    // 终局工程卡片（data-megastructure）：未建造时弹出确认（已建造卡片不可点）
     const megaCard = target.closest<HTMLElement>('[data-megastructure]')
-    if (megaCard && !megaCard.hasAttribute('data-chosen') && !megaCard.hasAttribute('data-locked')) {
+    if (megaCard && !megaCard.hasAttribute('data-built')) {
       openMegastructureModal(megaCard.dataset.megastructure ?? '')
       return
     }
@@ -780,9 +780,9 @@ async function main(): Promise<void> {
         continue
       }
       const payload = btn.dataset[dataKey] ?? ''
-      // 究极建筑（megastructureValue）：建造必须走终局抉择确认弹窗——互斥知情决策（spec US10「明示只能选一个」），
-      // 星际工程分组内的 data-build 建造按钮与抉择卡片同一入口
-      if (actionId === 'buy' && BUILDINGS[payload]?.megastructureValue) {
+      // 究极建筑（终局工程双轨）：建造走终局工程确认弹窗——双轨开放、独立建造、互不影响
+      // 星际工程分组内的 data-build 建造按钮与工程卡片同一入口
+      if (actionId === 'buy' && MEGASTRUCTURE_BUILDINGS[payload]) {
         openMegastructureModal(payload)
         return
       }
@@ -845,7 +845,7 @@ async function main(): Promise<void> {
       return
     }
     // 卡片主体点击（data-build-card，building-cards ticket 03）：按钮分支已在上方优先命中并 return，
-    // 此处为兜底——判定逻辑见 dom.buildCardAction（升级×1/建造×1/终局抉择弹窗；不可操作态 null 无副作用；
+    // 此处为兜底——判定逻辑见 dom.buildCardAction（升级×1/建造×1/终局工程弹窗；不可操作态 null 无副作用；
     // Shift+卡片主体不触发买满，买满仍只走按钮）。
     const card = target.closest<HTMLElement>('[data-build-card]')
     if (card) {

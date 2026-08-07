@@ -1,4 +1,4 @@
-import { BUILDINGS, CONQUESTS, RESOURCE_KEYS } from './data'
+import { CONQUESTS, MEGASTRUCTURE_IDS, RESOURCE_KEYS } from './data'
 import { NG_PLUS_MEGASTRUCTURE_BONUS, NG_PLUS_PERMANENT_BONUS, NG_PLUS_TECH_BASE } from './balance'
 import { reputation } from './reputation'
 import type { GameState, ResourceKey } from './types'
@@ -83,17 +83,15 @@ export function computeNgPlusInheritance(state: GameState): NgPlusInheritance {
 }
 
 /**
- * 究极建筑 NG+ 遗产折算：所选究极建筑等级 × NG_PLUS_MEGASTRUCTURE_BONUS（每级 +1.5% 全产出）。
- * - 无选择（megastructureChoice null）或所选建筑 0 级 → 0（无加成）；
+ * 究极建筑 NG+ 遗产折算（双轨开放）：两座究极建筑等级之和 × NG_PLUS_MEGASTRUCTURE_BONUS（每级 +1.5% 全产出）。
+ * - 跃迁枢纽无升级（恒 0 级，贡献 0）；未建造建筑 0 级；
  * - 共享函数：previewNewGamePlus 与 startNewGamePlus 同源引用，保证预览与执行一致（防双实现漂移）。
  */
 export function megastructureLegacyBonus(state: GameState): number {
-  const choice = state.megastructureChoice
-  if (!choice) return 0
-  const buildingId = choice === 'smelter' ? 'ringSmelter' : 'jumpgate'
-  if (!BUILDINGS[buildingId]) return 0
-  const level = state.buildings[buildingId] ? state.upgrades[buildingId] ?? 0 : 0
-  return level * NG_PLUS_MEGASTRUCTURE_BONUS
+  return MEGASTRUCTURE_IDS.reduce((sum, id) => {
+    const level = state.buildings[id] ? (state.upgrades[id] ?? 0) : 0
+    return sum + level * NG_PLUS_MEGASTRUCTURE_BONUS
+  }, 0)
 }
 
 /** 预览 NG+（纯函数：不修改 state，调用前后状态不变） */

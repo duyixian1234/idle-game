@@ -54,7 +54,7 @@ export function endlessIIUnlocked(s: GameState): boolean {
   return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
 }
 
-/** 成就定义表（33 个：叙事 12 + 收集 16 + 终局 5；文案实现期定稿） */
+/** 成就定义表（34 个：叙事 12 + 收集 16 + 终局 6；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -375,6 +375,17 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     condition: (s) => s.ngPlusLevel >= 2,
     rewardMineral: 200_000,
     rep: 8,
+  },
+  dualMega: {
+    id: 'dualMega',
+    name: '双轨终章',
+    desc: '星环与星门同立，文明双轨并进。',
+    category: 'finale',
+    condition: (s) => (s.buildings.ringSmelter ?? 0) >= 1 && (s.buildings.jumpgate ?? 0) >= 1,
+    rewardMineral: 200_000,
+    rep: 3,
+    // 建筑 NG+ 清零，周目内重新达成可重解锁（与收集类一致）
+    recurring: true,
   },
 }
 

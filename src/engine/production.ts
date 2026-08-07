@@ -295,11 +295,11 @@ function applyExplorePlanetOutput(state: GameState, techMult: Record<ResourceKey
   }
 }
 
-/** 星环冶炼场全局产出乘数：×2^level（未选择冶炼场或 Lv0 = ×1）。矿/能源/科技全吃（军力为容量资源不吃）。
- * 门控用 megastructureChoice（与枢纽机制同一状态源：购买即写入、互斥防切换、NG+ 一并重置），不重复读 buildings。
+/** 星环冶炼场全局产出乘数：×2^level（未建造冶炼场或 Lv0 = ×1）。矿/能源/科技全吃（军力为容量资源不吃）。
+ * 门控用 buildings 存在性（双轨开放：独立建造即生效，与枢纽互不影响）。
  * 与 NG+ permanentMult 独立——终局增幅不被周目继承系数稀释，生产报告/UI 明细同一真源。 */
 export function smelterGlobalMult(state: GameState): number {
-  if (state.megastructureChoice !== 'smelter') return 1
+  if ((state.buildings.ringSmelter ?? 0) < 1) return 1
   return Math.pow(UNIQUE_UPGRADE_GROWTH, state.upgrades.ringSmelter ?? 0)
 }
 

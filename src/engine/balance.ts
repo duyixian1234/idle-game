@@ -208,7 +208,7 @@ export function scaledClamp(rate: number, min: number, factor: number, cap: numb
   return Math.min(cap, Math.max(min, Math.floor(rate * factor)))
 }
 
-// ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
+// ---- 星系间工程 / 终局工程（interstellar-buildings） ----
 
 /** 唯一大件（星系间/究极建筑）升级增长系数：升级成本与产出均 ×2/级。
  * 对称增长性质：星港/恒星/智库/冶炼场 maxLevel=10 封顶（unique-cap）；

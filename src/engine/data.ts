@@ -47,10 +47,6 @@ export interface BuildingDef {
   requiresMaxTech?: string[]
   /** 解锁前置建筑升级满级（如深层钻机建筑 Lv10 = 产出天花板；区别于 requires 的 ≥1 台语义） */
   requiresMaxLevel?: string[]
-  /** 互斥：当 megastructureChoice === 该值时本周目永久锁定（究极建筑二选一） */
-  exclusiveMegastructure?: 'smelter' | 'jumpgate'
-  /** 购买时写入 megastructureChoice 的值（究极建筑专属；null 选择由 UI 门控） */
-  megastructureValue?: 'smelter' | 'jumpgate'
 }
 
 /** 每级建筑升级的产出加成（+50%/级）——数值策略见 balance.ts LEVEL_PRODUCTION_BONUS */
@@ -121,7 +117,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     capacity: { military: 200 },
     requiresPlanet: ['orbital'],
   },
-  // ---- 星系间工程（interstellar-buildings spec：唯一大件 + 终局抉择）----
+  // ---- 星系间工程（interstellar-buildings spec：唯一大件 + 终局工程）----
   starportMine: {
     id: 'starportMine',
     name: '星港矿场',
@@ -165,7 +161,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   ringSmelter: {
     id: 'ringSmelter',
     name: '星环冶炼场',
-    desc: `环绕母星赤道的巨型冶炼环：全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）。高耗能 ${formatRate(100, false)} ×等级，能源不足时产能按现有结算打折。终局抉择「建设」路线。`,
+    desc: `环绕母星赤道的巨型冶炼环：全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）。高耗能 ${formatRate(100, false)} ×等级，能源不足时产能按现有结算打折。终局工程「建设」线。`,
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -175,13 +171,11 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     consumes: { energy: 100 },
     requiresEnded: true,
     requires: ['starportMine', 'stellarArray', 'thinkTank'],
-    exclusiveMegastructure: 'jumpgate',
-    megastructureValue: 'smelter',
   },
   jumpgate: {
     id: 'jumpgate',
     name: '跃迁枢纽',
-    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局抉择「探索」路线。`,
+    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局工程「探索」线。`,
     category: 'interstellar',
     unique: true,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
@@ -189,8 +183,6 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     produces: {},
     requiresEnded: true,
     requires: ['starportMine', 'stellarArray', 'thinkTank'],
-    exclusiveMegastructure: 'smelter',
-    megastructureValue: 'jumpgate',
   },
   dock: {
     id: 'dock',
@@ -221,9 +213,12 @@ export const INTERSTELLAR_BUILDINGS: Record<string, BuildingDef> = Object.fromEn
   Object.entries(BUILDINGS).filter(([, def]) => def.category === 'interstellar'),
 )
 
-/** 究极建筑（终局抉择二选一：星环冶炼场/跃迁枢纽） */
+/** 究极建筑 id 清单（终局工程双轨，单一事实源：MEGASTRUCTURE_BUILDINGS / ngplus 遗产折算共用，防新增星际建筑漂移） */
+export const MEGASTRUCTURE_IDS = ['ringSmelter', 'jumpgate'] as const
+
+/** 究极建筑（终局工程双轨：星环冶炼场/跃迁枢纽，可独立建造、互不锁定） */
 export const MEGASTRUCTURE_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
-  Object.entries(BUILDINGS).filter(([, def]) => def.exclusiveMegastructure !== undefined),
+  MEGASTRUCTURE_IDS.map((id) => [id, BUILDINGS[id]]),
 )
 
 /** 科技效果：产出系数加成 */

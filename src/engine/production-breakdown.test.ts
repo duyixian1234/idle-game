@@ -72,7 +72,7 @@ describe('engine: productionBreakdown 资源速率来源分解', () => {
   it('冶炼场末行：×2^level 能源结算后应用，军力不吃', () => {
     const s = prodState()
     s.buildings.miner = 100
-    s.megastructureChoice = 'smelter'
+    s.buildings.ringSmelter = 1
     s.upgrades.ringSmelter = 2 // ×4
     const bd = productionBreakdown(s)
     const smelter = bd.mineral.groups.find((x) => x.id === 'smelter')!
@@ -135,7 +135,7 @@ describe('engine: productionBreakdown 资源速率来源分解', () => {
     assertConservation(s)
     // NG+ + 冶炼场叠加下探索行保持基础值（乘数在各自行，不双算）
     s.permanentMult = 1.3
-    s.megastructureChoice = 'smelter'
+    s.buildings.ringSmelter = 1
     s.upgrades.ringSmelter = 1
     const bd2 = productionBreakdown(s)
     expect(bd2.mineral.groups.find((x) => x.id === 'explore')!.rows[0].value).toBeCloseTo(6, 6)

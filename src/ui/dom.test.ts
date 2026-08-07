@@ -1250,7 +1250,7 @@ describe('ui: 设置页', () => {
   })
 })
 
-describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）', () => {
+describe('ui: 星系间工程分组与终局工程（interstellar-buildings）', () => {
   /** 通关后 + 第 5 星球 + 深钻满级：全部星际工程解锁前置满足 */
   function endedState(): ReturnType<typeof createInitialState> {
     const s = createInitialState(0, 42)
@@ -1319,7 +1319,6 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
       s.buildings.thinkTank = 1
       s.buildings[id] = 1
       s.upgrades[id] = 10
-      if (id === 'ringSmelter') s.megastructureChoice = 'smelter'
       const panel = container.querySelector('[data-panel="build"]') as HTMLElement
       renderInterstellarPanel(panel, s)
       const card = panel.querySelector(`[data-building="${id}"]`) as HTMLElement
@@ -1331,7 +1330,7 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     }
   })
 
-  it('终局抉择区块：三星系间集齐后出现，双卡片并排；未选择均可点', () => {
+  it('终局工程区块：三星系间集齐后出现，双卡片并排；未建造均无 built 标记', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -1344,12 +1343,13 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     expect(section).toBeTruthy()
     expect(section?.querySelector('[data-megastructure="ringSmelter"]')).toBeTruthy()
     expect(section?.querySelector('[data-megastructure="jumpgate"]')).toBeTruthy()
-    expect(section?.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-chosen')).toBeNull()
-    expect(section?.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-locked')).toBeNull()
-    expect(section?.textContent).toContain('只能选一个')
+    expect(section?.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-built')).toBeNull()
+    expect(section?.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-built')).toBeNull()
+    expect(section?.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-locked')).toBeNull()
+    expect(section?.textContent).toContain('双轨工程')
   })
 
-  it('选定冶炼场：冶炼场高亮、枢纽显示本周目锁定', () => {
+  it('建造冶炼场：冶炼场显示已建造（data-built），枢纽无锁定仍可建', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -1357,16 +1357,16 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     s.buildings.stellarArray = 1
     s.buildings.thinkTank = 1
     s.buildings.ringSmelter = 1
-    s.megastructureChoice = 'smelter'
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
     const section = panel.querySelector('[data-megastructure-section]') as HTMLElement
-    expect(section.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-chosen')).toBe('')
-    expect(section.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-locked')).toBe('')
-    expect(section.textContent).toContain('本周目已锁定')
+    expect(section.querySelector('[data-megastructure="ringSmelter"]')?.getAttribute('data-built')).toBe('')
+    expect(section.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-locked')).toBeNull()
+    expect(section.querySelector('[data-megastructure="jumpgate"]')?.getAttribute('data-built')).toBeNull()
+    expect(section.textContent).toContain('已建造（效果生效）')
   })
 
-  it('终局抉择确认弹窗渲染：效果 + 消耗 + 互斥警告 + 确认按钮', () => {
+  it('终局工程确认弹窗渲染：效果 + 消耗 + 双轨提示 + 确认按钮', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -1375,7 +1375,7 @@ describe('ui: 星系间工程分组与终局抉择（interstellar-buildings）',
     expect(overlay.querySelector('[data-megastructure-confirm="ringSmelter"]')).toBeTruthy()
     expect(overlay.textContent).toContain('全局产出')
     expect(overlay.textContent).toContain('建造消耗')
-    expect(overlay.textContent).toContain('只能选择其一')
+    expect(overlay.textContent).toContain('双轨工程')
     renderMegastructureModal(overlay, s, 'jumpgate')
     expect(overlay.querySelector('[data-megastructure-confirm="jumpgate"]')).toBeTruthy()
     expect(overlay.textContent).toContain('离线')
@@ -1567,11 +1567,15 @@ describe('ui: 建造卡片（building-cards）', () => {
     s.buildings.thinkTank = 1
     s.buildings.jumpgate = 1
     expect(buildCardAction(s, 'jumpgate')).toBeNull()
-    // 终局抉择未建 → megastructure
+    // 终局工程未建 → megastructure（走确认弹窗）
     s.buildings.ringSmelter = 0
     expect(buildCardAction(s, 'ringSmelter')).toEqual({ kind: 'megastructure' })
-    // 已选冶炼场后枢纽锁定 → null
-    s.megastructureChoice = 'smelter'
+    // 双轨开放：冶炼场已建后，枢纽未建仍走 megastructure（无锁定）
+    s.buildings.ringSmelter = 1
+    s.buildings.jumpgate = 0
+    expect(buildCardAction(s, 'jumpgate')).toEqual({ kind: 'megastructure' })
+    // 枢纽已建（无升级效果）→ null
+    s.buildings.jumpgate = 1
     expect(buildCardAction(s, 'jumpgate')).toBeNull()
   })
 })

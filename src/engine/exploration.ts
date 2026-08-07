@@ -94,7 +94,7 @@ export function isExploreAvailable(state: GameState): boolean {
 export function explorationSlots(state: GameState): number {
   const nav = (state.techLevels?.['deepSpaceNav'] ?? 0) >= 1 ? 1 : 0
   const relay = (state.techLevels?.['interstellarRelay'] ?? 0) >= 1 ? 1 : 0
-  const jumpgate = state.megastructureChoice === 'jumpgate' ? JUMPGATE_SLOT_BONUS : 0
+  const jumpgate = (state.buildings.jumpgate ?? 0) >= 1 ? JUMPGATE_SLOT_BONUS : 0
   return Math.min(10, 5 + nav + relay + jumpgate)
 }
 
@@ -110,7 +110,7 @@ export function explorationHarvestMult(state: GameState): number {
   const nav = state.techLevels?.['deepSpaceNav'] ?? 0
   const relay = state.techLevels?.['interstellarRelay'] ?? 0
   const tech = 1 + EXPLORATION_TECH_HARVEST_PCT * (nav + relay)
-  return state.megastructureChoice === 'jumpgate' ? tech * JUMPGATE_HARVEST_MULT : tech
+  return (state.buildings.jumpgate ?? 0) >= 1 ? tech * JUMPGATE_HARVEST_MULT : tech
 }
 
 /** 当前第 N 槽派遣消耗：矿物/能源随每秒产出动态缩放（cap 随周目 ×1.5^level），军事点随军力上限自适应（×槽位） */

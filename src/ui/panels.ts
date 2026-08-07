@@ -116,20 +116,20 @@ export interface BuildPanelRenderOptions {
   archivedExpanded?: Record<string, boolean>
 }
 
-/** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局抉择弹窗 */
+/** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局工程弹窗 */
 export type BuildCardAction = { kind: 'upgrade' | 'buy' | 'megastructure' }
 
 /**
  * 卡片主体点击的纯函数判定（main.ts 委托调用；可测 seam）：
  * - 未解锁 / 满级 / 资源不足 / jumpgate 已建（无升级效果）→ null（无副作用）
- * - 终局抉择建筑（megastructureValue）未建造 → megastructure（走确认弹窗）
+ * - 终局工程建筑（究极建筑）未建造 → megastructure（走确认弹窗）
  * - count>0 且未满级 → upgrade；否则（未拥有）→ buy
  */
 export function buildCardAction(state: GameState, id: string): BuildCardAction | null {
   const def = BUILDINGS[id]
   if (!def || !isBuildingUnlocked(state, id)) return null
   const count = state.buildings[id] ?? 0
-  if (def.megastructureValue && count <= 0) return { kind: 'megastructure' }
+  if (MEGASTRUCTURE_BUILDINGS[id] && count <= 0) return { kind: 'megastructure' }
   const level = state.upgrades[id] ?? 0
   const maxed = def.unique === true && def.maxLevel != null && level >= def.maxLevel
   if (count > 0 && def.id !== 'jumpgate' && !maxed) {
@@ -259,7 +259,7 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
   card.setAttribute('data-build-card', def.id)
   card.setAttribute('data-locked', '')
   if (unique) card.setAttribute('data-unique', '')
-  // 锁定原因优先取引擎判定（通关/星球/满级科技/互斥/链式前置），缺省回退 requires 拼接
+  // 锁定原因优先取引擎判定（通关/星球/满级科技/链式前置），缺省回退 requires 拼接
   const lockReason = buildingLockReason(state, def.id)
   const reqParts = lockReason
     ? [lockReason]
@@ -741,12 +741,12 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   el.appendChild(progress)
 }
 
-// ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
+// ---- 星系间工程 / 终局工程（interstellar-buildings） ----
 
 /** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
 export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)} · 天体收获倍率上限 ${formatMultiplier(2 * JUMPGATE_HARVEST_MULT)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
 
-/** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局抉择区块。 */
+/** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局工程区块。 */
 export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   const section = document.createElement('div')
   section.className = 'interstellar-section'
@@ -756,7 +756,7 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts:
   header.textContent = '星际工程'
   section.appendChild(header)
   renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS, { ...opts, zoneId: 'interstellar' })
-  // 终局抉择区块（冶炼场 vs 跃迁枢纽互斥二选一）：星际工程分组内最后一段（还原 f6d3cd5 前挂点）
+  // 终局工程区块（冶炼场/枢纽双轨开放）：星际工程分组内最后一段（还原 f6d3cd5 前挂点）
   renderMegastructureSection(section, state)
   el.appendChild(section)
 }
@@ -853,8 +853,8 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   el.appendChild(section)
 }
 
-/** 终局抉择区块（星际工程分组内独立段）：未选择时两卡片并排可点（data-megastructure 弹确认）；
- * 选定后冶炼场高亮、枢纽显示本周目锁定。前置判定复用引擎 megastructurePrereqsMet（通关 + 三星系间各 ≥1），UI 不重写解锁链。 */
+/** 终局工程区块（星际工程分组内独立段）：两卡片并排展示（data-megastructure 弹确认），
+ * 已建造卡片标 data-built 不可再点。前置判定复用引擎 megastructurePrereqsMet（通关 + 三星系间各 ≥1），UI 不重写解锁链。 */
 export function renderMegastructureSection(el: HTMLElement, state: GameState): void {
   if (!megastructurePrereqsMet(state)) return
 
@@ -863,34 +863,29 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
   section.setAttribute('data-megastructure-section', '')
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '终局抉择'
+  header.textContent = '终局工程'
   section.appendChild(header)
   const desc = document.createElement('div')
   desc.className = 'megastructure-desc'
-  desc.textContent = '文明之路在此分岔：你选择铸成星环，还是推开星门？（只能选一个，本周目不可更改；NG+ 重开可重新选择）'
+  desc.textContent = '双轨工程：星环冶炼场与跃迁枢纽皆可铸就，独立建造、互不影响——文明的建设与探索双轨并进。'
   section.appendChild(desc)
 
   const cards = document.createElement('div')
   cards.className = 'megastructure-cards'
   for (const def of Object.values(MEGASTRUCTURE_BUILDINGS)) {
     const id = def.id
-    const value = def.megastructureValue!
-    const chosen = state.megastructureChoice === value
-    const locked = state.megastructureChoice !== null && state.megastructureChoice !== value
+    const built = (state.buildings[id] ?? 0) > 0
     const card = document.createElement('div')
-    card.className = `megastructure-card${chosen ? ' chosen' : ''}${locked ? ' locked' : ''}`
+    card.className = `megastructure-card${built ? ' built' : ''}`
     card.setAttribute('data-megastructure', id)
-    if (chosen) card.setAttribute('data-chosen', '')
-    if (locked) card.setAttribute('data-locked', '')
+    if (built) card.setAttribute('data-built', '')
     const effectText =
       id === 'ringSmelter'
         ? `全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）· 耗能 ${formatRate(100, false)} 能源 × 等级`
         : JUMPGATE_EFFECT_TEXT
-    const statusText = chosen
-      ? '✓ 已选择（本周目生效）'
-      : locked
-        ? '🔒 本周目已锁定'
-        : `建造 ${formatCost(buildingCost(state, id))}`
+    const statusText = built
+      ? '✓ 已建造（效果生效）'
+      : `建造 ${formatCost(buildingCost(state, id))}`
     card.innerHTML = `
       <div class="megastructure-name">${escapeHtml(def.name)}</div>
       <div class="megastructure-effect">${escapeHtml(effectText)}</div>
