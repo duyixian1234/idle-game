@@ -694,14 +694,14 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   buildSection.className = 'military-section'
   renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)
   el.appendChild(buildSection)
-  // 段 2：攻占列表（肃清进度 x/4 静态口径 + 无尽动态目标；已肃清 → 归档折叠区）
+  // 段 2：攻占列表（静态 4 区域 + 无尽动态目标；已肃清 → 归档折叠区；肃清进度总览在面板底部收束）
   const conquestSection = document.createElement('div')
   conquestSection.className = 'military-section'
   const staticDefs = Object.values(CONQUESTS)
   const conqueredCount = staticDefs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(staticDefs.length)}`
+  header.textContent = '攻占'
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
@@ -738,6 +738,12 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   renderMilitaryTechSection(el, state)
   // 段 4：舰队管理区（船坞大件卡片在建造页·星际工程；舰队区块保留在此）
   renderFleetSection(el, state)
+  // 段 5：肃清进度总览（静态 4 区口径）——置面板底部作收束，攻占列表上方不再占用
+  const progress = document.createElement('div')
+  progress.className = 'conquest-header'
+  progress.setAttribute('data-conquest-progress-header', '')
+  progress.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(staticDefs.length)}`
+  el.appendChild(progress)
 }
 
 // ---- 星系间工程 / 终局抉择（interstellar-buildings） ----
