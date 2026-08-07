@@ -31,6 +31,11 @@ export const UPGRADE_PREMIUM = 2
 /** 普通建筑升级成本随等级的温和增长系数 c：升级成本 = buyCost × P × 0.5 × count × (1 + c×level)。
  * c 由 cost-softcap ticket 03 balance-sim 校准（初值 0.15；Q9 推荐 0.1~0.2 量级）。 */
 export const ORDINARY_UPGRADE_LEVEL_GROWTH = 0.15
+/** 买入成本等级因子 f（level-cost-factor spec 定稿，2026-08-07）：
+ * 买入成本最外层 × (1 + f × level)——成本随该建筑当前等级线性抬升，
+ * 防「高等级 + 多台数」双堆叠（等级高的建筑补买新台也贵，买/升交替决策保留）。
+ * level=0 时因子=1 天然无影响；f=0.05 → Lv10 ×1.5、Lv20 ×2。 */
+export const LEVEL_COST_FACTOR = 0.05
 /** 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)；满级 5 项合计 42.8 万科技点） */
 export const TECH_UPGRADE_GROWTH = 1.7
 

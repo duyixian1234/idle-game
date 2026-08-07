@@ -1,5 +1,6 @@
 import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import {
+  LEVEL_COST_FACTOR,
   LEVEL_PRODUCTION_BONUS,
   ORDINARY_UPGRADE_LEVEL_GROWTH,
   POST100_BUY_TARGET_SECONDS,
@@ -31,6 +32,8 @@ import type { GameState, ResourceKey, ActionResult } from './types'
  *   NG+ ×64/×1024 等所有乘数，高加成下仍有摩擦。
  * - buyCost = max(staticCost, dynamicFloor) × postFactor：保证不低于静态曲线、不低于动态下限。
  * - ≤100 台 excess=0 → 完全不变（postFactor=1、dynamicFloor 不介入）。
+ * - 最外层 × (1 + LEVEL_COST_FACTOR × level)：买入成本随建筑等级线性抬升（level-cost-factor
+ *   spec，防「高等级+多台数」双堆叠）；unique 大件买入时 level 恒 0 因子=1 天然无影响。
  */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
@@ -47,6 +50,7 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
   const factor = Math.pow(count + 1, def.costExponent)
   const postFactor = excess > 0 ? Math.pow(POST100_GROWTH, excess) : 1
   const netProd = excess > 0 ? netProduction(state) : null
+  const levelFactor = 1 + LEVEL_COST_FACTOR * (state.upgrades[id] ?? 0)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     const base = def.baseCost[key] ?? 0
@@ -58,6 +62,12 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
       const np = netProd![key]
       const dynamicFloor = np > 0 ? Math.floor(POST100_BUY_TARGET_SECONDS * np) : 0
       cost[key] = Math.max(1, Math.floor(Math.max(staticCost, dynamicFloor) * postFactor))
+    }
+  }
+  // 等级因子放最外层：对静态/post100 已定值整体 ×(1 + LEVEL_COST_FACTOR×level)
+  if (levelFactor !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      if (cost[key] > 0) cost[key] = Math.max(1, Math.floor(cost[key] * levelFactor))
     }
   }
   return cost
