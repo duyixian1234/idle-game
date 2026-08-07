@@ -265,7 +265,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   explorerFirst: {
     id: 'explorerFirst',
     name: '启程',
-    desc: '完成首次探索派遣，让舰队的尾迹延伸向未知星区。',
+    desc: '完成探索派遣，让舰队的尾迹延伸向未知星区。',
     category: 'collect',
     condition: (s) => (s.stats.explorations ?? 0) >= 1,
     rewardMineral: 5_000,

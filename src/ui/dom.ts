@@ -200,8 +200,9 @@ export function renderPlanetBar(el: HTMLElement, state: GameState): void {
     if (state.hiddenPlanets.includes(def.id)) continue
     el.appendChild(renderPlanetChip(def, state))
   }
-  // 探索产出型天体：发现后以纯展示 chip 出现（不带 data-planet，产出型不参与切换）
+  // 探索产出型天体：发现后以纯展示 chip 出现（不带 data-planet，产出型不参与切换）；用户隐藏（hiddenPlanets）不显示
   for (const def of Object.values(EXPLORE_PLANETS)) {
+    if (state.hiddenPlanets.includes(def.id)) continue
     const discovered = state.exploredPlanets.includes(def.id) || state.planets[def.id]?.unlocked === true
     if (!discovered) continue
     const chip = document.createElement('span')

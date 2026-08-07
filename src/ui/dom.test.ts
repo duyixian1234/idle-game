@@ -1054,7 +1054,7 @@ describe('ui: 探索页', () => {
     expect(row!.textContent).toContain('◆ +4.40/秒')
   })
 
-  it('星栏：探索天体仅在发现后显示', () => {
+  it('星栏：探索天体仅在发现后显示；hiddenPlanets 隐藏后不显示（设置页隐藏生效）', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
     const s = endedState()
@@ -1063,6 +1063,10 @@ describe('ui: 探索页', () => {
     s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
     renderPlanetBar(els.planetBar, s)
     expect(els.planetBar.textContent).toContain('星际物流港')
+    // 设置页隐藏 → 顶部 bar 不再显示（与 PLANETS 循环同语义）
+    s.hiddenPlanets.push('logistics')
+    renderPlanetBar(els.planetBar, s)
+    expect(els.planetBar.textContent).not.toContain('星际物流港')
   })
 
   it('一级导航「探索」tab 常驻（playing 也可见可点，页内显锁定占位）', () => {
