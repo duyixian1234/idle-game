@@ -24,7 +24,7 @@
 ### 机制总览
 
 ```
-解锁：首次遭遇 raid 后（storyFlags.coercionUnlocked = true）
+解锁（2026-08-07 解耦）：军力上限 ≥ COERCION_UNLOCK_MILITARY_CAP(5000) ∨ 遭遇 raid（双通道，任一置位 storyFlags.coercionUnlocked）
   ↓
 勒索(extort) ──extortCount≥1──→ 进贡条约(treaty, 12h 税流) ──条件满足──→ 臣服(subjugate, 锁军力+双倍税)
   ↓ 代价: 好感−30 / threat+25         ↓ 到期 threat+10，续签递增          ↓ 军力不足 → 叛变(好感0/threat+50)
@@ -81,7 +81,8 @@ interface FactionState {
 
 | 常量 | 值 | 语义 |
 |---|---|---|
-| `COERCION_UNLOCK_FLAG` | `'coercionUnlocked'` | storyFlags 解锁标记 |
+| `COERCION_UNLOCK_FLAG` | `'coercionUnlocked'` | storyFlags 解锁标记（raid 遭遇或军力达标置位） |
+| `COERCION_UNLOCK_MILITARY_CAP` | 5_000 | 军力上限 ≥ 此值即解锁（对齐成就 militaryCap5k） |
 | `EXTORT_MILITARY_MIN` | 100 | 勒索基础军力门槛（= MILITARY_BASE_CAP） |
 | `EXTORT_ENERGY_COST` | 20_000 | 勒索能源消耗基准 |
 | `EXTORT_MINERAL_BASE` | 60_000 | 勒索矿物收益（≈贸易 5 次累计） |
@@ -109,10 +110,11 @@ interface FactionState {
 
 ### 集成点
 
-- **events.ts**：首次 raid 事件（`applyRaid` 或事件入队处）置 `state.storyFlags[COERCION_UNLOCK_FLAG] = true`，并 `playMilestone` 或 pushLog 解锁提示。
+- **events.ts**：首次 raid 事件（`applyRaid` / `tryAutoIntercept` 自动迎击 / `settleOfflineRaids` 离线）置 `state.storyFlags[COERCION_UNLOCK_FLAG] = true`，并 pushLog 解锁提示（"威胁可以成为筹码"）。
 - **production.ts**：`productionReport.nominal` 追加 `tributePerSec(state)`（纯矿物流；离线结算自动包含）。
-- **offline.ts**：`settleOffline` 末尾调用 `coercionTick(state, nowMs)`（离线期间条约到期/叛变推进）。
-- **panels.ts**：`renderDiplomacyPanel` 每派系卡片追加胁迫按钮与状态徽标；`data-diplomacy="${id}:extort|treaty|subjugate|atone"`；未解锁时面板头部提示"首次遭遇派系骚扰后解锁胁迫手段"。actions.ts `runDiplomacy` 映射新动作。**注意 CSS 基类坑**（.build-btn width:100% 覆盖，见 2026-08-07 记忆）。
+- **offline.ts**：`settleOffline` 末尾调用 `coercionTick(state, nowMs)`（离线期间条约到期/叛变推进）+ `maybeUnlockCoercionByMilitary(state)`（军力达标解锁兜底）。
+- **engine.ts**：`tick` 内 coercionTick 后调用 `maybeUnlockCoercionByMilitary(state)`，首次解锁 pushLog story。
+- **panels.ts**：`renderDiplomacyPanel` 每派系卡片追加胁迫按钮与状态徽标；`data-diplomacy="${id}:extort|treaty|subjugate|atone"`；未解锁时面板头部提示"军力上限达到 5,000 或遭遇派系骚扰后解锁胁迫手段"。actions.ts `runDiplomacy` 映射新动作。**注意 CSS 基类坑**（.build-btn width:100% 覆盖，见 2026-08-07 记忆）。
 - **achievements.ts**：3 新成就 `extortFirst`（任一 extortCount≥1）/ `subjugateFirst`（任一 subjugated）/ `atoneFirst`（任一 atoned）。
 - **story.ts + engine.ts**：`ENDING_SCENES` 保持和平版；新增 `CONQUEROR_ENDING_SCENES`；结局演出处按 `isConquerorEnding(state)` 选择数组。
 

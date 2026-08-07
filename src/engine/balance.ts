@@ -77,8 +77,11 @@ export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy
 
 // ---- 胁迫外交（diplomacy-coercion，初稿待 balance-sim 校准） ----
 
-/** 解锁标记（storyFlags）：首次遭遇 raid 后置位 */
+/** 解锁标记（storyFlags）：遭遇 raid 或军力达标后置位（2026-08-07 解锁条件解耦） */
 export const COERCION_UNLOCK_FLAG = 'coercionUnlocked'
+/** 军力解锁阈值：军力上限 ≥ 此值即解锁胁迫外交（对齐成就 militaryCap5k，语义=军事威慑能力成型）；
+ * 与 raid 遭遇双通道（任一满足即解锁，解锁后永久，storyFlags 跨周目保留） */
+export const COERCION_UNLOCK_MILITARY_CAP = 5_000
 /** 勒索：军力 ≥ 军力上限 × 此比例 可勒索（基础门槛） */
 export const EXTORT_MILITARY_PCT = 0.4
 /** 勒索：军力 ≥ 军力上限 × 此比例 解锁"威慑报价"（收益 ×EXTORT_OFFER_MULT） */

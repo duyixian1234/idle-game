@@ -12,6 +12,7 @@ import {
   coercionUnlocked,
   createFactions,
   diplomacyOverview,
+  ensureCoercionUnlocked,
   factionAlliance,
   factionAtone,
   factionExtort,
@@ -24,11 +25,12 @@ import {
   intimidateCost,
   isConquerorEnding,
   isFederationUnified,
+  maybeUnlockCoercionByMilitary,
   tradeCost,
   unlockCoercion,
 } from './diplomacy'
 import { raidableFaction } from './events'
-import { productionReport, tributePerSec } from './production'
+import { militaryCap, productionReport, tributePerSec } from './production'
 import { settleOffline } from './offline'
 import {
   ALLIANCE_COST,
@@ -56,6 +58,7 @@ import {
   ATONE_COST_GROWTH,
   ATONE_DURATION_MS,
   ATONE_TRADE_FAVOR_MULT,
+  COERCION_UNLOCK_MILITARY_CAP,
 } from './balance'
 import type { GameState } from './types'
 
@@ -566,6 +569,76 @@ describe('engine: 胁迫外交 - 集成', () => {
     expect(s.storyFlags['coercionUnlocked']).toBe(true)
     expect(coercionUnlocked(s)).toBe(true)
     expect(unlockCoercion(s)).toBe(false)
+  })
+
+  it('军力达标解锁（maybeUnlockCoercionByMilitary）：上限 < 阈值不解锁，≥ 阈值置位且幂等', () => {
+    const s = createInitialState(0)
+    // 初始军力上限 100 < 5000 → 不解锁
+    expect(maybeUnlockCoercionByMilitary(s)).toBe(false)
+    expect(coercionUnlocked(s)).toBe(false)
+    // 阈值边界：4900（24 军港）不解锁
+    s.buildings.militaryPort = Math.floor((COERCION_UNLOCK_MILITARY_CAP - 100 - 1) / 200)
+    expect(militaryCap(s)).toBe(100 + 200 * s.buildings.militaryPort)
+    expect(militaryCap(s)).toBeLessThan(COERCION_UNLOCK_MILITARY_CAP)
+    expect(maybeUnlockCoercionByMilitary(s)).toBe(false)
+    // 达标：5100（25 军港）→ 解锁
+    s.buildings.militaryPort += 1
+    expect(militaryCap(s)).toBeGreaterThanOrEqual(COERCION_UNLOCK_MILITARY_CAP)
+    expect(maybeUnlockCoercionByMilitary(s)).toBe(true)
+    expect(coercionUnlocked(s)).toBe(true)
+    // 幂等：二次不再置位
+    expect(maybeUnlockCoercionByMilitary(s)).toBe(false)
+  })
+
+  it('tick 集成：军力上限达标后 tick 置位解锁并播报叙事日志；未达标不播报', () => {
+    const s = createInitialState(0)
+    s.buildings.militaryPort = Math.ceil((COERCION_UNLOCK_MILITARY_CAP - 100) / 200)
+    tick(s, 1000)
+    expect(coercionUnlocked(s)).toBe(true)
+    expect(s.log.some((l) => l.text.includes('外交压制手段已解锁'))).toBe(true)
+    // 未达标对照：初始档 tick 不解锁、无日志
+    const s2 = createInitialState(0)
+    tick(s2, 1000)
+    expect(coercionUnlocked(s2)).toBe(false)
+    expect(s2.log.some((l) => l.text.includes('外交压制手段已解锁'))).toBe(false)
+  })
+
+  it('离线集成：settleOffline 回归时军力达标即解锁（存量存档兜底）', () => {
+    const s = createInitialState(0)
+    s.buildings.militaryPort = Math.ceil((COERCION_UNLOCK_MILITARY_CAP - 100) / 200)
+    s.lastTick = 0
+    settleOffline(s, 60_000)
+    expect(coercionUnlocked(s)).toBe(true)
+  })
+
+  it('ensureCoercionUnlocked 统一入口：raid 通道无条件解锁并播报「威胁可以成为筹码」，幂等不重复', () => {
+    const s = createInitialState(0)
+    expect(ensureCoercionUnlocked(s, 'raid')).toBe(true)
+    expect(coercionUnlocked(s)).toBe(true)
+    expect(s.log.filter((l) => l.text.includes('威胁可以成为筹码')).length).toBe(1)
+    expect(ensureCoercionUnlocked(s, 'raid')).toBe(false)
+    expect(s.log.filter((l) => l.text.includes('威胁可以成为筹码')).length).toBe(1)
+  })
+
+  it('ensureCoercionUnlocked 统一入口：military 通道带阈值检查并播报「军事威慑力已经成型」', () => {
+    const s = createInitialState(0)
+    // 未达标：不置位、无播报
+    expect(ensureCoercionUnlocked(s, 'military')).toBe(false)
+    expect(coercionUnlocked(s)).toBe(false)
+    expect(s.log.some((l) => l.text.includes('军事威慑力'))).toBe(false)
+    // 达标：置位 + 播报
+    s.buildings.militaryPort = Math.ceil((COERCION_UNLOCK_MILITARY_CAP - 100) / 200)
+    expect(ensureCoercionUnlocked(s, 'military')).toBe(true)
+    expect(s.log.some((l) => l.text.includes('军事威慑力已经成型'))).toBe(true)
+    expect(ensureCoercionUnlocked(s, 'military')).toBe(false) // 幂等
+  })
+
+  it('ensureCoercionUnlocked 双通道共享标记：raid 解锁后 military 通道不再重复播报', () => {
+    const s = createInitialState(0)
+    s.buildings.militaryPort = Math.ceil((COERCION_UNLOCK_MILITARY_CAP - 100) / 200)
+    expect(ensureCoercionUnlocked(s, 'raid')).toBe(true) // 先 raid 解锁
+    expect(ensureCoercionUnlocked(s, 'military')).toBe(false) // military 通道幂等跳过
+    expect(s.log.filter((l) => l.text.includes('外交压制手段已解锁')).length).toBe(1)
   })
 
   it('贡税并入 productionReport：条约与臣服税叠加到矿物产出（离线自动结算）', () => {

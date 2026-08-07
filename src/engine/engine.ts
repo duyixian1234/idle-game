@@ -19,7 +19,7 @@ import {
   UNIQUE_UPGRADE_GROWTH,
   UPGRADE_PREMIUM,
 } from './balance'
-import { coercionTick, createFactions, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
+import { coercionTick, createFactions, ensureCoercionUnlocked, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
 import { settleConquests } from './conquest'
 import { autoExploreDispatch, settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
@@ -431,6 +431,9 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   }
   // 胁迫外交 tick 推进：条约到期 threat 反弹、臣服叛变检查（贡税已含在 productionReport 中）
   coercionTick(state, nowMs)
+  // 胁迫外交解锁（diplomacy-coercion 解锁条件解耦）：军力上限达标即解锁（与 raid 遭遇双通道），
+  // 首次解锁在 ensureCoercionUnlocked 内播报叙事（幂等；存量存档回归时自动生效）
+  ensureCoercionUnlocked(state, 'military')
   state.lastTick = nowMs
   state.playSeconds += dt
 

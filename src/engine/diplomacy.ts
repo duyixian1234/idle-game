@@ -4,6 +4,7 @@ import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
   COERCION_UNLOCK_FLAG,
+  COERCION_UNLOCK_MILITARY_CAP,
   EXTORT_COST_GROWTH,
   EXTORT_ENERGY_COST,
   EXTORT_FAVOR_LOSS,
@@ -39,6 +40,7 @@ import {
   ATONE_TRADE_FAVOR_MULT,
 } from './balance'
 import { playMilestone } from './story'
+import { pushLog } from './core'
 import { militaryCap } from './production'
 import { raidThreshold, reputationBonuses } from './reputation'
 import type { FactionState, GameState, GeneratedTarget, ResourceKey } from './types'
@@ -259,9 +261,35 @@ export function factionTechShare(state: GameState, id: string): ActionResult {
 
 // ---- 胁迫外交（diplomacy-coercion） ----
 
-/** 解锁查询：首次遭遇 raid 后（storyFlags 标记由 events.ts 首次 raid 置位） */
+/** 解锁叙事文案（按通道区分；首次解锁播报，幂等） */
+const COERCION_UNLOCK_RAID_TEXT = '威胁可以成为筹码——外交压制手段已解锁。'
+const COERCION_UNLOCK_MILITARY_TEXT = '你的军事威慑力已经成型——外交压制手段已解锁。'
+
+/** 解锁查询：storyFlags 标记（由 raid 遭遇或军力达标置位，见 ensureCoercionUnlocked） */
 export function coercionUnlocked(state: GameState): boolean {
   return state.storyFlags[COERCION_UNLOCK_FLAG] === true
+}
+
+/** 军力达标即解锁（与 raid 遭遇双通道）：军力上限 ≥ COERCION_UNLOCK_MILITARY_CAP 时幂等置位，
+ * 返回是否本次新解锁（供 ensureCoercionUnlocked 播报叙事）。 */
+export function maybeUnlockCoercionByMilitary(state: GameState): boolean {
+  if (state.storyFlags[COERCION_UNLOCK_FLAG]) return false
+  if (militaryCap(state) < COERCION_UNLOCK_MILITARY_CAP) return false
+  return unlockCoercion(state)
+}
+
+/**
+ * 胁迫外交统一解锁入口（双通道收敛，2026-08-07 code-review）：
+ * - via='raid'：遭遇即解锁（调用方已保证 raid 发生；applyRaid / settleOfflineRaids / tryAutoIntercept）
+ * - via='military'：军力上限达标才解锁（tick / settleOffline 推进点，存量存档回归自动生效）
+ * 首次解锁播报对应通道的叙事日志，返回是否本次新解锁（幂等）。
+ */
+export function ensureCoercionUnlocked(state: GameState, via: 'raid' | 'military'): boolean {
+  const unlocked = via === 'military' ? maybeUnlockCoercionByMilitary(state) : unlockCoercion(state)
+  if (unlocked) {
+    pushLog(state, 'story', via === 'military' ? COERCION_UNLOCK_MILITARY_TEXT : COERCION_UNLOCK_RAID_TEXT)
+  }
+  return unlocked
 }
 
 /** 征服者统一判定：任一派系曾被胁迫（everCoerced 跨周目保留）→ 结局文本分支（Q10 叙事痕迹） */

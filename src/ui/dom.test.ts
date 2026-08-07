@@ -576,7 +576,7 @@ describe('ui: 外交面板', () => {
     renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
     const hint = container.querySelector('[data-diplo-coercion-lock]')
     expect(hint).toBeTruthy()
-    expect(hint!.textContent).toContain('遭遇派系骚扰')
+    expect(hint!.textContent).toContain('军力上限')
     expect(container.querySelector('[data-diplomacy="ferro:extort"]')).toBeNull()
   })
 

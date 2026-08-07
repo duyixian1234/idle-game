@@ -27,7 +27,7 @@ import {
 import { netProduction } from './production'
 import { fleetPower } from './fleet'
 import { raidThreshold } from './reputation'
-import { unlockCoercion } from './diplomacy'
+import { ensureCoercionUnlocked } from './diplomacy'
 import { rollDomain, streamFor } from './rng'
 import { EVENT_STORIES } from './story'
 import { pushLog } from './core'
@@ -842,8 +842,8 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
   const factionName = FACTIONS[factionId]?.name ?? '未知势力'
-  // 首次遭遇 raid 解锁胁迫外交（diplomacy-coercion；处理 raid 即"遭遇"）
-  unlockCoercion(state)
+  // raid 遭遇解锁胁迫外交（diplomacy-coercion；处理 raid 即"遭遇"；军力达标为另一通道）
+  ensureCoercionUnlocked(state, 'raid')
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
   const buyoff = Number(instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff)
   if (optionId === 'repel') {
@@ -920,11 +920,11 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     }
   }
 
-  // 首次遭遇 raid 解锁胁迫外交（diplomacy-coercion；离线骚扰同样算"遭遇"）
+  // raid 遭遇解锁胁迫外交（diplomacy-coercion；离线骚扰同样算"遭遇"；军力达标为另一通道）
   for (const def of Object.values(ALL_FACTIONS)) {
     const f = state.factions[def.id]
     if (f && !f.allied && f.threat >= raidThreshold(state)) {
-      if (unlockCoercion(state)) pushLog(state, 'story', '威胁可以成为筹码——外交压制手段已解锁。')
+      ensureCoercionUnlocked(state, 'raid')
       break
     }
   }
@@ -1013,6 +1013,10 @@ function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null
   const terms = raidTerms(state, raider.id)
   if (fleetPower(state) < terms.strength) return null
   const f = state.factions[raider.id]
+  // raid 遭遇解锁胁迫外交（diplomacy-coercion）：舰队自动迎击同为"遭遇"，
+  // 与 applyRaid（事件卡结算）/ settleOfflineRaids（离线结算）口径一致，否则舰队够强时
+  // raid 事件卡永不生成、胁迫外交永久锁死（2026-08-07 实测报告）。
+  ensureCoercionUnlocked(state, 'raid')
   if (f) f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
   const settlement = eventSettlement({ threat: -RAID_THREAT_LOSS }, terms.strength)
   return {

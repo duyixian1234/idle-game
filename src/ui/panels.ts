@@ -7,7 +7,7 @@ import type { ReputationBonuses } from '../engine/reputation'
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate, formatTimeToSave, timeToSave } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { conquestDef, isConquestAvailable, conquestState } from '../engine/conquest'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL } from '../engine/balance'
+import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS, TECH_SHARE_COST, TECH_MAX_LEVEL } from '../engine/balance'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, canResearchTech, canTechUpgrade, canUpgradeTech, isBuildingUnlocked, isTechResearched, techCost, techLevel, techRequirementsMet, upgradeCost, megastructurePrereqsMet } from '../engine/engine'
 import { simulateProductionDelta, techMultiplier, militaryCap, smelterGlobalMult, netProduction } from '../engine/production'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../engine/fleet'
@@ -449,12 +449,12 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     <div class="diplo-header-row" data-diplo-threat>${ov.threatCount === 0 ? '星域安宁，无派系骚扰' : `${ov.threatCount} 家派系构成骚扰威胁`}</div>
     <div class="diplo-header-row" data-diplo-alliance>已结盟 ${ov.allied} / 已登场 ${ov.total}</div>`
   el.appendChild(header)
-  // 胁迫外交解锁提示（diplomacy-coercion：首次遭遇 raid 后解锁）
+  // 胁迫外交解锁提示（diplomacy-coercion：军力上限达标或遭遇派系骚扰后解锁，双通道）
   if (!coercionUnlocked(state)) {
     const lockHint = document.createElement('div')
     lockHint.className = 'diplo-coercion-lock'
     lockHint.setAttribute('data-diplo-coercion-lock', '')
-    lockHint.textContent = '遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。'
+    lockHint.textContent = `军力上限达到 ${COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN')} 或遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。`
     el.appendChild(lockHint)
   }
 

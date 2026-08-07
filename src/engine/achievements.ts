@@ -1,4 +1,5 @@
 import { pushLog } from './core'
+import { COERCION_UNLOCK_MILITARY_CAP } from './balance'
 import { militaryCap } from './production'
 import { dockLevel } from './fleet'
 import type { GameState } from './types'
@@ -236,9 +237,10 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   militaryCap5k: {
     id: 'militaryCap5k',
     name: '军港林立',
-    desc: `军力容量上限达到 ${formatNumber(5_000)}。`,
+    desc: `军力容量上限达到 ${formatNumber(COERCION_UNLOCK_MILITARY_CAP)}。`,
     category: 'collect',
-    condition: (s) => militaryCap(s) >= 5_000,
+    // 与胁迫外交解锁阈值共享同一常量（balance.ts，军力威慑成型里程碑），单侧改动不失配
+    condition: (s) => militaryCap(s) >= COERCION_UNLOCK_MILITARY_CAP,
     rewardTech: 5_000,
     rep: 4,
   },

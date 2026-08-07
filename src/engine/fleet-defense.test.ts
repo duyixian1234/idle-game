@@ -4,6 +4,7 @@ import { applyEvent, triggerRandomEvent, settleOfflineRaids } from './events'
 import { settleOffline } from './offline'
 import { applyFleetMaintenance, fleetMaintenance, fleetPowered, fleetPower } from './fleet'
 import { RAID_THREAT_LOSS } from './balance'
+import { coercionUnlocked } from './diplomacy'
 import type { GameState } from './types'
 import { formatNumber } from './format'
 
@@ -41,6 +42,21 @@ describe('engine: 舰队自动迎击（在线）', () => {
     expect(s.pendingEvents).toHaveLength(0) // 事件卡不生成
     expect(s.factions.ferro.threat).toBe(70 - RAID_THREAT_LOSS)
     expect(s.resources.military).toBe(100_000) // 不扣军力
+  })
+
+  it('自动迎击同为"遭遇"：拦截路径置位 coercionUnlocked，解锁胁迫外交（与 applyRaid/离线结算同口径）', () => {
+    const s = fleetRaiderState()
+    expect(coercionUnlocked(s)).toBe(false) // 初始未解锁
+    const outcome = triggerRandomEvent(s, () => 0.95)
+    expect(outcome?.logText).toContain('护卫舰队迎击')
+    expect(coercionUnlocked(s)).toBe(true)
+    expect(s.storyFlags['coercionUnlocked']).toBe(true)
+    // 解锁叙事已入日志（与 settleOfflineRaids 文案一致）
+    expect(s.log.some((l) => l.text.includes('外交压制手段已解锁'))).toBe(true)
+    // 幂等：后续拦截不再重复置位（unlockCoercion 返回 false，无重复 story 日志）
+    const storyCount = s.log.filter((l) => l.text.includes('外交压制手段已解锁')).length
+    triggerRandomEvent(s, () => 0.95)
+    expect(s.log.filter((l) => l.text.includes('外交压制手段已解锁')).length).toBe(storyCount)
   })
 
   it('战力不足：事件照常生成，repel 所需军力 = max(50, strength − fleetPower)（残余削减）', () => {

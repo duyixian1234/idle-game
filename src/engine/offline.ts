@@ -4,7 +4,7 @@ import { settleConquests } from './conquest'
 import { settleExpeditions, settleOfflineAutoExplore } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
-import { coercionTick } from './diplomacy'
+import { coercionTick, ensureCoercionUnlocked } from './diplomacy'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { pushLog, zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
@@ -90,6 +90,8 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   }
   // 离线期间条约到期/臣服叛变照常推进（贡税已含在 productionReport 的 gains 中）
   coercionTick(state, nowMs)
+  // 胁迫外交解锁（军力达标即解锁，与 raid 遭遇双通道）：离线回归兜底置位（存量存档立即生效）
+  ensureCoercionUnlocked(state, 'military')
   state.lastTick = nowMs
   state.playSeconds += duration
 
