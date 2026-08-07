@@ -32,7 +32,7 @@ import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderReso
 import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
-import type { ActionDeps } from '../actions'
+import type { ActionDeps, ActionId, ActionPayloads } from '../actions'
 import { bindListeners } from './listeners'
 import type { SessionCtx, SessionUiState } from './listeners'
 import { startNewGamePlusSequence } from './actions-heavy'
@@ -270,8 +270,8 @@ export function createSession(args: CreateSessionArgs): Session {
     let preview: BulkPreview
     let title: string
     let summary: string
-    let actionId: string
-    let payload: string | number
+    let actionId: ActionId
+    let payload: ActionPayloads[ActionId]
 
     if (kind === 'diplomacy') {
       const act = action ?? 'trade'
@@ -280,28 +280,28 @@ export function createSession(args: CreateSessionArgs): Session {
       title = act === 'techshare' ? `共享满：${factionName}` : `买满贸易：${factionName}`
       summary = act === 'techshare' ? `将技术共享 ${preview.count} 次直至好感上限` : `将贸易 ${preview.count} 次直至好感上限`
       actionId = 'diplomacyMax'
-      payload = `${id}:${act}`
+      payload = { factionId: id, action: act === 'techshare' ? 'techshare' : 'trade' }
     } else if (kind === 'building') {
       const name = BUILDINGS[id]?.name ?? id
       preview = previewMaxBuy(state, kind, id)
       title = `买满：${name}`
       summary = `将购买 ${preview.count} 台「${name}」`
       actionId = 'buyMax'
-      payload = id
+      payload = { id }
     } else if (kind === 'buildingUpgrade') {
       const name = BUILDINGS[id]?.name ?? id
       preview = previewMaxBuy(state, kind, id)
       title = `升满：${name}`
       summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
       actionId = 'upgradeMax'
-      payload = id
+      payload = { id }
     } else {
       const name = TECHS[id]?.name ?? id
       preview = previewMaxBuy(state, kind, id)
       title = `升满科技：${name}`
       summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
       actionId = 'upgradeTechMax'
-      payload = id
+      payload = { id }
     }
 
     if (preview.count <= 0) return // 无可执行操作（按钮 disabled 时不会触发）
@@ -354,7 +354,7 @@ export function createSession(args: CreateSessionArgs): Session {
       else budget[resource] = Math.max(0, Number(value))
       policy.resourceBudget = Object.keys(budget).length > 0 ? budget : undefined
     }
-    dispatch(state, 'setAutomationPolicy', JSON.stringify({ category, policy }), deps)
+    dispatch(state, 'setAutomationPolicy', { category, policy }, deps)
   }
 
   // ---- 组装会话运行时句柄并绑定监听器（internal seam，见 listeners.ts）----
