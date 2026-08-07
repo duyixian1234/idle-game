@@ -56,6 +56,9 @@ import type { ActionDeps } from './ui/actions'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
+// 星域页二级 tab 持久化键（log-tab-switch：日志并入 tab 行后，tab 选择跨刷新记忆）
+const PANEL_TAB_KEY = 'idle-active-panel-tab'
+const PANEL_TABS = ['log', 'build', 'tech', 'diplomacy', 'military'] as const
 // 与 package.json version 同步（设置页关于区展示）
 const APP_VERSION = '0.1.0'
 
@@ -96,8 +99,11 @@ async function main(): Promise<void> {
   let logDirection: LogDirection = (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION
   let lastLogId = 0
   // ---- UI 层会话状态（不进存档）----
-  // 星域页二级 tab 会话记忆：切走再切回记住上次 tab（刷新回默认 build）
-  let activePanelTab = 'build'
+  // 星域页二级 tab：默认「日志」（叙事优先）+ localStorage 持久化（白名单校验，脏值回退）
+  const storedTab = localStorage.getItem(PANEL_TAB_KEY)
+  let activePanelTab = storedTab && (PANEL_TABS as readonly string[]).includes(storedTab) ? storedTab : 'log'
+  // 日志 tab 角标已读快照：读即已读（切到日志 tab 清零）；刷新语义①存量不重报（同事件/成就 seen）
+  let seenLogCount = 0
   // 角标差值 state：读即已读（进入对应页时快照到当前存量）
   let seenEventCount = 0
   let seenAchievementCount = 0
@@ -235,7 +241,7 @@ async function main(): Promise<void> {
     if (id === 'archive') seenAchievementCount = unlockedAchievementsThisRound(state)
   }
 
-  // 星域页二级 tab：会话记忆（切走再切回记住上次 tab；刷新回默认 build）
+  // 星域页二级 tab：默认日志 + 持久化记忆（切走再切回记住上次 tab；刷新恢复上次选择）
   function updatePanelTabs(): void {
     for (const tab of Array.from(els.panel.querySelectorAll<HTMLElement>('.tab'))) {
       tab.classList.toggle('active', tab.dataset.tab === activePanelTab)
@@ -243,6 +249,8 @@ async function main(): Promise<void> {
     for (const [name, body] of Object.entries(panels)) {
       body.classList.toggle('hidden', name !== activePanelTab)
     }
+    // 读即已读：日志 tab 激活时快照到当前存量（角标恒隐）
+    if (activePanelTab === 'log') seenLogCount = state.log.length
   }
 
   // 一级导航角标：事件/成就差值（纯 UI 派生，无动画；≤99 显示）
@@ -261,12 +269,24 @@ async function main(): Promise<void> {
   function renderBadges(): void {
     setNavBadge('sector', Math.max(0, state.pendingEvents.length - seenEventCount))
     setNavBadge('archive', Math.max(0, unlockedAchievementsThisRound(state) - seenAchievementCount))
+    // 日志 tab 角标（log-tab-switch）：新增行数差值，99+ 封顶；日志 tab 激活时不显示（已读）
+    const logBadge = els.panel.querySelector<HTMLElement>('[data-panel-tab-badge="log"]')
+    if (logBadge) {
+      const count = Math.max(0, state.log.length - seenLogCount)
+      if (activePanelTab !== 'log' && count > 0) {
+        logBadge.textContent = count > 99 ? '99+' : String(count)
+        logBadge.classList.remove('hidden')
+      } else {
+        logBadge.classList.add('hidden')
+      }
+    }
   }
 
   // 角标 seen 快照重置为当前存量（刷新语义①：新状态接管后存量不重报）
   function resetSeenSnapshot(): void {
     seenEventCount = state.pendingEvents.length
     seenAchievementCount = unlockedAchievementsThisRound(state)
+    seenLogCount = state.log.length
   }
 
   // 一级导航 tab 切换（footer 一次性构建，委托稳定）
@@ -294,12 +314,20 @@ async function main(): Promise<void> {
     render()
   })
 
-  // 星域页二级 tab 切换（会话记忆：切走再切回记住上次 tab）
+  // 星域页二级 tab 切换（默认日志 + 持久化：选择写入 localStorage，刷新恢复）
   els.panel.addEventListener('click', (e) => {
     const tab = (e.target as HTMLElement).closest<HTMLElement>('.tab[data-tab]')
     if (!tab) return
-    activePanelTab = tab.dataset.tab ?? 'build'
+    const prev = activePanelTab
+    activePanelTab = tab.dataset.tab ?? 'log'
+    localStorage.setItem(PANEL_TAB_KEY, activePanelTab)
     updatePanelTabs()
+    // 切到日志 tab：hidden 期间 scrollTop 失效 → 对齐最新（newest-bottom 底部 / newest-top 顶部）；
+    // 只在此处（切换动作）滚动，不放 updatePanelTabs（每 250ms 强拉会打断玩家回翻旧日志）
+    if (activePanelTab === 'log' && prev !== 'log') {
+      if (logDirection === 'newest-bottom') els.logEl.scrollTop = els.logEl.scrollHeight
+      else els.logEl.scrollTop = 0
+    }
   })
 
   // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局抉择已移至建造页星际工程分组）

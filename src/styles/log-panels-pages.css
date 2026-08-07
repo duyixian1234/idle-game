@@ -1,4 +1,4 @@
-/* ---- 星域页日志区（限高 25vh 可滚动，事件卡仍 prepend 顶部） ---- */
+/* ---- 星域页日志区（tab 模式：panel-body 内纵向 flex，头部固定 + 日志流撑满滚动） ---- */
 /* 日志头部：ASCII 框式标题（Q9 定案：ASCII 装饰仅用于标题分隔/日志头部）。
    头部由 buildLayout 一次性构建，不参与 250ms 重建 → 块状光标动画不被打断。 */
 .log-head {
@@ -34,9 +34,6 @@
 }
 
 .log-area {
-  flex-shrink: 0;
-  max-height: 25vh;
-  min-height: 120px;
   overflow-y: auto;
   padding: 12px;
   font-family: var(--font-mono);
@@ -44,6 +41,20 @@
   line-height: 1.7;
   background: var(--bg);
   scrollbar-width: thin;
+}
+
+/* 日志 tab（log-tab-switch）：panel-body 无内边距，纵向 flex；
+   高度约束交给统一 panel-body（45vh），滚动仍由 .log-area 承担（scrollTop 逻辑不变） */
+.panel-body[data-panel="log"] {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-body[data-panel="log"] .log-area {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .log-line {
@@ -93,6 +104,7 @@
 }
 
 .tab {
+  position: relative;
   background: transparent;
   border: 1px solid var(--border);
   border-bottom: none;
@@ -103,6 +115,26 @@
   font-size: 13px;
   /* 触控目标 ≥44px */
   min-height: 44px;
+}
+
+/* 日志 tab 角标（log-tab-switch）：新增行数差值红点，视觉与 footer nav-badge 一致 */
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.tab-badge.hidden {
+  display: none;
 }
 
 .tab.active {

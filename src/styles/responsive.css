@@ -1,12 +1,10 @@
-/* ---- 矮屏兜底（移动端横屏/小高度）：面板压缩到最低限度，保住日志区 ---- */
+/* ---- 矮屏兜底（移动端横屏/小高度）：面板压缩到最低限度 ---- */
 @media (max-height: 480px) {
   .panel-body {
     min-height: 80px;
     max-height: 20vh;
   }
-  .log-area {
-    min-height: 18vh;
-  }
+  /* log-tab-switch：日志已并入 tab（panel-body 内 flex），不再需要独立保底高度 */
 }
 
 /* ---- 响应式（窄屏） ----
@@ -64,11 +62,20 @@
   .res-name {
     display: none;
   }
+  /* log-tab-switch：日志并入 tab 后不再被面板挤压；5 tab 单行，极端窄屏横滚兜底 */
   .log-area {
     padding: 8px;
     font-size: 12px;
-    /* 日志区是叙事主体，窄屏下必须保底高度：面板会把它挤到几像素 */
-    min-height: 18vh;
+  }
+  .panel-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .panel-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .panel-tabs .tab {
+    flex: none;
   }
   /* 星球条保持换行但压缩 chip：全部星球必须可见可点（横向滚动会把后 2-3 个
      星球藏到屏外，用户误以为无法切换区域）。320 下 5 chip 两行排布 ~70px。 */

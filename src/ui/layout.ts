@@ -38,16 +38,19 @@ export function buildLayout(container: HTMLElement): AppElements {
     <main class="content">
       <section class="nav-page" data-nav-page="sector" aria-label="星域">
         <div class="mechanic-bar" data-mechanic aria-label="星球机制"></div>
-        <div class="log-head"><span aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></span><button type="button" class="log-auto-config" data-auto-config-trigger>自动处理</button></div>
-        <div class="log-area" data-log aria-label="日志流"></div>
         <section class="panel" aria-label="操作面板">
           <div class="panel-tabs">
-            <button type="button" class="tab active" data-tab="build">建造</button>
+            <button type="button" class="tab active" data-tab="log">日志<span class="tab-badge hidden" data-panel-tab-badge="log"></span></button>
+            <button type="button" class="tab" data-tab="build">建造</button>
             <button type="button" class="tab" data-tab="tech">科技</button>
             <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
             <button type="button" class="tab" data-tab="military" disabled>军事</button>
           </div>
-          <div class="panel-body" data-panel="build"></div>
+          <div class="panel-body" data-panel="log">
+            <div class="log-head"><span aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></span><button type="button" class="log-auto-config" data-auto-config-trigger>自动处理</button></div>
+            <div class="log-area" data-log aria-label="日志流"></div>
+          </div>
+          <div class="panel-body hidden" data-panel="build"></div>
           <div class="panel-body hidden" data-panel="tech"></div>
           <div class="panel-body hidden" data-panel="diplomacy"></div>
           <div class="panel-body hidden" data-panel="military"></div>

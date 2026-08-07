@@ -45,9 +45,19 @@ describe('ui: 布局与冒烟', () => {
     expect(els.panel).toBeTruthy()
     expect(els.navBar).toBeTruthy()
     expect(container.querySelector('[data-log]')).toBeTruthy()
-    // 一级导航 4 tab + 星域页二级 tab 4 个（档案移出一级导航，不再占二级）
+    // 一级导航 4 tab + 星域页二级 tab 5 个（日志并入 tab 行，log-tab-switch；档案移出一级导航）
     expect(container.querySelectorAll('[data-nav]')).toHaveLength(4)
-    expect(container.querySelectorAll('.tab')).toHaveLength(4)
+    expect(container.querySelectorAll('.tab')).toHaveLength(5)
+    // 日志 tab 为首、默认激活、角标初始隐藏；日志头/日志流迁入 log panel-body（随 tab 切换显隐）
+    const logTab = container.querySelector<HTMLElement>('[data-tab="log"]')
+    expect(logTab).toBeTruthy()
+    expect(logTab!.classList.contains('active')).toBe(true)
+    expect(logTab!.nextElementSibling?.getAttribute('data-tab')).toBe('build')
+    expect(container.querySelector('[data-panel-tab-badge="log"]')?.classList.contains('hidden')).toBe(true)
+    const logBody = container.querySelector('[data-panel="log"]')
+    expect(logBody).toBeTruthy()
+    expect(logBody!.querySelector('.log-head')).toBeTruthy()
+    expect(logBody!.querySelector('[data-log]')).toBeTruthy()
     // 4 页容器齐备
     for (const p of ['sector', 'archive', 'explore', 'settings']) {
       expect(container.querySelector(`[data-nav-page="${p}"]`)).toBeTruthy()
