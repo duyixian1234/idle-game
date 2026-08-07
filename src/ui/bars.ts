@@ -3,7 +3,7 @@ import { EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '.
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatMultiplier, formatNumber, formatRate } from '../engine/format'
-import { isPlanetUnlocked } from '../engine/engine'
+import { isPlanetUnlocked } from '../engine/planets'
 import { militaryCap, productionBreakdown } from '../engine/production'
 import type { BreakdownRow } from '../engine/production'
 import { escapeHtml } from './helpers'

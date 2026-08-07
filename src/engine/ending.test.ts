@@ -1,15 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  checkEnding,
-  CODEX_FAVOR_BONUS,
-  createInitialState,
-  enterInfiniteMode,
-  eventGapScale,
-  NG_PLUS_TECH_BASE,
-  setActivePlanet,
-  startNewGamePlus,
-  tick,
-} from './engine'
+import { checkEnding, CODEX_FAVOR_BONUS, createInitialState, enterInfiniteMode, eventGapScale, NG_PLUS_TECH_BASE, startNewGamePlus, tick } from './engine'
+import { setActivePlanet } from './planets'
 import { netProduction } from './production'
 import { factionAlliance, factionIntimidate, factionTrade, isFederationUnified } from './diplomacy'
 

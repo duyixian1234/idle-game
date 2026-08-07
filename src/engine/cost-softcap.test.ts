@@ -8,7 +8,8 @@
 import { describe, expect, it } from 'vitest'
 import { BUILDINGS } from './data'
 import { ORDINARY_UPGRADE_LEVEL_GROWTH } from './balance'
-import { buildingCost, createInitialState, upgradeCost } from './engine'
+import { createInitialState } from './engine'
+import { buildingCost, upgradeCost } from './buildings'
 import { formatTimeToSave, timeToSave } from './format'
 import type { ResourceKey } from './types'
 

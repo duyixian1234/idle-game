@@ -1,25 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildingCost,
-  buyBuilding,
-  canAffordBuilding,
-  canAffordUpgrade,
-  canResearchTech,
-  checkPlanetUnlocks,
-  createInitialState,
-  isBuildingUnlocked,
-  isPlanetUnlocked,
-  isTechResearched,
-  planetRequirementsMet,
-  researchTech,
-  setActivePlanet,
-  techCost,
-  techRequirementsMet,
-  tick,
-  upgradeBuilding,
-  upgradeCost,
-  upgradeTech,
-} from './engine'
+import { createInitialState, tick } from './engine'
+import { buildingCost, buyBuilding, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeBuilding, upgradeCost } from './buildings'
+import { checkPlanetUnlocks, isPlanetUnlocked, planetRequirementsMet, setActivePlanet } from './planets'
+import { canResearchTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
 import { netProduction, productionMultipliers, productionReport, simulateProductionDelta } from './production'
 import { pushLog } from './core'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'

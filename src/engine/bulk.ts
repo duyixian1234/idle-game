@@ -1,5 +1,6 @@
 import { BUILDINGS, RESOURCE_KEYS, TECHS } from './data'
-import { buyBuilding, isBuildingUnlocked, techLevel, upgradeBuilding, upgradeTech } from './engine'
+import { buyBuilding, isBuildingUnlocked, upgradeBuilding } from './buildings'
+import { techLevel, upgradeTech } from './tech'
 import { factionTechShare, factionTrade } from './diplomacy'
 import { FAVOR_CAP, TECH_MAX_LEVEL } from './balance'
 import { zeroResources } from './core'

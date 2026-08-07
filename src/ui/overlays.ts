@@ -4,7 +4,7 @@ import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRa
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import type { NgPlusPreview } from '../engine/ngplus'
 import type { BulkPreview } from '../engine/bulk'
-import { buildingCost } from '../engine/engine'
+import { buildingCost } from '../engine/buildings'
 import { formatCost, JUMPGATE_EFFECT_TEXT } from './panels'
 import { escapeHtml } from './helpers'
 

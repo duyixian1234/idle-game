@@ -1,5 +1,8 @@
 import { FLEET_POWER_TECH_PER_LEVEL, SHIP_BUY_COST_BASE, SHIP_BUY_ENERGY, SHIP_GROWTH, SHIP_MAINT_BASE, SHIP_POWER_BASE } from './balance'
-import type { GameState } from './types'
+import { RESOURCE_KEYS } from './data'
+import { canAfford, zeroResources } from './core'
+import { formatNumber } from './format'
+import type { ActionResult, GameState } from './types'
 
 /**
  * 舰队深层模块（fleet spec + fleet-dock-10）：第一个「能源持续消耗」的主动途径。
@@ -80,4 +83,22 @@ export function applyFleetMaintenance(state: GameState, dtSeconds: number, hard 
     state.resources.energy = Math.max(0, state.resources.energy - maint * dtSeconds)
   }
   // 不足：停摆不扣费（软降级无惩罚）
+}
+
+
+/** 购买护卫舰：扣矿物+一次性能源（第 n 艘成本 base × 1.5^(n-1)），硬约束（付不起不可点）；
+ * 船坞等级决定上限（DOCK_SHIP_CAP 显式表），满编后不可购买 */
+export function buyShip(state: GameState): ActionResult {
+  const cap = shipCap(state)
+  if (cap <= 0) return { ok: false, reason: '需先建造并升级船坞（Lv1 解锁 3 艘）' }
+  if (state.fleet.count >= cap) return { ok: false, reason: `已达船坞舰数上限（${formatNumber(cap)} 艘）` }
+  const next = nextShipCost(state)
+  if (!next) return { ok: false, reason: '已达船坞舰数上限' }
+  const cost = zeroResources()
+  cost.mineral = next.mineral
+  cost.energy = next.energy
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
+  state.fleet.count += 1
+  return { ok: true }
 }

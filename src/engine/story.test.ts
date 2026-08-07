@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CONQUEROR_ENDING_SCENES, ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
-import { buyBuilding, checkPlanetUnlocks, createInitialState, tick } from './engine'
+import { createInitialState, tick } from './engine'
+import { buyBuilding } from './buildings'
+import { checkPlanetUnlocks } from './planets'
 import { pushLog } from './core'
 import { PLANETS } from './data'
 

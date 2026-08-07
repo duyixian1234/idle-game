@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { buyBuilding, buyShip, createInitialState, isBuildingUnlocked, buildingLockReason, startNewGamePlus, upgradeBuilding } from './engine'
+import { createInitialState, startNewGamePlus } from './engine'
+import { buyBuilding, isBuildingUnlocked, buildingLockReason, upgradeBuilding } from './buildings'
+import { buyShip } from './fleet'
 import { INTERSTELLAR_BUILDINGS } from './data'
 import { DOCK_SHIP_CAP, dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipBuyCost, shipCap } from './fleet'
 import { deserializeSave, migrateSave, serializeSave } from './save'
