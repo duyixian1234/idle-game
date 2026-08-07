@@ -10,6 +10,18 @@ Issues and specs live as markdown files under `.scratch/<feature-slug>/`. See `d
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## 并发协作
+
+### Worktree 隔离（2026-08-07 定稿）
+
+**开始编辑任何文件前，先创建独立 git worktree（含独立 node_modules）。** 本仓库存在活跃并行 AI 会话（同 main 工作区），禁止在主工作区直接改动文件。
+
+- 创建：`git worktree add ../game-wt-<feature> -b feat/<feature>`（基于最新 main 分叉）。
+- 依赖：worktree 不继承 node_modules（已被 .gitignore 排除），进入后先 `pnpm install` 安装独立依赖。
+- 工作流：所有编辑、测试、提交均在 worktree 内完成；commit 前先 `git status` 确认无交叉污染。
+- 集成：worktree 内 push 分支后，回主工作区 `git merge feat/<feature>` 或 `git pull`；禁止 stash/merge 交叉操作（对象库损坏事故教训）。
+- 清理：合并完成后 `git worktree remove ../game-wt-<feature>`，保持仅 main 一个 worktree。
+
 ## Testing conventions
 
 ### E2E 断言：语义化优先（2026-08-06 定稿）
