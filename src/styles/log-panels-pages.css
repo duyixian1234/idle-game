@@ -747,12 +747,21 @@
 }
 
 /* ---- 外交面板 ---- */
+/* 联盟总览卡（diplomacy-overview）：头部三行信息，复用 .diplo-header 视觉基座（dashed 分隔 + dim 文字），仅补行距 */
 .diplo-header {
   color: var(--text-dim);
   font-size: 12px;
   margin-bottom: 10px;
   padding-bottom: 6px;
   border-bottom: 1px dashed var(--border);
+}
+
+.diplo-header-row {
+  line-height: 1.6;
+}
+
+.diplo-header-row[data-diplo-federation] {
+  color: var(--text);
 }
 
 .diplo-empty {

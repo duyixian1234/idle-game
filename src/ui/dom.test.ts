@@ -513,6 +513,58 @@ describe('ui: 外交面板', () => {
     expect(btn!.textContent).toContain('◆2.25万')
     expect(btn!.textContent).toContain('◎7,500')
   })
+
+  it('总览卡：部分结盟渲染三行信息（联邦进度/威胁源/盟约计数）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const card = container.querySelector('[data-diplo-overview]')
+    expect(card).toBeTruthy()
+    expect(card!.textContent).toContain('星系统一联邦')
+    expect(card!.textContent).toContain('派系构成骚扰威胁') // ferro 70 / vox 60 ≥ 阈值
+    expect(card!.textContent).toContain('已结盟 0')
+    expect(card!.textContent).toContain('已登场 4')
+  })
+
+  it('总览卡：结盟一家后威胁源减少、盟约计数 +1', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.factions.ferro.allied = true
+    s.factions.ferro.favor = 100
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const card = container.querySelector('[data-diplo-overview]') as HTMLElement
+    expect(card.querySelector('[data-diplo-alliance]')!.textContent).toContain('已结盟 1')
+    expect(card.querySelector('[data-diplo-alliance]')!.textContent).toContain('已登场 4')
+    expect(card.querySelector('[data-diplo-threat]')!.textContent).toContain('1 家派系构成骚扰威胁')
+  })
+
+  it('总览卡：全结盟显示星域安宁（威胁源清零）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    for (const id of Object.keys(s.factions)) {
+      s.factions[id].allied = true
+      s.factions[id].favor = 100
+    }
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const card = container.querySelector('[data-diplo-overview]') as HTMLElement
+    expect(card.querySelector('[data-diplo-threat]')!.textContent).toContain('星域安宁')
+    expect(card.querySelector('[data-diplo-federation]')!.textContent).toContain('4')
+  })
+
+  it('总览卡：空态（未探测到派系）不渲染，保留引导文案', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    expect(container.querySelector('[data-diplo-overview]')).toBeNull()
+    expect(container.querySelector('[data-panel="diplomacy"]')!.textContent).toContain('尚未探测到其他文明信号')
+  })
 })
 
 describe('ui: 事件科技分支', () => {
