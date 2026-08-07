@@ -1,4 +1,3 @@
-import { startNewGamePlus } from '../../engine/engine'
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from '../../engine/events'
 import { BUILDINGS, CIVIL_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from '../../engine/data'
 import { factionDef } from '../../engine/diplomacy'
@@ -40,6 +39,7 @@ import { dispatch } from '../actions'
 import type { ActionDeps } from '../actions'
 import { bindListeners } from './listeners'
 import type { SessionCtx, SessionUiState } from './listeners'
+import { startNewGamePlusSequence } from './actions-heavy'
 
 /**
  * ui/session —— 渲染调度 + 会话 UI 状态 + 交互行为 的深层模块。
@@ -337,17 +337,7 @@ export function createSession(args: CreateSessionArgs): Session {
     els.megastructureOverlay.classList.remove('hidden')
   }
 
-  // ---- 手动开启新周目的统一序列（设置页入口）： ----
-  // startNewGamePlus 内部已 push【NG+ 第 N 周目】日志；UI 重置日志流 + 角标差值（unlockedInRound 更新）
-  function startNewGamePlusSequence(keepEndingDismissed: boolean): void {
-    startNewGamePlus(state, Date.now())
-    ui.endingDismissed = keepEndingDismissed
-    ui.lastLogId = 0
-    els.logEl.innerHTML = ''
-    resetSeenSnapshot()
-    render()
-    void onSave(state)
-  }
+  // 手动开启新周目序列已在 actions-heavy.ts（startNewGamePlusSequence）
 
   // ---- 自动配置面板保存（data-auto-* 控件 → 事件自动化策略）----
   function saveAutomationControl(target: HTMLInputElement | HTMLButtonElement | HTMLElement): void {
@@ -394,7 +384,7 @@ export function createSession(args: CreateSessionArgs): Session {
     closeNgPlusModal,
     openMegastructureModal,
     closeMegastructureModal,
-    startNewGamePlusSequence,
+    startNewGamePlusSequence: (keepEndingDismissed) => startNewGamePlusSequence(ctx, keepEndingDismissed),
     saveAutomationControl,
     automationPolicyWithDefaults,
     toggleMute() {

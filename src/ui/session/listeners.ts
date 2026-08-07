@@ -1,19 +1,15 @@
-import { createInitialState, enterInfiniteMode } from '../../engine/engine'
-import { MEGASTRUCTURE_BUILDINGS, PLANETS, RESOURCE_META } from '../../engine/data'
-import { formatNumber } from '../../engine/format'
+import { enterInfiniteMode } from '../../engine/engine'
+import { MEGASTRUCTURE_BUILDINGS, PLANETS } from '../../engine/data'
 import { pushLog } from '../../engine/core'
-import { formatDuration, settleOffline } from '../../engine/offline'
-import { serializeSave, deserializeSave } from '../../engine/save'
-import { OPENING_SCENES } from '../../engine/story'
 import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
 import type { EventAutomationPolicy, EventTheme, GameState, ResourceKey } from '../../engine/types'
-import { deleteSave } from '../../persist/indexeddb'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
 import type { ActionDeps } from '../actions'
 import { buildCardAction, unlockRequirementText } from '../dom'
 import type { LogDirection, NavId } from '../dom'
 import type { BulkKind } from '../../engine/bulk'
+import { exportSave, importSaveFile, resetGame, startNewGamePlusSequence, toggleLogDirection, togglePlanetVisibility } from './actions-heavy'
 
 /**
  * 会话运行时句柄 —— ui/session 的 internal seam（不对外暴露）。
@@ -72,7 +68,7 @@ export interface SessionCtx {
 
 /** 绑定全部事件监听（18 处：3 处 window/document 级 + 15 处元素委托）。 */
 export function bindListeners(ctx: SessionCtx): void {
-  const { els, ui, getState, setState, render, deps, tabKey } = ctx
+  const { els, ui, getState, render, deps, tabKey } = ctx
 
   // 一级导航 tab 切换（footer 一次性构建，委托稳定）
   els.navBar.addEventListener('click', (e) => {
@@ -116,6 +112,7 @@ export function bindListeners(ctx: SessionCtx): void {
   })
 
   // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局工程已移至建造页星际工程分组）
+  // 重操作实现见 actions-heavy.ts（import/export/reset/logdir/planet-visibility）
   els.navPages.settings.addEventListener('click', (e) => {
     const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
     if (actionBtn?.dataset.settingAction === 'ngplus') {
@@ -124,13 +121,7 @@ export function bindListeners(ctx: SessionCtx): void {
     }
     const planetBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-planet-visibility]')
     if (planetBtn) {
-      const state = getState()
-      const id = planetBtn.dataset.planetVisibility ?? ''
-      const index = state.hiddenPlanets.indexOf(id)
-      if (index >= 0) state.hiddenPlanets.splice(index, 1)
-      else state.hiddenPlanets.push(id)
-      render()
-      void deps.save()
+      togglePlanetVisibility(ctx, planetBtn.dataset.planetVisibility ?? '')
       return
     }
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]')
@@ -140,44 +131,13 @@ export function bindListeners(ctx: SessionCtx): void {
       ctx.toggleMute()
       render()
     } else if (tool === 'logdir') {
-      // 切换日志排序方向（偏好记忆），全量重渲染
-      ui.logDirection = ui.logDirection === 'newest-bottom' ? 'newest-top' : 'newest-bottom'
-      localStorage.setItem(ctx.logDirKey, ui.logDirection)
-      ui.lastLogId = 0
-      els.logEl.innerHTML = ''
-      render()
+      toggleLogDirection(ctx)
     } else if (tool === 'export') {
-      const state = getState()
-      const json = serializeSave(state)
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      const date = new Date().toISOString().slice(0, 10)
-      a.href = url
-      a.download = `idle-save-${date}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      pushLog(state, 'system', '存档已导出为 JSON 文件，可分享给朋友。')
+      exportSave(ctx)
     } else if (tool === 'import') {
       els.importFile.click()
     } else if (tool === 'reset') {
-      const confirmed = window.confirm('⚠️ 确定要删除当前存档并重新开始吗？此操作不可撤销。')
-      if (confirmed) {
-        void (async () => {
-          await deleteSave()
-          const fresh = createInitialState(Date.now())
-          for (const scene of OPENING_SCENES) pushLog(fresh, 'story', scene)
-          setState(fresh)
-          ui.endingDismissed = false
-          ui.lastLogId = 0
-          els.logEl.innerHTML = ''
-          // 重置后为全新状态：seen 快照重置（pendingEvents/成就均为空，等价 0），导航回星域
-          ctx.resetSeenSnapshot()
-          ctx.setActiveNav('sector')
-          render()
-          void deps.save()
-        })()
-      }
+      void resetGame(ctx)
     }
   })
 
@@ -230,45 +190,13 @@ export function bindListeners(ctx: SessionCtx): void {
     ctx.saveAutomationControl(target)
   })
 
-  // 导入存档文件（隐藏 input；解析成功接管 state + 离线结算 + seen 重置）
+  // 导入存档文件（隐藏 input；重操作实现见 actions-heavy.ts importSaveFile）
   els.importFile.addEventListener('change', async (e) => {
     const input = e.target as HTMLInputElement
     const file = input.files?.[0]
     input.value = ''
     if (!file) return
-    try {
-      const text = await file.text()
-      const imported = deserializeSave(text)
-      setState(imported)
-      ui.endingDismissed = false
-      // 导入后立即按 8h 封顶结算离线收益，避免全量时间差无限产出
-      const off = settleOffline(imported, Date.now())
-      if (off.durationSeconds > 0) {
-        const gainsText = (['mineral', 'energy', 'tech'] as const)
-          .filter((k) => off.gains[k] > 0)
-          .map((k) => `${RESOURCE_META[k].name} +${formatNumber(off.gains[k])}`)
-          .join('、')
-        pushLog(imported, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
-        for (const raidLog of off.raidLogs) pushLog(imported, 'warning', raidLog)
-        for (const conquestLog of off.conquestLogs) {
-          pushLog(imported, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
-        }
-        // 探索派遣离线到期：回归自动入账（结果日志播报，防静默）
-        for (const expLog of off.expeditionLogs) pushLog(imported, expLog.type, expLog.text)
-      }
-      imported.nextEventAt = Math.max(imported.nextEventAt, Date.now() + 45_000)
-      ui.lastLogId = 0
-      els.logEl.innerHTML = ''
-      // 导入接管新档：seen 快照重置为当前存量（刷新语义①，避免存量重报）
-      ctx.resetSeenSnapshot()
-      pushLog(imported, 'system', `导入成功：来自朋友的存档已接管殖民地。`)
-      render()
-      void deps.save()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '未知错误'
-      pushLog(getState(), 'warning', `存档导入失败：${msg}`)
-      render()
-    }
+    await importSaveFile(ctx, file)
   })
 
   // 新手引导操作
@@ -350,7 +278,7 @@ export function bindListeners(ctx: SessionCtx): void {
     if (t.closest('[data-ngplus-confirm]')) {
       ctx.closeNgPlusModal()
       // 与结局面板 NG+ 分支一致的统一序列（探索页入口 keepEndingDismissed=true）
-      ctx.startNewGamePlusSequence(true)
+      startNewGamePlusSequence(ctx, true)
     }
   })
 
