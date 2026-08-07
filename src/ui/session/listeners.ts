@@ -503,11 +503,14 @@ export function bindListeners(ctx: SessionCtx): void {
       const raw = String(btn.dataset[dataKey] ?? '')
       // 动态分发（data-* 运行时契约）：diplomacyMax 载荷为 "factionId:action[:limit]"，其余为 "id[:limit]"
       if (actionId === 'diplomacyMax') {
-        const idx = raw.lastIndexOf(':')
-        const fid = raw.slice(0, idx)
-        const tail = raw.slice(idx + 1)
-        const [act, limitText] = tail.split(':')
-        dispatch(state, 'diplomacyMax', { factionId: fid, action: (act === 'techshare' ? 'techshare' : 'trade'), ...(limitText ? { limit: Number(limitText) } : {}) }, deps)
+        // 从右往左解析：factionId 可含 ':'（endless:xxx），因此必须按 "action:limit" 收尾精确匹配，
+        // 不能用 lastIndexOf 单切（会把 action 误并入 factionId、limit 误作 action → 未知派系）
+        const m = /^(.*):(trade|techshare)(?::(\d+))?$/.exec(raw)
+        if (!m) return
+        const fid = m[1]
+        const act = m[2]
+        const limitText = m[3]
+        dispatch(state, 'diplomacyMax', { factionId: fid, action: act === 'techshare' ? 'techshare' : 'trade', ...(limitText ? { limit: Number(limitText) } : {}) }, deps)
       } else {
         const [id, limitText] = raw.split(':')
         dispatch(state, actionId as ActionId, { id, ...(limitText ? { limit: Number(limitText) } : {}) } as never, deps)

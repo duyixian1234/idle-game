@@ -25,6 +25,15 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 
 ## Testing conventions
 
+### Windows 命令输出回显可能丢失——文件系统是唯一事实源（2026-08-08 定稿）
+
+Git Bash 下工具调用 stdout 回显可能为空（vitest ANSI 彩色输出/进度条 `\r` 在管道捕获层被吞；`grep | head` 管道链还会掩盖真实退出码）。**命令跑完 ≠ 工具能看到输出**。铁律：
+
+- 所有测试/长命令一律 `cmd > <log> 2>&1; echo "EXIT=$?" >> <log>`，随后**只用 Read 读日志判断结果**，不以工具 stdout 为准。
+- 日志末尾带 `EXIT=` 哨兵行，先找哨兵再判断；读到半截日志=仍在运行或已中断，不是结论。
+- vitest 加 `CI=1`（禁用颜色与进度刷新），输出稳定可解析。
+- 工具返回空输出 → 直接读日志文件核实，不要重复执行命令（幂等副作用）。
+
 ### E2E 断言：语义化优先（2026-08-06 定稿）
 
 E2E 断言**优先使用语义化元素**（`data-*` 属性），不依赖具体样式类（`.tab`/`.panel`/`.hidden` 等）。
