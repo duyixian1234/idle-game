@@ -136,6 +136,30 @@ describe('ui: 布局与冒烟', () => {
     expect(btn!.disabled).toBe(false)
   })
 
+  it('隐藏建造物（hidden-buildings）：卡片过滤 + 头部已隐藏按钮 + 抽屉恢复入口', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.resources.mineral = 100
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    // 未隐藏前：卡片有隐藏入口
+    renderBuildPanel(panel, s, BUILDINGS)
+    expect(panel.querySelector('[data-hide-building="miner"]')).toBeTruthy()
+    // 隐藏后：卡片过滤掉，头部出现已隐藏按钮，抽屉默认收起
+    s.hiddenBuildings = ['miner']
+    renderBuildPanel(panel, s, BUILDINGS)
+    expect(panel.querySelector('[data-build="miner"]')).toBeNull()
+    expect(panel.querySelector('[data-show-hidden-buildings]')?.textContent).toContain('已隐藏 (1)')
+    expect(panel.querySelector('[data-build-hidden-drawer]')).toBeNull()
+    // 抽屉展开：渲染恢复入口
+    renderBuildPanel(panel, s, BUILDINGS, { hiddenBuildingsOpen: true })
+    const drawer = panel.querySelector('[data-build-hidden-drawer]')
+    expect(drawer).toBeTruthy()
+    const restore = panel.querySelector<HTMLElement>('[data-unhide-building="miner"]')
+    expect(restore).toBeTruthy()
+    expect(restore!.textContent).toContain('恢复')
+  })
+
   it('appendLog 最新在底：按时间正序追加', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)

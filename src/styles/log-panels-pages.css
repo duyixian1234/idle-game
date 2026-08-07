@@ -924,3 +924,117 @@
   color: var(--bad);
 }
 
+/* ---- 外交自动化（diplo-auto，2026-08-07）---- */
+.diplo-auto-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.diplo-auto-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.diplo-auto-hint {
+  color: var(--text-dim);
+}
+
+/* 派系卡内逐派系开关：独占一行（faction-actions 是 2 列 grid） */
+.diplo-auto-faction-label {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+/* ---- 隐藏建造物（hidden-buildings，2026-08-07）---- */
+.build-hidden-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 0 6px;
+}
+
+.build-hidden-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.build-hidden-toggle:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+.build-hidden-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.build-hidden-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.build-hidden-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.build-hidden-name {
+  flex: 1;
+  color: var(--text);
+}
+
+.build-hidden-restore {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 4px;
+  padding: 1px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.build-hidden-restore:hover {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+/* 卡片隐藏入口：弱化小按钮，不干扰主操作区 */
+.build-hide-btn {
+  border-color: var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.build-hide-btn:hover:not(:disabled) {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+

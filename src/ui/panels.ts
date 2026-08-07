@@ -103,6 +103,8 @@ export interface BuildPanelRenderOptions {
   flashId?: string | null
   /** 归档折叠展开态（endless-expansion：军事/外交归档区，UI 会话内存不进存档；key = kind） */
   archivedExpanded?: Record<string, boolean>
+  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存不进存档；true 时在头部按钮下方渲染恢复列表） */
+  hiddenBuildingsOpen?: boolean
 }
 
 /** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局工程弹窗 */
@@ -139,8 +141,48 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
   const defList = Object.values(defs)
-  const unlockedDefs = defList.filter((d) => isBuildingUnlocked(state, d.id))
+  const hiddenSet = new Set(state.hiddenBuildings)
+  const unlockedDefs = defList.filter((d) => isBuildingUnlocked(state, d.id) && !hiddenSet.has(d.id))
+  const hiddenDefs = defList.filter((d) => isBuildingUnlocked(state, d.id) && hiddenSet.has(d.id))
   const lockedDefs = defList.filter((d) => !isBuildingUnlocked(state, d.id))
+
+  // 已隐藏建造物（hidden-buildings）：面板头部「已隐藏 (N)」按钮 + 展开抽屉（恢复入口）
+  if (hiddenDefs.length > 0) {
+    const bar = document.createElement('div')
+    bar.className = 'build-hidden-bar'
+    bar.setAttribute('data-build-hidden-bar', '')
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'build-hidden-toggle'
+    toggle.setAttribute('data-show-hidden-buildings', '')
+    toggle.textContent = `已隐藏 (${hiddenDefs.length})`
+    bar.appendChild(toggle)
+    el.appendChild(bar)
+    if (opts.hiddenBuildingsOpen) {
+      const drawer = document.createElement('div')
+      drawer.className = 'build-hidden-drawer'
+      drawer.setAttribute('data-build-hidden-drawer', '')
+      for (const def of hiddenDefs) {
+        const row = document.createElement('div')
+        row.className = 'build-hidden-row'
+        row.setAttribute('data-hidden-building-row', def.id)
+        const icon = document.createElement('span')
+        icon.className = 'build-hidden-icon'
+        icon.innerHTML = iconUse(def.id)
+        const name = document.createElement('span')
+        name.className = 'build-hidden-name'
+        name.textContent = def.name
+        const restore = document.createElement('button')
+        restore.type = 'button'
+        restore.className = 'build-hidden-restore'
+        restore.setAttribute('data-unhide-building', def.id)
+        restore.textContent = '恢复'
+        row.append(icon, name, restore)
+        drawer.appendChild(row)
+      }
+      el.appendChild(drawer)
+    }
+  }
 
   const grid = document.createElement('div')
   grid.className = 'build-grid'
@@ -225,6 +267,8 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
         ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn" data-upgrade-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
         <button type="button" class="build-btn upgrade-btn" data-upgrade-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`}`
     : ''
+  // 隐藏入口（hidden-buildings）：从面板隐藏此建造物（恢复走头部「已隐藏」抽屉）
+  const hideBtn = `<button type="button" class="build-btn build-hide-btn" data-hide-building="${def.id}" title="从建造面板隐藏此建筑（可在「已隐藏」抽屉恢复）">✕ 隐藏</button>`
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.id)}</div>
     <div class="build-card-body">
@@ -235,7 +279,7 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
         ${costTimeRow}
       </div>
     </div>
-    <div class="build-actions">${buyBtn}${bulkBuyBtns}${upgradeBtns}</div>`
+    <div class="build-actions">${buyBtn}${bulkBuyBtns}${upgradeBtns}${hideBtn}</div>`
   return card
 }
 
@@ -446,6 +490,17 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     lockHint.textContent = `军力上限达到 ${COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN')} 或遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。`
     el.appendChild(lockHint)
   }
+  // 外交自动化全局开关（diplo-auto：只自动贸易/技术共享，胁迫类保持手动；逐派系开关在各自卡片）
+  const autoCfg = state.diplomacyAuto
+  const autoBar = document.createElement('div')
+  autoBar.className = 'diplo-auto-bar'
+  autoBar.setAttribute('data-diplo-auto-bar', '')
+  autoBar.innerHTML = `
+    <label class="diplo-auto-toggle">
+      <input type="checkbox" data-diplo-auto-global ${autoCfg?.enabled ? 'checked' : ''} /> 自动外交
+    </label>
+    <span class="diplo-auto-hint">自动贸易/技术共享（好感≥40、20 秒冷却、预算内）；胁迫类操作保持手动</span>`
+  el.appendChild(autoBar)
 
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
@@ -499,6 +554,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
         </div>
       </div>
       <div class="build-actions faction-actions">
+        <label class="diplo-auto-faction-label" data-diplo-auto-faction-label="${id}">
+          <input type="checkbox" data-diplo-auto-faction="${id}" ${autoCfg?.perFaction?.[id] === false ? '' : 'checked'} /> 自动贸易/共享
+        </label>
         <button type="button" class="build-btn diplo-btn" data-diplomacy="${id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
           贸易 ${formatCost(tradeC)}
         </button>

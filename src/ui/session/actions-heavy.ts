@@ -119,3 +119,14 @@ export function togglePlanetVisibility(ctx: SessionCtx, id: string): void {
   ctx.render()
   void ctx.deps.save()
 }
+
+/** 切换建造物隐藏（hidden-buildings：data-hide-building/data-unhide-building 共用，幂等；
+ * hiddenBuildings 随存档持久化；UI 层过滤，不影响引擎价格/产出计算） */
+export function toggleHiddenBuilding(ctx: SessionCtx, id: string): void {
+  const state = ctx.getState()
+  const index = state.hiddenBuildings.indexOf(id)
+  if (index >= 0) state.hiddenBuildings.splice(index, 1)
+  else state.hiddenBuildings.push(id)
+  ctx.render()
+  void ctx.deps.save()
+}

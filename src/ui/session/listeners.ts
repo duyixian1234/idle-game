@@ -10,7 +10,7 @@ import { buildCardAction } from '../panels'
 import { unlockRequirementText } from '../bars'
 import type { LogDirection } from '../log'
 import type { BulkKind } from '../../engine/bulk'
-import { exportSave, importSaveFile, resetGame, startNewGamePlusSequence, toggleLogDirection, togglePlanetVisibility } from './actions-heavy'
+import { exportSave, importSaveFile, resetGame, startNewGamePlusSequence, toggleHiddenBuilding, toggleLogDirection, togglePlanetVisibility } from './actions-heavy'
 
 /**
  * 会话运行时句柄 —— ui/session 的 internal seam（不对外暴露）。
@@ -36,6 +36,8 @@ export interface SessionUiState {
   /** 买满确认弹窗待执行动作（actionId + 结构化 payload；运行时联合，dispatch 时断言） */
   buyMaxPending: { actionId: ActionId; payload: ActionPayloads[ActionId] } | null
   exploreEscortChecked: Set<number>
+  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回默认收起） */
+  hiddenBuildingsOpen: boolean
 }
 
 export interface SessionCtx {
@@ -141,6 +143,52 @@ export function bindListeners(ctx: SessionCtx): void {
     const logdirBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool="logdir"]')
     if (!logdirBtn) return
     toggleLogDirection(ctx)
+  })
+
+  // 外交自动化开关（diplo-auto：全局 data-diplo-auto-global / 逐派系 data-diplo-auto-faction；
+  // 勾选=允许（删除显式关闭），取消=perFaction[id]=false；改完保存进存档）
+  els.panel.addEventListener('change', (e) => {
+    const global = (e.target as HTMLElement).closest<HTMLInputElement>('[data-diplo-auto-global]')
+    if (global) {
+      const state = getState()
+      state.diplomacyAuto ??= { enabled: false, perFaction: {} }
+      state.diplomacyAuto.enabled = global.checked
+      render()
+      void deps.save()
+      return
+    }
+    const faction = (e.target as HTMLElement).closest<HTMLInputElement>('[data-diplo-auto-faction]')
+    if (faction) {
+      const state = getState()
+      state.diplomacyAuto ??= { enabled: false, perFaction: {} }
+      const per = (state.diplomacyAuto.perFaction ??= {})
+      const id = faction.dataset.diploAutoFaction ?? ''
+      if (id) {
+        if (faction.checked) delete per[id]
+        else per[id] = false
+        render()
+        void deps.save()
+      }
+    }
+  })
+
+  // 隐藏建造物（hidden-buildings）：卡片「✕ 隐藏」/ 抽屉「恢复」/ 头部「已隐藏 (N)」开关
+  els.panel.addEventListener('click', (e) => {
+    const hideBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-hide-building]')
+    if (hideBtn) {
+      toggleHiddenBuilding(ctx, hideBtn.dataset.hideBuilding ?? '')
+      return
+    }
+    const unhideBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-unhide-building]')
+    if (unhideBtn) {
+      toggleHiddenBuilding(ctx, unhideBtn.dataset.unhideBuilding ?? '')
+      return
+    }
+    const showBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-show-hidden-buildings]')
+    if (showBtn) {
+      ui.hiddenBuildingsOpen = !ui.hiddenBuildingsOpen
+      render()
+    }
   })
 
   // 日志区自动处理快捷开关（data-auto-quick-toggle → 事件自动化策略）

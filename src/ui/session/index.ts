@@ -106,6 +106,8 @@ export function createSession(args: CreateSessionArgs): Session {
     buyMaxPending: null,
     // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
     exploreEscortChecked: new Set(),
+    // 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回收起）
+    hiddenBuildingsOpen: false,
   }
 
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */
@@ -139,9 +141,9 @@ export function createSession(args: CreateSessionArgs): Session {
     renderPlanetMechanic(els.mechanicBar, state)
     // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
     const flashId = Date.now() < ui.justUpgradedUntil ? ui.justUpgradedId : null
-    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded: ui.lockedExpanded, flashId })
+    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded: ui.lockedExpanded, flashId, hiddenBuildingsOpen: ui.hiddenBuildingsOpen })
     // 星际工程分组（星系间建造物 + 终局工程）紧随民用建筑之后（interstellar-build-merge）
-    renderInterstellarPanel(panels['build'], state, { lockedExpanded: ui.lockedExpanded, flashId })
+    renderInterstellarPanel(panels['build'], state, { lockedExpanded: ui.lockedExpanded, flashId, hiddenBuildingsOpen: ui.hiddenBuildingsOpen })
     renderTechPanel(panels['tech'], state)
     renderDiplomacyPanel(panels['diplomacy'], state, { archivedExpanded: ui.archivedExpanded })
     renderMilitaryPanel(panels['military'], state, { flashId, archivedExpanded: ui.archivedExpanded })
