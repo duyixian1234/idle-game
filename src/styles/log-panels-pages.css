@@ -92,6 +92,8 @@
 .panel {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
   padding-bottom: max(8px, env(safe-area-inset-bottom));
@@ -152,8 +154,11 @@
   padding: 12px;
   background: var(--bg-inset);
   border-top: 1px solid var(--border);
-  min-height: 120px;
-  max-height: 45vh;
+  /* 撑满 panel 剩余空间（panel 是 flex column），内容在自身 overflow 滚动；
+     旧 max-height: 45vh 在 250ms 重建下让面板下方留出大块空带，与用户期望
+     「面板区域最大化」不符——改为 flex: 1 让 panel-body 填满 panel。 */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 

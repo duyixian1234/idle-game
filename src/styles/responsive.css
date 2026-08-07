@@ -1,10 +1,10 @@
-/* ---- 矮屏兜底（移动端横屏/小高度）：面板压缩到最低限度 ---- */
+/* ---- 矮屏兜底（移动端横屏/小高度）：面板至少留出 80px 滚动区 ----
+   base 已切 flex:1，panel-body 自然填满 panel；这里只保底防日志/建造内容过短时
+   完全没空间操作；不强制压高度（max-height 会回到旧版的"面板下方空带"问题） */
 @media (max-height: 480px) {
   .panel-body {
     min-height: 80px;
-    max-height: 20vh;
   }
-  /* log-tab-switch：日志已并入 tab（panel-body 内 flex），不再需要独立保底高度 */
 }
 
 /* ---- 响应式（窄屏） ----
@@ -37,9 +37,14 @@
     border-left: 0;
     border-right: 0;
   }
+  /* 资源条：4 等分 grid 强制单行（值/速率竖排二行，问号按钮悬浮右上角）；
+     旧 flex-wrap 在 ≤360 视口下 4 个资源会换行成 4 条带，挤占 ~100px 垂直空间，
+     现在 4 个等宽 cell 永远一行，最多 ~30px 高。色彩由左 border 承担（替代被隐藏的 symbol） */
   .resource-bar {
-    gap: 4px;
-    padding: 6px 8px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+    padding: 4px 6px;
   }
   /* 机制条横向滚动（Q12 定案：tmux status 式，单指滑动；nowrap 不换行不挤日志区高度） */
   .mechanic-bar {
@@ -55,13 +60,52 @@
     flex: none;
     max-width: 180px;
   }
+  /* 资源 cell：竖排 2 行（值 + 速率）+ 右上角悬浮问号；
+     res-name 隐藏、res-symbol 隐藏（颜色由 border-left 承担） */
   .resource {
-    padding: 3px 8px;
-    font-size: 12px;
+    position: relative;
+    flex-direction: column;
+    align-items: center;
+    padding: 3px 4px 2px;
+    min-width: 0;
+    font-size: 10px;
   }
   .res-name {
     display: none;
   }
+  .res-symbol {
+    display: none;
+  }
+  .res-value {
+    min-width: 0;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.15;
+  }
+  .res-rate {
+    min-width: 0;
+    text-align: center;
+    font-size: 9px;
+    color: var(--text-dim);
+    line-height: 1.15;
+    margin-top: 1px;
+  }
+  .res-breakdown {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 11px;
+    height: 11px;
+    font-size: 8px;
+    line-height: 11px;
+    margin: 0;
+  }
+  /* 资源色标（原 res-symbol 颜色，改由 cell 左 border 承担，让 4 cell 一眼可辨） */
+  .resource[data-resource='mineral'] { border-left: 2px solid var(--mineral); }
+  .resource[data-resource='energy'] { border-left: 2px solid var(--energy); }
+  .resource[data-resource='tech'] { border-left: 2px solid var(--tech); }
+  .resource[data-resource='military'] { border-left: 2px solid var(--bad); }
   /* log-tab-switch：日志并入 tab 后不再被面板挤压；5 tab 单行，极端窄屏横滚兜底 */
   .log-area {
     padding: 8px;
@@ -87,9 +131,10 @@
     padding: 3px 8px;
     font-size: 11px;
   }
-  /* 操作面板让出空间：45vh → 32vh（日志区 min-height 兜底，面板内滚动不受影响） */
+  /* 面板区域：移除 32vh 上限（base 已切 flex:1，panel-body 自然撑满 panel），
+     仅调整 padding 适配小屏；目的是消除面板下方的空带、最大化面板可用高度 */
   .panel-body {
-    max-height: 32vh;
+    padding: 10px 8px;
   }
   .build-item {
     flex-direction: column;
@@ -122,18 +167,27 @@
   }
 }
 
-/* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：资源条进一步收紧 */
+/* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：进一步收紧间距 */
 @media (max-width: 360px) {
   .resource-bar {
-    gap: 3px;
-    padding: 5px 6px;
+    gap: 2px;
+    padding: 3px 4px;
   }
   .resource {
-    padding: 2px 6px;
-    font-size: 11px;
+    padding: 2px 3px 1px;
+    font-size: 9px;
+  }
+  .res-value {
+    font-size: 10px;
   }
   .res-rate {
-    display: none;
+    font-size: 8px;
+  }
+  .res-breakdown {
+    width: 10px;
+    height: 10px;
+    font-size: 7px;
+    line-height: 10px;
   }
   /* 资源来源分解面板：窄屏全宽、字号收紧（问号按钮不随速率隐藏，保留可点） */
   .breakdown-panel {

@@ -1,6 +1,6 @@
 # 03 - CSS：日志 panel-body / tab 角标 / 移动端
 
-**Status:** pending
+**Status:** resolved
 **Spec:** ../spec.md（Q7/Q8 + CSS 节）
 
 ## 目标

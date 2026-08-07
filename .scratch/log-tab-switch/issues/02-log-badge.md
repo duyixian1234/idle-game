@@ -1,6 +1,6 @@
 # 02 - 日志 tab 角标
 
-**Status:** pending
+**Status:** resolved
 **Spec:** ../spec.md（Q3/Q9）
 
 ## 目标

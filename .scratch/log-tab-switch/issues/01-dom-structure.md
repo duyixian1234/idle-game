@@ -1,6 +1,6 @@
 # 01 - DOM 结构改造与 tab 持久化
 
-**Status:** pending
+**Status:** resolved
 **Spec:** ../spec.md（Q2/Q4/Q5/Q6）
 
 ## 目标

@@ -1,6 +1,6 @@
 # 04 - 测试同步（dom.test.ts）
 
-**Status:** pending
+**Status:** resolved
 **Spec:** ../spec.md（测试影响）
 
 ## 目标
