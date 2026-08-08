@@ -1,8 +1,9 @@
 import { CONQUESTS } from './data'
 import type { ConquestDef } from './data'
-import { MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
+import { militaryCap } from './production'
 import { rollDomain } from './rng'
 import { formatNumber, formatPercent } from './format'
 import type { ConquestState, GameState } from './types'
@@ -168,4 +169,36 @@ function settleOneConquest(
   // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
   state.conquest[id] = { status: 'available' }
   return `【军事战报】对「${def.name}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`
+}
+
+/**
+ * 自动攻占 tick（ADR-0033，2026-08-08）：每冷却周期（60s）对第一个可用生成军事目标投满守卫发起攻占。
+ * - 目标 = generatedTargets kind='conquest' 且 status==='available' 未进行中（仅生成目标，静态主线区域保持手动）；
+ * - 投入策略：投满守卫（必成）；
+ * - 军力保底：投满后仍保留军力容量 × AUTO_CONQUEST_MILITARY_RESERVE_PCT（防耗尽影响 raid 击退/探索派遣）；
+ * - 资源费不足（ADR-0028 costMineral/costEnergy）→ 暂停（pausedAt），冷却后重试；
+ * - 离线由 settleOffline 按冷却周期批量推进（虚拟时钟）。
+ */
+export function autoConquestTick(state: GameState, nowMs: number): string[] {
+  const cfg = state.autoConquest
+  if (!cfg?.enabled) return []
+  if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
+  for (const t of state.generatedTargets) {
+    if (t.kind !== 'conquest') continue
+    const cs = state.conquest[t.id]
+    if (cs?.status !== 'available' || cs.startedAt != null) continue
+    const guard = t.guard ?? 0
+    if (guard <= 0) continue
+    const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
+    if (state.resources.military < guard + reserve) continue
+    const r = startConquest(state, t.id, guard, nowMs)
+    if (r.ok) {
+      cfg.lastActionAt = nowMs
+      return [`自动攻占：对「${t.name}」投入 ${formatNumber(guard)} 军力发起攻占。`]
+    }
+    if (r.reason === '矿物不足' || r.reason === '能源不足') {
+      cfg.pausedAt = nowMs
+    }
+  }
+  return []
 }

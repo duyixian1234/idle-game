@@ -1,11 +1,11 @@
 import { applyMaintenance, militaryCap, productionReport } from './production'
 import { applyFleetMaintenance } from './fleet'
-import { settleConquests } from './conquest'
+import { autoConquestTick, settleConquests } from './conquest'
 import { settleExpeditions, settleOfflineAutoExplore } from './exploration'
 import type { ExpeditionLog } from './exploration'
 import { autoResolvePendingEvents, settleOfflineRaids } from './events'
 import { autoDiplomacyTick, coercionTick, ensureCoercionUnlocked } from './diplomacy'
-import { DIPLO_AUTO_COOLDOWN_MS, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, DIPLO_AUTO_COOLDOWN_MS, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from './balance'
 import { pushLog, zeroResources } from './core'
 import type { GameState, ResourceKey } from './types'
 
@@ -98,6 +98,15 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
     const steps = Math.max(0, Math.floor((duration * 1000) / DIPLO_AUTO_COOLDOWN_MS))
     for (let i = 0; i < steps; i++) {
       autoDiplomacyTick(state, autoStart + (i + 1) * DIPLO_AUTO_COOLDOWN_MS)
+    }
+  }
+  // 自动攻占离线推进（ADR-0033）：60s 冷却周期批量发起（投满守卫 + 军力保底 20%；
+  // 攻占倒计时离线照常推进——下一轮回归时由 settleConquests 结算）
+  if (state.autoConquest?.enabled) {
+    const autoStart = nowMs - duration * 1000
+    const steps = Math.max(0, Math.floor((duration * 1000) / AUTO_CONQUEST_COOLDOWN_MS))
+    for (let i = 0; i < steps; i++) {
+      for (const log of autoConquestTick(state, autoStart + (i + 1) * AUTO_CONQUEST_COOLDOWN_MS)) conquestLogs.push(log)
     }
   }
   // 胁迫外交解锁（军力达标即解锁，与 raid 遭遇双通道）：离线回归兜底置位（存量存档立即生效）

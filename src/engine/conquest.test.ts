@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
-import { isConquestAvailable, settleConquests, startConquest } from './conquest'
+import { isConquestAvailable, autoConquestTick, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
 import type { GameState } from './types'
 
@@ -112,6 +112,80 @@ describe('engine: 攻占系统（conquest）', () => {
     expect(off.conquestLogs.length).toBe(1)
     expect(off.conquestLogs[0]).toContain('捷报')
     expect(s.conquest.outpost.status).toBe('conquered')
+  })
+})
+
+describe('engine: 自动攻占（ADR-0033）', () => {
+  /** 开启自动攻占 + 一个 available 生成军事目标（守卫 800，无成本快照）；
+   * 军港 25 座 → 容量 5100（离线时军力被容量截断，需容量 ≥ 守卫 + 保底 20%） */
+  function autoState(): GameState {
+    const s = conquestState()
+    s.autoConquest = { enabled: true }
+    s.planets.dawn = { unlocked: true }
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.generatedTargets.push({ kind: 'conquest', id: 'gen:conquest:0', name: '测试目标', desc: '', batch: 0, guard: 800, rewardMineral: 100_000 })
+    s.conquest['gen:conquest:0'] = { status: 'available' }
+    return s
+  }
+
+  it('开启 + 目标 available + 军力充足 → 投满守卫发起攻占（invested = guard）', () => {
+    const s = autoState()
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs.length).toBe(1)
+    expect(logs[0]).toContain('自动攻占')
+    expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.resources.military).toBe(100_000 - 800)
+    expect(s.autoConquest?.lastActionAt).toBe(60_000)
+  })
+
+  it('军力不足保底（投满后 < 容量×20%）→ 不发起', () => {
+    const s = autoState()
+    s.resources.military = 1_500 // 容量 5100 → 保底 1020；1500 − 800 = 700 < 1020 → 跳过
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs).toEqual([])
+    expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+  })
+
+  it('仅生成目标：静态主线区域不自动发起', () => {
+    const s = autoState()
+    s.planets.ice = { unlocked: true }
+    s.conquest.outpost = { status: 'available' }
+    s.generatedTargets = []
+    delete s.conquest['gen:conquest:0']
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs).toEqual([])
+    expect(s.conquest.outpost).toEqual({ status: 'available' })
+  })
+
+  it('冷却未过（60s 内）→ 不发起', () => {
+    const s = autoState()
+    s.autoConquest!.lastActionAt = 0
+    const logs = autoConquestTick(s, 30_000)
+    expect(logs).toEqual([])
+  })
+
+  it('开关关闭 → 不动作', () => {
+    const s = autoState()
+    s.autoConquest = undefined
+    expect(autoConquestTick(s, 60_000)).toEqual([])
+  })
+
+  it('资源费不足（ADR-0028 costMineral）→ 暂停重试', () => {
+    const s = autoState()
+    s.generatedTargets[0] = { ...s.generatedTargets[0], costMineral: 9_000_000, costEnergy: 0 }
+    s.resources.mineral = 1_000 // 不够 costMineral
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs).toEqual([])
+    expect(s.autoConquest?.pausedAt).toBe(60_000)
+    expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+  })
+
+  it('离线批量推进（settleOffline）：开启自动攻占 → 离线期间发起投满', () => {
+    const s = autoState()
+    settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期）
+    expect(s.conquest['gen:conquest:0'].invested).toBe(800)
+    expect(s.resources.military).toBe(5_100 - 800) // 容量 5100 截断后投 800
   })
 })
 

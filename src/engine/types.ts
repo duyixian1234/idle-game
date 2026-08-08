@@ -218,6 +218,14 @@ export interface AutoExploreState {
   pausedAt?: number
 }
 
+/** 自动攻占设置（ADR-0033，2026-08-08）：enabled 全局开关（默认关，NG+ 重置）；lastActionAt = 冷却时间戳、
+ * pausedAt = 资源不足暂停时间戳（均不持久化语义） */
+export interface AutoConquestState {
+  enabled: boolean
+  lastActionAt?: number
+  pausedAt?: number
+}
+
 /** 探索结果（出发时固化，防 SL：回归只入账不重抽）：发现势力 / 发现天体 / 军事目标 / 资源补偿 */
 export type ExpeditionResult =
   | { kind: 'faction'; factionId: string }
@@ -336,6 +344,8 @@ export interface GameState {
   fleet: { count: number }
   /** 自动探索设置（v11 新增）：enabled/escort 随存档持久化；NG+ 重置为默认关 */
   autoExplore: AutoExploreState
+  /** 自动攻占设置（ADR-0033，可选字段）：enabled 随存档持久化；NG+ 重置为默认关 */
+  autoConquest?: AutoConquestState
   /** 虫群强度倍率（v10 新增）：放任后累计，任意处理路径重置为 1 */
   bugEscalation: number
   /** 累计统计 */

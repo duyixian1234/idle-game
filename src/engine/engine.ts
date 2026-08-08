@@ -1,6 +1,6 @@
 import { CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS } from './data'
 import { autoDiplomacyTick, coercionTick, createFactions, ensureCoercionUnlocked, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
-import { settleConquests } from './conquest'
+import { autoConquestTick, settleConquests } from './conquest'
 import { autoExploreDispatch, settleExpeditions } from './exploration'
 import { FIRST_EVENT_DELAY_SECONDS } from './balance'
 import { autoResolvePendingEvents, createDefaultAutomationPolicies, pruneStaleEvents, scheduleNextEvent, triggerRandomEvent } from './events'
@@ -54,6 +54,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     megastructureChoice: null,
     fleet: { count: 0 },
     autoExplore: { enabled: false, escort: false },
+    autoConquest: { enabled: false },
     bugEscalation: 1,
     stats: { totalMineralEarned: 0, explorations: 0 },
     achievements: {},
@@ -170,6 +171,10 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   for (const autoLog of autoExploreDispatch(state, nowMs)) {
     pushLog(state, autoLog.type, autoLog.text)
   }
+  // 自动攻占（ADR-0033）：自动探索/手动发现后的生成军事目标自动投满守卫发起（60s 冷却 + 军力保底 20%）
+  for (const conquestAutoLog of autoConquestTick(state, nowMs)) {
+    pushLog(state, 'system', conquestAutoLog)
+  }
   // 结局判定
   checkEnding(state)
   // 永恒殖民叙事挂点（endlessii-unlock spec：条件与成就谓词同源引用，防数值漂移；
@@ -267,6 +272,8 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   state.bugEscalation = 1
   // 自动探索重置为默认关（fleet-dock-10：舰队随周目归零 → 护航自然失效；开关与护航偏好一并归零，新周目重新开启）
   state.autoExplore = { enabled: false, escort: false }
+  // 自动攻占重置为默认关（ADR-0033：新周目重新开启）
+  state.autoConquest = { enabled: false }
 
   // 探索重置：派遣中任务随 NG+ 静默丢弃不退款（决策 Q18）、发现进度清零、派遣 id 归 1
   state.expeditions = []

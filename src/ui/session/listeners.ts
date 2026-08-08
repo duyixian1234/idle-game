@@ -145,6 +145,18 @@ export function bindListeners(ctx: SessionCtx): void {
     toggleLogDirection(ctx)
   })
 
+  // 自动攻占开关（ADR-0033：军事页 data-conquest-auto；勾选 = enabled 存档）
+  els.panel.addEventListener('change', (e) => {
+    const conquestAuto = (e.target as HTMLElement).closest<HTMLInputElement>('[data-conquest-auto]')
+    if (conquestAuto) {
+      const state = getState()
+      state.autoConquest ??= { enabled: false }
+      state.autoConquest.enabled = conquestAuto.checked
+      render()
+      void deps.save()
+    }
+  })
+
   // 外交自动化（diplo-auto 纯全局迭代，2026-08-08：全局开关 data-diplo-auto-global / 全局方向 data-diplo-auto-mode；
   // 'coerce' 胁迫线 / 其余 'ally' 友好线；改完保存进存档）
   els.panel.addEventListener('change', (e) => {

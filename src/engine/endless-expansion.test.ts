@@ -91,15 +91,20 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBe((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!)
   })
 
-  it('军事目标强度随周目缩放：×1.5^ngPlusLevel', () => {
+  it('军事目标守卫随军力容量缩放（ADR-0033：容量 × 15-40%，clamp 500 下限），不随周目直接缩放', () => {
     const s1 = infiniteState()
-    s1.ngPlusLevel = 0
-    const s3 = infiniteState()
-    s3.ngPlusLevel = 3
-    // 同一 roll 序列（guard 采样相同）
+    s1.planets.orbital = { unlocked: true }
+    s1.buildings.militaryPort = 0
     const g1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.3]))
+    // 无军港容量 100 → 守卫 clamp 500
+    expect(g1.guard).toBe(500)
+    const s3 = infiniteState()
+    s3.planets.orbital = { unlocked: true }
+    s3.buildings.militaryPort = 25 // 容量 5100 → 守卫 ∈ [765, 2040]
     const g3 = generateConquestTarget(s3, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g3.guard!).toBe(Math.floor(g1.guard! * Math.pow(1.5, 3)))
+    expect(g3.guard!).toBeGreaterThanOrEqual(500)
+    expect(g3.guard!).toBeGreaterThan(g1.guard!)
+    expect(g3.guard!).toBeLessThanOrEqual(2_040)
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {

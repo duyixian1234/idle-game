@@ -2,8 +2,9 @@ import {
   ENDLESS_BATCH_2_EXPLORATIONS,
   GEN_CONQUEST_COST_ENERGY_SECONDS,
   GEN_CONQUEST_COST_MINERAL_SECONDS,
-  GEN_CONQUEST_GUARD_MAX,
   GEN_CONQUEST_GUARD_MIN,
+  GEN_CONQUEST_GUARD_PCT_MAX,
+  GEN_CONQUEST_GUARD_PCT_MIN,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
   GEN_CONQUEST_REWARD_TECH_SECONDS,
   GEN_FACTION_FAVOR_MAX,
@@ -13,10 +14,9 @@ import {
   GEN_PLANET_OUTPUT_MIN,
   GEN_PLANET_PCT_MAX,
   GEN_PLANET_PCT_MIN,
-  GEN_STRENGTH_GROWTH,
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
 } from './balance'
-import { netProduction } from './production'
+import { militaryCap, netProduction } from './production'
 import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 /**
@@ -98,14 +98,17 @@ export function isEndlessTargetId(id: string): boolean {
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
 /**
- * 军事目标生成：词库命名；guard = [MIN, MAX] 均匀采样 × GEN_STRENGTH_GROWTH^ngPlusLevel（**挑战阈值语义**）；
+ * 军事目标生成：词库命名；guard = 军力容量 × [pct_min, pct_max]（clamp 500 下限，ADR-0033）——
+ * 攻占军力成本随军港规模/军械科技上升，后期成真实门槛（挑战阈值语义）；
  * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞）；
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
   const name = `${pick(CONQUEST_PREFIX, roll)}${pick(CONQUEST_NOUN, roll)}`
-  const roundMult = Math.pow(GEN_STRENGTH_GROWTH, state.ngPlusLevel ?? 0)
-  const guard = Math.max(GEN_CONQUEST_GUARD_MIN, Math.floor((GEN_CONQUEST_GUARD_MIN + roll() * (GEN_CONQUEST_GUARD_MAX - GEN_CONQUEST_GUARD_MIN)) * roundMult))
+  const guard = Math.max(
+    GEN_CONQUEST_GUARD_MIN,
+    Math.floor(militaryCap(state) * (GEN_CONQUEST_GUARD_PCT_MIN + roll() * (GEN_CONQUEST_GUARD_PCT_MAX - GEN_CONQUEST_GUARD_PCT_MIN))),
+  )
   const seq = state.generatedTargets.length
   // 一次性奖励/成本：锚定目标创建（发现）时点的当期净产出，成本与奖励同源（ADR-0028）
   const prod = netProduction(state)

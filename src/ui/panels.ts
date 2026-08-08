@@ -847,7 +847,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const conqueredCount = staticDefs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '攻占'
+  header.innerHTML = `攻占 <label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-auto ${state.autoConquest?.enabled ? 'checked' : ''} /> 自动攻占</label>`
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
