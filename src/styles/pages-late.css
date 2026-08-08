@@ -112,6 +112,51 @@
   font-family: var(--font-mono);
 }
 
+/* 完成时间信息（Q5：HH:MM · 第N周目，小字次要信息） */
+.ach-time {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+/* 成就解锁强调双轨（ach-flash，Q7/Q21/Q22）：
+   flash = 一次性琥珀色动画（区别于建筑升级绿色），高亮 = NEW 角标 + 内发光持续到进入档案页 */
+.ach-card.just-unlocked {
+  animation: ach-unlock-flash 1.1s ease-out;
+}
+
+@keyframes ach-unlock-flash {
+  0% {
+    border-color: var(--ach-glow);
+    box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.4);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
+/* 持续高亮：内发光不改布局尺寸（.ach-card 已是 position: relative 的 .build-card 基座） */
+.ach-card.ach-new {
+  box-shadow: inset 0 0 0 2px var(--ach-glow);
+}
+
+/* NEW 角标：右上角绝对定位小红点（与 nav-badge 视觉呼应） */
+.ach-new-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  z-index: 1;
+}
+
 .ach-progress {
   display: flex;
   align-items: center;

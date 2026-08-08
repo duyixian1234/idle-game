@@ -44,6 +44,10 @@ export interface RenderCtx {
   settingsStatusText: string
   /** 升级高亮派生（主函数算：nowMs < justUpgradedUntil ? id : null） */
   flashId: string | null
+  /** 成就 flash 窗口（主函数 diff 派生：新解锁成就 id 集合，过期后空集） */
+  justUnlocked: Set<string>
+  /** 成就高亮 seen 阈值（进入档案页时更新；unlockedAt > 该值 → NEW 角标） */
+  seenAchievementMaxAt: number
   sound: SoundManager
   /** 游戏版本号（session 提供，settings 页显示） */
   version: string
@@ -159,7 +163,11 @@ RENDER_NODES.register({
 RENDER_NODES.register({
   id: 'archive',
   phase: 'content',
-  render: (ctx) => renderArchivePanel(ctx.els.navPages.archive, ctx.state),
+  render: (ctx) =>
+    renderArchivePanel(ctx.els.navPages.archive, ctx.state, {
+      justUnlocked: ctx.justUnlocked,
+      seenAchievementMaxAt: ctx.seenAchievementMaxAt,
+    }),
 })
 RENDER_NODES.register({
   id: 'explore',

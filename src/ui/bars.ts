@@ -6,6 +6,7 @@ import { formatMultiplier, formatNumber, formatRate } from '../engine/format'
 import { isPlanetUnlocked } from '../engine/planets'
 import { militaryCap, productionBreakdown } from '../engine/production'
 import type { BreakdownRow } from '../engine/production'
+import { iconUse } from './icons'
 import { escapeHtml } from './helpers'
 
 /** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜，产出型不参与切换） */
@@ -90,7 +91,7 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
     const valueText = key === 'military'
       ? `${formatNumber(value)}${meta.symbol}/${formatNumber(militaryCap(state))}${meta.symbol}`
       : formatNumber(value)
-    item.innerHTML = `<span class="res-symbol">${meta.symbol}</span>
+    item.innerHTML = `<span class="res-symbol">${iconUse(meta.icon, 'res-symbol')}</span>
       <span class="res-name">${meta.name}</span>
       <span class="res-value" data-res-value>${valueText}</span>
       <span class="res-rate">${rateText}</span>

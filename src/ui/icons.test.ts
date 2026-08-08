@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDINGS, ALL_FACTIONS, EXPLORE_PLANETS, TECHS, CONQUESTS } from '../engine/data'
+import { BUILDINGS, ALL_FACTIONS, EXPLORE_PLANETS, TECHS, CONQUESTS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
+import { createInitialState } from '../engine/engine'
+import { renderResources } from './bars'
 import { ICON_FALLBACK, ICONS, iconSpriteHtml, iconSymbolId, iconUse } from './icons'
 
 /** 一级导航 + 派遣图标 id（ui-redesign ticket 02：Q15 emoji→SVG） */
@@ -7,6 +9,9 @@ const NAV_ICONS = ['nav-sector', 'nav-archive', 'nav-explore', 'nav-settings', '
 
 /** 成就专用图标 id（ach-cards：成就卡牌化配套图标） */
 const ACHIEVEMENT_ICONS = ['handshake', 'trade', 'federation-seal', 'infinity', 'colony', 'favor', 'clock', 'extort', 'shackle', 'olive', 'reborn', 'dual-gate'] as const
+
+/** 资源图标 id（log-filter-resource-icons：顶部资源条文字符号 → SVG） */
+const RESOURCE_ICONS = ['res-mineral', 'res-energy', 'res-tech', 'res-military'] as const
 
 describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
   it('每个建筑 id 都有对应 symbol', () => {
@@ -55,6 +60,33 @@ describe('ui: 图标资产完整性（building-cards ticket 01）', () => {
     for (const id of ACHIEVEMENT_ICONS) {
       expect(ICONS[id], `缺少成就图标：${id}`).toBeTruthy()
     }
+  })
+
+  it('4 个资源图标都有对应 symbol（log-filter-resource-icons）', () => {
+    for (const id of RESOURCE_ICONS) {
+      expect(ICONS[id], `缺少资源图标：${id}`).toBeTruthy()
+    }
+  })
+
+  it('每个 RESOURCE_META 项都有 icon 字段且对应 symbol 存在（Q11 双轨：资源条 SVG / 内联文字符号保留）', () => {
+    for (const key of Object.keys(RESOURCE_META)) {
+      const meta = RESOURCE_META[key as keyof typeof RESOURCE_META]
+      expect(meta.icon, `RESOURCE_META.${key} 缺 icon 字段`).toBeTruthy()
+      expect(ICONS[meta.icon], `缺少资源图标 symbol：${meta.icon}`).toBeTruthy()
+    }
+  })
+
+  it('renderResources 资源条输出 SVG use 引用（<use href="#ic-res-*"> 等，替代文字符号）', () => {
+    const el = document.createElement('div')
+    renderResources(el, createInitialState(0), { mineral: 0, energy: 0, tech: 0, military: 0 })
+    for (const key of RESOURCE_KEYS) {
+      const icon = RESOURCE_META[key].icon
+      const use = el.querySelector<SVGUseElement>(`[data-resource="${key}"] .res-symbol use`)
+      expect(use, `资源条 ${key} 缺 res-symbol use`).toBeTruthy()
+      expect(use!.getAttribute('href')).toBe(`#${iconSymbolId(icon)}`)
+    }
+    // 军力值文本单位保留文字符号（内联文本场景，Q11）
+    expect(el.textContent).toContain('⚔')
   })
 
   it('兜底图标存在', () => {

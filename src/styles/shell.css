@@ -132,6 +132,13 @@
   font-size: 12px;
 }
 
+/* 资源条 SVG 图标（log-filter-resource-icons Q18：14px + vertical-align middle，与文字符号视觉重量一致） */
+.res-symbol svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+}
+
 .resource[data-resource='mineral'] .res-symbol {
   color: var(--mineral);
 }

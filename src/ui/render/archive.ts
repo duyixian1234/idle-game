@@ -25,13 +25,26 @@ function reputationBonusText(b: ReputationBonuses): string {
   return parts.join(' · ')
 }
 
+/** 成就卡渲染选项（ach-flash：flash 窗口 + 持续高亮 seen 阈值；由 session render 主函数注入） */
+export interface ArchiveRenderOptions {
+  /** flash 窗口内的成就 id（带 just-unlocked 类播放一次性动画） */
+  justUnlocked?: Set<string>
+  /** 高亮 seen 阈值（unlockedAt > 该值 → ach-new 类 + NEW 角标；进入档案页时更新） */
+  seenAchievementMaxAt?: number
+}
+
 /** 成就卡（ach-cards：与建造物同构 .build-card 视觉语言）：
  * 图标 + 名称 + 描述（未解锁且有 hint 时优先显示 hint）+ 奖励文本 + 状态（✓/🔒）。
+ * 已解锁：显示完成时间（HH:MM · 第N周目）+ 可选 flash（just-unlocked）/ 持续高亮（ach-new + NEW 角标）。
  * 进度条（有 progress 且未解锁）：n/total 显示，n 超 total 时 clamp 到 total；解锁后隐藏（保持一致）。 */
-function renderAchievementCard(state: GameState, def: AchievementDef): HTMLElement {
+function renderAchievementCard(state: GameState, def: AchievementDef, opts: ArchiveRenderOptions): HTMLElement {
   const unlocked = Boolean(state.achievements[def.id])
+  const ach = state.achievements[def.id]
+  // flash = 一次性动画窗口（just-unlocked 类）；isNew = 相对 seen 阈值的持续高亮（ach-new 类 + NEW 角标）
+  const inFlashWindow = unlocked && Boolean(opts.justUnlocked?.has(def.id))
+  const isNewlySeen = unlocked && ach.unlockedAt > (opts.seenAchievementMaxAt ?? 0)
   const card = document.createElement('div')
-  card.className = `build-card ach-card${unlocked ? '' : ' ach-locked'}`
+  card.className = `build-card ach-card${unlocked ? '' : ' ach-locked'}${inFlashWindow ? ' just-unlocked' : ''}${isNewlySeen ? ' ach-new' : ''}`
   card.setAttribute('data-achievement', def.id)
   const rewardParts: string[] = []
   if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
@@ -49,6 +62,13 @@ function renderAchievementCard(state: GameState, def: AchievementDef): HTMLEleme
         <span class="ach-progress-text">${formatNumber(shown)}/${formatNumber(total)}</span>
       </div>`
   }
+  // 完成时间信息（Q5：HH:MM · 第N周目；unlockedInRound=0 = 首次游玩，不特殊处理）
+  let timeHtml = ''
+  if (unlocked && ach) {
+    const d = new Date(ach.unlockedAt)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    timeHtml = `<span class="ach-time" data-ach-time="${def.id}">${pad(d.getHours())}:${pad(d.getMinutes())} · 第${ach.unlockedInRound}周目</span>`
+  }
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.icon)}</div>
     <div class="build-card-body">
@@ -60,13 +80,15 @@ function renderAchievementCard(state: GameState, def: AchievementDef): HTMLEleme
         <div class="build-desc ach-desc">${escapeHtml(displayDesc)}</div>
       </div>
       <div class="ach-reward">${rewardText || '奖励：无'}</div>
+      ${timeHtml}
       ${progressHtml}
-    </div>`
+    </div>
+    ${isNewlySeen ? '<span class="ach-new-badge" data-ach-new-badge>新</span>' : ''}`
   return card
 }
 
 /** 渲染档案面板（第 5 面板）：星系统一声望 + 成就网格 + 本周目统计。纯展示，无交互按钮 */
-export function renderArchivePanel(el: HTMLElement, state: GameState): void {
+export function renderArchivePanel(el: HTMLElement, state: GameState, opts: ArchiveRenderOptions = {}): void {
   el.innerHTML = ''
   const rep = reputation(state)
   const bonuses = reputationBonuses(state)
@@ -101,8 +123,11 @@ export function renderArchivePanel(el: HTMLElement, state: GameState): void {
     const grid = document.createElement('div')
     grid.className = 'build-grid'
     grid.setAttribute('data-ach-grid', g.key)
-    for (const def of defs) {
-      grid.appendChild(renderAchievementCard(state, def))
+    // 组内排序（Q6/Q19）：已解锁按 unlockedAt 降序在前（时间晚的在前），未解锁保持定义序防抖动
+    const unlocked = defs.filter((d) => state.achievements[d.id]).sort((a, b) => state.achievements[b.id].unlockedAt - state.achievements[a.id].unlockedAt)
+    const locked = defs.filter((d) => !state.achievements[d.id])
+    for (const def of [...unlocked, ...locked]) {
+      grid.appendChild(renderAchievementCard(state, def, opts))
     }
     section.appendChild(grid)
     el.appendChild(section)

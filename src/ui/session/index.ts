@@ -14,9 +14,12 @@ import type { RenderCtx } from '../render/registry'
 import {
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
+  LOG_FILTER_KEY,
+  LOG_FILTER_VALUES,
+  renderLogFilter,
   renderLogInto,
 } from '../log'
-import type { LogDirection } from '../log'
+import type { LogDirection, LogFilter } from '../log'
 import { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from '../overlays'
 import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
@@ -91,12 +94,22 @@ export function createSession(args: CreateSessionArgs): Session {
     // 日志排序方向（偏好记忆），已渲染日志游标
     logDirection: (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION,
     lastLogId: 0,
+    // 日志筛选类别（偏好记忆，与 logDirection 同构：白名单校验，脏值回退 'all'）
+    logFilter: (() => {
+      const stored = localStorage.getItem(LOG_FILTER_KEY) as LogFilter | null
+      return stored && (LOG_FILTER_VALUES as readonly string[]).includes(stored) ? stored : 'all'
+    })(),
     // 一键买满确认弹窗待执行动作（点击「买满/升满」按钮或 Shift+点击 → 预演 → 确认后 dispatch）
     buyMaxPending: null,
     // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
     exploreEscortChecked: new Set(),
     // 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回收起）
     hiddenBuildingsOpen: false,
+    // 成就 flash 双轨（ach-flash：UI 层 diff 检测新解锁 + 持续高亮 seen 阈值，均不进存档）
+    lastRenderedAchievementIds: new Set(),
+    justUnlockedAchievements: new Set(),
+    justUnlockedUntil: 0,
+    seenAchievementMaxAt: 0,
   }
 
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */
@@ -119,6 +132,11 @@ export function createSession(args: CreateSessionArgs): Session {
     return Object.values(s.achievements).filter((a) => a.unlockedInRound === s.ngPlusLevel).length
   }
 
+  // 当前已解锁成就的最大 unlockedAt（无成就则 0；持续高亮 seen 阈值，setActiveNav / resetSeenSnapshot 共用）
+  function maxAchievementUnlockedAt(s: GameState): number {
+    return Object.values(s.achievements).reduce((max, a) => Math.max(max, a.unlockedAt), 0)
+  }
+
   const panels: Record<string, HTMLElement> = {}
   for (const el of Array.from(els.panel.querySelectorAll<HTMLElement>('.panel-body'))) {
     panels[el.dataset.panel ?? ''] = el
@@ -131,6 +149,16 @@ export function createSession(args: CreateSessionArgs): Session {
     const getNetProduction = () => (prodCache ??= netProduction(state))
     // 派生：升级高亮（卡片一次性动画：升级后 1.2s 窗口内重放首帧）
     const flashId = nowMs < ui.justUpgradedUntil ? ui.justUpgradedId : null
+    // 成就 flash 双轨 diff（UI 层：对比上次渲染的已解锁 id 集合，新增进 flash 窗口；
+    // 与引擎 checkAchievements 返回值无关——挂机刷新由 resetSeenSnapshot 初始化基线防误报）
+    if (nowMs >= ui.justUnlockedUntil) ui.justUnlockedAchievements.clear()
+    const currentAchIds = new Set(Object.keys(state.achievements))
+    const newAchIds = [...currentAchIds].filter((id) => !ui.lastRenderedAchievementIds.has(id))
+    // 合并而非覆盖：1.2s 窗口内跨 tick 先后解锁多个成就时全部保留（同批次同窗口统一过期，Q14）
+    for (const id of newAchIds) ui.justUnlockedAchievements.add(id)
+    if (newAchIds.length > 0) ui.justUnlockedUntil = nowMs + 1200
+    ui.lastRenderedAchievementIds = currentAchIds
+    const justUnlocked = nowMs < ui.justUnlockedUntil ? new Set(ui.justUnlockedAchievements) : new Set<string>()
     // settings 页派生状态文本
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
     const prodText = Object.entries(getNetProduction())
@@ -146,6 +174,8 @@ export function createSession(args: CreateSessionArgs): Session {
       netProduction: getNetProduction,
       settingsStatusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
       flashId,
+      justUnlocked,
+      seenAchievementMaxAt: ui.seenAchievementMaxAt,
       sound,
       version: APP_VERSION,
     }
@@ -153,6 +183,11 @@ export function createSession(args: CreateSessionArgs): Session {
     // 日志页头部排序按钮文案随方向同步（.log-head 静态构建，不随 250ms 重建 → 每次 render 对齐）
     const logdirBtn = els.panel.querySelector<HTMLElement>('[data-tool="logdir"]')
     if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
+    // 日志筛选：chip 组重建（250ms 全量重建，委托监听稳定）+ 容器 data-log-filter 属性同步
+    // （CSS 属性选择器 [data-log-filter=...] [data-log-line]:not(...) 隐藏不匹配行，零 JS 遍历）
+    const filterBar = els.panel.querySelector<HTMLElement>('[data-log-filter-bar]')
+    if (filterBar) renderLogFilter(filterBar, ui.logFilter)
+    els.logEl.setAttribute('data-log-filter', ui.logFilter)
     // 增量渲染新增日志，并按方向自动滚动（游标 + 滚动副作用内聚，不进注册表）
     const beforeId = ui.lastLogId
     ui.lastLogId = renderLogInto(els.logEl, state, ui.lastLogId, ui.logDirection)
@@ -186,7 +221,11 @@ export function createSession(args: CreateSessionArgs): Session {
     }
     // 读即已读：进入星域/档案页时清零对应角标
     if (id === 'sector') ui.seenEventCount = state.pendingEvents.length
-    if (id === 'archive') ui.seenAchievementCount = unlockedAchievementsThisRound(state)
+    if (id === 'archive') {
+      ui.seenAchievementCount = unlockedAchievementsThisRound(state)
+      // 高亮 seen 快照：进入档案页即清除（unlockedAt > 阈值 → NEW 角标消失，与 seenAchievementCount 快照同构）
+      ui.seenAchievementMaxAt = maxAchievementUnlockedAt(state)
+    }
   }
 
   // 星域页二级 tab：默认日志 + 持久化记忆（切走再切回记住上次 tab；刷新恢复上次选择）
@@ -235,6 +274,10 @@ export function createSession(args: CreateSessionArgs): Session {
     ui.seenEventCount = state.pendingEvents.length
     ui.seenAchievementCount = unlockedAchievementsThisRound(state)
     ui.seenLogCount = state.log.length
+    // 成就 flash 基线：存量已解锁 id 集合（挂机刷新不误判为新解锁）
+    ui.lastRenderedAchievementIds = new Set(Object.keys(state.achievements))
+    // 高亮 seen 基线：进入档案页前存量成就不显示 NEW 角标（无成就则 0）
+    ui.seenAchievementMaxAt = maxAchievementUnlockedAt(state)
   }
 
   // ---- 启动副作用：seen 基线 = 当前存量（挂机刷新是常态，存量重报是噪音；仅新触发报角标）----

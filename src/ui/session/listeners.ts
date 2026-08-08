@@ -8,7 +8,7 @@ import { dispatch } from '../actions'
 import type { ActionDeps, ActionId, ActionPayloads, DiplomacyAction } from '../actions'
 import { buildCardAction } from '../render/shared'
 import { unlockRequirementText } from '../bars'
-import type { LogDirection } from '../log'
+import { LOG_FILTER_KEY, type LogDirection, type LogFilter } from '../log'
 import type { BulkKind } from '../../engine/bulk'
 import { exportSave, importSaveFile, resetGame, startNewGamePlusSequence, toggleHiddenBuilding, toggleLogDirection, togglePlanetVisibility } from './actions-heavy'
 
@@ -38,6 +38,16 @@ export interface SessionUiState {
   exploreEscortChecked: Set<number>
   /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回默认收起） */
   hiddenBuildingsOpen: boolean
+  /** 日志筛选类别（log-filter：单选互斥，'all' = 全部可见；localStorage 持久化） */
+  logFilter: LogFilter
+  /** 上次渲染时的已解锁成就 id 集合（UI 层 diff 检测新解锁，与引擎 checkAchievements 返回值无关） */
+  lastRenderedAchievementIds: Set<string>
+  /** 当前 flash 窗口内的成就 id（同批次同窗口统一过期） */
+  justUnlockedAchievements: Set<string>
+  /** flash 过期时间戳（nowMs 达到后清空 justUnlockedAchievements） */
+  justUnlockedUntil: number
+  /** 进入档案页时的最大 unlockedAt（持续高亮判定阈值：unlockedAt > 该值 → NEW 角标） */
+  seenAchievementMaxAt: number
 }
 
 export interface SessionCtx {
@@ -143,6 +153,17 @@ export function bindListeners(ctx: SessionCtx): void {
     const logdirBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool="logdir"]')
     if (!logdirBtn) return
     toggleLogDirection(ctx)
+  })
+
+  // 日志筛选 chip（log-filter：单选互斥，data-log-filter-chip 值 = LogType | 'all'；
+  // 更新会话态 + 写 localStorage，render() 重建 chip 组并同步容器 data-log-filter 属性）
+  els.panel.addEventListener('click', (e) => {
+    const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-log-filter-chip]')
+    if (!chip) return
+    const id = chip.dataset.logFilterChip as LogFilter
+    ui.logFilter = id
+    localStorage.setItem(LOG_FILTER_KEY, id)
+    render()
   })
 
   // 自动攻占开关（ADR-0033：军事页 data-conquest-auto；勾选 = enabled 存档）

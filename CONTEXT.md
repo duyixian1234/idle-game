@@ -118,3 +118,11 @@ _Avoid_: 快照测试（黄金序是「保序可回归资产」的语义，不�
 **渲染阶段（Render Phase）**:
 render 注册表节点的阶段分类（`content` / `overlay` / `badge`）——overlay 强制末位表达 z-order 唯一真约束，其余阶段内顺序无关（ADR-0035）。状态副作用（logdir 按钮/tab disabled/滚动）不节点化，留 render() 主函数。
 _Avoid_: 渲染优先级（渲染阶段是「z-order 结构约束」，不是性能优先级）
+
+**成就刷新强调（Achievement Flash Emphasis）**:
+新解锁成就的双轨视觉反馈——flash 动画（`ach-unlock-flash`，1.1s 琥珀色边框发光，一次性播放，1.2s 窗口过期不重放）+ 持续高亮（`NEW` 角标 + 边框发光，直到用户进入档案页查看后清除）。flash 由 UI 层 diff（`lastRenderedAchievementIds` 集合差集）驱动，持续高亮由 `seenAchievementMaxAt` 阈值判定（`unlockedAt > seenAchievementMaxAt`）。双轨原因：挂机场景下用户可能未注视屏幕，flash 即时反馈不够，持续高亮保证回来后仍可见。
+_Avoid_: 成就通知（刷新强调是「渲染态反馈」，不是弹窗/toast 通知系统）
+
+**日志筛选（Log Filter）**:
+日志区按 `LogType`（system/story/event/reward/warning）单选筛选，DOM 层 CSS 属性选择器过滤（容器 `data-log-filter` 属性 + 行 `data-log-type` 属性，零 JS 遍历），筛选状态持久化到 `localStorage`。事件卡片（`.event-stack`）不受筛选影响（待办交互元素始终可见）。
+_Avoid_: 日志搜索（筛选是「类别单选过滤」，不是全文搜索/时间范围查询）

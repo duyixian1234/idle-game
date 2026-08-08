@@ -697,6 +697,53 @@
   justify-content: space-between;
 }
 
+/* 日志筛选行（log-filter Q15：第二行位于 .log-head 之下；panel-body 纵向 flex，不参与滚动） */
+.log-filter-row {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.log-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 筛选 chip（Q2：单选互斥，视觉与 .option-pill 一致；选中态磷光绿高亮） */
+.filter-chip {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  transition: none;
+}
+
+.filter-chip:hover,
+.filter-chip.selected {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  background: rgba(51, 255, 0, 0.1);
+}
+
+/* 日志筛选过滤（Q9/Q16：容器 data-log-filter 属性驱动，CSS 属性选择器隐藏不匹配行，零 JS 遍历；
+   事件卡片 .event-stack 无 data-log-line，天然不受筛选影响；data-log-filter="all" 不加规则 → 全部可见） */
+[data-log-filter="system"] [data-log-line]:not([data-log-type="system"]) { display: none; }
+[data-log-filter="story"] [data-log-line]:not([data-log-type="story"]) { display: none; }
+[data-log-filter="event"] [data-log-line]:not([data-log-type="event"]) { display: none; }
+[data-log-filter="reward"] [data-log-line]:not([data-log-type="reward"]) { display: none; }
+[data-log-filter="warning"] [data-log-line]:not([data-log-type="warning"]) { display: none; }
+
 .log-head-actions {
   display: flex;
   align-items: center;

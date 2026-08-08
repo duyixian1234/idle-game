@@ -5,6 +5,7 @@ import { buildLayout } from './layout'
 import { renderSettingsPage } from './render/settings'
 import { renderExplorePage } from './explore-page'
 import { renderPlanetBar, renderPlanetMechanic } from './bars'
+import { appendLog } from './log'
 import { createSession } from './session'
 import type { SoundManager } from '../audio'
 
@@ -371,5 +372,63 @@ describe('ui: 日志页头部控件', () => {
     btn.click()
     expect(btn.textContent).toContain('最新在底')
     expect(localStorage.getItem('idle-game-log-direction')).toBe('newest-bottom')
+  })
+})
+
+describe('ui: 日志筛选（log-filter）', () => {
+  function makeSession() {
+    const container = document.createElement('div')
+    const els = buildLayout(container)
+    const state = createInitialState(Date.now())
+    const session = createSession({ els, sound: { isMuted: () => false, setMuted: () => {}, play: () => {} } as unknown as SoundManager, state, onSave: async () => {} })
+    session.render()
+    return { container, els, state, session }
+  }
+
+  it('筛选 chip 组渲染于 .log-head 下方第二行（.log-filter-row + 6 个 chip，默认选中「全部」）', () => {
+    const { container, els } = makeSession()
+    const logBody = container.querySelector('[data-panel="log"]') as HTMLElement
+    const head = logBody.querySelector('.log-head') as HTMLElement
+    const filterRow = logBody.querySelector('[data-log-filter-bar]') as HTMLElement
+    expect(filterRow).toBeTruthy()
+    // Q15 布局：第一行现有头部，第二行筛选 chip 组
+    expect(head.nextElementSibling).toBe(filterRow)
+    const chips = filterRow.querySelectorAll<HTMLButtonElement>('[data-log-filter-chip]')
+    expect(chips.length).toBe(6)
+    expect(chips[0]!.textContent).toContain('全部')
+    expect(filterRow.querySelector('[data-log-filter-chip="all"]')?.classList.contains('selected')).toBe(true)
+    // 默认全部：容器 data-log-filter="all"（不加过滤规则 → 全部可见）
+    expect(els.logEl.getAttribute('data-log-filter')).toBe('all')
+  })
+
+  it('appendLog 生成的日志行带 data-log-type 属性（CSS 属性选择器过滤契约）', () => {
+    const el = document.createElement('div')
+    appendLog(el, { id: 1, type: 'reward', text: '测试奖励', time: Date.now() }, 'newest-bottom')
+    appendLog(el, { id: 2, type: 'warning', text: '测试警告', time: Date.now() }, 'newest-bottom')
+    const lines = el.querySelectorAll('[data-log-line]')
+    expect(lines.length).toBe(2)
+    expect(lines[0]!.getAttribute('data-log-type')).toBe('reward')
+    expect(lines[1]!.getAttribute('data-log-type')).toBe('warning')
+  })
+
+  it('点击筛选 chip：互斥单选 + 持久化 localStorage + 容器 data-log-filter 同步', () => {
+    localStorage.clear()
+    const { els } = makeSession()
+    const rewardChip = els.panel.querySelector<HTMLButtonElement>('[data-log-filter-chip="reward"]')!
+    rewardChip.click()
+    expect(localStorage.getItem('idle-game-log-filter')).toBe('reward')
+    expect(els.logEl.getAttribute('data-log-filter')).toBe('reward')
+    for (const chip of els.panel.querySelectorAll<HTMLButtonElement>('[data-log-filter-chip]')) {
+      const selected = chip.classList.contains('selected')
+      expect(selected).toBe(chip.dataset.logFilterChip === 'reward')
+    }
+  })
+
+  it('localStorage 脏值（白名单外）回退「全部」', () => {
+    localStorage.clear()
+    localStorage.setItem('idle-game-log-filter', 'hack')
+    const { els } = makeSession()
+    expect(els.logEl.getAttribute('data-log-filter')).toBe('all')
+    expect(els.panel.querySelector('[data-log-filter-chip="all"]')?.classList.contains('selected')).toBe(true)
   })
 })

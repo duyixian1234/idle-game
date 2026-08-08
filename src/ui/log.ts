@@ -1,4 +1,4 @@
-import type { EventFormulaPart, EventTheme, GameState, LogEntry, ResourceKey } from '../engine/types'
+import type { EventFormulaPart, EventTheme, GameState, LogEntry, LogType, ResourceKey } from '../engine/types'
 import { RESOURCE_META } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { typewriter, type TypedEvents } from './typewriter'
@@ -17,11 +17,34 @@ export type LogDirection = 'newest-bottom' | 'newest-top'
 export const LOG_DIR_KEY = 'idle-game-log-direction'
 export const DEFAULT_LOG_DIRECTION: LogDirection = 'newest-bottom'
 
+/** 日志筛选类别：'all' = 全部可见，其余按 LogType 5 种单选互斥（log-filter） */
+export type LogFilter = LogType | 'all'
+export const LOG_FILTER_KEY = 'idle-game-log-filter'
+/** 筛选 chip 组选项（默认「全部」；白名单校验与渲染共用同一真源） */
+export const LOG_FILTER_OPTIONS: ReadonlyArray<{ id: LogFilter; label: string }> = [
+  { id: 'all', label: '全部' },
+  { id: 'system', label: '系统' },
+  { id: 'story', label: '故事' },
+  { id: 'event', label: '事件' },
+  { id: 'reward', label: '奖励' },
+  { id: 'warning', label: '警告' },
+]
+export const LOG_FILTER_VALUES: readonly LogFilter[] = LOG_FILTER_OPTIONS.map((o) => o.id)
+
+/** 渲染日志筛选 chip 组（单选互斥：选中态 selected 类，值 = 选项 id；250ms 全量重建，委托监听稳定） */
+export function renderLogFilter(el: HTMLElement, currentFilter: LogFilter): void {
+  el.innerHTML = `<div class="log-filter">${LOG_FILTER_OPTIONS.map(
+    (o) => `<button type="button" class="filter-chip${currentFilter === o.id ? ' selected' : ''}" data-log-filter-chip="${o.id}">${o.label}</button>`,
+  ).join('')}</div>`
+}
+
 /** 向日志区追加一条消息（方向感知：最新在底则追加，最新在顶则置顶） */
 export function appendLog(el: HTMLElement, entry: LogEntry, dir: LogDirection): void {
   const div = document.createElement('div')
   div.className = `log-line ${LOG_TYPE_CLASS[entry.type]}`
   div.setAttribute('data-log-line', '')
+  // log-filter：行类型属性（CSS 属性选择器过滤，data-log-filter 容器 + data-log-type 行）
+  div.setAttribute('data-log-type', entry.type)
   if (entry.autoHandled) div.setAttribute('data-auto-handled', '')
   div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>${entry.autoHandled ? '<span class="auto-handled-tag">已自动处理</span>' : ''}`
   if (dir === 'newest-bottom') {

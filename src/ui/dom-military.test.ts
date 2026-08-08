@@ -241,3 +241,85 @@ describe('ui: 军事面板', () => {
     expect(el.querySelector('[data-ngplus-cancel]')).toBeTruthy()
   })
 })
+
+describe('ui: 成就增强（ach-flash：排序 + 时间 + flash + 高亮）', () => {
+  /** 同组（story）两个已解锁成就：firstBuild 早（unlockedAt 1000，第 0 周目）/ firstTech 晚（2000，第 1 周目） */
+  function achState() {
+    const s = createInitialState(0)
+    s.achievements.firstBuild = { unlockedAt: 1000, unlockedInRound: 0 }
+    s.achievements.firstTech = { unlockedAt: 2000, unlockedInRound: 1 }
+    return s
+  }
+
+  it('组内已解锁按 unlockedAt 降序在前（时间晚的在前），未解锁保持定义序', () => {
+    const s = achState()
+    const el = document.createElement('div')
+    renderArchivePanel(el, s)
+    const grid = el.querySelector('[data-ach-grid="story"]') as HTMLElement
+    const ids = [...grid.querySelectorAll<HTMLElement>('[data-achievement]')].map((c) => c.dataset.achievement)
+    // 已解锁两个排最前，且时间晚的 firstTech 在 firstBuild 之前
+    expect(ids[0]).toBe('firstTech')
+    expect(ids[1]).toBe('firstBuild')
+    // 未解锁保持 ACHIEVEMENTS 定义序（orbitalUnlocked 是 story 组第三个定义）
+    const defOrder = Object.values(ACHIEVEMENTS).filter((d) => d.category === 'story').map((d) => d.id)
+    const remaining = ids.slice(2)
+    expect(remaining).toEqual(defOrder.filter((id) => !s.achievements[id]))
+  })
+
+  it('已解锁卡片显示完成时间（HH:MM · 第N周目），未解锁不显示', () => {
+    const s = achState()
+    const el = document.createElement('div')
+    renderArchivePanel(el, s)
+    const firstTechCard = el.querySelector('[data-achievement="firstTech"]') as HTMLElement
+    const time = firstTechCard.querySelector('.ach-time')
+    expect(time).toBeTruthy()
+    // 时区无关断言：HH:MM 两位数字 + 第1周目（unlockedInRound=1 直接取值）
+    expect(time!.textContent).toMatch(/^\d{2}:\d{2} · 第1周目$/)
+    // 未解锁卡片无时间信息
+    const lockedCard = el.querySelector('[data-achievement="orbitalUnlocked"]') as HTMLElement
+    expect(lockedCard.querySelector('.ach-time')).toBeNull()
+  })
+
+  it('flash 窗口内成就卡片带 just-unlocked 类（集合外不带）', () => {
+    const s = achState()
+    const el = document.createElement('div')
+    renderArchivePanel(el, s, { justUnlocked: new Set(['firstTech']) })
+    expect(el.querySelector('[data-achievement="firstTech"]')?.classList.contains('just-unlocked')).toBe(true)
+    expect(el.querySelector('[data-achievement="firstBuild"]')?.classList.contains('just-unlocked')).toBe(false)
+    // 未解锁（不在 flash 集合）也不带
+    expect(el.querySelector('[data-achievement="orbitalUnlocked"]')?.classList.contains('just-unlocked')).toBe(false)
+  })
+
+  it('并发解锁多个成就全部 flash（Set 容纳多 id）', () => {
+    const s = achState()
+    const el = document.createElement('div')
+    renderArchivePanel(el, s, { justUnlocked: new Set(['firstBuild', 'firstTech']) })
+    expect(el.querySelector('[data-achievement="firstBuild"]')?.classList.contains('just-unlocked')).toBe(true)
+    expect(el.querySelector('[data-achievement="firstTech"]')?.classList.contains('just-unlocked')).toBe(true)
+  })
+
+  it('unlockedAt > seenAchievementMaxAt 的卡片带 ach-new 类 + NEW 角标', () => {
+    const s = achState()
+    const el = document.createElement('div')
+    renderArchivePanel(el, s, { seenAchievementMaxAt: 1500 })
+    const firstTechCard = el.querySelector('[data-achievement="firstTech"]') as HTMLElement
+    expect(firstTechCard.classList.contains('ach-new')).toBe(true)
+    expect(firstTechCard.querySelector('[data-ach-new-badge]')).toBeTruthy()
+    // unlockedAt ≤ 阈值 → 不高亮
+    const firstBuildCard = el.querySelector('[data-achievement="firstBuild"]') as HTMLElement
+    expect(firstBuildCard.classList.contains('ach-new')).toBe(false)
+    expect(firstBuildCard.querySelector('[data-ach-new-badge]')).toBeNull()
+  })
+
+  it('seenAchievementMaxAt 更新后 ach-new 类消失（进入档案页即清除）', () => {
+    const s = achState()
+    const el1 = document.createElement('div')
+    renderArchivePanel(el1, s, { seenAchievementMaxAt: 0 })
+    expect(el1.querySelector('[data-achievement="firstTech"]')?.classList.contains('ach-new')).toBe(true)
+    // 快照推进到当前最大 unlockedAt → 角标清除
+    const el2 = document.createElement('div')
+    renderArchivePanel(el2, s, { seenAchievementMaxAt: 2000 })
+    expect(el2.querySelector('[data-achievement="firstTech"]')?.classList.contains('ach-new')).toBe(false)
+    expect(el2.querySelector('[data-ach-new-badge]')).toBeNull()
+  })
+})

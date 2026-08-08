@@ -2,12 +2,12 @@ import type { MechanicId, ResourceKey } from './types'
 import { JUMPGATE_SLOT_BONUS } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 
-/** 资源显示元信息 */
-export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string }> = {
-  mineral: { name: '矿物', symbol: '◆' },
-  energy: { name: '能源', symbol: '⚡' },
-  tech: { name: '科技点', symbol: '◎' },
-  military: { name: '军力', symbol: '⚔' },
+/** 资源显示元信息（icon = icons.ts 资源 symbol id，资源条用；symbol 文字符号保留给内联文本场景） */
+export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string; icon: string }> = {
+  mineral: { name: '矿物', symbol: '◆', icon: 'res-mineral' },
+  energy: { name: '能源', symbol: '⚡', icon: 'res-energy' },
+  tech: { name: '科技点', symbol: '◎', icon: 'res-tech' },
+  military: { name: '军力', symbol: '⚔', icon: 'res-military' },
 }
 
 export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech', 'military']
