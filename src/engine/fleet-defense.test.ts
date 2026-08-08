@@ -16,7 +16,7 @@ function fleetRaiderState(): GameState {
   const s = createInitialState(0, 42)
   s.planets.orbital = { unlocked: true }
   s.planets.dawn = { unlocked: true }
-  s.upgrades.deepDrill = 10
+  s.buildings.deepDrill = 6
   s.buildings.starportMine = 1
   s.buildings.dock = 1
   s.upgrades.dock = 1

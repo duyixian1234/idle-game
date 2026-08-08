@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
-import { TECH_MAX_LEVEL } from '../engine/balance'
 import { buildLayout } from './layout'
 import { buildCardAction } from './render/shared'
 import { renderInterstellarPanel } from './render/interstellar'
 import { renderMegastructureModal } from './overlays'
 
 describe('ui: 星系间工程分组与终局工程（interstellar-buildings）', () => {
-  /** 通关后 + 第 5 星球 + 深钻满级：全部星际工程解锁前置满足 */
+  /** 通关后 + 第 5 星球 + 深钻 ×6：全部星际工程解锁前置满足 */
   function endedState(): ReturnType<typeof createInitialState> {
     const s = createInitialState(0, 42)
     s.phase = 'ended'
     s.endingTriggered = true
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     s.resources.mineral = 50_000_000_000
     s.resources.tech = 5_000_000_000
     return s
@@ -24,7 +23,7 @@ describe('ui: 星系间工程分组与终局工程（interstellar-buildings）',
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     const panel = container.querySelector('[data-panel="build"]') as HTMLElement
     renderInterstellarPanel(panel, s)
     expect(panel.querySelector('[data-interstellar]')).toBeTruthy()

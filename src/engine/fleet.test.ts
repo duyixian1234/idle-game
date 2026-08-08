@@ -14,7 +14,7 @@ import { FLEET_POWER_TECH_PER_LEVEL, SHIP_BUY_COST_BASE, SHIP_BUY_ENERGY, SHIP_G
 function fleetState(): GameState {
   const s = createInitialState(0, 42)
   s.planets.dawn = { unlocked: true }
-  s.upgrades.deepDrill = 10
+  s.buildings.deepDrill = 6
   s.buildings.starportMine = 1
   s.buildings.dock = 1
   s.resources.mineral = 500_000_000

@@ -1,6 +1,6 @@
 # Architecture Decision Records — idle-game
 
-37 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
+38 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
 
 ## 架构
 
@@ -63,6 +63,7 @@
 | [0033](./0033-auto-conquest-military-cost.md) | 自动攻占 + 守卫挂钩军力容量：投满必成/军力保底 20%/挂机同步，后期军力成本成真实门槛 |
 | [0034](./0034-tick-registry.md) | tick 注册表：结算阶段组 DAG + 组内序列 + 拓扑排序 fail-fast + Golden Order 保序 |
 | [0035](./0035-render-registry.md) | render 注册表：RenderNode 阶段保序（content/overlay/badge）+ 宽 ctx + 状态副作用留主函数 |
+| [0039](./0039-building-count-requirement.md) | 星港矿场解锁改「深层钻机数量 ≥6」：ADR-0036 普通升级取消后的死锁修复（requiresCount） |
 
 ## 关联关系
 

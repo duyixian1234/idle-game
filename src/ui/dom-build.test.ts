@@ -4,7 +4,6 @@ import { pushLog } from '../engine/core'
 import { netProduction } from '../engine/production'
 import { createEventInstance } from '../engine/events'
 import { BUILDINGS, CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MILITARY_BUILDINGS, PLANETS } from '../engine/data'
-import { TECH_MAX_LEVEL } from '../engine/balance'
 import { formatNumber } from '../engine/format'
 import { ICONS } from './icons'
 import { appendLog, renderAutoConfigPanel, renderLogInto, renderPendingEvents } from './log'
@@ -274,7 +273,7 @@ describe('ui: 布局与冒烟', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL // 星港解锁前置
+    s.buildings.deepDrill = 6 // 星港解锁前置
     s.buildings.starportMine = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
     const starport = container.querySelector<HTMLElement>('[data-building="starportMine"] .build-upgrade-preview')
@@ -292,7 +291,7 @@ describe('ui: 布局与冒烟', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     s.buildings.starportMine = 1
     s.upgrades.starportMine = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
@@ -305,7 +304,7 @@ describe('ui: 布局与冒烟', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     s.buildings.starportMine = 1
     s.techLevels.planetDrill = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
@@ -440,9 +439,9 @@ describe('ui: 建造卡片（building-cards）', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = 10
+    s.buildings.deepDrill = 6
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: {} })
-    // 星际工程：星港已解锁（母星 + 深钻满级）→ 其余 5 个锁定 → 折叠行 + 前 3 张
+    // 星际工程：星港已解锁（母星 + 深钻 ×6）→ 其余 5 个锁定 → 折叠行 + 前 3 张
     const collapse = container.querySelector<HTMLElement>('[data-locked-collapse]')
     expect(collapse).toBeTruthy()
     expect(collapse!.textContent).toContain('还有 2 项未解锁')
@@ -539,7 +538,7 @@ describe('ui: 建造卡片（building-cards）', () => {
     // unique 已拥有且升得起 → upgrade
     s.phase = 'ended'
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = 10
+    s.buildings.deepDrill = 6
     s.buildings.starportMine = 1
     s.resources.mineral = 10 ** 12
     s.resources.tech = 10 ** 9

@@ -45,8 +45,11 @@ export interface BuildingDef {
   requiresEnded?: boolean
   /** 解锁前置科技（需满级，如深层钻探 Lv10） */
   requiresMaxTech?: string[]
-  /** 解锁前置建筑升级满级（如深层钻机建筑 Lv10 = 产出天花板；区别于 requires 的 ≥1 台语义） */
+  /** 解锁前置建筑升级满级（⚠️ ADR-0036 普通建筑升级取消后已无使用者，保留字段防历史类型破坏；新门槛请用 requiresCount） */
   requiresMaxLevel?: string[]
+  /** 解锁前置建筑数量门槛（如星港矿场需深层钻机 ≥6 台——ADR-0036 后 deepDrill 只有数量维度，
+   * 6 台 = 48/s 等效原 Lv10 产出天花板；区别于 requires 的 ≥1 台语义） */
+  requiresCount?: Record<string, number>
 }
 
 /** 每级建筑升级的产出加成（+50%/级）——数值策略见 balance.ts LEVEL_PRODUCTION_BONUS */
@@ -129,7 +132,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     costExponent: 2,
     produces: { mineral: 500 },
     requiresPlanet: ['dawn'],
-    requiresMaxLevel: ['deepDrill'],
+    requiresCount: { deepDrill: 6 },
   },
   stellarArray: {
     id: 'stellarArray',

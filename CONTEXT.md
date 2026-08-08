@@ -64,7 +64,7 @@ _Avoid_: 随机任务、无尽内容（生成目标是「一次性奖励铁律�
 _Avoid_: 性价比（ROI≡P 曾是恒等式，普通升级取消后该恒等式失效）
 
 **机制二分（Two-Track Mechanism）**:
-所有建造/增益机制明确二分——可多次购买建筑（miner/solar/lab/refinery/deepDrill/barracks/militaryPort）只走「数量维度」（产出=单台固定×count，无升级）；unique 大件与科技只走「等级维度」（×2/级或×1.7^level，count 恒 1 或不含 count）。消除"数量×等级"耦合（原普通建筑升级成本 ×count 双重放大）导致的强制策略序（ADR-0036）。
+所有建造/增益机制明确二分——可多次购买建筑（miner/solar/lab/refinery/deepDrill/barracks/militaryPort）只走「数量维度」（产出=单台固定×count，无升级）；unique 大件与科技只走「等级维度」（×2/级或×1.7^level，count 恒 1 或不含 count）。消除"数量×等级"耦合（原普通建筑升级成本 ×count 双重放大）导致的强制策略序（ADR-0036）。**2026-08-08 修订（ADR-0039）**：解锁侧同理——星际建筑的前置门槛须落在数量维度（`requiresCount`，如星港矿场需深层钻机 ≥6 台 = 原 Lv10 产出天花板 48/s 的等效数量），不得引用已废除的普通建筑升级满级（`requiresMaxLevel` 废弃）。
 _Avoid_: 双轨（终局工程已用「双轨」指两座皆可建，此处二分指机制形态分类）
 
 **动态下限（Dynamic Floor）**:

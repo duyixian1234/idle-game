@@ -81,7 +81,8 @@ export function upgradeCost(state: GameState, id: string): Record<ResourceKey, n
 }
 
 /** 前置建筑/科技/星球是否已满足（建筑拥有 ≥1 台，科技已研发，星球已解锁）；
- * 星系间工程额外解锁链：通关后（requiresEnded）/ 建筑升级满级（requiresMaxLevel） */
+ * 星系间工程额外解锁链：通关后（requiresEnded）/ 建筑升级满级（requiresMaxLevel，ADR-0036 后废弃）/
+ * 建筑数量门槛（requiresCount，如星港矿场需深层钻机 ×6） */
 export function isBuildingUnlocked(state: GameState, id: string): boolean {
   const def = BUILDINGS[id]
   if (!def) return false
@@ -90,6 +91,7 @@ export function isBuildingUnlocked(state: GameState, id: string): boolean {
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) return false
   if (def.requiresEnded && !isEnded(state)) return false
   if (def.requiresMaxLevel && !def.requiresMaxLevel.every((t) => (state.upgrades[t] ?? 0) >= TECH_MAX_LEVEL)) return false
+  if (def.requiresCount && !Object.entries(def.requiresCount).every(([id, need]) => (state.buildings[id] ?? 0) >= need)) return false
   return true
 }
 
@@ -106,6 +108,11 @@ export function buildingLockReason(state: GameState, id: string): string | null 
   }
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) {
     return `需先建造：${def.requires.map((r) => BUILDINGS[r]?.name ?? r).join('、')}`
+  }
+  if (def.requiresCount && !Object.entries(def.requiresCount).every(([id, need]) => (state.buildings[id] ?? 0) >= need)) {
+    return `需拥有：${Object.entries(def.requiresCount)
+      .map(([id, need]) => `${BUILDINGS[id]?.name ?? id} ×${formatNumber(need)}`)
+      .join('、')}`
   }
   if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) {
     return `需先研发：${def.requiresTech.map((t) => TECHS[t]?.name ?? t).join('、')}`

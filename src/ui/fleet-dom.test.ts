@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { fleetMaintenance, fleetPower } from '../engine/fleet'
 import { formatNumber } from '../engine/format'
-import { TECH_MAX_LEVEL } from '../engine/balance'
 import { buildLayout } from './layout'
 import { renderMilitaryPanel } from './render/military'
 import { renderInterstellarPanel } from './render/interstellar'
@@ -12,7 +11,7 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
   function fleetReadyState() {
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     s.buildings.starportMine = 1
     s.buildings.dock = 1
     s.upgrades.dock = 1
@@ -26,7 +25,7 @@ describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
     buildLayout(container)
     const s = createInitialState(0)
     s.planets.dawn = { unlocked: true }
-    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.deepDrill = 6
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
     renderMilitaryPanel(panel, s)
     expect(panel.querySelector('[data-fleet]')).toBeTruthy()
