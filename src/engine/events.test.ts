@@ -21,7 +21,13 @@ import {
   tradeEventTerms,
   triggerRandomEvent,
 } from './events'
-import { MEAN_EVENT_GAP_SECONDS } from './balance'
+import {
+  BUG_ESCALATION_CAP,
+  BUG_STRENGTH_BASE,
+  MEAN_EVENT_GAP_SECONDS,
+  TRADE_GAIN_STOCK_PCT,
+  TRADE_COST_STOCK_PCT,
+} from './balance'
 import { EVENT_CONTRACT_VERSION, EVENT_DEFS } from './events-data'
 
 /** 固定 rng 序列 */
@@ -179,6 +185,30 @@ describe('engine: 贸易商事件', () => {
     const outcome = applyEvent(s, inst, 'refuse')
     expect(outcome.changed).toBe(false)
     expect(s.resources).toEqual(before)
+  })
+
+  it('存量复合：累计资源驱动存量项，低速下收益不随进程贬值', () => {
+    const withStock = createInitialState(0)
+    withStock.stats.totalMineralEarned = 1e9
+    withStock.stats.totalTechEarned = 1e9
+    withStock.buildings.lab = 3_000 // 科技 1500/s，使 gain softCap 放开至 5.4e6
+    const w = tradeEventTerms(withStock)
+    const withoutStock = createInitialState(0)
+    const o = tradeEventTerms(withoutStock)
+    expect(w.cost).toBeGreaterThan(o.cost)
+    expect(w.gain).toBeGreaterThan(o.gain)
+    // 存量项系数精确校验：cost/gain 由累计资源 × 系数主导（softCap 已放开）
+    expect(w.cost).toBeGreaterThanOrEqual(500 * ((1e9 * TRADE_COST_STOCK_PCT) / 500))
+    expect(w.gain).toBeGreaterThanOrEqual(50 * ((1e9 * TRADE_GAIN_STOCK_PCT) / 50))
+  })
+
+  it('softCap 锚定产出速率：高速率下不再被绝对 1e6 冻结', () => {
+    const s = createInitialState(0)
+    s.buildings.deepDrill = 1_000_000 // 矿物速率 8e6/s
+    const t = tradeEventTerms(s)
+    // 旧 softCap=1e6 会冻结；新 softCap = max(1e6, 8e6×3600) 不截断 → cost 反映速率
+    expect(t.cost).toBeGreaterThan(1_000_000)
+    expect(t.cost).toBeCloseTo(500 * ((8e6 * 120) / 500), -4)
   })
 })
 
@@ -346,6 +376,41 @@ describe('engine: 虫族警报事件', () => {
     const out = applyEvent(s, inst, 'dispatch')
     expect(out.settlement?.deltas).toEqual({ mineral: -cost })
   })
+
+  it('无尽深层曲线放大不突破封顶强度（factor>1 时仍 88000）', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    advanceEndlessLayer(s) // layer 1
+    s.endless.stage = 10 // factor = 1.12 × 1.08^10 ≈ 2.42
+    s.bugEscalation = BUG_ESCALATION_CAP
+    const def = EVENT_DEFS.find((candidate) => candidate.id === 'bug')!
+    // 基线项 = 2200 × min(40 × 2.42, 40) = 88000,不被 curveFactor 顶破
+    expect(bugTerms(s, def).strength).toBe(BUG_STRENGTH_BASE * BUG_ESCALATION_CAP)
+  })
+
+  it('虫群强度封顶：超过 BUG_ESCALATION_CAP 后不再增长，ignore 升级也封顶', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.bugEscalation = 10_000 // 远超封顶
+    const def = EVENT_DEFS.find((candidate) => candidate.id === 'bug')!
+    expect(bugTerms(s, def).strength).toBe(BUG_STRENGTH_BASE * BUG_ESCALATION_CAP)
+    const inst = createEventInstance(s, 'bug')
+    applyEvent(s, inst, 'ignore')
+    expect(s.bugEscalation).toBe(BUG_ESCALATION_CAP)
+    // 自动迎击在封顶后重新可达：满配舰队战力 > 封顶强度
+    const strong = createInitialState(0)
+    for (const faction of Object.values(strong.factions)) faction.threat = 0
+    strong.buildings.dock = 1
+    strong.upgrades.dock = 10 // 船坞 Lv10 → 24 艘
+    strong.fleet.count = 24
+    strong.techLevels.militaryTech = 5
+    strong.techLevels.warpDrive = 20
+    strong.resources.energy = 1e9
+    strong.bugEscalation = BUG_ESCALATION_CAP
+    const outcome = triggerRandomEvent(strong, () => 0.9)
+    expect(outcome?.changed).toBe(true)
+    expect(strong.pendingEvents).toHaveLength(0)
+  })
 })
 
 describe('engine: 事件优先级与处理模式', () => {
@@ -396,6 +461,32 @@ describe('engine: 事件优先级与处理模式', () => {
       expect(results[0].status).toBe('resolved')
       expect(s.pendingEvents).toHaveLength(0)
       expect(s.automationHistory[0]).toMatchObject({ status: 'resolved', optionId: 'ignore' })
+    })
+
+    it('security 降级链：军力充足时自动选 repel 而非默认 ignore', () => {
+      const s = createInitialState(0)
+      s.fleet.count = 2 // fleetPower 2400 ≥ bug 强度 2200 → repel 成本 50
+      s.resources.energy = 10_000
+      s.resources.military = 100_000
+      s.automationPolicies.security = { enabled: true, rules: [] }
+      const inst = createEventInstance(s, 'bug')
+      s.pendingEvents.push(inst)
+      autoResolvePendingEvents(s)
+      expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'repel', status: 'resolved' })
+      expect(s.resources.military).toBeLessThan(100_000)
+      expect(s.bugEscalation).toBe(1)
+    })
+
+    it('security 降级链：军力不足、矿物充足时自动选 dispatch 清剿', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 100_000 // fleet 0、military 0 → repel 不可用，dispatch 可负担
+      s.automationPolicies.security = { enabled: true, rules: [] }
+      const inst = createEventInstance(s, 'bug')
+      s.pendingEvents.push(inst)
+      autoResolvePendingEvents(s)
+      expect(s.automationHistory.at(-1)).toMatchObject({ optionId: 'dispatch', status: 'resolved' })
+      expect(s.resources.mineral).toBeLessThan(100_000)
+      expect(s.bugEscalation).toBe(1)
     })
 
     it('低风险无规则时使用安全 fallback，高风险 fallback 缺失仍暂停', () => {

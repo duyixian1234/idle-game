@@ -58,7 +58,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     autoExplore: { enabled: false, escort: false },
     autoConquest: { enabled: false },
     bugEscalation: 1,
-    stats: { totalMineralEarned: 0, explorations: 0 },
+    stats: { totalMineralEarned: 0, totalTechEarned: 0, explorations: 0 },
     achievements: {},
     seed,
     rngCounters: {},
@@ -114,6 +114,10 @@ function resourcesTick(state: GameState, nowMs: number): void {
   // 累计采集矿物统计
   if (report.nominal.mineral > 0) {
     state.stats.totalMineralEarned += report.nominal.mineral * dt
+  }
+  // 累计产出科技统计（贸易存量修正的存量基准）
+  if (report.nominal.tech > 0) {
+    state.stats.totalTechEarned = (state.stats.totalTechEarned ?? 0) + report.nominal.tech * dt
   }
   // 星系间建筑维护费：硬扣对应资源（独立结算、不参与能源打折；与 consumes 语义隔离）
   applyMaintenance(state, dt)
@@ -302,7 +306,7 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
 
   // 周目内统计重置（成就条件全部周目内口径：二周目重新积累声望）；
   // achievements 图鉴保留（跨周目永久记录），unlockedInRound 不匹配 → 声望自动归零
-  state.stats = { totalMineralEarned: 0, explorations: 0 }
+  state.stats = { totalMineralEarned: 0, totalTechEarned: 0, explorations: 0 }
   state.playSeconds = 0
   // 舰队重置：护卫舰随星际工程一并归零（新周目从零规划，遗产体系不膨胀）
   state.fleet = { count: 0 }

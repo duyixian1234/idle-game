@@ -150,8 +150,27 @@ export const RAID_EVENT_WEIGHT = 2
 export const BUG_STRENGTH_BASE = 2_200
 /** 放任一次后虫群强度倍率；两次放任即 ×1.69，超过 Lv1 满编舰队战力。 */
 export const BUG_ESCALATION_STEP = 1.3
+/** 虫群强度封顶（相对基线的倍数）：放任约 13 次后封顶，防止强度指数膨胀
+ * 超过舰队战力天花板导致自动迎击永久失效（2026-08-09 实测：×2049.6 失控）。
+ * 取值依据：满配舰队战力 = 24 艘 × 1200 × (1+0.1×5)×(1+0.1×20) ≈ 129,600；
+ * 封顶强度 = 2200 × 40 = 88,000，配「×0.8 舰队下限锚定」后满配舰队必可自动迎击。 */
+export const BUG_ESCALATION_CAP = 40
+/** 虫群强度下限锚定舰队的比例：玩家舰队战力极大时，强度抬升至该比例，
+ * 保持事件对抗感且 repel 最低成本始终可用（fleetPower ≥ strength 恒成立）。 */
+export const BUG_STRENGTH_FLEET_RATIO = 0.8
 /** 军力击退的最低成本，与 raid 的残余强度口径一致。 */
 export const BUG_REPEL_MIN = 50
+
+// ---- 事件曲线：存量复合修正（spec 扩展命名输入，2026-08-09） ----
+// 校准（balance-sim）：daily/20260809-idle-event-curves/scripts/simulate_curves.py
+// 速率扫描 2e1~2e8/s 验证——原 softCap 1e6 在科技速率 >33k/s 后 gain 冻结，
+// 相对存量衰减 6000 倍；存量复合后相对存量恒定 0.4%。
+/** 贸易 gain 的存量项系数：单次 gain ≥ 累计科技的 0.4%（解决后期相对存量微不足道）。 */
+export const TRADE_GAIN_STOCK_PCT = 0.004
+/** 贸易 cost 的存量项系数：单次 cost ≥ 累计矿物的 0.05%。 */
+export const TRADE_COST_STOCK_PCT = 0.0005
+/** softCap 锚定的产出秒数：软上限 = max(1e6, 速率×该秒数, 存量项等效值)，防后期绝对数冻结。 */
+export const TRADE_SOFT_CAP_RATE_SECONDS = 3600
 
 /** 随机事件均值间隔（秒） */
 export const MEAN_EVENT_GAP_SECONDS = 90

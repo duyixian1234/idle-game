@@ -204,6 +204,9 @@ export type GamePhase = 'playing' | 'ended' | 'infinite'
 export interface GameStats {
   /** 累计采集矿物（周目内口径，NG+ 重置） */
   totalMineralEarned: number
+  /** 累计产出科技（周目内口径，NG+ 重置；事件贸易存量修正的存量基准；
+   * 新增可选字段，`?? 0` 容错，无需版本迁移） */
+  totalTechEarned?: number
   /** 累计完成探索派遣次数（周目内口径，NG+ 重置；探索成就用） */
   explorations: number
   /** 累计完成护航远征次数（周目内口径，NG+ 重置；「编队护航」成就谓词同源；v11 可选字段，`?? 0` 容错） */

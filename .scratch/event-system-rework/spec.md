@@ -104,3 +104,32 @@
 - The design assumes the current `phase: 'infinite'` mode and existing NG+ semantics remain the domain vocabulary for endless play.
 - The implementation must preserve current event behavior until the new category contracts and migrations are active; changes to balance are intentional and must be versioned.
 - The accepted testing seam is engine-first with UI verification at the semantic event-card/log boundary and migration verification at the save boundary.
+
+## Revision Log
+
+### 2026-08-09 — 存量复合缩放、softCap 锚定、虫群强度封顶、自动兜底降级链
+
+**背景**：贸易事件等一次性"N 秒产出"奖励相对后期累计资源（玩家反馈「后期主要由探索天体驱动增长」）微不足道；虫群强度随 ignore 指数膨胀（实测 ×2049.6）超过舰队战力天花板导致自动迎击永久失效、自动处理默认 `ignore` 白损矿物。
+
+**改动**（`events.ts` / `balance.ts` / `types.ts` / `engine.ts` / `offline.ts`）：
+
+1. **存量复合缩放（扩展命名输入）**：贸易 `cost`/`gain` 的能力修正改为 `max(速率项, 存量项)`。存量项 = 累计资源 × 固定比例，作为显式命名输入加入曲线骨架（不引入隐藏全局乘数）：
+   - `TRADE_GAIN_STOCK_PCT = 0.004`（单次 gain ≥ 累计科技 0.4%）
+   - `TRADE_COST_STOCK_PCT = 0.0005`（单次 cost ≥ 累计矿物 0.05%）
+   - 存量基准新增统计字段 `GameStats.totalTechEarned`（`totalMineralEarned` 已有），在线 tick 与离线结算同步累计，NG+ 重置。
+2. **softCap 锚定产出速率**：`cost/gain` 软上限 = `max(1e6, 对应产出速率 × 3600)`，防后期绝对数冻结（原 1e6 在科技速率 >33k/s 后 gain 不再增长，endless 后期速率 2e8/s 时收益仅为应有值的 1/6000）。
+3. **虫群强度封顶 + 舰队锚定**：
+   - `BUG_ESCALATION_CAP = 40`：ignore 升级不再无上限（1.3^n 封顶），封顶强度 88,000 低于满配舰队战力 129,600（24 艘 × 1200 × 1.5 × 3），自动迎击重新可达。
+   - `strength = max(基线 × 曲线 × min(escalation, CAP), 舰队战力 × 0.8)`：舰队下限锚定使强舰队时 repel 最低成本可用，符合 fleet.ts「舰队成型 = 骚扰自动退场」减压阀哲学。
+4. **自动兜底智能降级链**：`AUTOMATION_FALLBACK_CHAIN` 使 security 类别未显式配置时按 `repel → dispatch → jam → ignore` 取第一个负担得起的选项（军力→矿物→科技→无奈无视），不再默认 `ignore` 白损。显式配置的规则/兜底优先且不受降级影响。
+
+### 2026-08-09(rev 2)— code-review 修复
+
+对 rev 1 的 code-review 发现 4 项缺陷并修复：
+
+1. **UI 主路径降级链失效**：`session/index.ts` `automationPolicyWithDefaults` 在启用 security 时注入默认 `fallbackOptionId='ignore'`，优先于降级链 → 改为 security 启用时不注入默认兜底（其余类别仍注入；显式配置优先），玩家经 UI 启用后降级链生效。
+2. **无尽深层封顶失效**：bug 定义无 softCap，`curveFactor`（marginal × 1.08^stage）在 layer≥1 时放大强度顶破满配舰队战力 → `bugTerms` 基线项改为 `2200 × min(escalation × curveFactor, BUG_ESCALATION_CAP)`，任何层/阶段强度上限恒 88,000。
+3. **存量项被 softCap 截回**：存量主导时 gain 被「3600 秒产出」softCap 截回 → `cost/gain` softCap 计入存量项等效值 `max(1e6, 速率×3600, 累计资源×系数)`。
+4. **冗余链条目**：`AUTOMATION_FALLBACK_CHAIN` 删除 trade/disaster 条目（维持原 `DEFAULT_AUTOMATION_FALLBACK` 兜底 accept/collect），只留 security。
+
+同时修正 `totalTechEarned` 注释（非 v12 迁移）、常量注释补 balance-sim 校准标注。测试 +2（无尽深层封顶、UI security 启用不注入 ignore），全量 894 通过，`tsc --noEmit` 通过。

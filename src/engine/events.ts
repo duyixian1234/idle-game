@@ -24,8 +24,13 @@ import {
   RAID_STRENGTH_MULT,
   RAID_THREAT_LOSS,
   BUG_ESCALATION_STEP,
+  BUG_ESCALATION_CAP,
+  BUG_STRENGTH_FLEET_RATIO,
   BUG_REPEL_MIN,
   BUG_STRENGTH_BASE,
+  TRADE_GAIN_STOCK_PCT,
+  TRADE_COST_STOCK_PCT,
+  TRADE_SOFT_CAP_RATE_SECONDS,
 } from './balance'
 import { netProduction } from './production'
 import { fleetPower } from './fleet'
@@ -68,6 +73,19 @@ export const DEFAULT_AUTOMATION_MAX_RISK: Record<EventTheme, EventRiskLevel | un
   security: 'high',
   exploration: undefined,
   investment: undefined,
+}
+
+/** 类别级自动处理「未显式配置兜底选项」时的智能降级链：
+ * 按序取第一个 fallbackGate 允许的选项（负担得起即用）。
+ * 仅 security 需要：其默认兜底 ignore 会白丢矿物+升级虫群，故改为 repel→dispatch→jam→ignore
+ * 按资源负担能力自动选择（2026-08-09）。其余类别维持 DEFAULT_AUTOMATION_FALLBACK 原兜底
+ * （trade=accept、disaster=collect），不设链。显式配置的规则/兜底仍优先且不受降级。 */
+export const AUTOMATION_FALLBACK_CHAIN: Record<EventTheme, string[]> = {
+  trade: [],
+  disaster: [],
+  security: ['repel', 'dispatch', 'jam', 'ignore'],
+  exploration: [],
+  investment: [],
 }
 
 export function createDefaultAutomationPolicies(): Record<string, EventAutomationPolicy> {
@@ -269,24 +287,38 @@ function eventSettlement(deltas: Record<string, number>, base: number, capabilit
   }
 }
 
-/** 贸易事件数值：花费矿物换取科技点，共享统一曲线。 */
+/** 贸易事件数值：花费矿物换取科技点，共享统一曲线。
+ * 能力修正 = max(速率项, 存量项)（spec 扩展命名输入，2026-08-09）：
+ * - 速率项：N 秒当前产出（原有行为）；
+ * - 存量项：累计资源的固定比例（解决后期「N 秒产出」相对存量微不足道）；
+ * softCap 锚定当前产出速率（≥1e6），避免后期绝对数冻结。 */
 export function tradeEventTerms(state: GameState): { cost: number; gain: number; breakdown: EventFormulaPart[] } {
   const prod = netProduction(state)
   const stage = eventStage(state)
   const layerMultiplier = 1 + state.ngPlusLevel * 0.1
+  const stageMultiplier = 1 + stage * 0.1
+  const costRate = Math.max(1, (prod.mineral * 120) / 500)
+  const costStock = Math.max(1, ((state.stats.totalMineralEarned ?? 0) * TRADE_COST_STOCK_PCT) / 500)
+  const gainRate = Math.max(1, (prod.tech * 30) / 50)
+  const gainStock = Math.max(1, ((state.stats.totalTechEarned ?? 0) * TRADE_GAIN_STOCK_PCT) / 50)
+  // softCap 计入存量项等效值：存量主导时不被「3600 秒产出」基准截回（2026-08-09 code-review 修复）
+  const costStockValue = (state.stats.totalMineralEarned ?? 0) * TRADE_COST_STOCK_PCT
+  const gainStockValue = (state.stats.totalTechEarned ?? 0) * TRADE_GAIN_STOCK_PCT
+  const costSoftCap = Math.max(1_000_000, prod.mineral * TRADE_SOFT_CAP_RATE_SECONDS, costStockValue)
+  const gainSoftCap = Math.max(1_000_000, prod.tech * TRADE_SOFT_CAP_RATE_SECONDS, gainStockValue)
   const costCurve = evaluateEventCurve({
     baseValue: 500,
-    stageMultiplier: 1 + stage * 0.1,
+    stageMultiplier,
     layerMultiplier,
-    capabilityModifier: Math.max(1, (prod.mineral * 120) / 500),
-    softCap: 1_000_000,
+    capabilityModifier: Math.max(costRate, costStock),
+    softCap: costSoftCap,
   }, { stage, layer: state.ngPlusLevel })
   const gainCurve = evaluateEventCurve({
     baseValue: 50,
-    stageMultiplier: 1 + stage * 0.1,
+    stageMultiplier,
     layerMultiplier,
-    capabilityModifier: Math.max(1, (prod.tech * 30) / 50),
-    softCap: 1_000_000,
+    capabilityModifier: Math.max(gainRate, gainStock),
+    softCap: gainSoftCap,
   }, { stage, layer: state.ngPlusLevel })
   return { cost: Math.max(500, Math.floor(costCurve.value)), gain: Math.max(50, Math.floor(gainCurve.value)), breakdown: [...costCurve.breakdown, ...gainCurve.breakdown] }
 }
@@ -418,7 +450,11 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
 
 }
 
-/** 虫群事件固化的强度与军力击退成本，事件卡、结算和自动迎击共用。 */
+/** 虫群事件固化的强度与军力击退成本，事件卡、结算和自动迎击共用。
+ * 强度 = max(2200 × min(强度×曲线, 封顶), 舰队战力×0.8)：
+ * - escalation × curveFactor 合并封顶 BUG_ESCALATION_CAP：状态膨胀与无尽曲线放大
+ *   都不能把强度顶破满配舰队战力天花板（自动迎击永不失效）；
+ * - 下限锚定舰队战力：强舰队时强度保持对抗但 repel 最低成本可用。 */
 export function bugTerms(state: GameState, def: RandomEventDef): { strength: number; repelCost: number; curveFactor: number } {
   const curve = evaluateEndlessCurve(def.curve.baseValue, {
     layer: endlessLayer(state),
@@ -427,8 +463,18 @@ export function bugTerms(state: GameState, def: RandomEventDef): { strength: num
     softCap: def.curve.softCap,
   })
   const curveFactor = curve.value / 800
-  const strength = Math.max(BUG_REPEL_MIN, Math.floor(BUG_STRENGTH_BASE * curveFactor * Math.max(1, state.bugEscalation ?? 1)))
-  return { strength, repelCost: Math.max(BUG_REPEL_MIN, strength - fleetPower(state)), curveFactor }
+  const escalation = Math.max(1, state.bugEscalation ?? 1)
+  const fleetPowerValue = fleetPower(state)
+  // 基线项把 escalation × curveFactor 合并封顶在 CAP：无尽深层 curveFactor（marginal × 1.08^stage）
+  // 不再把强度顶破满配舰队战力天花板（2026-08-09 code-review 修复）。
+  const strength = Math.max(
+    BUG_REPEL_MIN,
+    Math.floor(Math.max(
+      BUG_STRENGTH_BASE * Math.min(escalation * curveFactor, BUG_ESCALATION_CAP),
+      fleetPowerValue * BUG_STRENGTH_FLEET_RATIO,
+    )),
+  )
+  return { strength, repelCost: Math.max(BUG_REPEL_MIN, strength - fleetPowerValue), curveFactor }
 }
 
 /** 骚扰事件的选项与数值（供 createEventInstance 与离线结算共用，保证口径一致） */
@@ -560,7 +606,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
     // ignore：扣减当前矿物 10%
     const loss = Math.floor(state.resources.mineral * 0.1)
     state.resources.mineral -= loss
-    state.bugEscalation = Math.round(escalation * BUG_ESCALATION_STEP * 10) / 10
+    state.bugEscalation = Math.min(BUG_ESCALATION_CAP, Math.round(escalation * BUG_ESCALATION_STEP * 10) / 10)
     const settlement = eventSettlement({ mineral: -loss }, loss)
     return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${formatNumber(loss)} 矿物，虫群强度升至 ×${state.bugEscalation}。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
@@ -674,7 +720,26 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
     const conflicting = top.length > 1 && new Set(top.map((candidate) => candidate.optionId)).size > 1
     const rule = conflicting ? undefined : top[0]
     const defaultFallback = DEFAULT_AUTOMATION_FALLBACK[category as EventTheme]
-    let optionId = conflicting ? undefined : rule?.optionId ?? policy.fallbackOptionId ?? defaultFallback
+    const chain = AUTOMATION_FALLBACK_CHAIN[category as EventTheme] ?? []
+    let optionId: string | undefined
+    if (!conflicting) {
+      if (rule?.optionId) {
+        optionId = rule.optionId
+      } else if (policy.fallbackOptionId) {
+        optionId = policy.fallbackOptionId
+      } else if (chain.length > 0) {
+        // 未显式配置：沿降级链取第一个负担得起的选项（智能选择，防默认 ignore 白损）
+        const chainPolicy = { ...policy, maxRiskLevel: policy.maxRiskLevel ?? DEFAULT_AUTOMATION_MAX_RISK[category as EventTheme] }
+        for (const candidate of chain) {
+          if (fallbackGate(state, instance, candidate, chainPolicy, nowMs).allowed) {
+            optionId = candidate
+            break
+          }
+        }
+      } else {
+        optionId = defaultFallback
+      }
+    }
     const fallbackPolicy = !rule && optionId
       ? { ...policy, maxRiskLevel: policy.maxRiskLevel ?? DEFAULT_AUTOMATION_MAX_RISK[category as EventTheme] }
       : policy
