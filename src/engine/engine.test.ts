@@ -140,6 +140,39 @@ describe('engine: 时间推进与产出', () => {
   })
 })
 
+describe('engine: 累计统计（ADR-0041）', () => {
+  it('能源正净产出累计 totalEnergyEarned（周目内口径）', () => {
+    const s = createInitialState(0)
+    s.buildings.solar = 1
+    tick(s, 10_000)
+    expect(s.stats.totalEnergyEarned).toBeCloseTo(10)
+  })
+
+  it('能源零净产出不累计（无产出源）', () => {
+    const s = createInitialState(0)
+    tick(s, 10_000)
+    expect(s.stats.totalEnergyEarned ?? 0).toBe(0)
+  })
+
+  it('能源净产出为负时不累计（消耗 > 产出，ADR-0041）', () => {
+    const s = createInitialState(0)
+    // 精炼厂消耗 0.5 能源/s，无产出源 → nominal.energy 为负；累计只记产出侧，不回写
+    s.buildings.refinery = 1
+    s.resources.energy = 10
+    tick(s, 10_000)
+    expect(s.stats.totalEnergyEarned ?? 0).toBe(0)
+  })
+
+  it('矿物/科技正产出继续累计既有字段（回归护栏）', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 1
+    s.buildings.lab = 1
+    tick(s, 10_000)
+    expect(s.stats.totalMineralEarned).toBeCloseTo(10)
+    expect(s.stats.totalTechEarned).toBeCloseTo(5)
+  })
+})
+
 describe('engine: 日志', () => {
   it('pushLog 新消息置顶且 id 递增', () => {
     const s = createInitialState(0)

@@ -130,3 +130,11 @@ _Avoid_: 成就通知（刷新强调是「渲染态反馈」，不是弹窗/toas
 **日志筛选（Log Filter）**:
 日志区按 `LogType`（system/story/event/reward/warning）单选筛选，DOM 层 CSS 属性选择器过滤（容器 `data-log-filter` 属性 + 行 `data-log-type` 属性，零 JS 遍历），筛选状态持久化到 `localStorage`。事件卡片（`.event-stack`）不受筛选影响（待办交互元素始终可见）。
 _Avoid_: 日志搜索（筛选是「类别单选过滤」，不是全文搜索/时间范围查询）
+
+**探索收获（Expedition Yield）**:
+探索派遣结算时 resource 分支入账的 mineral/energy/tech 三元组（含护航返还补偿）——「探索天体处获得的资源」的唯一统计口径；记入探索统计字段（`exploreMineralEarned` 等）并并入全局累计。建交礼包（发现派系）与产出型天体的持续产出不属于探索收获（前者属发现语义，后者已由生产路径计入全局累计，避免双计）。ADR-0041。
+_Avoid_: 天体奖励（探索收获特指「派遣结算的 resource 分支」，不含发现/持续产出路径）
+
+**累计获得（Total Earned）**:
+全局累计字段（`totalMineralEarned`/`totalTechEarned`/`totalEnergyEarned`）升级后的语义——代表「全部来源获得」（生产 + 产出型天体持续产出 + 探索收获），周目内口径、NG+ 重置。区别于「累计采集」旧语义（仅生产路径）；探索收获并入后展示文案用「累计获得」。ADR-0041。
+_Avoid_: 累计采集（旧语义已升级，探索收获并入后不再是纯采集口径）

@@ -289,6 +289,27 @@ describe('engine: 派遣结算（自动入账）', () => {
     expect(s.expeditions).toHaveLength(0)
   })
 
+  it('resource 分支：探索收获计入累计统计（explore*Earned 三元组 + 并入全局累计，ADR-0041）', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition({ result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 } }))
+    settleExpeditions(s, CYCLE)
+    expect(s.stats.exploreMineralEarned).toBe(2250)
+    expect(s.stats.exploreEnergyEarned).toBe(750)
+    expect(s.stats.exploreTechEarned).toBe(30)
+    expect(s.stats.totalMineralEarned).toBe(2250)
+    expect(s.stats.totalEnergyEarned).toBe(750)
+    expect(s.stats.totalTechEarned).toBe(30)
+  })
+
+  it('护航派遣：返还计入探索收获（escort 共享 resource 分支，ADR-0041）', () => {
+    const s = endedState()
+    s.expeditions.push(fakeExpedition({ escort: true, result: { kind: 'resource', mineral: 2250, tech: 30, energy: 750 } }))
+    settleExpeditions(s, CYCLE)
+    expect(s.stats.exploreMineralEarned).toBe(2250)
+    expect(s.stats.explorations).toBe(1)
+    expect(s.stats.escortedExpeditions).toBe(1)
+  })
+
   it('多派单一并结算（引擎不拦截，单槽由 startExpedition 保证）', () => {
     const s = endedState()
     s.expeditions.push(fakeExpedition({ id: 1 }), fakeExpedition({ id: 2, finishAt: CYCLE + 1 }))

@@ -91,6 +91,9 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
   if (gains.tech > 0) {
     state.stats.totalTechEarned = (state.stats.totalTechEarned ?? 0) + gains.tech
   }
+  if (gains.energy > 0) {
+    state.stats.totalEnergyEarned = (state.stats.totalEnergyEarned ?? 0) + gains.energy
+  }
   // 离线期间条约到期/臣服叛变照常推进（贡税已含在 productionReport 的 gains 中）
   coercionTick(state, nowMs)
   // 外交自动化离线推进（diplo-auto）：在线为每 20s 冷却执行一次；离线按冷却周期批量结算，

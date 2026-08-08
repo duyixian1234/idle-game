@@ -116,6 +116,49 @@ describe('ui: 军事面板', () => {
     expect(panel.querySelector('[data-tech="militaryTech"]')).toBeNull()
   })
 
+  it('档案面板：探索小节展示派遣次数与探索收获三元组（ADR-0041）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.stats.explorations = 5
+    s.stats.escortedExpeditions = 2
+    s.stats.exploreMineralEarned = 10_000
+    s.stats.exploreEnergyEarned = 2_000
+    s.stats.exploreTechEarned = 500
+    s.stats.totalMineralEarned = 100_000
+    s.stats.totalTechEarned = 50_000
+    s.stats.totalEnergyEarned = 20_000
+    renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
+    // 独立探索小节（data-explore-stats 语义锚点）：次数 + 护航 + 收获三元组
+    const exploreStats = panel.querySelector('[data-explore-stats]') as HTMLElement
+    expect(exploreStats).toBeTruthy()
+    expect(exploreStats.textContent).toContain(`探索派遣：${formatNumber(5)} 次 · 护航 ${formatNumber(2)} 次`)
+    expect(exploreStats.textContent).toContain(formatNumber(10_000))
+    expect(exploreStats.textContent).toContain(formatNumber(2_000))
+    expect(exploreStats.textContent).toContain(formatNumber(500))
+    // 本周目统计段：文案升级 + 能源/科技累计行
+    expect(panel.textContent).toContain('累计获得矿物')
+    expect(panel.textContent).toContain('累计能源')
+    expect(panel.textContent).toContain('累计科技')
+  })
+
+  it('档案面板：探索小节字段缺省（旧档）显示 0 不崩溃（ADR-0041）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    // 旧档：所有新统计字段缺省（undefined）
+    renderArchivePanel(container.querySelector('[data-nav-page="archive"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-nav-page="archive"]') as HTMLElement
+    const exploreStats = panel.querySelector('[data-explore-stats]') as HTMLElement
+    expect(exploreStats).toBeTruthy()
+    expect(exploreStats.textContent).toContain(`探索派遣：${formatNumber(0)} 次`)
+    expect(exploreStats.textContent).not.toContain('护航')
+    expect(exploreStats.textContent).toContain(`矿物 ${formatNumber(0)}`)
+    expect(panel.textContent).toContain('累计能源')
+    expect(panel.textContent).toContain('累计科技')
+  })
+
   it('档案面板：声望条 + 三组成就网格 + 本周目统计', () => {
     const container = document.createElement('div')
     buildLayout(container)
@@ -139,6 +182,7 @@ describe('ui: 军事面板', () => {
     // 本周目统计
     expect(panel.textContent).toContain('NG+ 周目：0')
     expect(panel.textContent).toContain('在线时长')
+    expect(panel.textContent).toContain('累计能源')
   })
 
   it('档案页：一级导航「档案」常驻可点（非二级 tab）', () => {

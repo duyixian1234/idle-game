@@ -133,7 +133,24 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
     el.appendChild(section)
   }
 
-  // 段 3：本周目统计
+  // 段 3：探索（ADR-0041：探索派遣次数 + 护航次数 + 探索收获三元组；周目内口径）
+  const exploreSection = document.createElement('div')
+  exploreSection.className = 'military-section'
+  const exploreHeader = document.createElement('div')
+  exploreHeader.className = 'conquest-header'
+  exploreHeader.textContent = '探索'
+  exploreSection.appendChild(exploreHeader)
+  const exploreStats = document.createElement('div')
+  exploreStats.className = 'rep-stats'
+  exploreStats.setAttribute('data-explore-stats', '')
+  const escortCount = state.stats.escortedExpeditions ?? 0
+  exploreStats.innerHTML = `
+    <div>探索派遣：${formatNumber(state.stats.explorations)} 次${escortCount > 0 ? ` · 护航 ${formatNumber(escortCount)} 次` : ''}</div>
+    <div>探索收获：矿物 ${formatNumber(state.stats.exploreMineralEarned ?? 0)} · 能源 ${formatNumber(state.stats.exploreEnergyEarned ?? 0)} · 科技 ${formatNumber(state.stats.exploreTechEarned ?? 0)}</div>`
+  exploreSection.appendChild(exploreStats)
+  el.appendChild(exploreSection)
+
+  // 段 4：本周目统计
   const statSection = document.createElement('div')
   statSection.className = 'military-section'
   const statHeader = document.createElement('div')
@@ -147,7 +164,9 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
   stats.className = 'rep-stats'
   stats.innerHTML = `
     <div>在线时长：${formatPlayTime(state.playSeconds)}</div>
-    <div>累计采集矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
+    <div>累计获得矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
+    <div>累计能源：${formatNumber(state.stats.totalEnergyEarned ?? 0)}</div>
+    <div>累计科技：${formatNumber(state.stats.totalTechEarned ?? 0)}</div>
     <div>外交贸易：${formatNumber(tradeSum)} 次 · 威慑：${formatNumber(intimiSum)} 次</div>
     <div>星域肃清：${formatNumber(conquered)}/${formatNumber(Object.keys(CONQUESTS).length)}</div>
     <div>NG+ 周目：${formatNumber(state.ngPlusLevel)}</div>`

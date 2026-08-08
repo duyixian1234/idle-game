@@ -60,6 +60,13 @@ describe('engine: 离线收益结算', () => {
     expect(s.stats.totalMineralEarned).toBeCloseTo(7200)
   })
 
+  it('离线能源产出计入累计统计（totalEnergyEarned，ADR-0041）', () => {
+    const s = createInitialState(0)
+    s.buildings.solar = 2
+    settleOffline(s, 3600_000)
+    expect(s.stats.totalEnergyEarned).toBeCloseTo(7200)
+  })
+
   it('离线回归复用自动处理管线结算已排队低风险事件', () => {
     const s = createInitialState(0)
     s.resources.mineral = 10_000

@@ -463,6 +463,14 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
   state.resources.mineral += r.mineral
   state.resources.energy += r.energy
   state.resources.tech += r.tech
+  // 探索收获统计（ADR-0041）：resource 分支是「探索天体处获得资源」的唯一口径（含护航返还补偿）；
+  // 探索三元组（explore*Earned）独立记录，同时并入全局累计（total*Earned）——档案展示的细分与全口径关系。
+  state.stats.exploreMineralEarned = (state.stats.exploreMineralEarned ?? 0) + r.mineral
+  state.stats.exploreEnergyEarned = (state.stats.exploreEnergyEarned ?? 0) + r.energy
+  state.stats.exploreTechEarned = (state.stats.exploreTechEarned ?? 0) + r.tech
+  state.stats.totalMineralEarned += r.mineral
+  state.stats.totalEnergyEarned = (state.stats.totalEnergyEarned ?? 0) + r.energy
+  state.stats.totalTechEarned = (state.stats.totalTechEarned ?? 0) + r.tech
   // 尽览宣告（explore-endstate）：奖池无未发现目标时，资源补偿日志由「未发现新文明」改为明确终态——
   // 自动探索每笔结算由此天然宣告"无新内容"，不额外加日志、不刷屏。实时计算反映同循环先前结算的最新集合。
   const headText = exploreProgress(state).exhausted ? '已尽览所有已知目标，无新发现' : '未发现新文明'

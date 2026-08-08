@@ -119,6 +119,11 @@ function resourcesTick(state: GameState, nowMs: number): void {
   if (report.nominal.tech > 0) {
     state.stats.totalTechEarned = (state.stats.totalTechEarned ?? 0) + report.nominal.tech * dt
   }
+  // 累计获得能源统计（ADR-0041）：只累加正净产出——nominal.energy 为产出减消耗净值，可负（如消耗建筑无产出源），
+  // 负段是消费非获得，不回写累计（>0 保护与矿/科同构）
+  if (report.nominal.energy > 0) {
+    state.stats.totalEnergyEarned = (state.stats.totalEnergyEarned ?? 0) + report.nominal.energy * dt
+  }
   // 星系间建筑维护费：硬扣对应资源（独立结算、不参与能源打折；与 consumes 语义隔离）
   applyMaintenance(state, dt)
   // 舰队维护费（软降级）：能源 ≥ 总维护费 → 扣费运转；不足 → 不扣费、停摆（恢复供能自动重启）
@@ -306,7 +311,16 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
 
   // 周目内统计重置（成就条件全部周目内口径：二周目重新积累声望）；
   // achievements 图鉴保留（跨周目永久记录），unlockedInRound 不匹配 → 声望自动归零
-  state.stats = { totalMineralEarned: 0, totalTechEarned: 0, explorations: 0 }
+  state.stats = {
+    totalMineralEarned: 0,
+    totalTechEarned: 0,
+    totalEnergyEarned: 0,
+    explorations: 0,
+    escortedExpeditions: 0,
+    exploreMineralEarned: 0,
+    exploreEnergyEarned: 0,
+    exploreTechEarned: 0,
+  }
   state.playSeconds = 0
   // 舰队重置：护卫舰随星际工程一并归零（新周目从零规划，遗产体系不膨胀）
   state.fleet = { count: 0 }
