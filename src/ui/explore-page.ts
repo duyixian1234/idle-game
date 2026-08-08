@@ -1,5 +1,5 @@
 import type { GameState } from '../engine/types'
-import { ENDLESS_PLANETS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
+import { ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
 import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot } from '../engine/exploration'
@@ -9,21 +9,6 @@ import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import { iconUse } from './icons'
 import { renderAsciiBar } from './render/shared'
 import { escapeHtml } from './helpers'
-
-/** 顶部天体显隐控件（原设置页「顶部天体」组迁入探索页自动面板；data-planet-visibility 契约保留，
- * 仅渲染已解锁或已探索的天体——隐藏与否由 state.hiddenPlanets 驱动，按钮文案随状态切换） */
-function planetVisibilityControls(state: GameState): string {
-  const visiblePlanets = [...Object.values(PLANETS), ...Object.values(EXPLORE_PLANETS)].filter(
-    (def) => state.planets[def.id]?.unlocked || state.exploredPlanets.includes(def.id),
-  )
-  if (visiblePlanets.length === 0) return '<span class="settings-empty">暂无可管理天体</span>'
-  return visiblePlanets
-    .map(
-      (def) =>
-        `<button type="button" class="tool-btn planet-visibility-btn" data-planet-visibility="${def.id}">${state.hiddenPlanets.includes(def.id) ? '显示' : '隐藏'} ${escapeHtml(def.name)}</button>`,
-    )
-    .join('')
-}
 
 /**
  * 渲染探索页（一级 tab 内嵌）：
@@ -141,19 +126,33 @@ export function renderExplorePage(
       <span class="explore-auto-cost" data-auto-escort-cost>自动护航预计消耗 ${formatNumber(escortFee(state))} 能源/轮</span>
       ${auto.pausedAt != null ? '<span class="escort-warn" data-auto-explore-paused>资源不足，自动探索暂停（资源恢复后自动继续）</span>' : ''}
       ${auto.enabled && progress.exhausted ? '<span class="escort-warn" data-auto-explore-exhausted>自动探索中：目标已尽览，仅回收资源</span>' : ''}
-      <div class="explore-auto-planets" data-explore-planet-visibility>
-        <div class="explore-auto-title">顶部天体</div>
-        <div class="settings-actions">${planetVisibilityControls(state)}</div>
-      </div>
     </div>`
-  const outputRows = explorePlanetOutputs(state)
-    .map((o) => {
-      const text = RESOURCE_KEYS.filter((k) => o.values[k] > 0)
-        .map((k) => `${RESOURCE_META[k].symbol} ${formatRate(o.values[k])}`)
-        .join(' · ')
-      return `<div class="explore-planet-output" data-planet-output="${o.planetId}">${iconUse(o.planetId, 'explore-icon')} ${escapeHtml(o.name)}：${text}</div>`
-    })
+  // 产出型天体行（ADR-0040 B1/B2）：隐藏控件随行——主列表过滤 hiddenPlanets，隐藏行入「已隐藏产出天体」折叠区恢复
+  const allOutputs = explorePlanetOutputs(state)
+  const outputText = (o: (typeof allOutputs)[number]): string =>
+    RESOURCE_KEYS.filter((k) => o.values[k] > 0)
+      .map((k) => `${RESOURCE_META[k].symbol} ${formatRate(o.values[k])}`)
+      .join(' · ')
+  const outputRows = allOutputs
+    .filter((o) => !state.hiddenPlanets.includes(o.planetId))
+    .map(
+      (o) =>
+        `<div class="explore-planet-output" data-planet-output="${o.planetId}">${iconUse(o.planetId, 'explore-icon')} ${escapeHtml(o.name)}：${outputText(o)}<button type="button" class="tool-btn planet-visibility-btn" data-planet-visibility="${o.planetId}">隐藏</button></div>`,
+    )
     .join('')
+  const hiddenOutputList = allOutputs.filter((o) => state.hiddenPlanets.includes(o.planetId))
+  const hiddenOutputRows = hiddenOutputList
+    .map(
+      (o) =>
+        `<div class="archive-row" data-archived-row="${o.planetId}"><span class="archive-name">${escapeHtml(o.name)}</span><span class="archive-badge">已隐藏</span><button type="button" class="tool-btn planet-visibility-btn" data-planet-visibility="${o.planetId}">显示</button></div>`,
+    )
+    .join('')
+  const hiddenPlanetBlock = hiddenOutputList.length > 0
+    ? `<div class="archive-collapse" data-archived-collapse="hiddenPlanet">
+        <div class="archive-summary" data-archived-toggle="hiddenPlanet" role="button" tabindex="0">已隐藏产出天体（${formatNumber(hiddenOutputList.length)}）<span class="archive-chevron">${archivedExpanded['hiddenPlanet'] ? '▾' : '▸'}</span></div>
+        <div class="archive-list" data-archived-list="hiddenPlanet" ${archivedExpanded['hiddenPlanet'] ? '' : 'style="display:none"'}>${hiddenOutputRows}</div>
+      </div>`
+    : ''
   // 天体归档折叠区（endless-expansion）：机制型一次性天体探索完 = 不可再交互 → 移列表末尾折叠；
   // 产出型天体保留主列表（持续派遣收割，决策 4 硬约束）；仅 infinite 渲染
   const archivedPlanetRows =
@@ -190,6 +189,9 @@ export function renderExplorePage(
       <h1 class="ending-title">派遣探索</h1>
       <p class="ending-stats">通关后的新航路：深空信道并行派遣，有概率发现新的派系势力或发展天体（产出型天体恒定贡献资源），也可能只带回资源补偿。结果由固定种子决定，回归自动入账。</p>
       <div class="explore-progress" data-explore-progress>已发现：${formatNumber(discovered)} / ${formatNumber(totalPool)}（势力 ${formatNumber(progress.factions.found)}/${formatNumber(progress.factions.total)} · 天体 ${formatNumber(progress.planets.found)}/${formatNumber(progress.planets.total)}）</div>
+      ${state.phase === 'infinite'
+        ? `<div class="explore-progress-endless" data-explore-endless>无尽活跃目标：军事 ${formatNumber(progress.endless.conquest)} · 势力 ${formatNumber(progress.endless.faction)} · 天体 ${formatNumber(progress.endless.planet)}</div>`
+        : ''}
       ${progress.exhausted
         ? `<div class="explore-endstate" data-explore-exhausted>
             <span class="explore-endstate-badge">群星尽览</span>
@@ -200,6 +202,7 @@ export function renderExplorePage(
       ${autoPanel}
       <div class="explore-slots build-grid">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
+      ${hiddenPlanetBlock}
       ${planetArchivedBlock}
       ${planetLockedBlock}
     </div>`)

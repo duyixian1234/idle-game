@@ -1,5 +1,5 @@
 import type { GameState, ResourceKey } from '../engine/types'
-import { EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import { PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
 import type { PlanetDef } from '../engine/data'
 import { PLANET_MECHANICS } from '../engine/mechanics'
 import { formatMultiplier, formatNumber, formatRate } from '../engine/format'
@@ -9,22 +9,12 @@ import type { BreakdownRow } from '../engine/production'
 import { iconUse } from './icons'
 import { escapeHtml } from './helpers'
 
-/** 渲染星域总览条（锁定/已解锁/当前选中态）；探索天体仅在发现后显示（未发现前隐藏保留惊喜，产出型不参与切换） */
+/** 渲染星域总览条（锁定/已解锁/当前选中态）；仅主线 5 行星——探索天体不进入顶部条（产出型信息集中于探索页，ADR-0040 C1）；
+ * hiddenPlanets 不再过滤主线行星（C2：隐藏控件已收窄为探索产出天体，主线始终可见可点） */
 export function renderPlanetBar(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   for (const def of Object.values(PLANETS)) {
-    if (state.hiddenPlanets.includes(def.id)) continue
     el.appendChild(renderPlanetChip(def, state))
-  }
-  // 探索产出型天体：发现后以纯展示 chip 出现（不带 data-planet，产出型不参与切换）；用户隐藏（hiddenPlanets）不显示
-  for (const def of Object.values(EXPLORE_PLANETS)) {
-    if (state.hiddenPlanets.includes(def.id)) continue
-    const discovered = state.exploredPlanets.includes(def.id) || state.planets[def.id]?.unlocked === true
-    if (!discovered) continue
-    const chip = document.createElement('span')
-    chip.className = 'planet-chip explore'
-    chip.textContent = `◈ ${def.name}`
-    el.appendChild(chip)
   }
 }
 

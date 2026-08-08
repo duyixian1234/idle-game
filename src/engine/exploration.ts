@@ -263,6 +263,9 @@ export interface ExploreProgress {
   factions: { found: number; total: number }
   planets: { found: number; total: number }
   exhausted: boolean
+  /** 无尽活跃目标（infinite 扩展池）：口径 = generatedTargets 未归档（archivedRounds==null），按 kind 分类；
+   * 结盟/攻占成功归档后离开活跃集（ADR-0012 归档语义）。ended 阶段无生成目标 → 全 0。 */
+  endless: { conquest: number; faction: number; planet: number }
 }
 
 export function exploreProgress(state: GameState): ExploreProgress {
@@ -271,7 +274,14 @@ export function exploreProgress(state: GameState): ExploreProgress {
   const factions = { found: Math.min(state.exploredFactions.length, Object.keys(EXPLORE_FACTIONS).length), total: Object.keys(EXPLORE_FACTIONS).length }
   const planets = { found: Math.min(state.exploredPlanets.length, Object.keys(EXPLORE_PLANETS).length), total: Object.keys(EXPLORE_PLANETS).length }
   const exhausted = !expeditionPool(state).some((e) => e.kind !== 'resource')
-  return { factions, planets, exhausted }
+  const endless = { conquest: 0, faction: 0, planet: 0 }
+  // 仅 infinite 阶段统计（ended 无生成目标；A3 无尽模式口径守卫）
+  if (state.phase === 'infinite') {
+    for (const t of state.generatedTargets) {
+      if (state.archivedRounds[t.id] == null) endless[t.kind] += 1
+    }
+  }
+  return { factions, planets, exhausted, endless }
 }
 
 /** 资源补偿数值（按当前投入比例返还 + 科技点出口；mult 放大 resource 分支，与成本同源缩放保持收益比锚点）。

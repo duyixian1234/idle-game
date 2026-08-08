@@ -206,7 +206,7 @@
   width: 100%;
 }
 
-/* 探索产出型天体贡献行 */
+/* 探索产出型天体贡献行（ADR-0040：隐藏控件随行——行内 flex，按钮靠右） */
 .explore-planet-outputs {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -214,10 +214,30 @@
 }
 
 .explore-planet-output {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 13px;
   padding: 4px 0;
+}
+
+.explore-planet-output .planet-visibility-btn,
+.archive-row .planet-visibility-btn {
+  margin-left: auto;
+  padding: 2px 8px;
+  min-height: 24px;
+  font-size: 11px;
+}
+
+/* 无尽活跃目标行（探索进度区附加行） */
+.explore-progress-endless {
+  color: var(--warn);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  margin: 2px 0 12px;
 }
 
 /* 派系特性徽标（探索势力专属：贸易折扣/共享半价/威慑折扣） */

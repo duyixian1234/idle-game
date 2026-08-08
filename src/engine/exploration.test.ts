@@ -463,6 +463,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
       factions: { found: 0, total: 4 },
       planets: { found: 0, total: 5 },
       exhausted: false,
+      endless: { conquest: 0, faction: 0, planet: 0 },
     })
   })
 
@@ -474,6 +475,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
       factions: { found: 2, total: 4 },
       planets: { found: 2, total: 5 },
       exhausted: false,
+      endless: { conquest: 0, faction: 0, planet: 0 },
     })
   })
 
@@ -485,6 +487,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
       factions: { found: 4, total: 4 },
       planets: { found: 5, total: 5 },
       exhausted: true,
+      endless: { conquest: 0, faction: 0, planet: 0 },
     })
   })
 
@@ -495,6 +498,7 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
       factions: { found: 0, total: 4 },
       planets: { found: 0, total: 5 },
       exhausted: false,
+      endless: { conquest: 0, faction: 0, planet: 0 },
     })
   })
 
@@ -508,7 +512,24 @@ describe('engine: 探索收集进度（explore-endstate）', () => {
       factions: { found: 4, total: 4 },
       planets: { found: 5, total: 5 },
       exhausted: false,
+      endless: { conquest: 0, faction: 0, planet: 0 },
     })
+  })
+
+  it('无尽活跃目标：generatedTargets 未归档（archivedRounds==null）按军事/势力/天体分类', () => {
+    const s = endedState()
+    enterInfiniteMode(s)
+    s.generatedTargets = [
+      { kind: 'conquest', id: 'endless:warband', batch: 1, name: '掠夺者舰队', desc: '', guard: 800 },
+      { kind: 'conquest', id: 'gen:conquest:0', batch: 0, name: '幽影军团', desc: '', guard: 800 },
+      { kind: 'faction', id: 'endless:starlightLeague', batch: 1, name: '星光商会', desc: '', initialFavor: 25, initialThreat: 40 },
+      { kind: 'planet', id: 'endless:blackHoleObservatory', batch: 1, name: '黑洞视界观测站', desc: '', mechanicId: 'logisticsHub' },
+      { kind: 'planet', id: 'gen:planet:0', batch: 0, name: '碎星平原', desc: '', output: { energy: 1 } },
+      { kind: 'planet', id: 'gen:planet:1', batch: 0, name: '极光海', desc: '', output: { mineral: 1 } },
+    ]
+    // 攻占成功归档 1 个军事目标（endless-expansion 归档语义：archivedRounds 标记）
+    s.archivedRounds['gen:conquest:0'] = s.ngPlusLevel
+    expect(exploreProgress(s).endless).toEqual({ conquest: 1, faction: 1, planet: 3 })
   })
 
   it('结算日志：集齐后资源补偿宣告终态（含护航变体）', () => {

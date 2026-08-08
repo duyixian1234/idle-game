@@ -46,19 +46,27 @@
     gap: 3px;
     padding: 4px 6px;
   }
-  /* 机制条横向滚动（Q12 定案：tmux status 式，单指滑动；nowrap 不换行不挤日志区高度） */
+  /* 机制条两行布局（D1）：机制名 + 描述完整换行（去掉横滚与 max-width 截断——
+     原 tmux status 式单行横滚在窄屏截断长描述；两行布局信息完整不挤高度） */
   .mechanic-bar {
-    overflow-x: auto;
-    scrollbar-width: none;
-    white-space: nowrap;
-    gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    overflow: visible;
+    white-space: normal;
   }
-  .mechanic-bar::-webkit-scrollbar {
-    display: none;
+  .mechanic-bar .mech-name {
+    white-space: nowrap;
   }
   .mechanic-bar .mech-desc {
     flex: none;
-    max-width: 180px;
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .mechanic-bar .mech-status {
+    white-space: nowrap;
   }
   /* 资源 cell：竖排 2 行（值 + 速率）+ 右上角悬浮问号；
      res-name 隐藏、res-symbol 隐藏（颜色由 border-left 承担） */

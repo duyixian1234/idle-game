@@ -172,36 +172,41 @@ describe('ui: 探索页', () => {
     expect(page.querySelector('[data-explore-infinite]')).toBeNull()
   })
 
-  it('顶部天体控件迁入自动探索面板：仅渲染已解锁/已探索天体，hiddenPlanets 切换按钮文案', () => {
+  it('天体隐藏控件迁入产出天体行：自动面板无「顶部天体」；隐藏 → 行移入「已隐藏产出天体」折叠区并可恢复', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
-    // 默认仅荒芜星解锁 → 控件渲染且为「隐藏」态
+    s.planets.rubbleBelt = { unlocked: true, unlockedAt: 1000 }
+    s.exploredPlanets = ['rubbleBelt']
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    const group = page.querySelector('[data-explore-planet-visibility]')
-    expect(group).toBeTruthy()
-    expect(group!.closest('.explore-auto')).toBeTruthy() // 控件组位于自动探索面板内
-    expect(page.textContent).toContain('顶部天体')
-    const barrenBtn = page.querySelector<HTMLButtonElement>('[data-planet-visibility="barren"]')
-    expect(barrenBtn).toBeTruthy()
-    expect(barrenBtn!.textContent).toContain('隐藏 荒芜星 P-01')
-    expect(page.querySelector('[data-planet-visibility="orbital"]')).toBeNull() // 未解锁不渲染
-    // 已探索天体也渲染（exploredPlanets 口径），隐藏后按钮切为「显示」
-    s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
-    s.exploredPlanets = ['logistics']
+    // 自动面板不再有「顶部天体」区块（B3）
+    expect(page.querySelector('[data-explore-planet-visibility]')).toBeNull()
+    expect(page.textContent).not.toContain('顶部天体')
+    // 产出天体行内联隐藏按钮（B1）
+    const row = page.querySelector<HTMLElement>('[data-planet-output="rubbleBelt"]')
+    expect(row).toBeTruthy()
+    const hideBtn = row?.querySelector<HTMLButtonElement>('[data-planet-visibility="rubbleBelt"]')
+    expect(hideBtn).toBeTruthy()
+    expect(hideBtn!.textContent).toContain('隐藏')
+    // 隐藏 → 行移入折叠区（B2）
+    s.hiddenPlanets.push('rubbleBelt')
     renderExplorePage(page, s, 0)
-    const logisticsBtn = page.querySelector<HTMLButtonElement>('[data-planet-visibility="logistics"]')
-    expect(logisticsBtn).toBeTruthy()
-    s.hiddenPlanets.push('logistics')
-    renderExplorePage(page, s, 0)
-    expect(page.querySelector<HTMLButtonElement>('[data-planet-visibility="logistics"]')!.textContent).toContain('显示 星际物流港')
-    // 全部无可用天体（无解锁无探索）→ 空占位
+    expect(page.querySelector('[data-planet-output="rubbleBelt"]')).toBeNull()
+    const collapse = page.querySelector('[data-archived-collapse="hiddenPlanet"]')
+    expect(collapse).toBeTruthy()
+    expect(page.textContent).toContain('已隐藏产出天体（1.00）')
+    // 折叠区行内提供「显示」按钮恢复
+    const showBtn = page.querySelector<HTMLButtonElement>('[data-archived-row="rubbleBelt"] [data-planet-visibility="rubbleBelt"]')
+    expect(showBtn).toBeTruthy()
+    expect(showBtn!.textContent).toContain('显示')
+    // 主线行星不再有隐藏控件（C2：hiddenPlanets 收窄为探索产出天体）
+    expect(page.querySelector('[data-planet-visibility="barren"]')).toBeNull()
+    // 无产出天体 → 无隐藏按钮无折叠区
     const s2 = endedState()
-    s2.planets.barren = { unlocked: false }
     renderExplorePage(page, s2, 0)
     expect(page.querySelector('[data-planet-visibility]')).toBeNull()
-    expect(page.textContent).toContain('暂无可管理天体')
+    expect(page.querySelector('[data-archived-collapse="hiddenPlanet"]')).toBeNull()
   })
 
   it('infinite 阶段（扩展池仍有目标）：静态池收集满也不显示尽览徽章/按钮（NG+ 卡在）', () => {
@@ -266,21 +271,55 @@ describe('ui: 探索页', () => {
     expect(row!.textContent).toContain('碎星矿带')
     // 基础 2×1（无科技）×1.1 + 比例 100×2%×1.1 = 2.2 + 2.2 = 4.4 → UI 取整显示 +4/s
     expect(row!.textContent).toContain('◆ +4.40/秒')
+    // 行内联隐藏按钮（B1）
+    expect(row!.querySelector('[data-planet-visibility="rubbleBelt"]')).toBeTruthy()
   })
 
-  it('星栏：探索天体仅在发现后显示；hiddenPlanets 隐藏后不显示（设置页隐藏生效）', () => {
+  it('无尽活跃目标行：infinite 恒渲染（军事/势力/天体计数，0 也如实显示）；ended 不渲染', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    enterInfiniteMode(s)
+    s.generatedTargets = [
+      { kind: 'conquest', id: 'gen:conquest:0', batch: 0, name: 'x', desc: '', guard: 800 },
+      { kind: 'faction', id: 'gen:faction:0', batch: 0, name: 'x', desc: '', initialFavor: 10, initialThreat: 30 },
+      { kind: 'planet', id: 'gen:planet:0', batch: 0, name: 'x', desc: '', output: { energy: 1 } },
+    ]
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const line = page.querySelector('[data-explore-endless]')
+    expect(line).toBeTruthy()
+    expect(line!.textContent).toContain('军事 1.00 · 势力 1.00 · 天体 1.00')
+    // 全归档 → 仍渲染（0 计数如实显示，A2 常驻行）
+    s.archivedRounds['gen:conquest:0'] = 0
+    s.archivedRounds['gen:faction:0'] = 0
+    s.archivedRounds['gen:planet:0'] = 0
+    renderExplorePage(page, s, 0)
+    expect(page.querySelector('[data-explore-endless]')).toBeTruthy()
+    expect(page.querySelector('[data-explore-endless]')!.textContent).toContain('军事 0.00 · 势力 0.00 · 天体 0.00')
+    // ended 阶段不渲染
+    const s2 = endedState()
+    renderExplorePage(page, s2, 0)
+    expect(page.querySelector('[data-explore-endless]')).toBeNull()
+  })
+
+  it('星栏：探索天体不进入顶部行星条（产出型信息集中于探索页）；hiddenPlanets 不影响主线行星', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)
     const s = endedState()
     renderPlanetBar(els.planetBar, s)
-    expect(els.planetBar.textContent).not.toContain('星际物流港')
+    // 主线 5 行星始终渲染
+    expect(els.planetBar.textContent).toContain('荒芜星')
+    // 探索天体发现后也不显示（决策 C1：顶部条只留可切换主线行星）
     s.planets.logistics = { unlocked: true, unlockedAt: 1000 }
-    renderPlanetBar(els.planetBar, s)
-    expect(els.planetBar.textContent).toContain('星际物流港')
-    // 设置页隐藏 → 顶部 bar 不再显示（与 PLANETS 循环同语义）
-    s.hiddenPlanets.push('logistics')
+    s.exploredPlanets = ['logistics', 'rubbleBelt']
     renderPlanetBar(els.planetBar, s)
     expect(els.planetBar.textContent).not.toContain('星际物流港')
+    expect(els.planetBar.textContent).not.toContain('碎星矿带')
+    // hiddenPlanets 不影响主线行星（C2：老存档隐藏条目自动失效，主线始终可见可点）
+    s.hiddenPlanets.push('barren')
+    renderPlanetBar(els.planetBar, s)
+    expect(els.planetBar.textContent).toContain('荒芜星')
   })
 
   it('一级导航「探索」tab 常驻（playing 也可见可点，页内显锁定占位）', () => {
