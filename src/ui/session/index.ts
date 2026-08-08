@@ -113,10 +113,14 @@ export function createSession(args: CreateSessionArgs): Session {
   }
 
   function automationPolicyWithDefaults(category: EventTheme, current: EventAutomationPolicy | undefined, enabled: boolean): EventAutomationPolicy {
+    // security 类别默认兜底 ignore 会白损矿物+升级虫群；启用时不注入该默认值，
+    // 由引擎 AUTOMATION_FALLBACK_CHAIN 按 repel→dispatch→jam→ignore 智能降级（2026-08-09）。
+    // 其余类别仍注入原默认兜底；玩家显式配置的 fallbackOptionId 始终优先。
+    const defaultFallback = category === 'security' ? undefined : DEFAULT_AUTOMATION_FALLBACK[category]
     return {
       ...(current ?? { rules: [] }),
       enabled,
-      fallbackOptionId: current?.fallbackOptionId ?? DEFAULT_AUTOMATION_FALLBACK[category],
+      fallbackOptionId: current?.fallbackOptionId ?? defaultFallback,
       maxRiskLevel: current?.maxRiskLevel ?? DEFAULT_AUTOMATION_MAX_RISK[category],
     }
   }

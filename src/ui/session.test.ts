@@ -160,3 +160,25 @@ describe('session: 重操作序列（actions-heavy）', () => {
     expect(() => session.render()).not.toThrow()
   })
 })
+
+describe('session: 自动处理快捷开关默认兜底（2026-08-09）', () => {
+  it('启用 security 不注入默认 ignore（交由引擎降级链），其余类别仍注入', () => {
+    const { els, session } = setup()
+    const toggle = document.createElement('input')
+    toggle.type = 'checkbox'
+    toggle.dataset.autoQuickToggle = 'security'
+    els.logEl.appendChild(toggle)
+    toggle.click() // 模拟用户勾选：checked→true 且触发 click 监听
+    const policy = session.state.automationPolicies.security
+    expect(policy).toMatchObject({ enabled: true })
+    expect(policy.fallbackOptionId).toBeUndefined()
+
+    // 对照：trade 仍注入默认 accept 兜底
+    const tradeToggle = document.createElement('input')
+    tradeToggle.type = 'checkbox'
+    tradeToggle.dataset.autoQuickToggle = 'trade'
+    els.logEl.appendChild(tradeToggle)
+    tradeToggle.click()
+    expect(session.state.automationPolicies.trade.fallbackOptionId).toBe('accept')
+  })
+})
