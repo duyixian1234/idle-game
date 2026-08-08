@@ -149,15 +149,16 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     expect(s.resources.military).toBe(before.military - cost.military)
   })
 
-  it('返还锚定（基础成本 + 远征费折算）× 护航返还率 ×（科技 × 护航倍率），只作用 resource 分支', () => {
+  it('返还锚定（基础成本 + 远征费折算）× 护航返还率 ×（枢纽 × 护航倍率），只作用 resource 分支', () => {
     const s = escortState()
-    s.techLevels.deepSpaceNav = 1 // 科技倍率 1.1
+    s.buildings.jumpgate = 1 // 枢纽倍率 1.3
+    s.upgrades.jumpgate = 1
     const fee = escortFee(s)
     const r = startExpedition(s, 0, () => 0.99, 0, true)
     const res = r.value!.result
     expect(res.kind).toBe('resource')
     const realCost = r.value!.cost
-    const techMult = 1.1 // deepSpaceNav Lv1
+    const techMult = 1.3 // 枢纽 Lv1
     const escortMult = 1 + FLEET_HARVEST_PCT_PER_SHIP * 3
     const mult = techMult * escortMult
     // 极后期防印钞锚定：mineral 分支按远征费的当期矿物等价折算（mineralFee = fee × 矿物产出/能源产出）
@@ -305,8 +306,8 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
 
   it('多槽逐槽续派：7 槽全空 → 一次补 7 支（每支军事点 ×槽位）', () => {
     const s = escortState()
-    s.techLevels.deepSpaceNav = 1
-    s.techLevels.interstellarRelay = 1
+    s.buildings.jumpgate = 1 // Lv4 → +2 槽 = 7 槽
+    s.upgrades.jumpgate = 4
     s.autoExplore = { enabled: true, escort: false }
     const logs = autoExploreDispatch(s, 0)
     expect(logs).toHaveLength(7)

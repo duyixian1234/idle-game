@@ -219,8 +219,9 @@ export const EXPEDITION_REPEAT_FAVOR_GAIN = 5
 /** 重复发现已收录天体的产出增益步进/上限（每 +10%，封顶 +50%） */
 export const EXPEDITION_OUTPUT_BONUS_STEP = 0.1
 export const EXPEDITION_OUTPUT_BONUS_CAP = 0.5
-/** 探索收获倍率每级科技加成：1 + PCT × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0（只作用于 resource 分支补偿） */
-export const EXPLORATION_TECH_HARVEST_PCT = 0.1
+/** 跃迁枢纽探索收获倍率每级加成：1 + PCT × 枢纽等级（线性，Lv10 = ×4.0；只作用于 resource 分支补偿）。
+ * ADR-0038：原深空导航/星际中继科技每级 +10% 的成长曲线并入枢纽（删除科技后由建筑等级承接） */
+export const JUMPGATE_HARVEST_PCT_PER_LEVEL = 0.3
 /** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）。
  * balance-sim 校准定稿（ticket 06，20 seed）：techPerMineral=0.005 → 耗尽后收益比 1.083×（锚点 1.1×）；
  * t=0.01 时 1.416× 超标成印钞机（否决）。收集期（发现物贴现 faction 1.8×/planet 2.0×）均值 10.4 次收完、收益比 ~1.68×。 */
@@ -295,10 +296,6 @@ export function scaledClamp(rate: number, min: number, factor: number, cap: numb
 export const UNIQUE_UPGRADE_GROWTH = 2
 /** NG+ 遗产：究极建筑每级折算的永久产出加成（如 Lv10 冶炼场 → 全产出 +15% 进 permanentBonuses） */
 export const NG_PLUS_MEGASTRUCTURE_BONUS = 0.015
-/** 跃迁枢纽：派遣槽额外 +3（与探索科技槽位叠加，总上限 10；基础 5 槽） */
-export const JUMPGATE_SLOT_BONUS = 3
-/** 跃迁枢纽：探索收获倍率上限放宽系数（科技满级 ×2 → ×4，即科技倍率再 ×2） */
-export const JUMPGATE_HARVEST_MULT = 2
 /** 跃迁枢纽：离线结算封顶额外放宽时长（8h → 12h） */
 export const JUMPGATE_OFFLINE_EXTRA_SECONDS = 4 * 3600
 

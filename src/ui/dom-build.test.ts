@@ -544,11 +544,11 @@ describe('ui: 建造卡片（building-cards）', () => {
     s.resources.mineral = 10 ** 12
     s.resources.tech = 10 ** 9
     expect(buildCardAction(s, 'starportMine')).toEqual({ kind: 'upgrade' })
-    // jumpgate 已建（无升级效果）→ null
+    // jumpgate 已建（枢纽 10 级化，ADR-0038：可升级）→ upgrade
     s.buildings.stellarArray = 1
     s.buildings.thinkTank = 1
     s.buildings.jumpgate = 1
-    expect(buildCardAction(s, 'jumpgate')).toBeNull()
+    expect(buildCardAction(s, 'jumpgate')).toEqual({ kind: 'upgrade' })
     // 终局工程未建 → megastructure（走确认弹窗）
     s.buildings.ringSmelter = 0
     expect(buildCardAction(s, 'ringSmelter')).toEqual({ kind: 'megastructure' })
@@ -556,8 +556,9 @@ describe('ui: 建造卡片（building-cards）', () => {
     s.buildings.ringSmelter = 1
     s.buildings.jumpgate = 0
     expect(buildCardAction(s, 'jumpgate')).toEqual({ kind: 'megastructure' })
-    // 枢纽已建（无升级效果）→ null
+    // 枢纽已建满级 → null
     s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 10
     expect(buildCardAction(s, 'jumpgate')).toBeNull()
   })
 })

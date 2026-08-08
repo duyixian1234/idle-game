@@ -2,7 +2,7 @@ import type { GameState } from '../engine/types'
 import { ENDLESS_PLANETS, EXPLORE_PLANETS, PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable } from '../engine/exploration'
+import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot } from '../engine/exploration'
 import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from '../engine/balance'
 import { explorePlanetOutputs } from '../engine/production'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
@@ -55,7 +55,7 @@ export function renderExplorePage(
     el.innerHTML = parts.join('')
     return
   }
-  // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 10：基础 5 + 科技 2 + 跃迁枢纽 3）
+  // ② 派遣面板：深空信道列表（槽位数 = explorationSlots，上限 10：基础 5 + 跃迁枢纽等级槽位，ADR-0038）
   const slots = explorationSlots(state)
   const ongoing = state.expeditions.filter((e) => !e.resolved)
   // 收集进度单一事实源（explore-endstate）：外交/天体 found+total 与尽览标志（与引擎奖池同口径）
@@ -64,17 +64,12 @@ export function renderExplorePage(
   const discovered = progress.factions.found + progress.planets.found
   const fleetReady = canEscort(state)
   const slotCards: string[] = []
-  // 展示上限 10 槽（基础 5 + 科技 2 + 跃迁枢纽 +3，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
+  // 展示上限 10 槽（基础 5 + 跃迁枢纽等级槽位，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
   const SLOT_CAP = 10
   for (let i = 0; i < SLOT_CAP; i++) {
     const slotNo = i + 1
     if (i >= slots) {
-      const need =
-        i === 5
-          ? `深空导航阵列 Lv${formatNumber(1)}（科技）`
-          : i === 6
-            ? `星际通信中继 Lv${formatNumber(1)}（科技）`
-            : '跃迁枢纽（终局工程·探索路线）'
+      const need = `跃迁枢纽 Lv${formatNumber(jumpgateLevelForSlot(slotNo))}（终局工程·探索路线）`
       slotCards.push(`
         <div class="build-card explore-slot locked" data-expedition-slot="${slotNo}" data-expedition-locked>
           <div class="build-card-icon">${iconUse('dispatch')}</div>

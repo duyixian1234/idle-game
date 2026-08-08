@@ -224,16 +224,18 @@ describe('actions: 探索派遣', () => {
     dispatch(s, 'explore', { slot: 1, escort: false }, fakeDeps().deps)
     expect(s.expeditions).toHaveLength(5)
     expect(s.log[0].text).toContain('派遣探索失败：全部探索信道已占用，需等待返航')
-    // 槽位 payload：深空导航阵列解锁 6 槽后，payload "2" 出发 → 军事点 ×2（80）
+    // 槽位 payload：跃迁枢纽 Lv1 解锁 6 槽后，payload "2" 出发 → 军事点 ×2（80）
     const s2 = endedState()
-    s2.techLevels.deepSpaceNav = 1
+    s2.buildings.jumpgate = 1
+    s2.upgrades.jumpgate = 1
     const militaryBefore = s2.resources.military
     dispatch(s2, 'explore', { slot: 2, escort: false }, fakeDeps().deps)
     expect(s2.expeditions).toHaveLength(1)
     expect(s2.resources.military).toBe(militaryBefore - 80)
     // 缺省 payload 按第 1 槽（×1 = 40）
     const s3 = endedState()
-    s3.techLevels.deepSpaceNav = 1
+    s3.buildings.jumpgate = 1
+    s3.upgrades.jumpgate = 1
     const mb3 = s3.resources.military
     dispatch(s3, 'explore', { slot: 1, escort: false }, fakeDeps().deps)
     expect(s3.resources.military).toBe(mb3 - 40)

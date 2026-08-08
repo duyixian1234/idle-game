@@ -9,6 +9,8 @@ import type { BuildingDef } from '../../engine/data'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../../engine/buildings'
 import { formatMultiplier, formatNumber, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
 import { netProduction, simulateProductionDelta, smelterGlobalMult } from '../../engine/production'
+import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from '../../engine/balance'
+import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
 import { iconUse } from '../icons'
 import { escapeHtml } from '../helpers'
 import { formatCost, JUMPGATE_EFFECT_TEXT, type BuildPanelRenderOptions } from './shared'
@@ -23,7 +25,14 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       const cur = smelterGlobalMult(state)
       return `全局产出 ${formatMultiplier(cur)} → ${formatMultiplier(cur * 2)}`
     }
-    if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
+    if (def.id === 'jumpgate') {
+      // ADR-0038：枢纽 10 级化 → 升级预览显示当前→下一级（槽位/收获倍率），满级回退能力描述
+      const lv = state.upgrades.jumpgate ?? 0
+      if (lv <= 0 || lv >= 10) return JUMPGATE_EFFECT_TEXT
+      const cur = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * lv
+      const next = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * (lv + 1)
+      return `Lv.${formatNumber(lv + 1)}：派遣槽 ${formatNumber(5 + JUMPGATE_SLOT_TABLE[lv + 1])} 槽 · 收获倍率 ${formatMultiplier(cur)} → ${formatMultiplier(next)}`
+    }
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
     const parts: string[] = []
     for (const k of RESOURCE_KEYS) {
@@ -105,8 +114,8 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
         ${unique ? '建造 ' : ''}${formatCost(buyCost)}
       </button>`
     : ''
-  // 升级按钮组（仅 unique 大件；jumpgate 无升级效果、maxLevel 满级后替换为「已满级」提示）
-  const upgradeBtns = unique && count > 0 && def.id !== 'jumpgate'
+  // 升级按钮组（仅 unique 大件；跃迁枢纽 10 级化 ADR-0038 后纳入升级；maxLevel 满级后替换为「已满级」提示）
+  const upgradeBtns = unique && count > 0
     ? maxed
       ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${formatNumber(def.maxLevel ?? 0)}）</span></div>`
       : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 ${formatMultiplier(2)}（${formatCost(upCost)}）">

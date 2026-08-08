@@ -23,14 +23,12 @@ import {
   EXPEDITION_OUTPUT_BONUS_CAP,
   EXPEDITION_OUTPUT_BONUS_STEP,
   EXPEDITION_REPEAT_FAVOR_GAIN,
-  EXPLORATION_TECH_HARVEST_PCT,
   FAVOR_CAP,
   FLEET_HARVEST_PCT_PER_SHIP,
   GEN_FACTION_GIFT_FAVOR,
   GEN_FACTION_GIFT_MINERAL_SECONDS,
   GEN_FACTION_GIFT_TECH_SECONDS,
-  JUMPGATE_HARVEST_MULT,
-  JUMPGATE_SLOT_BONUS,
+  JUMPGATE_HARVEST_PCT_PER_LEVEL,
   MISSION_DURATION_MAX_MINUTES,
   MISSION_DURATION_MIN_MINUTES,
   POOL_WEIGHT_CONQUEST,
@@ -51,18 +49,19 @@ import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './ty
 /**
  * 探索系统深层模块（通关后派遣）。
  *
- * 核心语义（exploration spec 定稿，2026-08-06）：
+ * 核心语义（exploration spec 定稿，2026-08-06；ADR-0038 修订探索队列门控）：
  * - 入口门控：`phase === 'ended' || 'infinite'` 才可派遣（`isExploreAvailable`）。
- * - 多槽：基础 5 槽，深空导航阵列（deepSpaceNav）Lv1 解锁第 6 槽、星际通信中继（interstellarRelay）Lv1
- *   解锁第 7 槽，跃迁枢纽再 +3（`explorationSlots`，上限 10）；每槽独立 10~30 分钟随机时长（duration 域掷出冻结），
+ * - 多槽：基础 5 槽，跃迁枢纽（jumpgate，Lv1-10）等级决定额外槽位（`JUMPGATE_SLOT_TABLE`，
+ *   Lv1 解锁第 6 槽、Lv10 满 10 槽）——ADR-0038 删除深空导航/星际通信中继两科技后，
+ *   探索队列增长由枢纽单一门控承接；每槽独立 10~30 分钟随机时长（duration 域掷出冻结），
  *   离线照常推进，不可取消。
  * - 全提交：出发时扣资源（矿物/能源动态缩放 + 军事点按槽位 ×N）+ 用 `explore` 域固定种子
  *   **roll 并固化结果**（每槽独立 rollDomain 闭包 → 计数器天然独立）；回归只入账（`settleExpeditions`），
  *   防 SL 在结构上成立。
  * - 成本自适应：军事点 = min(CAP, max(40, floor(militaryCap × 2%))) × (slotIndex+1)；矿物/能源 cap 随周目 ×1.5^level——
  *   成本与收益同源缩放 → 收益比锚点 1.083× 不漂移。
- * - 探索收获倍率：`explorationHarvestMult` 只作用于 resource 分支补偿（矿物/能源/科技 × mult），
- *   不碰 60min 锚点、不作用于天体产出。
+ * - 探索收获倍率：`explorationHarvestMult` = 1 + 0.3×枢纽等级（ADR-0038 原科技成长并入，Lv10 = ×4.0）
+ *   只作用于 resource 分支补偿（矿物/能源/科技 × mult），不碰 60min 锚点、不作用于天体产出。
  * - 奖池剔除制：未发现势力（w2）+ 未发现天体（w1，含 3 个产出型）+ 资源补偿（w = max(2, 6-已收集)），
  *   轮盘同 `pickEventDef` 法；耗尽后只剩补偿 → 资源搬运器。
  * - 重复发现补偿：已收录势力再发现 → 好感 +5（封顶 100）；已收录天体再发现 → 产出增益 +10%（封顶 +50%）。
@@ -99,12 +98,29 @@ export function isExploreAvailable(state: GameState): boolean {
   return state.phase === 'ended' || state.phase === 'infinite'
 }
 
-/** 探索槽位数量：基础 5 + 深空导航阵列 Lv≥1 + 星际通信中继 Lv≥1 + 跃迁枢纽 +3（上限 10；枢纽与科技槽位叠加） */
+/** 跃迁枢纽等级 → 派遣槽加成表（ADR-0038：原深空导航/星际通信中继两科技槽位并入枢纽，
+ * Lv1 解锁第 6 信道、Lv10 满 10 槽；显式表仿 DOCK_SHIP_CAP，防非等差档位漂移） */
+export const JUMPGATE_SLOT_TABLE: Record<number, number> = {
+  1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 4, 9: 4, 10: 5,
+}
+
+/** 解锁第 slotNo 号探索信道所需的最小跃迁枢纽等级（0 = 基础 5 槽内，无需枢纽）；
+ * UI 锁定提示数据驱动用，与 JUMPGATE_SLOT_TABLE 同源防漂移 */
+export function jumpgateLevelForSlot(slotNo: number): number {
+  if (slotNo <= 5) return 0
+  const need = slotNo - 5
+  for (const lv of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    if (JUMPGATE_SLOT_TABLE[lv] >= need) return lv
+  }
+  return 10
+}
+
+/** 探索槽位数量：基础 5 + 跃迁枢纽等级槽位（Lv1 +1、Lv10 +5，总上限 10）。
+ * ADR-0038：深空导航/星际通信中继两科技删除后，探索队列增长由枢纽单一门控承接。
+ * 等级读 `state.upgrades.jumpgate`（unique 建筑等级惯例，buildings 字段恒 0/1） */
 export function explorationSlots(state: GameState): number {
-  const nav = (state.techLevels?.['deepSpaceNav'] ?? 0) >= 1 ? 1 : 0
-  const relay = (state.techLevels?.['interstellarRelay'] ?? 0) >= 1 ? 1 : 0
-  const jumpgate = (state.buildings.jumpgate ?? 0) >= 1 ? JUMPGATE_SLOT_BONUS : 0
-  return Math.min(10, 5 + nav + relay + jumpgate)
+  const jumpgateLv = Math.min(state.upgrades.jumpgate ?? 0, 10)
+  return Math.min(10, 5 + (JUMPGATE_SLOT_TABLE[jumpgateLv] ?? 0))
 }
 
 /** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 N 槽 = base×N）；
@@ -115,13 +131,11 @@ export function expeditionMilitaryCost(state: GameState, slotIndex: number = 0):
   return (state.techLevels?.warpDrive ?? 0) >= 10 ? Math.max(1, Math.floor(cost * (1 - WARP_EXPEDITION_COST_REDUCTION))) : cost
 }
 
-/** 探索收获倍率：1 + 0.1 × (deepSpaceNavLv + interstellarRelayLv)，满级两项 = ×2.0；
- * 跃迁枢纽把上限放宽到 ×4（科技倍率再 ×2）——只作用于 resource 分支补偿 */
+/** 探索收获倍率：1 + 0.3 × 跃迁枢纽等级（Lv0 = ×1、Lv10 = ×4.0，ADR-0038 原科技成长并入枢纽）；
+ * 只作用于 resource 分支补偿。等级读 `state.upgrades.jumpgate`（unique 建筑等级惯例） */
 export function explorationHarvestMult(state: GameState): number {
-  const nav = state.techLevels?.['deepSpaceNav'] ?? 0
-  const relay = state.techLevels?.['interstellarRelay'] ?? 0
-  const tech = 1 + EXPLORATION_TECH_HARVEST_PCT * (nav + relay)
-  return (state.buildings.jumpgate ?? 0) >= 1 ? tech * JUMPGATE_HARVEST_MULT : tech
+  const jumpgateLv = Math.min(state.upgrades.jumpgate ?? 0, 10)
+  return 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * jumpgateLv
 }
 
 /** 当前第 N 槽派遣消耗：矿物/能源随每秒产出动态缩放（cap 随周目 ×1.5^level），军事点随军力上限自适应（×槽位） */

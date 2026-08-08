@@ -340,23 +340,26 @@ describe('engine: 星环冶炼场 + 双轨开放（megastructure-open）——�
   })
 })
 
-describe('engine: 跃迁枢纽（ticket 06）——机制增强', () => {
-  it('派遣槽：基础 5 + 枢纽 3 = 8；科技全解锁 7 + 3 = 10（上限 10）', () => {
+describe('engine: 跃迁枢纽（ticket 06；ADR-0038 等级化）——机制增强', () => {
+  it('派遣槽：基础 5 + 枢纽等级槽位表（Lv1=6、Lv4=7、Lv10=10，上限 10）', () => {
     const s = createInitialState(0)
     expect(explorationSlots(s)).toBe(5)
     s.buildings.jumpgate = 1
-    expect(explorationSlots(s)).toBe(8)
-    s.techLevels.deepSpaceNav = 1
-    s.techLevels.interstellarRelay = 1
+    s.upgrades.jumpgate = 1
+    expect(explorationSlots(s)).toBe(6)
+    s.upgrades.jumpgate = 4
+    expect(explorationSlots(s)).toBe(7)
+    s.upgrades.jumpgate = 10
     expect(explorationSlots(s)).toBe(10)
   })
 
-  it('收获倍率：科技满级 ×2 → 枢纽 ×4', () => {
+  it('收获倍率：随枢纽等级 1 + 0.3×Lv（Lv1 ×1.3 → Lv10 ×4）', () => {
     const s = createInitialState(0)
-    s.techLevels.deepSpaceNav = 5
-    s.techLevels.interstellarRelay = 5
-    expect(explorationHarvestMult(s)).toBeCloseTo(2)
+    expect(explorationHarvestMult(s)).toBeCloseTo(1)
     s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 1
+    expect(explorationHarvestMult(s)).toBeCloseTo(1.3)
+    s.upgrades.jumpgate = 10
     expect(explorationHarvestMult(s)).toBeCloseTo(4)
   })
 

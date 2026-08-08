@@ -68,10 +68,10 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain('40')
     expect(page.textContent).toContain('时长 10~30 分钟（随机，离线照常推进）')
     expect(page.querySelector('[data-expedition-slot="1"]')).toBeTruthy()
-    // 槽位上限 10（基础 5 + 科技 2 + 枢纽 3）：无科技 5 空闲，6-10 锁定占位提示解锁需求
+    // 槽位上限 10（基础 5 + 枢纽等级槽位，ADR-0038）：无枢纽 5 空闲，6-10 锁定占位提示解锁需求
     expect(page.querySelectorAll('[data-expedition-slot]')).toHaveLength(10)
     expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(5)
-    expect(page.textContent).toContain('深空导航阵列')
+    expect(page.textContent).toContain('跃迁枢纽')
     const btn = page.querySelector<HTMLButtonElement>('[data-explore-dispatch="1"]')
     expect(btn).toBeTruthy()
     expect(btn?.disabled).toBe(false)
@@ -80,15 +80,15 @@ describe('ui: 探索页', () => {
     expect(page.querySelector('[data-explore-dispatch="6"]')).toBeNull()
   })
 
-  it('7 槽科技解锁：七个信道全部空闲可派遣，槽位成本 ×1/×2/×3…×7', () => {
+  it('7 槽枢纽解锁：七个信道全部空闲可派遣，槽位成本 ×1/×2/×3…×7', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
-    s.techLevels.deepSpaceNav = 1
-    s.techLevels.interstellarRelay = 1
+    s.buildings.jumpgate = 1 // Lv4 → +2 槽 = 7 槽
+    s.upgrades.jumpgate = 4
     const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
     renderExplorePage(page, s, 0)
-    // 7 槽科技解锁：7 空闲可派遣 + 8/9/10 锁定（跃迁枢纽解锁需求）
+    // 7 槽枢纽解锁：7 空闲可派遣 + 8/9/10 锁定（跃迁枢纽升级需求）
     expect(page.querySelectorAll('[data-expedition-locked]')).toHaveLength(3)
     expect(page.querySelectorAll('[data-explore-dispatch]')).toHaveLength(7)
     expect(page.textContent).toContain('跃迁枢纽')

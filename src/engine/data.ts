@@ -1,5 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
-import { JUMPGATE_SLOT_BONUS } from './balance'
+import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 
 /** 资源显示元信息（icon = icons.ts 资源 symbol id，资源条用；symbol 文字符号保留给内联文本场景） */
@@ -175,9 +175,10 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   jumpgate: {
     id: 'jumpgate',
     name: '跃迁枢纽',
-    desc: `贯通星海航道的跃迁门：派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)}、天体收获倍率上限 ${formatMultiplier(4)}、离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局工程「探索」线。`,
+    desc: `贯通星海航道的跃迁门：等级决定探索成长（Lv${formatNumber(1)} 解锁第 ${formatNumber(6)} 探索信道，此后随等级扩槽，Lv${formatNumber(10)} 达 ${formatNumber(10)} 槽；收获倍率每级 +${formatPercent(JUMPGATE_HARVEST_PCT_PER_LEVEL)}，Lv${formatNumber(10)} 达 ${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10)}）。离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局工程「探索」线。`,
     category: 'interstellar',
     unique: true,
+    maxLevel: 10,
     baseCost: { mineral: 500_000_000, tech: 50_000_000 },
     costExponent: 2,
     produces: {},
@@ -234,11 +235,11 @@ export interface TechEffectUnlock {
   buildingId: string
 }
 
-/** 科技效果：探索（深空信道槽位解锁，Lv≥1 生效；无数值效果，门控由 explorationSlots 派生；
- * 带 label 时（如星舰科技线）仅在 UI 显示该文案，不触发信道/倍率逻辑） */
+/** 科技效果：探索（ADR-0038 后仅剩带 label 的星舰科技线——纯 UI 文案，不触发信道/倍率逻辑；
+ * 探索队列成长已整体迁入跃迁枢纽等级，无科技门控） */
 export interface TechEffectExploration {
   kind: 'exploration'
-  /** UI 效果文案（可选；缺省 = 信道口径文案） */
+  /** UI 效果文案 */
   label?: string
 }
 
@@ -437,24 +438,6 @@ export const TECHS: Record<string, TechDef> = {
     maxLevel: 5,
     unlockByConquest: 'outpost',
     icon: 'militaryTech',
-  },
-  deepSpaceNav: {
-    id: 'deepSpaceNav',
-    name: '深空导航阵列',
-    desc: `校准跨星区航路的深空基准站：Lv${formatNumber(1)} 解锁第 ${formatNumber(6)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
-    cost: { mineral: 50_000, tech: 5_000 },
-    effect: { kind: 'exploration' },
-    maxLevel: 5,
-    icon: 'navArray',
-  },
-  interstellarRelay: {
-    id: 'interstellarRelay',
-    name: '星际通信中继',
-    desc: `中继星海的通信网络：Lv${formatNumber(1)} 解锁第 ${formatNumber(7)} 探索信道，每级探索收获 +${formatPercent(10)}。`,
-    cost: { mineral: 200_000, tech: 20_000 },
-    effect: { kind: 'exploration' },
-    maxLevel: 5,
-    icon: 'relay',
   },
   warpDrive: {
     id: 'warpDrive',

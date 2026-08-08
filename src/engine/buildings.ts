@@ -154,8 +154,8 @@ export function upgradeBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
   if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: '尚未建造该建筑' }
-  // 普通可多次购买建筑无升级（ADR-0036：数量维度仅「买多少」）；跃迁枢纽无升级效果（上游 f0458b0 决策：纯机制流建筑）
-  if (!def.unique || id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
+  // 普通可多次购买建筑无升级（ADR-0036：数量维度仅「买多少」）；跃迁枢纽 10 级化（ADR-0038）后为可升级 unique 大件
+  if (!def.unique) return { ok: false, reason: '该建筑没有可升级效果' }
   // unique 建筑按 maxLevel 封顶（如船坞 Lv1-3）
   if (def.maxLevel != null && (state.upgrades[id] ?? 0) >= def.maxLevel) {
     return { ok: false, reason: `已达最高等级（Lv.${formatNumber(def.maxLevel)}）` }

@@ -51,7 +51,8 @@ describe('ui: 军事面板', () => {
 
     const interstellar = document.createElement('div')
     renderBuildPanel(interstellar, { ...s, phase: 'ended', buildings: { ...s.buildings, starportMine: 1, stellarArray: 1, thinkTank: 1, jumpgate: 1 }, megastructureChoice: 'jumpgate' }, INTERSTELLAR_BUILDINGS)
-    expect(interstellar.querySelector('[data-building="jumpgate"] [data-upgrade="jumpgate"]')).toBeNull()
+    // 跃迁枢纽 10 级化（ADR-0038）：unique 大件有升级按钮
+    expect(interstellar.querySelector('[data-building="jumpgate"] [data-upgrade="jumpgate"]')).toBeTruthy()
   })
 
   it('军事建筑不出现在建造面板（civil 分流）', () => {

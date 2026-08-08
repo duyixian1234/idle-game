@@ -1,5 +1,7 @@
 Status: ready-for-agent
 
+> **ADR-0038 修订（2026-08-08）**：本文"多路"部分描述的深空导航/星际通信中继两科技（槽位/收获倍率门控）已删除，探索队列成长曲线整体迁入跃迁枢纽 10 级升级线（`JUMPGATE_SLOT_TABLE` 槽位表 + `1 + 0.3×枢纽等级` 收获倍率）。第 30/37-39/59-60/78 行科技口径作废，以 `docs/adr/0038-remove-exploration-techs.md` 为准。
+
 # Spec: 探索交互（采矿/外交）+ 多路探索（explore-interact）
 
 ## Problem Statement

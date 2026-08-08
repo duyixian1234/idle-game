@@ -62,7 +62,7 @@ describe('engine: 探索入口与门控', () => {
     expect(isExploreAvailable(s)).toBe(true)
   })
 
-  it('多槽：基础 5 槽满员时拒绝再次派遣；第 6 槽科技解锁后可续派', () => {
+  it('多槽：基础 5 槽满员时拒绝再次派遣；第 6 槽枢纽 Lv1 解锁后可续派', () => {
     const s = endedState()
     // 基础 5 槽：4 支在途 → 第 5 支可出发
     for (let i = 1; i <= 4; i++) s.expeditions.push(fakeExpedition({ id: i }))
@@ -70,8 +70,9 @@ describe('engine: 探索入口与门控', () => {
     expect(s.expeditions).toHaveLength(5)
     // 5 槽满员再拒
     expect(startExpedition(s, 2000)).toEqual({ ok: false, reason: '全部探索信道已占用，需等待返航' })
-    // 深空导航阵列 Lv1 → 6 槽：可派第 6 支
-    s.techLevels.deepSpaceNav = 1
+    // 跃迁枢纽 Lv1 → 6 槽：可派第 6 支
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 1
     expect(startExpedition(s, 3000)).toMatchObject({ ok: true })
     expect(s.expeditions).toHaveLength(6)
   })
@@ -141,16 +142,17 @@ describe('engine: 派遣出发（全提交 + 结果固化）', () => {
 })
 
 describe('engine: 探索槽位与成本自适应', () => {
-  it('explorationSlots：默认 5 槽，nav/relay 各 +1，科技全解锁 7 槽（无枢纽）', () => {
+  it('explorationSlots：默认 5 槽，枢纽等级驱动（Lv1 +1、Lv4 +2、Lv10 +5 = 满 10 槽）', () => {
     const s = endedState()
     expect(explorationSlots(s)).toBe(5)
-    s.techLevels.deepSpaceNav = 1
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 1
     expect(explorationSlots(s)).toBe(6)
-    s.techLevels.interstellarRelay = 1
+    s.upgrades.jumpgate = 4
     expect(explorationSlots(s)).toBe(7)
-    // Lv 无关（≥1 即解锁），科技全解锁 7 槽
-    s.techLevels.deepSpaceNav = 5
-    expect(explorationSlots(s)).toBe(7)
+    // Lv10 触达上限 10
+    s.upgrades.jumpgate = 10
+    expect(explorationSlots(s)).toBe(10)
   })
 
   it('军事点自适应：随军力上限 2% 缩放，保底 40，封顶 1000，×槽位', () => {
@@ -224,7 +226,8 @@ describe('engine: 探索槽位与成本自适应', () => {
 
   it('每槽独立 roll 固化：注入不同 rng → 不同 result（计数器天然独立）', () => {
     const s = endedState()
-    s.techLevels.deepSpaceNav = 1
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 1
     let calls = 0
     const rng = () => (calls++ === 0 ? 0.0 : 0.99) // 槽 0 落第一项（势力），槽 1 落 resource
     const r1 = startExpedition(s, 0, rng, 0)
@@ -234,24 +237,25 @@ describe('engine: 探索槽位与成本自适应', () => {
     expect(s.expeditions[0].result).not.toEqual(s.expeditions[1].result)
   })
 
-  it('探索收获倍率：1 + 0.1×(nav+relay) 级数；作用于 resource 分支补偿（×mult）', () => {
+  it('探索收获倍率：1 + 0.3×枢纽等级；作用于 resource 分支补偿（×mult）', () => {
     const s = endedState()
     expect(explorationHarvestMult(s)).toBe(1)
-    s.techLevels.deepSpaceNav = 1
-    expect(explorationHarvestMult(s)).toBe(1.1)
-    s.techLevels.deepSpaceNav = 5
-    s.techLevels.interstellarRelay = 5
-    expect(explorationHarvestMult(s)).toBe(2)
-    // resource 分支：0.99 落补偿 → 补偿 ×1.1（无科技基线 ×1）
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 1
+    expect(explorationHarvestMult(s)).toBe(1.3)
+    s.upgrades.jumpgate = 10
+    expect(explorationHarvestMult(s)).toBe(4)
+    // resource 分支：0.99 落补偿 → 补偿 ×1.3（无枢纽基线 ×1）
     const s1 = endedState()
     const base = startExpedition(s1, 0, () => 0.99, 0).value!.result
     const s2 = endedState()
-    s2.techLevels.deepSpaceNav = 1
+    s2.buildings.jumpgate = 1
+    s2.upgrades.jumpgate = 1
     const boosted = startExpedition(s2, 0, () => 0.99, 0).value!.result
     if (base.kind === 'resource' && boosted.kind === 'resource') {
-      expect(boosted.mineral).toBe(Math.floor(base.mineral * 1.1))
-      expect(boosted.tech).toBe(Math.floor(base.tech * 1.1))
-      expect(boosted.energy).toBe(Math.floor(base.energy * 1.1))
+      expect(boosted.mineral).toBe(Math.floor(base.mineral * 1.3))
+      expect(boosted.tech).toBe(Math.floor(base.tech * 1.3))
+      expect(boosted.energy).toBe(Math.floor(base.energy * 1.3))
     } else {
       throw new Error('rng 0.99 应落入 resource 补偿')
     }

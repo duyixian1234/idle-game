@@ -2,6 +2,8 @@
 
 **Status:** ready-for-agent
 
+> **ADR-0038 修订（2026-08-08）**：深空导航/星际通信中继两探索科技已删除（成长曲线并入跃迁枢纽 10 级）。本 spec 第 7 行"探索科技 Lv5 封顶"痛点作废（探索科技已不存在）；第 39 行"收获倍率函数 hardcode 读 deepSpaceNav/interstellarRelay key"作废——现 `explorationHarvestMult` = `1 + 0.3×枢纽等级`，星舰科技线（带 label 的 exploration effect）仍不触发槽位/倍率。详见 `docs/adr/0038-remove-exploration-techs.md`。
+
 ## Problem Statement
 
 1. **后期科技点溢出无用**：军械科技（militaryTech）Lv5 封顶、探索科技（deepSpaceNav/interstellarRelay）Lv5 封顶；通关后探索返还科技点（锚定远征费 ×0.02×收获倍率）持续产出，却无持续出口——科技点后期沦为废料。

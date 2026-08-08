@@ -10,7 +10,8 @@ import { RESOURCE_META } from '../../engine/data'
 import { formatMultiplier, formatNumber } from '../../engine/format'
 import { BUILDINGS, MEGASTRUCTURE_BUILDINGS } from '../../engine/data'
 import { canAffordBuilding, canAffordUpgrade, isBuildingUnlocked } from '../../engine/buildings'
-import { JUMPGATE_HARVEST_MULT, JUMPGATE_OFFLINE_EXTRA_SECONDS, JUMPGATE_SLOT_BONUS, OFFLINE_CAP_SECONDS } from '../../engine/balance'
+import { JUMPGATE_HARVEST_PCT_PER_LEVEL, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from '../../engine/balance'
+import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
 
 // ============================================================================
 // 类型
@@ -60,7 +61,7 @@ export function renderAsciiBar(ratio: number, width = 20): string {
 
 /**
  * 卡片主体点击的纯函数判定（main.ts 委托调用；可测 seam）：
- * - 未解锁 / 满级 / 资源不足 / jumpgate 已建（无升级效果）→ null（无副作用）
+ * - 未解锁 / 满级 / 资源不足 → null（无副作用）
  * - 终局工程建筑（究极建筑）未建造 → megastructure（走确认弹窗）
  * - unique 且 count>0 且未满级 → upgrade；否则（未拥有）→ buy。
  *   ⚠️ ADR-0036：普通建筑无升级（升级入口仅 unique），count>0 的普通建筑卡片主体点击 = null
@@ -73,7 +74,7 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
   if (MEGASTRUCTURE_BUILDINGS[id] && count <= 0) return { kind: 'megastructure' }
   const level = state.upgrades[id] ?? 0
   const maxed = def.unique === true && def.maxLevel != null && level >= def.maxLevel
-  if (count > 0 && def.unique === true && def.id !== 'jumpgate' && !maxed) {
+  if (count > 0 && def.unique === true && !maxed) {
     return canAffordUpgrade(state, id) ? { kind: 'upgrade' } : null
   }
   if (count <= 0) {
@@ -86,5 +87,5 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
 // 常量
 // ============================================================================
 
-/** 跃迁枢纽效果文案单一真源（从 balance 常量拼装：改平衡只动 balance.ts，UI 文案自动联动） */
-export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_BONUS)} · 天体收获倍率上限 ${formatMultiplier(2 * JUMPGATE_HARVEST_MULT)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
+/** 跃迁枢纽效果文案单一真源（ADR-0038 枢纽 10 级化：槽位/倍率随等级；从 balance/exploration 常量拼装，改平衡只动常量） */
+export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_TABLE[1])}~+${formatNumber(JUMPGATE_SLOT_TABLE[10])}（随等级） · 天体收获倍率 ${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL)}→${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`

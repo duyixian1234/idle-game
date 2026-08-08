@@ -40,11 +40,12 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     if (def.effect.kind === 'unlockBuilding') {
       effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
     } else if (def.effect.kind === 'exploration') {
-      if (def.effect.label) {
-        effectText = level >= 1 ? `${def.effect.label}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）` : def.effect.label
-      } else {
-        effectText = level >= 1 ? '探索信道已解锁' : '解锁第 6/7 探索信道'
-      }
+      // ADR-0038：探索类科技仅剩带 label 的星舰线（纯 UI 文案，无信道/倍率逻辑）
+      effectText = def.effect.label
+        ? level >= 1
+          ? `${def.effect.label}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）`
+          : def.effect.label
+        : ''
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${RESOURCE_META[def.effect.resource].name}产出 ${formatMultiplier(cur)}`
