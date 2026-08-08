@@ -55,7 +55,7 @@
 - `diplomacyAuto` 配置：`perFaction` 从 boolean 升级为 `{ [id]: 'ally' | 'coerce' | 'off' }`（兼容迁移：`false` → `'off'`、`true`/缺失 → `'ally'`；存档迁移见下）。
 - `autoDiplomacyTick`（diplomacy.ts）：
   - 友好线（ally）：现有贸易/技术共享逻辑保留 → 新增 `favor ≥ 80` 且 `phase !== 'playing'` 且结盟预算内 → 自动 `factionAlliance`。
-  - 胁迫线（coerce）：仅 `isEndlessTargetId(id) || id.startsWith('gen:')` 且 `coercionUnlocked` → `canFactionExtort` → `factionExtort`；`canFactionTreaty` → `factionTreaty`。
+  - 胁迫线（coerce）：仅 `isEndlessTargetId(id) || id.startsWith('gen:')` 且 `coercionUnlocked` → 首轮勒索（`factionExtort`），此后 **treaty 优先**（`canFactionTreaty` → `factionTreaty`，避免反复勒索涨 threat/条约期等待）；条约到期自动续签（成本 ×1.5^treatyCount 递增自稳）。
   - 阶段门控：playing 阶段不触发自动结盟（友好线只到贸易/技术共享）。
 - `panels.ts` 折叠判定：`archivedRounds[id] != null || f.allied || f.subjugated || (f.treatyUntil !== undefined && nowMs < f.treatyUntil)` → 折叠区；折叠条目按状态渲染徽章（已臣服/条约中）且对胁迫态保留「赎罪」「续签」按钮。
 - 排除：臣服/赎罪自动化（ADR-0030 决策 4）；静态/探索派系自动胁迫（raid 安全边界）。
@@ -63,13 +63,13 @@
 ## Testing Decisions
 
 - **缝（seam）**：引擎派生纯函数层（`generateConquestTarget` 奖励/成本、`factionExtort`/`factionTreaty` 可达性、`federationProgress`、`autoDiplomacyTick`）+ UI 渲染判定（`panels.ts` 折叠）+ balance-sim 断言。全部改动汇聚于派生函数/纯判定，无新 seam 引入。
-- **好测试标准**：只断言外部行为——守卫 0 级经济时奖励/成本与现状逐字节一致；产能挂钩后奖励随产出缩放；成本/奖励净比值恒定；infinite 新派系不回退联邦进度；自动结盟 playing 不触发；自动胁迫不选静态派系；条约中折叠、到期自动展开、赎罪按钮可达。
+- **好测试标准**：只断言外部行为——产能挂钩后奖励随产出缩放、奖励/成本净比值恒定；infinite 新派系不回退联邦进度；自动结盟 playing 不触发；自动胁迫不选静态派系；条约中折叠、到期自动展开、赎罪按钮可达。（注：旧口径「守卫 0 级经济时与现状逐字节一致」在奖励改产能锚定后不再适用——0 产出 = 0 奖励，无法与守卫×因子口径逐字节一致，spec 表述已作废。）
 - **测试模块**：generate 域（军事奖励/成本）、exploration 域（礼包结算/权重）、conquest 域（启动成本）、diplomacy 域（联邦语义/自动外交）、ui 域（折叠判定）、balance-sim（价值密度）。
 - **Prior art**：`generate.test.ts`（生成目标）、`exploration.test.ts`（结算/奖池）、`conquest.test.ts`（攻占）、`diplomacy-auto.test.ts`（自动化）、`fold-archived.test.ts`（折叠）、`balance-simulation.test.ts`（印钞与不变量断言）。
 
 ### balance-sim 断言（ticket 01 新增）
 
-- 生成军事目标价值密度（每小时收益）≤ 探索/护航的约束上限（N/M 校准后不印钞）。
+- 军事单目标净收益 ≤ 探索机会成本折算上限（`GENERATED_CAP_EXPLORATIONS_DIVISOR` 次探索 × 单次矿成本；落在探索成本未封顶区间——深后期机会成本封顶而军事奖励未封顶，印钞由供给 cap 兜底，见 ADR-0028 后果段）。
 - 成本与奖励同源：任意净产出水平下净比值 `(N−M)/M` 恒定（采样多档产出断言）。
 - 外交礼包 + 好感 ≤ 39（低于自动外交阈值 40）。
 
@@ -84,5 +84,5 @@
 ## Further Notes
 
 - 关系：本 spec 与 fleet-power-exploration（战力杠杆）、endgame-balance-tuning（容量/质变）无硬依赖；产出锚定复用 balance.ts 根因子与 balance-sim 框架（ADR-0018）。
-- Open items（实现期可拍板）：N/M/G 常量初值（ticket 01 建议带 N ∈ [30, 180]、M/N 同量级，sim 校准定稿）；奖池权重具体整数（ticket 02，sim 验证目标分布）；自动结盟预算口径（复用 DIPLO_AUTO_BUDGET_RATIO ≤10% 或独立阈值）；折叠区赎罪/续签按钮布局与 data-* 契约（ticket 03）；`diplomacyAuto.perFaction` 结构升级的存档迁移（v? 版本）。
+- Open items（实现期可拍板）：N/M/G 常量初值（ticket 01 建议带 N ∈ [30, 180]、M/N 同量级，sim 校准定稿）；奖池权重具体整数（ticket 02，sim 验证目标分布）；自动结盟预算口径（复用 DIPLO_AUTO_BUDGET_RATIO ≤10% 或独立阈值）；折叠区赎罪/续签按钮布局与 data-* 契约（ticket 03）；`diplomacyAuto.perFaction` 结构升级的存档迁移（v14 已落地）；**军事奖励/成本是否加 cap（与探索 `scaledClamp` 同构，消除深后期「探索成本封顶而军事不封顶」的脱钩——ADR-0028 后果段已知限制，2026-08-08 code-review 提出）**。
 - 建议实施顺序：ticket 01 → 02 → 03（01 为核心经济改动，02/03 与之无硬阻塞但联调更顺）。

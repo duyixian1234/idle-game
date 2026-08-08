@@ -27,5 +27,5 @@
 ## 后果
 
 - **`panels.ts` 折叠判定 + 折叠区渲染扩展**：需区分交互型折叠（胁迫）与非交互折叠（结盟/攻占）；`fold-archived.test.ts` 补胁迫态用例（条约中折叠、到期自动展开、叛变展开、赎罪按钮可达）。
-- **依赖 `nowMs` 的派生**：折叠判定需实时时间（条约 `treatyUntil` 对比）——渲染层已持有 `nowMs`，无新依赖。
+- **实时时间判定**：折叠判定用 `Date.now()` 对比 `treatyUntil`（与 `renderCoercionActions` 的 `atoningUntil` 判定同口径）；渲染纯派生、时间仅作判定不写档。⚠️ UI 层未延伸 ADR-0017 的时间可注入——`renderDiplomacyPanel(el, state, opts)` 无 nowMs 参数，测试靠同步渲染 + wall-clock 成立（既有格局，2026-08-08 code-review 确认）。
 - 折叠区从「纯只读展示」变为「部分可交互」：UI 结构从 `archive-row` 扩展为带 action 的条目，DOM 契约需同步（ADR-0020 语义化 data-* 断言）。

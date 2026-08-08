@@ -34,7 +34,8 @@
 
 ## 后果
 
-- **balance-sim 扩展**：新增「生成目标价值密度对照」——军事/外交礼包 vs 探索/护航的每小时收益比，上限约束；N/M/G 初值带（N ∈ [30, 180] 秒）由 sim 校准定稿。
+- **balance-sim 扩展**：新增「生成目标价值密度对照」——军事单目标净收益 ≤ 产生该目标所需的探索机会成本（`GENERATED_CAP_EXPLORATIONS_DIVISOR` 次探索 × 单次矿成本）折算上限；N/M/G 初值带（N ∈ [30, 180] 秒）由 sim 校准定稿。
+- **深后期封顶不对称（已知限制）**：探索成本带封顶（`EXPEDITION_MINERAL.cap` 150k，scaledClamp 防印钞），军事奖励 `prod × N` 未封顶——产出极高时单目标净收益脱离探索机会成本约束，印钞由供给 cap（`generatedCap` 探索驱动，每 10 次探索 +1 名额）兜底。价值密度断言落在探索成本未封顶区间；是否给军事奖励/成本加 cap（与探索 `scaledClamp` 同构）列为 balance-sim 校准项（grill 未决）。
 - **存量测试更新**：`conquest.test.ts` / `exploration.test.ts` / `balance-simulation.test.ts` 中守卫×因子奖励断言改为产能锚定口径；generatedCap 等数量语义不受影响。
 - **静态探索目标（首次通关内容）不动**：首次通关有「新内容新鲜感」兜底，且动它牵连通关节奏与结局平衡。
 - **贡税流（条约 5.56/s、臣服 11.1/s）flat 不随动**——属手动胁迫的持续收益，与「发现一次性收益」不同源，记为独立后续议题。

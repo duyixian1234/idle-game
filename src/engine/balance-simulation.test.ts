@@ -3,7 +3,7 @@ import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost } from './exploration'
 import { generateConquestTarget } from './generate'
-import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX } from './balance'
+import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR } from './balance'
 import { militaryCap } from './production'
 import type { GameState } from './types'
 
@@ -202,6 +202,22 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
       expect(t.rewardMineral!).toBeGreaterThan(t.costMineral!)
       expect(t.bonus).toBeUndefined()
     }
+  })
+
+  it('价值密度对照（防印钞）：军事单目标净收益 ≤ 探索机会成本折算上限', () => {
+    // 探索成本带封顶（scaledClamp：prod×300 clamp 150k）——探索自身是转换器（净 +8%），不印钞。
+    // 军事奖励 prod×N 未封顶：在探索成本未封顶区间（prod×300 < cap ⟺ prod < 500），
+    // 单目标净收益 ≤ 产生 1 个军事名额的探索机会成本
+    //   （GENERATED_CAP_EXPLORATIONS_DIVISOR 次探索 × 单次矿成本）⟺ N−M ≤ 3000（当前 60，余量充分）
+    // ⚠️ 深后期（prod×300 ≥ cap）机会成本封顶、军事奖励不封顶 → 印钞由供给 cap（generatedCap 探索驱动）兜底，
+    //    是否给军事奖励/成本加 cap 列为 ADR-0028 balance-sim 校准项（spec open items）。
+    const count = 115 // 115 × 3.5 ≈ 402/s，prod×300 = 120k < cap 150k
+    const s = prodState(count)
+    const t = generateConquestTarget(s, fixedRolls(ROLLS))
+    const prod = count * 3.5
+    const exploreCostPer = Math.floor(prod * EXPEDITION_MINERAL.factor)
+    expect(exploreCostPer).toBeLessThan(EXPEDITION_MINERAL.cap) // 确认断言落在未封顶区间
+    expect(t.rewardMineral! - t.costMineral!).toBeLessThanOrEqual(GENERATED_CAP_EXPLORATIONS_DIVISOR * exploreCostPer)
   })
 
   it('外交礼包好感钳制：+10 且初始 favor ∈ [0,29]（floor 采样）→ 最高 39 < 自动外交阈值 40（零钳制逻辑）', () => {

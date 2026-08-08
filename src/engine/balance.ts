@@ -266,7 +266,9 @@ export const GEN_FACTION_GIFT_TECH_SECONDS = 5
 export const GEN_FACTION_GIFT_FAVOR = 10
 /** 探索奖池权重（endgame-discovery-economy，grill Q12-B 目标分布：天体 30 / 军事 25 / 外交 25）：
  * 天体权重升（头奖稀缺性回归合理区间）、派系/军事降（礼包已对齐价值密度，降低刷屏稀释）。
- * 实现用整数近似（派系条目数多、天体条目数少 → 以权重补足）。 */
+ * 实现用整数近似（派系条目数多、天体条目数少 → 以权重补足）。
+ * ⚠️ 深池聚合（batch2 解锁、静态内容清空）实际 ≈ 军事 25 / 外交 25 / 天体 37.5 / 资源 12.5，与目标分布有偏差，
+ *    待 balance-sim 校准（spec open items / 2026-08-08 code-review）。 */
 export const POOL_WEIGHT_FACTION = 1
 export const POOL_WEIGHT_PLANET = 2
 export const POOL_WEIGHT_CONQUEST = 1
