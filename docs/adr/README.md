@@ -1,6 +1,6 @@
 # Architecture Decision Records — idle-game
 
-33 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
+35 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
 
 ## 架构
 
@@ -59,6 +59,8 @@
 | [0031](./0031-coercion-derived-archiving.md) | 胁迫态派生折叠：subjugated/treaty 中 → 折叠区，状态变化自动折/展 |
 | [0032](./0032-auto-diplomacy-global-direction.md) | 外交自动化纯全局方向：全局选结盟/胁迫 + 阈值 0 自动完成前置 + 挂机同步 |
 | [0033](./0033-auto-conquest-military-cost.md) | 自动攻占 + 守卫挂钩军力容量：投满必成/军力保底 20%/挂机同步，后期军力成本成真实门槛 |
+| [0034](./0034-tick-registry.md) | tick 注册表：结算阶段组 DAG + 组内序列 + 拓扑排序 fail-fast + Golden Order 保序 |
+| [0035](./0035-render-registry.md) | render 注册表：RenderNode 阶段保序（content/overlay/badge）+ 宽 ctx + 状态副作用留主函数 |
 
 ## 关联关系
 
@@ -79,3 +81,6 @@
 - 0031 → 0014/0013：胁迫折叠是 UI 派生判定，受 250ms 全量重建（0014）与信息架构（0013）约束。
 - 0032 → 0030：纯全局方向是 0030 的迭代——per-faction 三态升级为全局 mode，raid 安全边界与阶段门控保留。
 - 0033 ↔ 0028/0032：自动攻占与外交自动化对称（autoExplore→autoConquest 闭环），守卫挂钩容量补充 0028 的「挑战阈值」语义——守卫不参与经济锚定，只提高军力投入挑战。
+- 0034 ↔ 0002/0003：tick 注册表是「hub 收窄但可见」的延续——engine 域已拆深模块，tick 序列的组 DAG 让结算阶段成为可声明的偏序；Golden Order 与 0017 双层 seam 同为「行为一致由测试证明」。
+- 0035 ↔ 0003/0014：render 注册表把 session 从「知道全部面板」收窄为「调度注册表」，250ms 全量重建（0014）与阶段保序（overlay 末位）并存——z-order 约束从注释变成结构。
+- 0034 ↔ 0035：同批落地的两个注册表（先 tick 后 render），共享 Golden Order 保序机制——顺序漂移由测试暴露，行为一致可回归。

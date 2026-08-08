@@ -17,6 +17,8 @@ import { computeNgPlusInheritance, megastructureLegacyBonus } from './ngplus'
 import { CODEX_FAVOR_BONUS } from './balance'
 import { randSeed, streamFor } from './rng'
 import { checkPlanetUnlocks } from './planets'
+import { createTickRegistry } from './tick-registry'
+import type { TickGroupId } from './tick-registry'
 /** 当前星球机制的周期副作用（风暴收获）；无机制或未到点时无操作 */
 function applyStormHarvest(state: GameState, nowMs: number): void {
   const def = PLANETS[state.activePlanet]
@@ -95,17 +97,15 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
   }
 }
 
-/**
- * 推进时间：按真实时间差结算资源产出。
- * 消耗能源的建筑按能源可得比例结算，能源不会为负。
- * 到点触发随机事件（可注入 rng 以确定性测试）。
- * rng 不传（undefined）→ 生产模式：结果型随机走持久域、装饰型走即时流（fixed-rng 防 SL）；
- * 显式传 rng → 测试注入（全链透传，行为与现状一致）。
- * @param nowMs 当前时间戳（测试可注入）
- */
-export function tick(state: GameState, nowMs: number, rng?: () => number): GameState {
+// ---- tick 注册表（ADR-0034）----
+// 5 个结算阶段组；组内保持原线性调用；组间 after 链式偏序
+// （golden-order 测试校验「拓扑序展开 == 旧序列」，行为逐字节一致）。
+// 顺序依赖注：coercionTick 须在 autoDiplomacyTick 前（cooldown 共享）；
+// settleExpeditions 须在 autoExploreDispatch 前（结算后补位）；
+// checkEnding 须在 checkAchievements 前（federation 成就依赖 endingTriggered）。
+
+function resourcesTick(state: GameState, nowMs: number): void {
   const dtMs = Math.max(0, nowMs - state.lastTick)
-  if (dtMs <= 0) return state
   const dt = dtMs / 1000
   const report = productionReport(state)
   for (const k of RESOURCE_KEYS) {
@@ -125,6 +125,9 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   if (state.resources.military > militaryCap(state)) {
     state.resources.military = militaryCap(state)
   }
+}
+
+function diplomacyTick(state: GameState, nowMs: number): void {
   // 胁迫外交 tick 推进：条约到期 threat 反弹、臣服叛变检查（贡税已含在 productionReport 中）
   coercionTick(state, nowMs)
   // 外交自动化 tick（diplo-auto）：自动贸易/技术共享（好感≥40/20s 冷却/预算内；胁迫类保持手动）
@@ -132,14 +135,17 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   // 胁迫外交解锁（diplomacy-coercion 解锁条件解耦）：军力上限达标即解锁（与 raid 遭遇双通道），
   // 首次解锁在 ensureCoercionUnlocked 内播报叙事（幂等；存量存档回归时自动生效）
   ensureCoercionUnlocked(state, 'military')
+  // 时间推进（dt 在 resourcesTick 后 lastTick 更新前重算，值与原一致）
+  const dt = Math.max(0, nowMs - state.lastTick) / 1000
   state.lastTick = nowMs
   state.playSeconds += dt
-
   // 星球停留时长累计（引力井衰减机制），切换星球时重置
   if (state.activePlanet !== 'barren') {
     state.planetStaySeconds += dt
   }
+}
 
+function eventsTick(state: GameState, nowMs: number, rng?: () => number): void {
   // 随机事件：到点触发一次并安排下一次（无限模式更密）
   // 事件类型走持久域（triggerRandomEvent 内部 rng undefined → rollDomain），间隔抖动走即时流（streamFor）
   // 舰队自动迎击在 triggerRandomEvent 内结算（raid 够强不弹窗，直接返回系统日志）
@@ -159,6 +165,9 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   checkPlanetUnlocks(state)
   // 统一前夕叙事（3/4 达成时）
   checkFederationPendingStory(state)
+}
+
+function settlementTick(state: GameState, nowMs: number, rng?: () => number): void {
   // 攻占结算（倒计时到期 → 成功/失败；rng undefined → 走 conquest 域持久化计数器）
   for (const conquestLog of settleConquests(state, nowMs, rng)) {
     pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
@@ -175,6 +184,9 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   for (const conquestAutoLog of autoConquestTick(state, nowMs)) {
     pushLog(state, 'system', conquestAutoLog)
   }
+}
+
+function endingTick(state: GameState, nowMs: number): void {
   // 结局判定
   checkEnding(state)
   // 永恒殖民叙事挂点（endlessii-unlock spec：条件与成就谓词同源引用，防数值漂移；
@@ -184,7 +196,32 @@ export function tick(state: GameState, nowMs: number, rng?: () => number): GameS
   checkAchievements(state, nowMs)
   // 清理超时未处理的事件实例
   pruneStaleEvents(state, nowMs)
+}
+
+const TICK_GROUPS = createTickRegistry()
+TICK_GROUPS.register({ id: 'resources', after: [], run: resourcesTick })
+TICK_GROUPS.register({ id: 'diplomacy', after: ['resources'], run: diplomacyTick })
+TICK_GROUPS.register({ id: 'events', after: ['diplomacy'], run: eventsTick })
+TICK_GROUPS.register({ id: 'settlement', after: ['events'], run: settlementTick })
+TICK_GROUPS.register({ id: 'ending', after: ['settlement'], run: endingTick })
+
+/**
+ * 推进时间：按真实时间差结算资源产出。
+ * 消耗能源的建筑按能源可得比例结算，能源不会为负。
+ * 到点触发随机事件（可注入 rng 以确定性测试）。
+ * rng 不传（undefined）→ 生产模式：结果型随机走持久域、装饰型走即时流（fixed-rng 防 SL）；
+ * 显式传 rng → 测试注入（全链透传，行为与现状一致）。
+ * @param nowMs 当前时间戳（测试可注入）
+ */
+export function tick(state: GameState, nowMs: number, rng?: () => number): GameState {
+  if (Math.max(0, nowMs - state.lastTick) <= 0) return state
+  for (const g of TICK_GROUPS.build()) g.run(state, nowMs, rng)
   return state
+}
+
+/** 注册拓扑序快照（ADR-0034 golden-order）：golden-order 测试固化此序，防注册顺序漂移 */
+export function tickGroupOrder(): TickGroupId[] {
+  return TICK_GROUPS.build().map((g) => g.id)
 }
 
 // ---- 星球系统 ----
