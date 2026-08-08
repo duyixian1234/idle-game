@@ -6,17 +6,17 @@ import { settleOffline } from './offline'
 const NOW = 1_000_000_000
 const FERRO = 'ferro'
 
-/** 构造：外交自动化开启、资源充裕、ferro 好感 50（≥40 阈值），冷却已过 */
+/** 构造：外交自动化开启（全局方向，缺省 ally）、资源充裕、ferro 好感 50，冷却已过 */
 function baseState() {
   const s = createInitialState(NOW)
-  s.diplomacyAuto = { enabled: true, perFaction: {} }
+  s.diplomacyAuto = { enabled: true }
   s.resources.mineral = 1_000_000
   s.resources.tech = 1_000_000
   s.factions[FERRO].favor = 50
   return s
 }
 
-describe('autoDiplomacyTick（diplo-auto）', () => {
+describe('autoDiplomacyTick（diplo-auto 纯全局，2026-08-08）', () => {
   it('全局开关关闭 → 不动作', () => {
     const s = baseState()
     s.diplomacyAuto = undefined
@@ -24,15 +24,15 @@ describe('autoDiplomacyTick（diplo-auto）', () => {
     expect(s.factions[FERRO].favor).toBe(50)
   })
 
-  it('好感低于阈值（<40）→ 不动作', () => {
+  it('好感阈值已降至 0：favor 10（礼包后新派系区间）也自动贸易启动前置', () => {
     const s = baseState()
     s.factions[FERRO].favor = 10
     autoDiplomacyTick(s, NOW + 100_000)
-    expect(s.factions[FERRO].favor).toBe(10)
-    expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
+    expect(s.factions[FERRO].favor).toBeGreaterThan(10)
+    expect(s.diplomacyAuto?.lastActionAt).toBe(NOW + 100_000)
   })
 
-  it('好感达标 + 预算够 + 冷却过 → 自动贸易提升好感并记录冷却', () => {
+  it('预算够 + 冷却过 → 自动贸易提升好感并记录冷却', () => {
     const s = baseState()
     const before = s.factions[FERRO].favor
     autoDiplomacyTick(s, NOW + 100_000)
@@ -42,7 +42,7 @@ describe('autoDiplomacyTick（diplo-auto）', () => {
 
   it('冷却未过（20s 内）→ 不动作', () => {
     const s = baseState()
-    s.diplomacyAuto = { enabled: true, perFaction: {}, lastActionAt: NOW + 90_000 }
+    s.diplomacyAuto = { enabled: true, lastActionAt: NOW + 90_000 }
     const before = s.factions[FERRO].favor
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.factions[FERRO].favor).toBe(before)
@@ -67,30 +67,26 @@ describe('autoDiplomacyTick（diplo-auto）', () => {
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
   })
 
-  it('逐派系模式 off → 跳过该派系', () => {
-    const s = baseState()
-    s.diplomacyAuto!.perFaction = { [FERRO]: 'off' }
-    autoDiplomacyTick(s, NOW + 100_000)
-    expect(s.factions[FERRO].favor).toBe(50)
-  })
-
   it('已结盟 → 跳过', () => {
     const s = baseState()
     s.factions[FERRO].allied = true
+    s.factions[FERRO].favor = 100
+    // 阈值 0 后其余初始派系也会被自动贸易——满好感隔离，验证「结盟派系跳过」
+    for (const id of ['lumen', 'cygnus', 'vox']) s.factions[id].favor = 100
     autoDiplomacyTick(s, NOW + 100_000)
-    expect(s.factions[FERRO].favor).toBe(50)
+    expect(s.factions[FERRO].favor).toBe(100)
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
   })
 
   it('好感已满（100）→ 跳过', () => {
     const s = baseState()
-    s.factions[FERRO].favor = 100
+    for (const id of ['ferro', 'lumen', 'cygnus', 'vox']) s.factions[id].favor = 100
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
   })
 })
 
-describe('autoDiplomacyTick 三态扩展（ADR-0030）', () => {
+describe('autoDiplomacyTick 全局方向（ally/coerce，2026-08-08 用户确认）', () => {
   /** ended 阶段 + 胁迫解锁（storyFlags 置位 + 军港 25 座容量 5100）状态 */
   function coercionReadyState() {
     const s = baseState()
@@ -124,13 +120,12 @@ describe('autoDiplomacyTick 三态扩展（ADR-0030）', () => {
     expect(s.factions[FERRO].favor).toBeGreaterThan(85)
   })
 
-  it('胁迫线：生成派系自动勒索（raid 安全对象），勒索后自动条约', () => {
+  it('全局胁迫方向：生成派系自动勒索（raid 安全对象），勒索后自动条约', () => {
     const s = coercionReadyState()
-    s.factions[FERRO].favor = 10 // 排除默认友好线抢跑（其余初始派系好感 <40 天然跳过）
+    s.diplomacyAuto = { enabled: true, mode: 'coerce' }
     const gid = 'endless:starlightLeague'
     s.factions[gid] = { favor: 20, allied: false, tradeCount: 0, intimidateCount: 0, threat: 40 }
     s.generatedTargets.push({ kind: 'faction', id: gid, name: '星光商会', desc: '', batch: 1, initialFavor: 20, initialThreat: 40 })
-    s.diplomacyAuto!.perFaction = { [gid]: 'coerce' }
     const mineralBefore = s.resources.mineral
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.factions[gid].extortCount).toBe(1)
@@ -141,31 +136,31 @@ describe('autoDiplomacyTick 三态扩展（ADR-0030）', () => {
     expect(s.factions[gid].treatyUntil).toBeDefined()
   })
 
-  it('胁迫线：静态派系不自动勒索（raid 安全边界）', () => {
+  it('全局胁迫方向：静态派系自动跳过（raid 安全边界，不贸易不勒索）', () => {
     const s = coercionReadyState()
-    s.factions[FERRO].favor = 10
-    s.diplomacyAuto!.perFaction = { [FERRO]: 'coerce' }
+    s.diplomacyAuto = { enabled: true, mode: 'coerce' }
+    s.factions[FERRO].favor = 50
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.factions[FERRO].extortCount).toBeUndefined()
+    expect(s.factions[FERRO].favor).toBe(50)
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
   })
 
-  it('胁迫线：未解锁胁迫 → 不动作', () => {
+  it('全局胁迫方向：未解锁胁迫 → 不动作', () => {
     const s = baseState()
     s.phase = 'ended'
     s.endingTriggered = true
-    s.factions[FERRO].favor = 10 // 低于友好线阈值，排除默认友好线抢跑
+    s.diplomacyAuto = { enabled: true, mode: 'coerce' }
     const gid = 'endless:starlightLeague'
     s.factions[gid] = { favor: 20, allied: false, tradeCount: 0, intimidateCount: 0, threat: 40 }
     s.generatedTargets.push({ kind: 'faction', id: gid, name: '星光商会', desc: '', batch: 1, initialFavor: 20, initialThreat: 40 })
-    s.diplomacyAuto!.perFaction = { [gid]: 'coerce' }
     autoDiplomacyTick(s, NOW + 100_000)
     expect(s.factions[gid].extortCount).toBeUndefined()
     expect(s.diplomacyAuto?.lastActionAt).toBeUndefined()
   })
 })
 
-describe('settleOffline 离线推进自动外交（diplo-auto，2026-08-07）', () => {
+describe('settleOffline 离线推进自动外交（挂机同步，2026-08-07 修复 + 2026-08-08 纯全局）', () => {
   it('离线 60s（3 个冷却周期）→ 好感上升且 lastActionAt 推进', () => {
     const s = baseState()
     // 贸易成本 5000，预算 10% → 需矿物 ≥ 50,000；矿物 1M 充足
@@ -181,10 +176,40 @@ describe('settleOffline 离线推进自动外交（diplo-auto，2026-08-07）', 
     expect(s.factions[FERRO].favor).toBe(50)
   })
 
-  it('好感低于阈值（<40）→ 离线不推进', () => {
+  it('阈值降至 0：favor 10 的派系离线也推进前置', () => {
     const s = baseState()
     s.factions[FERRO].favor = 10
     settleOffline(s, NOW + 60_000)
-    expect(s.factions[FERRO].favor).toBe(10)
+    expect(s.factions[FERRO].favor).toBeGreaterThan(10)
+  })
+
+  it('全局胁迫方向离线同步：生成派系自动勒索', () => {
+    const s = coercionOfflineState()
+    settleOffline(s, NOW + 60_000)
+    expect(s.factions['endless:starlightLeague'].extortCount).toBe(1)
+  })
+
+  it('全局胁迫方向离线：静态派系跳过（raid 安全）', () => {
+    const s = coercionOfflineState()
+    s.factions[FERRO].favor = 50
+    settleOffline(s, NOW + 60_000)
+    expect(s.factions[FERRO].extortCount).toBeUndefined()
   })
 })
+
+/** 离线胁迫方向状态：ended + 胁迫解锁 + 全局 coerce + 一个生成派系 */
+function coercionOfflineState() {
+  const s = baseState()
+  s.phase = 'ended'
+  s.endingTriggered = true
+  s.planets.orbital = { unlocked: true }
+  s.buildings.militaryPort = 25
+  s.storyFlags['coercionUnlocked'] = true
+  s.diplomacyAuto = { enabled: true, mode: 'coerce' }
+  s.resources.energy = 1_000_000
+  s.resources.military = 100_000
+  const gid = 'endless:starlightLeague'
+  s.factions[gid] = { favor: 20, allied: false, tradeCount: 0, intimidateCount: 0, threat: 40 }
+  s.generatedTargets.push({ kind: 'faction', id: gid, name: '星光商会', desc: '', batch: 1, initialFavor: 20, initialThreat: 40 })
+  return s
+}

@@ -68,8 +68,9 @@ export const TRADE_BASE_COST = 5_000
 export const TRADE_COST_GROWTH = 1.5
 
 // ---- 外交自动化（diplo-auto，2026-08-07）----
-/** 自动贸易/技术共享触发好感阈值：好感 ≥ 40 才进入自动轮询（低于阈值不浪费预算） */
-export const DIPLO_AUTO_FAVOR_THRESHOLD = 40
+/** 自动贸易/技术共享触发好感阈值（2026-08-08 降至 0：纯全局方向 + 自动完成前置——发现礼包后新派系好感 10–39
+ * 也要自动启动贸易链路；预算比 10% 仍自稳，主游戏经济不受扰动） */
+export const DIPLO_AUTO_FAVOR_THRESHOLD = 0
 /** 自动动作冷却：两次自动外交动作间隔 ≥ 20s（低频不刷屏、不给零成本刷好感） */
 export const DIPLO_AUTO_COOLDOWN_MS = 20_000
 /** 自动动作预算上限：单次自动贸易花费 ≤ 当前矿物 10%、技术共享 ≤ 当前科技 10%（防破产；成本递增天然自稳） */

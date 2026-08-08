@@ -72,7 +72,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     archivedRounds: {},
     hiddenPlanets: [],
     hiddenBuildings: [],
-    diplomacyAuto: { enabled: false, perFaction: {} },
+    diplomacyAuto: { enabled: false },
     nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,

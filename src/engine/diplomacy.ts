@@ -528,28 +528,27 @@ export function diplomacyOverview(state: GameState): { total: number; satisfied:
 }
 
 /**
- * 外交自动化 tick（diplo-auto 扩展，ADR-0030）：每冷却周期（20s）对第一个满足条件的派系执行一次动作，
- * 每派系三态（友好/胁迫/关）自动完成生命周期：
- * - 友好线（ally，默认）：批量贸易/技术共享（≤10 次原语，预算内）→ favor ≥ 80 且可付 → 自动结盟
- *   （**仅 ended/infinite**：playing 自动结盟会触发 checkEnding 自动通关，禁止）；
- * - 胁迫线（coerce）：仅 raid 安全的生成派系（endless:/gen:）自动勒索 → 进贡条约；
- *   静态/探索派系、臣服、赎罪保持手动（臣服锁军力 + 叛变风险、赎罪是玩家主动决策）；
- * - off：该派系不参与自动化。
+ * 外交自动化 tick（diplo-auto 纯全局迭代，2026-08-08）：每冷却周期（20s）对第一个满足条件的派系执行一次动作。
+ * 全局方向（mode）+ 自动完成前置：
+ * - 友好线（ally，默认）：任何好感 < 100 的派系自动贸易/技术共享（预算内，好感阈值已降至 0——发现礼包后
+ *   新派系好感 10–39 也自动启动）→ favor ≥ 80 且可付 → 自动结盟（**仅 ended/infinite**：playing 自动结盟
+ *   会触发 checkEnding 自动通关，禁止）；
+ * - 胁迫线（coerce）：仅 raid 安全的生成派系（endless:/gen:）自动勒索 → 条约；静态/探索派系（raid 候选）
+ *   自动跳过（2026-08-08 用户确认，挂机不被骚扰循环）；臣服/赎罪保持手动；
  * 预算口径：单次花费 ≤ 当前资源 × DIPLO_AUTO_BUDGET_RATIO（成本递增天然自稳）；结盟为一次性大额，
- * 走 canFactionAlliance 全额可付判定（infinite 后期资源充裕，预算比无意义）。
- * nowMs 可注入（测试）。
+ * 走 canFactionAlliance 全额可付判定。
+ * nowMs 可注入（测试）；离线由 settleOffline 按冷却周期批量推进（虚拟时钟）。
  */
 export function autoDiplomacyTick(state: GameState, nowMs: number): void {
   const cfg = state.diplomacyAuto
   if (!cfg?.enabled) return
   if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < DIPLO_AUTO_COOLDOWN_MS) return
+  const mode = diplomacyAutoMode(state)
   for (const id of Object.keys(state.factions)) {
     if (!factionDef(state, id)) continue
     const f = state.factions[id]
     if (!f || f.allied) continue
-    const mode = diplomacyAutoMode(state, id)
-    if (mode === 'off') continue
-    // 胁迫线（coerce）
+    // 胁迫线（coerce）：仅生成派系（raid 安全），静态/探索派系跳过
     if (mode === 'coerce') {
       if (!coercionUnlocked(state)) continue
       if (!isGeneratedFactionId(id)) continue
@@ -599,13 +598,9 @@ export function autoDiplomacyTick(state: GameState, nowMs: number): void {
   }
 }
 
-/** 逐派系自动化模式（ADR-0030）：perFaction 缺省 = 'ally'（友好线）；显式 'coerce'/'off' 覆盖；
- * 兼容旧档 boolean（v14 迁移已转 false→off / true→ally，运行时防御兜底）。 */
-export function diplomacyAutoMode(state: GameState, id: string): DiplomacyAutoMode {
-  const per = state.diplomacyAuto?.perFaction?.[id] as DiplomacyAutoMode | boolean | undefined
-  if (per === 'coerce' || per === 'off') return per
-  if (per === false) return 'off' // 旧档 boolean 兜底（迁移未覆盖的异常数据）
-  return 'ally'
+/** 全局外交自动化方向（纯全局，2026-08-08 迭代）：mode 缺省 'ally'；「关」由全局 enabled 表达 */
+export function diplomacyAutoMode(state: GameState): DiplomacyAutoMode {
+  return state.diplomacyAuto?.mode === 'coerce' ? 'coerce' : 'ally'
 }
 
 /** 生成派系 id 判定（raid 安全边界：raidableFaction 只遍历 ALL_FACTIONS，endless:/gen: 永不成为 raid 源） */

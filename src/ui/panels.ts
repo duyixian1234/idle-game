@@ -507,7 +507,8 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     lockHint.textContent = `军力上限达到 ${COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN')} 或遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。`
     el.appendChild(lockHint)
   }
-  // 外交自动化全局开关（diplo-auto 扩展，ADR-0030：每派系三态——友好/胁迫/关；自动结盟仅通关后，胁迫仅生成派系）
+  // 外交自动化（diplo-auto 纯全局迭代，2026-08-08）：全局开关 + 全局方向（友好/胁迫）；
+  // 友好=自动贸易→结盟（仅通关后），胁迫=生成派系自动勒索→条约（raid 安全，静态/探索派系跳过）；挂机同步
   const autoCfg = state.diplomacyAuto
   const autoBar = document.createElement('div')
   autoBar.className = 'diplo-auto-bar'
@@ -516,7 +517,13 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     <label class="diplo-auto-toggle">
       <input type="checkbox" data-diplo-auto-global ${autoCfg?.enabled ? 'checked' : ''} /> 自动外交
     </label>
-    <span class="diplo-auto-hint">每派系可选 友好（自动贸易→结盟，仅通关后）/ 胁迫（生成派系自动勒索→条约）/ 关；20 秒冷却、预算内</span>`
+    <label class="diplo-auto-toggle">方向
+      <select data-diplo-auto-mode>
+        <option value="ally" ${diplomacyAutoMode(state) === 'ally' ? 'selected' : ''}>友好（自动结盟）</option>
+        <option value="coerce" ${diplomacyAutoMode(state) === 'coerce' ? 'selected' : ''}>胁迫（生成派系）</option>
+      </select>
+    </label>
+    <span class="diplo-auto-hint">友好=自动贸易→结盟（仅通关后）；胁迫=生成派系自动勒索→条约（raid 安全，静态/探索派系跳过）；挂机同步</span>`
   el.appendChild(autoBar)
 
   const archived = opts.archivedExpanded ?? {}
@@ -574,14 +581,6 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
         </div>
       </div>
       <div class="build-actions faction-actions">
-        <label class="diplo-auto-faction-label" data-diplo-auto-faction-label="${id}">
-          自动化
-          <select data-diplo-auto-mode="${id}" title="友好=自动贸易/技术共享→结盟（仅通关后）；胁迫=生成派系自动勒索→条约；关=不参与">
-            <option value="ally" ${diplomacyAutoMode(state, id) === 'ally' ? 'selected' : ''}>友好（结盟）</option>
-            <option value="coerce" ${diplomacyAutoMode(state, id) === 'coerce' ? 'selected' : ''}>胁迫</option>
-            <option value="off" ${diplomacyAutoMode(state, id) === 'off' ? 'selected' : ''}>关</option>
-          </select>
-        </label>
         <button type="button" class="build-btn diplo-btn" data-diplomacy="${id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
           贸易 ${formatCost(tradeC)}
         </button>

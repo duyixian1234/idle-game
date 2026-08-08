@@ -14,7 +14,7 @@
 
 - **生成目标经济同源锚定（ADR-0028）**：军事目标一次性奖励 = 当期矿物净产出 × N 秒（矿+科技双发）；攻占启动成本 = 当期净产出 × M 秒（成本与奖励同源，净比值恒定防印钞）；外交目标发现礼包 = 产能挂钩资源（矿+科技）+ 好感 +10。奖励与成本在发现时固化（出发时固化同族）。守卫保留「挑战阈值」语义。手写保底（`endless:*`）维持固定数值；程序生成目标零永久加成红线不动。
 - **联邦进度 infinite 语义（ADR-0029）**：infinite 阶段 `federationProgress` 只统计「已解决」派系（total = satisfied），新派系不计入 → 进度不回退。
-- **外交自动化分级（ADR-0030）**：每派系三态（友好/胁迫/关）；友好线自动结盟仅限 ended/infinite；胁迫线仅生成派系（raid 安全）自动勒索 → 条约；静态/探索派系、臣服、赎罪手动。
+- **外交自动化纯全局方向（ADR-0030/0032）**：全局选 友好（自动贸易→结盟，仅 ended/infinite）/ 胁迫（生成派系自动勒索→条约）二选一；自动贸易好感阈值 0（发现礼包后新派系自动启动前置）；raid 安全边界（静态/探索派系在胁迫方向下自动跳过）；挂机（离线）同步推进。
 - **胁迫态派生折叠（ADR-0031）**：`subjugated || 条约中` → 折叠区，状态变化自动折/展；折叠区保留赎罪/续签入口。
 - **奖池权重**：天体 30% / 军事 25% / 外交 25%（目标分布，整数权重近似）。
 - 同一轮 grill 定稿（2026-08-08，六轮 21 决策）；四个改动域可拆分三个 ticket。
@@ -27,9 +27,9 @@
 4. 作为通关后玩家，我希望手写保底目标（掠夺者舰队/冰封要塞/吞噬者母巢等）维持固定叙事奖励，以便保留内容独特性。
 5. 作为通关后玩家，我希望奖池权重向天体倾斜，以便「头奖」（永久加成）保持稀有感。
 6. 作为通关后玩家，我希望无限模式中发现新派系不使联邦统一度回退，以便已达成的事不被新内容动摇。
-7. 作为玩家，我希望外交自动化每派系可选友好/胁迫/关三态，以便由我决定各派系命运。
+7. 作为玩家，我希望外交自动化全局选友好/胁迫方向，以便不进入外交面板也能自动完成（挂机同步）。
 8. 作为玩家，我希望自动结盟只在通关后生效，以便 playing 阶段不因自动化自动通关。
-9. 作为通关后玩家，我希望自动胁迫只作用于生成派系（raid 安全），以便不因自动化招来骚扰循环。
+9. 作为通关后玩家，我希望全局胁迫方向只作用于生成派系（raid 安全），静态/探索派系自动跳过，以便挂机时不因自动化招来骚扰循环。
 10. 作为玩家，我希望臣服/条约中的派系自动折叠进折叠区，且折叠区保留赎罪/续签入口，以便 UI 整洁且赎罪路径可达。
 11. 作为开发者，我希望 balance-sim 断言生成目标价值密度不超探索/护航，以便防印钞在结构上被钉死。
 
@@ -52,10 +52,12 @@
 
 ### 外交自动化 + 派生折叠（ticket 03，ADR-0030/0031）
 
-- `diplomacyAuto` 配置：`perFaction` 从 boolean 升级为 `{ [id]: 'ally' | 'coerce' | 'off' }`（兼容迁移：`false` → `'off'`、`true`/缺失 → `'ally'`；存档迁移见下）。
+- `diplomacyAuto` 配置：纯全局方向 `mode: 'ally' | 'coerce'`（缺省 'ally'；ADR-0032 迭代，`perFaction` 废弃保留不读）；「关」由全局 `enabled` 表达；自动贸易好感阈值降至 0（`DIPLO_AUTO_FAVOR_THRESHOLD = 0`，发现礼包后新派系 favor 10–39 自动启动前置）。
 - `autoDiplomacyTick`（diplomacy.ts）：
-  - 友好线（ally）：现有贸易/技术共享逻辑保留 → 新增 `favor ≥ 80` 且 `phase !== 'playing'` 且结盟预算内 → 自动 `factionAlliance`。
-  - 胁迫线（coerce）：仅 `isEndlessTargetId(id) || id.startsWith('gen:')` 且 `coercionUnlocked` → 首轮勒索（`factionExtort`），此后 **treaty 优先**（`canFactionTreaty` → `factionTreaty`，避免反复勒索涨 threat/条约期等待）；条约到期自动续签（成本 ×1.5^treatyCount 递增自稳）。
+  - 友好线（ally）：所有 favor < 100 派系自动贸易/技术共享（预算比 10% 自稳）→ 新增 `favor ≥ 80` 且 `phase !== 'playing'` 且结盟预算内 → 自动 `factionAlliance`。
+  - 胁迫线（coerce）：仅 `isEndlessTargetId(id) || id.startsWith('gen:')` 且 `coercionUnlocked` → 首轮勒索（`factionExtort`），此后 **treaty 优先**（`canFactionTreaty` → `factionTreaty`，避免反复勒索涨 threat/条约期等待）；条约到期自动续签（成本 ×1.5^treatyCount 递增自稳）；静态/探索派系（raid 候选）自动跳过。
+  - 阶段门控：playing 阶段不触发自动结盟（友好线只到贸易/技术共享）。
+  - 挂机同步：`settleOffline` 按冷却周期批量推进（虚拟时钟）。
   - 阶段门控：playing 阶段不触发自动结盟（友好线只到贸易/技术共享）。
 - `panels.ts` 折叠判定：`archivedRounds[id] != null || f.allied || f.subjugated || (f.treatyUntil !== undefined && nowMs < f.treatyUntil)` → 折叠区；折叠条目按状态渲染徽章（已臣服/条约中）且对胁迫态保留「赎罪」「续签」按钮。
 - 排除：臣服/赎罪自动化（ADR-0030 决策 4）；静态/探索派系自动胁迫（raid 安全边界）。
@@ -84,5 +86,5 @@
 ## Further Notes
 
 - 关系：本 spec 与 fleet-power-exploration（战力杠杆）、endgame-balance-tuning（容量/质变）无硬依赖；产出锚定复用 balance.ts 根因子与 balance-sim 框架（ADR-0018）。
-- Open items（实现期可拍板）：N/M/G 常量初值（ticket 01 建议带 N ∈ [30, 180]、M/N 同量级，sim 校准定稿）；奖池权重具体整数（ticket 02，sim 验证目标分布）；自动结盟预算口径（复用 DIPLO_AUTO_BUDGET_RATIO ≤10% 或独立阈值）；折叠区赎罪/续签按钮布局与 data-* 契约（ticket 03）；`diplomacyAuto.perFaction` 结构升级的存档迁移（v14 已落地）；**军事奖励/成本是否加 cap（与探索 `scaledClamp` 同构，消除深后期「探索成本封顶而军事不封顶」的脱钩——ADR-0028 后果段已知限制，2026-08-08 code-review 提出）**。
+- Open items（实现期可拍板）：N/M/G 常量初值（ticket 01 建议带 N ∈ [30, 180]、M/N 同量级，sim 校准定稿）；奖池权重具体整数（ticket 02，sim 验证目标分布）；自动结盟预算口径（复用 DIPLO_AUTO_BUDGET_RATIO ≤10% 或独立阈值）；折叠区赎罪/续签按钮布局与 data-* 契约（ticket 03）；`diplomacyAuto.mode` 为可选字段不升 SCHEMA（`perFaction` v14 遗留废弃，ADR-0032 已落地）；**军事奖励/成本是否加 cap（与探索 `scaledClamp` 同构，消除深后期「探索成本封顶而军事不封顶」的脱钩——ADR-0028 后果段已知限制，2026-08-08 code-review 提出）**。
 - 建议实施顺序：ticket 01 → 02 → 03（01 为核心经济改动，02/03 与之无硬阻塞但联调更顺）。

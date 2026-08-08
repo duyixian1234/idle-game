@@ -1,6 +1,6 @@
 # Architecture Decision Records — idle-game
 
-31 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
+32 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
 
 ## 架构
 
@@ -57,6 +57,7 @@
 | [0029](./0029-federation-progress-infinite-semantics.md) | 联邦统一度：infinite 阶段新派系不计入进度 |
 | [0030](./0030-auto-diplomacy-tiers.md) | 外交自动化分级：每派系三态 + 阶段门控 + raid 安全边界 |
 | [0031](./0031-coercion-derived-archiving.md) | 胁迫态派生折叠：subjugated/treaty 中 → 折叠区，状态变化自动折/展 |
+| [0032](./0032-auto-diplomacy-global-direction.md) | 外交自动化纯全局方向：全局选结盟/胁迫 + 阈值 0 自动完成前置 + 挂机同步 |
 
 ## 关联关系
 
@@ -75,3 +76,4 @@
 - 0029 → 0011/0009：联邦判定口径的 infinite 语义修正，与胁迫阶梯（0011）、NG+ 继承（0009）并存。
 - 0030 → 0011：自动化扩展沿用胁迫阶梯（0011）但收敛到 raid 安全边界（生成派系）。
 - 0031 → 0014/0013：胁迫折叠是 UI 派生判定，受 250ms 全量重建（0014）与信息架构（0013）约束。
+- 0032 → 0030：纯全局方向是 0030 的迭代——per-faction 三态升级为全局 mode，raid 安全边界与阶段门控保留。

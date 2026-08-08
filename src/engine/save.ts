@@ -374,17 +374,18 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
   next.automationHistory = Array.isArray(next.automationHistory) ? next.automationHistory : []
   next.hiddenPlanets = Array.isArray(next.hiddenPlanets) ? next.hiddenPlanets : []
   next.hiddenBuildings = Array.isArray(next.hiddenBuildings) ? next.hiddenBuildings : []
-  // 外交自动化可选字段兜底（diplo-auto：旧档无此字段 → 默认关闭；perFaction 非对象 → 重置；
-  // v13→v14 已由 migrateV13ToV14 将 boolean 转模式，此处仅保形）
+  // 外交自动化可选字段兜底（diplo-auto：旧档无此字段 → 默认关闭；mode 缺省 'ally'；
+  // perFaction 为 v14 遗留（废弃不读，保形）；v13→v14 已由 migrateV13ToV14 将 boolean 转模式）
   next.diplomacyAuto = isPlainObject(next.diplomacyAuto)
     ? {
         enabled: (next.diplomacyAuto as { enabled?: unknown }).enabled === true,
+        mode: (next.diplomacyAuto as { mode?: unknown }).mode === 'coerce' ? 'coerce' : 'ally',
         perFaction: isPlainObject((next.diplomacyAuto as { perFaction?: unknown }).perFaction)
           ? (next.diplomacyAuto as { perFaction?: Record<string, string> }).perFaction
           : {},
         lastActionAt: typeof (next.diplomacyAuto as { lastActionAt?: unknown }).lastActionAt === 'number' ? (next.diplomacyAuto as { lastActionAt?: number }).lastActionAt : undefined,
       }
-    : { enabled: false, perFaction: {} }
+    : { enabled: false, mode: 'ally', perFaction: {} }
   for (const [category, policy] of Object.entries(next.automationPolicies as Record<string, unknown>)) {
     if (!isPlainObject(policy)) {
       ;(next.automationPolicies as Record<string, unknown>)[category] = { enabled: false, rules: [] }

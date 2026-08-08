@@ -145,13 +145,13 @@ export function bindListeners(ctx: SessionCtx): void {
     toggleLogDirection(ctx)
   })
 
-  // 外交自动化开关（diplo-auto 扩展，ADR-0030：全局 data-diplo-auto-global / 逐派系三态 data-diplo-auto-mode；
-  // 'ally' = 缺省友好线（删除显式条目）、'coerce'/'off' = 写入；改完保存进存档）
+  // 外交自动化（diplo-auto 纯全局迭代，2026-08-08：全局开关 data-diplo-auto-global / 全局方向 data-diplo-auto-mode；
+  // 'coerce' 胁迫线 / 其余 'ally' 友好线；改完保存进存档）
   els.panel.addEventListener('change', (e) => {
     const global = (e.target as HTMLElement).closest<HTMLInputElement>('[data-diplo-auto-global]')
     if (global) {
       const state = getState()
-      state.diplomacyAuto ??= { enabled: false, perFaction: {} }
+      state.diplomacyAuto ??= { enabled: false }
       state.diplomacyAuto.enabled = global.checked
       render()
       void deps.save()
@@ -160,16 +160,10 @@ export function bindListeners(ctx: SessionCtx): void {
     const modeSel = (e.target as HTMLElement).closest<HTMLSelectElement>('[data-diplo-auto-mode]')
     if (modeSel) {
       const state = getState()
-      state.diplomacyAuto ??= { enabled: false, perFaction: {} }
-      const per = (state.diplomacyAuto.perFaction ??= {})
-      const id = modeSel.dataset.diploAutoMode ?? ''
-      if (id) {
-        const mode = modeSel.value as 'ally' | 'coerce' | 'off'
-        if (mode === 'ally') delete per[id]
-        else per[id] = mode
-        render()
-        void deps.save()
-      }
+      state.diplomacyAuto ??= { enabled: false }
+      state.diplomacyAuto.mode = modeSel.value === 'coerce' ? 'coerce' : 'ally'
+      render()
+      void deps.save()
     }
   })
 
