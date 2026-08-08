@@ -1,5 +1,5 @@
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from '../../engine/events'
-import { BUILDINGS, CIVIL_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from '../../engine/data'
+import { BUILDINGS, PLANETS, RESOURCE_META, TECHS } from '../../engine/data'
 import { factionDef } from '../../engine/diplomacy'
 import { previewDiplomacyMax, previewMaxBuy } from '../../engine/bulk'
 import type { BulkKind } from '../../engine/bulk'
@@ -9,24 +9,15 @@ import { formatRate } from '../../engine/format'
 import { netProduction } from '../../engine/production'
 import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from '../../engine/types'
 import type { SoundManager } from '../../audio'
-import { renderSettingsPage } from '../render/settings'
-import { renderBuildPanel } from '../render/build'
-import { renderTechPanel } from '../render/tech'
-import { renderDiplomacyPanel } from '../render/diplomacy'
-import { renderMilitaryPanel } from '../render/military'
-import { renderInterstellarPanel } from '../render/interstellar'
-import { renderArchivePanel } from '../render/archive'
+import { RENDER_NODES } from '../render/registry'
+import type { RenderCtx } from '../render/registry'
 import {
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
-  renderAutoConfigPanel,
   renderLogInto,
-  renderPendingEvents,
 } from '../log'
 import type { LogDirection } from '../log'
-import { renderBuyMaxModal, renderEndingOverlay, renderMegastructureModal, renderNgPlusModal, renderTutorial } from '../overlays'
-import { renderExplorePage } from '../explore-page'
-import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderResources } from '../bars'
+import { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from '../overlays'
 import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
@@ -134,60 +125,55 @@ export function createSession(args: CreateSessionArgs): Session {
   }
 
   function render(): void {
-    renderResources(els.resourceBar, state, netProduction(state))
-    renderPlanetBar(els.planetBar, state)
-    renderPlanetMechanic(els.mechanicBar, state)
-    // 卡片化建造面板（building-cards）：分区折叠 + 刚升级高亮（过期自动消失，不随 250ms 重建重放）
-    const flashId = Date.now() < ui.justUpgradedUntil ? ui.justUpgradedId : null
-    renderBuildPanel(panels['build'], state, CIVIL_BUILDINGS, { zoneId: 'civil', lockedExpanded: ui.lockedExpanded, flashId, hiddenBuildingsOpen: ui.hiddenBuildingsOpen })
-    // 星际工程分组（星系间建造物 + 终局工程）紧随民用建筑之后（interstellar-build-merge）
-    renderInterstellarPanel(panels['build'], state, { lockedExpanded: ui.lockedExpanded, flashId, hiddenBuildingsOpen: ui.hiddenBuildingsOpen })
-    renderTechPanel(panels['tech'], state)
-    renderDiplomacyPanel(panels['diplomacy'], state, { archivedExpanded: ui.archivedExpanded })
-    renderMilitaryPanel(panels['military'], state, { flashId, archivedExpanded: ui.archivedExpanded })
-    // 一级页：档案（平移原 archive 面板）/ 探索（终局卡+派遣/锁定占位 + 护航/自动探索）/ 设置（五组）
-    renderArchivePanel(els.navPages.archive, state)
-    renderExplorePage(els.navPages.explore, state, Date.now(), ui.exploreEscortChecked, ui.archivedExpanded)
+    const nowMs = Date.now()
+    // 共享计算（惰性 memo：每 tick 只算一次，resources/settings 共享；纯函数缓存，行为一致）
+    let prodCache: ReturnType<typeof netProduction> | null = null
+    const getNetProduction = () => (prodCache ??= netProduction(state))
+    // 派生：升级高亮（卡片一次性动画：升级后 1.2s 窗口内重放首帧）
+    const flashId = nowMs < ui.justUpgradedUntil ? ui.justUpgradedId : null
+    // settings 页派生状态文本
     const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
-    const prod = netProduction(state)
-    const prodText = Object.entries(prod)
+    const prodText = Object.entries(getNetProduction())
       .filter(([, v]) => v !== 0)
       .map(([k, v]) => `${RESOURCE_META[k as keyof typeof RESOURCE_META]?.name ?? k}:${formatRate(v)}`)
       .join(' ')
-    renderSettingsPage(els.navPages.settings, {
-      isMuted: sound.isMuted(),
-      statusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
-      version: APP_VERSION,
+    const ctx: RenderCtx = {
       state,
-    })
+      els,
+      panels,
+      ui,
+      nowMs,
+      netProduction: getNetProduction,
+      settingsStatusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
+      flashId,
+      sound,
+      version: APP_VERSION,
+    }
+    // ---- 会话态同步（ADR-0035 状态副作用留主函数，不节点化）----
     // 日志页头部排序按钮文案随方向同步（.log-head 静态构建，不随 250ms 重建 → 每次 render 对齐）
     const logdirBtn = els.panel.querySelector<HTMLElement>('[data-tool="logdir"]')
     if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
-    renderPendingEvents(els.logEl, state, ui.typedEvents)
-    renderAutoConfigPanel(els.autoConfigOverlay, state, ui.autoExpandedCategory)
-    els.autoConfigOverlay.classList.toggle('hidden', !ui.autoConfigOpen)
-    // 增量渲染新增日志，并按方向自动滚动
+    // 增量渲染新增日志，并按方向自动滚动（游标 + 滚动副作用内聚，不进注册表）
     const beforeId = ui.lastLogId
     ui.lastLogId = renderLogInto(els.logEl, state, ui.lastLogId, ui.logDirection)
     if (ui.lastLogId !== beforeId) {
       if (ui.logDirection === 'newest-bottom') els.logEl.scrollTop = els.logEl.scrollHeight
       else els.logEl.scrollTop = 0
     }
-    // 结局面板：ended 且未临时收起时显示
-    renderEndingOverlay(els.endingOverlay, state, state.phase === 'ended' && !ui.endingDismissed)
-    renderTutorial(els.tutorial, state)
-    // 一级导航角标（差值派生，无动画；读即已读由 setActiveNav 更新快照）
-    renderBadges()
-    // 二级 tab 状态恢复（tab 按钮不随 250ms 重建，此处保持幂等 + 会话记忆）
-    updatePanelTabs()
-    // 外交/军事二级 tab 可用性：解锁轨道工厂站后开放
+    // 自动配置 overlay 开关（渲染在 overlay 节点）
+    els.autoConfigOverlay.classList.toggle('hidden', !ui.autoConfigOpen)
+    // 资源来源分解面板收起分支（展开分支在 overlay 节点渲染）
+    if (!ui.openBreakdown) els.breakdownPanel.classList.add('hidden')
+    // 外交/军事二级 tab 可用性：解锁轨道工厂站后开放（tab 按钮不随 250ms 重建，此处幂等）
     const diploTab = els.panel.querySelector<HTMLButtonElement>('[data-tab="diplomacy"]')
     if (diploTab) diploTab.disabled = !state.planets.orbital?.unlocked
     const militaryTab = els.panel.querySelector<HTMLButtonElement>('[data-tab="military"]')
     if (militaryTab) militaryTab.disabled = !state.planets.orbital?.unlocked
-    // 资源来源分解面板（会话态互斥展开；render 每 250ms 全量重建 → 面板内容实时刷新，无需额外 tick）
-    if (ui.openBreakdown) renderBreakdownPanel(els.breakdownPanel, state, ui.openBreakdown)
-    else els.breakdownPanel.classList.add('hidden')
+    // 注册表调度（content → overlay，ADR-0035；面板清单见 ui/render/registry.ts）
+    RENDER_NODES.run(ctx)
+    // 尾巴：一级导航角标（差值派生，无动画；读即已读由 setActiveNav 更新快照）+ 二级 tab 状态恢复（会话态同步，留主函数）
+    renderBadges()
+    updatePanelTabs()
   }
 
   // 一级导航页切换（互斥显隐；footer 与页容器不参与 250ms 重建，状态持久于 DOM）
