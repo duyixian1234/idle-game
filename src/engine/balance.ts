@@ -253,12 +253,23 @@ export const GEN_STRENGTH_GROWTH = 1.5
 /** 程序生成军事目标守卫采样区间（均匀）：[MIN, MAX] 落在现有静态 500-3000 区间（Q8 定稿） */
 export const GEN_CONQUEST_GUARD_MIN = 500
 export const GEN_CONQUEST_GUARD_MAX = 3_000
-/** 程序生成军事目标一次性矿物奖励：guard × [MIN_FACTOR, MAX_FACTOR]（比例锚定现有 5万矿/500守卫 量级；**永不发 permanentBonus**） */
-export const GEN_CONQUEST_REWARD_MINERAL_FACTOR_MIN = 800
-export const GEN_CONQUEST_REWARD_MINERAL_FACTOR_MAX = 1_200
-/** 程序生成军事目标一次性科技奖励：guard × [MIN_FACTOR, MAX_FACTOR] */
-export const GEN_CONQUEST_REWARD_TECH_FACTOR_MIN = 40
-export const GEN_CONQUEST_REWARD_TECH_FACTOR_MAX = 60
+/** 生成目标一次性经济同源锚定（endgame-discovery-economy，2026-08-08，ADR-0028）：
+ * 军事目标奖励/攻占成本与外交礼包统一锚定当期净产出（×N 秒），成本与奖励同源 → 净比值恒定防印钞。
+ * N/M/G 初值带由 balance-sim 校准（spec open items；N ∈ [30, 180] 秒带内）。 */
+export const GEN_CONQUEST_REWARD_MINERAL_SECONDS = 120
+export const GEN_CONQUEST_REWARD_TECH_SECONDS = 8
+export const GEN_CONQUEST_COST_MINERAL_SECONDS = 60
+export const GEN_CONQUEST_COST_ENERGY_SECONDS = 60
+export const GEN_FACTION_GIFT_MINERAL_SECONDS = 60
+export const GEN_FACTION_GIFT_TECH_SECONDS = 5
+/** 外交发现礼包好感加成：+10 → 初始 favor ∈ [0,29] 后最高 39 < 自动外交阈值 40，零钳制逻辑（grill Q14） */
+export const GEN_FACTION_GIFT_FAVOR = 10
+/** 探索奖池权重（endgame-discovery-economy，grill Q12-B 目标分布：天体 30 / 军事 25 / 外交 25）：
+ * 天体权重升（头奖稀缺性回归合理区间）、派系/军事降（礼包已对齐价值密度，降低刷屏稀释）。
+ * 实现用整数近似（派系条目数多、天体条目数少 → 以权重补足）。 */
+export const POOL_WEIGHT_FACTION = 1
+export const POOL_WEIGHT_PLANET = 2
+export const POOL_WEIGHT_CONQUEST = 1
 /** 程序生成外交对象初始好感/威胁区间（参照 EXPLORE_FACTIONS 初值带，Q9 定稿） */
 export const GEN_FACTION_FAVOR_MAX = 30
 export const GEN_FACTION_THREAT_MIN = 25

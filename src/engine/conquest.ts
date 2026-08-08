@@ -68,14 +68,22 @@ export function isConquestAvailable(state: GameState, id: string): boolean {
   return true
 }
 
-/** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt；时长为 duration 域随机 10~30min，rng 可选注入供测试覆盖） */
+/** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt；时长为 duration 域随机 10~30min，rng 可选注入供测试覆盖）。
+ * 程序生成目标（gen:*）另扣发现时固化的产能挂钩资源费（ADR-0028，costMineral/costEnergy 快照；手写保底/静态区域无此字段 → 0） */
 export function startConquest(state: GameState, id: string, invest: number, nowMs: number, rng?: () => number): ConquestActionResult {
   const def = conquestDef(state, id)
   if (!def) return { ok: false, reason: '未知区域' }
   if (!isConquestAvailable(state, id)) return { ok: false, reason: '该区域当前无法攻占' }
   if (!Number.isFinite(invest) || invest <= 0) return { ok: false, reason: '投入军力无效' }
   if (state.resources.military < invest) return { ok: false, reason: '军力不足' }
+  const target = state.generatedTargets.find((x) => x.kind === 'conquest' && x.id === id)
+  const costMineral = target?.costMineral ?? 0
+  const costEnergy = target?.costEnergy ?? 0
+  if (state.resources.mineral < costMineral) return { ok: false, reason: '矿物不足' }
+  if (state.resources.energy < costEnergy) return { ok: false, reason: '能源不足' }
   state.resources.military -= invest
+  state.resources.mineral -= costMineral
+  state.resources.energy -= costEnergy
   state.conquest[id] = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
   return { ok: true }
 }

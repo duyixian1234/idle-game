@@ -1,5 +1,6 @@
 import { ALL_FACTIONS, FACTIONS, RESOURCE_KEYS } from './data'
 import type { FactionDef } from './data'
+import { isEndlessTargetId } from './generate'
 import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
@@ -46,7 +47,7 @@ import { playMilestone } from './story'
 import { pushLog } from './core'
 import { militaryCap } from './production'
 import { raidThreshold, reputationBonuses } from './reputation'
-import type { FactionState, GameState, GeneratedTarget, ResourceKey } from './types'
+import type { DiplomacyAutoMode, FactionState, GameState, GeneratedTarget, ResourceKey } from './types'
 
 /** 外交数值策略（结盟阈值/好感上限/成本与增长倍率）集中见 balance.ts */
 
@@ -137,8 +138,10 @@ export function techShareCost(state: GameState, id: string): Record<ResourceKey,
 
 /** 统一联邦判定：全部**已登场**派系好感达标（=100）或已结盟。
  * 遍历 state.factions（运行时集合）而非静态 FACTIONS——探索发现的新势力自动纳入
- * （通关后新目标 = 把新势力也纳入联邦）；发现瞬间若此前已统一 → 重新变为未统一。 */
+ * （通关后新目标 = 把新势力也纳入联邦）；发现瞬间若此前已统一 → 重新变为未统一。
+ * infinite 阶段恒真（ADR-0029：统一是历史状态，不被新发现派系动摇；checkEnding 由 endingTriggered 保证单次触发）。 */
 export function isFederationUnified(state: GameState): boolean {
+  if (state.phase === 'infinite') return true
   const ids = Object.keys(state.factions)
   if (ids.length === 0) return false
   return ids.every((id) => {
@@ -490,13 +493,16 @@ export function factionsVisible(state: GameState): boolean {
   return Boolean(state.planets.orbital?.unlocked)
 }
 
-/** 统一联邦进度 + 部分派系检查辅助（total = 已登场派系数：初始 4 家 + 探索发现自动纳入） */
+/** 统一联邦进度 + 部分派系检查辅助（total = 已登场派系数：初始 4 家 + 探索发现自动纳入）。
+ * infinite 阶段只统计「已解决」派系（total = satisfied = 已结盟或满好感的既有集合）——新派系不计入，
+ * 进度恒 100% 不回退（ADR-0029）。 */
 export function federationProgress(state: GameState): { total: number; satisfied: number } {
   const ids = Object.keys(state.factions)
   const satisfied = ids.filter((id) => {
     const f = state.factions[id]
     return f && (f.allied || f.favor >= FEDERATION_FAVOR_THRESHOLD)
   }).length
+  if (state.phase === 'infinite') return { total: satisfied, satisfied }
   return { total: ids.length, satisfied }
 }
 
@@ -522,11 +528,15 @@ export function diplomacyOverview(state: GameState): { total: number; satisfied:
 }
 
 /**
- * 外交自动化 tick（diplo-auto，2026-08-07）：每冷却周期（20s）对第一个满足条件的派系执行一次
- * 批量贸易/技术共享（≤10 次原语，预算内）。覆盖范围刻意收窄——只自动贸易/技术共享；
- * 胁迫类（勒索/条约/臣服/赎罪）有副作用（threat 上升/叛变风险/赎罪期锁定），一律保持手动。
- * 条件：全局开关开启 + 冷却已过 + 好感 ≥ DIPLO_AUTO_FAVOR_THRESHOLD + 未结盟未满好感
- * + 逐派系未显式关闭 + 单次花费 ≤ 当前资源 × DIPLO_AUTO_BUDGET_RATIO（成本递增天然自稳）。
+ * 外交自动化 tick（diplo-auto 扩展，ADR-0030）：每冷却周期（20s）对第一个满足条件的派系执行一次动作，
+ * 每派系三态（友好/胁迫/关）自动完成生命周期：
+ * - 友好线（ally，默认）：批量贸易/技术共享（≤10 次原语，预算内）→ favor ≥ 80 且可付 → 自动结盟
+ *   （**仅 ended/infinite**：playing 自动结盟会触发 checkEnding 自动通关，禁止）；
+ * - 胁迫线（coerce）：仅 raid 安全的生成派系（endless:/gen:）自动勒索 → 进贡条约；
+ *   静态/探索派系、臣服、赎罪保持手动（臣服锁军力 + 叛变风险、赎罪是玩家主动决策）；
+ * - off：该派系不参与自动化。
+ * 预算口径：单次花费 ≤ 当前资源 × DIPLO_AUTO_BUDGET_RATIO（成本递增天然自稳）；结盟为一次性大额，
+ * 走 canFactionAlliance 全额可付判定（infinite 后期资源充裕，预算比无意义）。
  * nowMs 可注入（测试）。
  */
 export function autoDiplomacyTick(state: GameState, nowMs: number): void {
@@ -537,7 +547,33 @@ export function autoDiplomacyTick(state: GameState, nowMs: number): void {
     if (!factionDef(state, id)) continue
     const f = state.factions[id]
     if (!f || f.allied) continue
-    if (cfg.perFaction?.[id] === false) continue
+    const mode = diplomacyAutoMode(state, id)
+    if (mode === 'off') continue
+    // 胁迫线（coerce）
+    if (mode === 'coerce') {
+      if (!coercionUnlocked(state)) continue
+      if (!isGeneratedFactionId(id)) continue
+      if (f.treatyUntil !== undefined && nowMs < f.treatyUntil) continue // 条约期等待，到期后 threat 反弹再续
+      if (canFactionTreaty(state, id, nowMs)) {
+        if (factionTreaty(state, id, nowMs).ok) {
+          cfg.lastActionAt = nowMs
+          return
+        }
+      } else if (canFactionExtort(state, id)) {
+        if (factionExtort(state, id).ok) {
+          cfg.lastActionAt = nowMs
+          return
+        }
+      }
+      continue
+    }
+    // 友好线（ally）：自动结盟阶段门控（playing 不自动结盟，防自动通关）
+    if (state.phase !== 'playing' && f.favor >= ALLIANCE_FAVOR_THRESHOLD && canFactionAlliance(state, id)) {
+      if (factionAlliance(state, id).ok) {
+        cfg.lastActionAt = nowMs
+        return
+      }
+    }
     if (f.favor >= FAVOR_CAP || f.favor < DIPLO_AUTO_FAVOR_THRESHOLD) continue
     let acted = false
     // 预算内批量贸易（≤10 次；每次重算成本并校验预算，首次不满足即停）
@@ -561,4 +597,18 @@ export function autoDiplomacyTick(state: GameState, nowMs: number): void {
       return // 每冷却周期只处理一个派系，避免一轮全刷
     }
   }
+}
+
+/** 逐派系自动化模式（ADR-0030）：perFaction 缺省 = 'ally'（友好线）；显式 'coerce'/'off' 覆盖；
+ * 兼容旧档 boolean（v14 迁移已转 false→off / true→ally，运行时防御兜底）。 */
+export function diplomacyAutoMode(state: GameState, id: string): DiplomacyAutoMode {
+  const per = state.diplomacyAuto?.perFaction?.[id] as DiplomacyAutoMode | boolean | undefined
+  if (per === 'coerce' || per === 'off') return per
+  if (per === false) return 'off' // 旧档 boolean 兜底（迁移未覆盖的异常数据）
+  return 'ally'
+}
+
+/** 生成派系 id 判定（raid 安全边界：raidableFaction 只遍历 ALL_FACTIONS，endless:/gen: 永不成为 raid 源） */
+function isGeneratedFactionId(id: string): boolean {
+  return isEndlessTargetId(id) || id.startsWith('gen:')
 }

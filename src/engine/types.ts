@@ -144,8 +144,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 13
+/** 存档 schema 版本（v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 14
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -244,6 +244,9 @@ export interface GeneratedTarget {
   rewardMineral?: number
   /** 军事目标：一次性科技奖励 */
   rewardTech?: number
+  /** 军事目标：攻占启动产能挂钩资源费快照（ADR-0028，仅 gen:conquest 程序生成带；发现时按当期净产出固化，与奖励同源锚定防印钞） */
+  costMineral?: number
+  costEnergy?: number
   /** 军事目标：永久全局加成（**仅手写保底可带**，程序生成禁——防无限叠加摧毁 balance） */
   bonus?: { kind: 'production' | 'militaryCap'; value: number }
   /** 外交对象：初始好感/威胁/特性（与 FactionDef 同构） */
@@ -288,16 +291,20 @@ export interface AchievementState {
   unlockedInRound: number
 }
 
+/** 外交自动化逐派系模式（ADR-0030）：友好线=贸易/技术共享→自动结盟（仅 ended/infinite）；
+ * 胁迫线=生成派系自动勒索→条约（raid 安全边界）；off=该派系不参与自动化 */
+export type DiplomacyAutoMode = 'ally' | 'coerce' | 'off'
+
 /**
- * 外交自动化配置（diplo-auto，2026-08-07）：只覆盖贸易/技术共享，胁迫类一律手动。
- * 可选字段（undefined = 全默认关闭）；随存档持久化，走 hiddenPlanets 可选字段先例不升 SCHEMA。
+ * 外交自动化配置（diplo-auto 扩展，ADR-0030）：每派系三态自动完成生命周期。
+ * 可选字段（undefined = 全默认关闭）；随存档持久化，走 hiddenPlanets 可选字段先例（v14 起 perFaction 为模式而非 boolean）。
  * - enabled：全局总开关（默认关，用户显式开启才生效）
- * - perFaction：派系 id -> 是否显式关闭（perFaction[id]===false 关闭；缺省 = 允许）
+ * - perFaction：派系 id -> 模式（'ally' 友好线 / 'coerce' 胁迫线 / 'off' 关闭；缺省 = 'ally'）
  * - lastActionAt：上次自动动作时间戳（ms），冷却 20s
  */
 export interface DiplomacyAutoConfig {
   enabled: boolean
-  perFaction?: Record<string, boolean>
+  perFaction?: Record<string, DiplomacyAutoMode>
   lastActionAt?: number
 }
 

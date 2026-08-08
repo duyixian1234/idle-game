@@ -26,10 +26,16 @@ import {
   EXPLORATION_TECH_HARVEST_PCT,
   FAVOR_CAP,
   FLEET_HARVEST_PCT_PER_SHIP,
+  GEN_FACTION_GIFT_FAVOR,
+  GEN_FACTION_GIFT_MINERAL_SECONDS,
+  GEN_FACTION_GIFT_TECH_SECONDS,
   JUMPGATE_HARVEST_MULT,
   JUMPGATE_SLOT_BONUS,
   MISSION_DURATION_MAX_MINUTES,
   MISSION_DURATION_MIN_MINUTES,
+  POOL_WEIGHT_CONQUEST,
+  POOL_WEIGHT_FACTION,
+  POOL_WEIGHT_PLANET,
   SHIP_POWER_BASE,
   WARP_ESCORT_FEE_REDUCTION,
   WARP_EXPEDITION_COST_REDUCTION,
@@ -179,11 +185,11 @@ export interface ExpeditionPoolEntry {
   weight: number
 }
 
-/** 无尽模式程序生成占位条目（每类一条；id 为占位符，结算时实时生成具体目标） */
+/** 无尽模式程序生成占位条目（每类一条；id 为占位符，结算时实时生成具体目标；权重走 POOL_WEIGHT_* 同源常量） */
 const ENDLESS_GEN_POOL: Array<{ kind: 'conquest' | 'faction' | 'planet'; weight: number }> = [
-  { kind: 'conquest', weight: 2 },
-  { kind: 'faction', weight: 2 },
-  { kind: 'planet', weight: 1 },
+  { kind: 'conquest', weight: POOL_WEIGHT_CONQUEST },
+  { kind: 'faction', weight: POOL_WEIGHT_FACTION },
+  { kind: 'planet', weight: POOL_WEIGHT_PLANET },
 ]
 
 /**
@@ -199,28 +205,28 @@ const ENDLESS_GEN_POOL: Array<{ kind: 'conquest' | 'faction' | 'planet'; weight:
 export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
   const pool: ExpeditionPoolEntry[] = []
   for (const def of Object.values(EXPLORE_FACTIONS)) {
-    if (!state.exploredFactions.includes(def.id)) pool.push({ kind: 'faction', id: def.id, weight: 2 })
+    if (!state.exploredFactions.includes(def.id)) pool.push({ kind: 'faction', id: def.id, weight: POOL_WEIGHT_FACTION })
   }
   for (const def of Object.values(EXPLORE_PLANETS)) {
-    if (!state.exploredPlanets.includes(def.id)) pool.push({ kind: 'planet', id: def.id, weight: 1 })
+    if (!state.exploredPlanets.includes(def.id)) pool.push({ kind: 'planet', id: def.id, weight: POOL_WEIGHT_PLANET })
   }
   if (state.phase === 'infinite') {
     for (const def of Object.values(ENDLESS_CONQUESTS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'conquest', id, weight: 2 })
+        pool.push({ kind: 'conquest', id, weight: POOL_WEIGHT_CONQUEST })
       }
     }
     for (const def of Object.values(ENDLESS_FACTIONS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'faction', id, weight: 2 })
+        pool.push({ kind: 'faction', id, weight: POOL_WEIGHT_FACTION })
       }
     }
     for (const def of Object.values(ENDLESS_PLANETS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'planet', id, weight: 1 })
+        pool.push({ kind: 'planet', id, weight: POOL_WEIGHT_PLANET })
       }
     }
     for (const g of ENDLESS_GEN_POOL) {
@@ -475,7 +481,17 @@ function settleConquestResult(state: GameState, targetId: string, nowMs: number,
   return { type: 'story', text: `探索队返航：发现军事目标「${target.name}」，已标记可攻占。${escortNote}` }
 }
 
-/** 外交对象结算：手写保底直接创建；程序生成实时生成；重复发现（理论上不入池，防御分支）好感 +5 */
+/** 外交发现礼包（ADR-0028）：产能挂钩资源（矿+科技双发）+ 好感 +10（初始 0–29 → 最高 39 < 40 自动外交阈值，零钳制逻辑）。
+ * 仅首次创建派系时发放——礼包即发现价值本体（结盟在 infinite 的机制收益趋零）。 */
+function grantFactionGift(state: GameState, factionId: string): void {
+  const prod = netProduction(state)
+  state.resources.mineral += Math.floor(prod.mineral * GEN_FACTION_GIFT_MINERAL_SECONDS)
+  state.resources.tech += Math.floor(prod.mineral * GEN_FACTION_GIFT_TECH_SECONDS)
+  const f = state.factions[factionId]
+  if (f) f.favor = Math.min(FAVOR_CAP, f.favor + GEN_FACTION_GIFT_FAVOR)
+}
+
+/** 外交对象结算：手写保底直接创建；程序生成实时生成；首次创建发礼包；重复发现（理论上不入池，防御分支）好感 +5 */
 function settleEndlessFaction(state: GameState, factionId: string, escortNote: string): ExpeditionLog | undefined {
   if (isEndlessTargetId(factionId)) {
     const defId = factionId.slice('endless:'.length)
@@ -495,6 +511,7 @@ function settleEndlessFaction(state: GameState, factionId: string, escortNote: s
         intimidateCostMult: def.intimidateCostMult,
       })
       if (!state.exploredFactions.includes(factionId)) state.exploredFactions.push(factionId)
+      grantFactionGift(state, factionId)
       return { type: 'story', text: `探索队返航：在偏远星区发现「${def.name}」的聚居舰队。外交频道已建立。${escortNote}` }
     }
     const cur = state.factions[factionId]
@@ -508,6 +525,7 @@ function settleEndlessFaction(state: GameState, factionId: string, escortNote: s
   state.generatedTargets.push(target)
   state.factions[target.id] = createFactionState(factionDefFromTarget(target))
   if (!state.exploredFactions.includes(target.id)) state.exploredFactions.push(target.id)
+  grantFactionGift(state, target.id)
   return { type: 'story', text: `探索队返航：在偏远星区发现「${target.name}」的聚居舰队。外交频道已建立。${escortNote}` }
 }
 

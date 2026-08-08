@@ -88,8 +88,8 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     const s = infiniteState()
     settleWith(s, { kind: 'faction', factionId: 'endless:starlightLeague' })
     dispatch(s, 'diplomacyMax', { factionId: 'endless:starlightLeague', action: 'trade', limit: 10 }, fakeDeps().deps)
-    // 初始 favor 25 + 10×6 = 85
-    expect(s.factions['endless:starlightLeague'].favor).toBe(85)
+    // 初始 favor 25 + 发现礼包 +10（ADR-0028）= 35，10×6 = 95
+    expect(s.factions['endless:starlightLeague'].favor).toBe(95)
   })
 
   it('军事动作 endless:warband 攻占成功且日志含真实名字', () => {

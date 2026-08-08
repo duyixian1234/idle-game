@@ -31,6 +31,8 @@ const SCHEMA_V11 = 11
 const SCHEMA_V12 = 12
 /** 首个支持胁迫外交派系状态的存档版本（diplomacy-coercion 占用） */
 const SCHEMA_V13 = 13
+/** 首个支持外交自动化逐派系三态模式的存档版本（endgame-discovery-economy / ADR-0030 占用） */
+const SCHEMA_V14 = 14
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -320,6 +322,28 @@ function migrateV12ToV13(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** v13 → v14：外交自动化逐派系从 boolean 开关迁移为三态模式（false → 'off'、true/缺失 → 缺省 'ally'；ADR-0030） */
+function migrateV13ToV14(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const auto = isPlainObject(next.diplomacyAuto) ? { ...(next.diplomacyAuto as Record<string, unknown>) } : null
+  if (auto) {
+    if (isPlainObject(auto.perFaction)) {
+      const per: Record<string, string> = {}
+      for (const [id, value] of Object.entries(auto.perFaction as Record<string, unknown>)) {
+        if (value === false) per[id] = 'off'
+        else if (value === 'coerce' || value === 'off' || value === 'ally') per[id] = value
+        // true / 其他 → 缺省 'ally'（不写显式条目）
+      }
+      auto.perFaction = per
+    } else if (auto.perFaction !== undefined) {
+      auto.perFaction = {}
+    }
+    next.diplomacyAuto = auto
+  }
+  next.schemaVersion = SCHEMA_V14
+  return next
+}
+
 /**
  * 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。
  * 幂等（hadContract 检查）：eventConfigVersion 已达标 → 只归一化默认策略，不写迁移摘要。
@@ -350,12 +374,13 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
   next.automationHistory = Array.isArray(next.automationHistory) ? next.automationHistory : []
   next.hiddenPlanets = Array.isArray(next.hiddenPlanets) ? next.hiddenPlanets : []
   next.hiddenBuildings = Array.isArray(next.hiddenBuildings) ? next.hiddenBuildings : []
-  // 外交自动化可选字段兜底（diplo-auto：旧档无此字段 → 默认关闭；perFaction 非对象 → 重置）
+  // 外交自动化可选字段兜底（diplo-auto：旧档无此字段 → 默认关闭；perFaction 非对象 → 重置；
+  // v13→v14 已由 migrateV13ToV14 将 boolean 转模式，此处仅保形）
   next.diplomacyAuto = isPlainObject(next.diplomacyAuto)
     ? {
         enabled: (next.diplomacyAuto as { enabled?: unknown }).enabled === true,
         perFaction: isPlainObject((next.diplomacyAuto as { perFaction?: unknown }).perFaction)
-          ? (next.diplomacyAuto as { perFaction?: Record<string, boolean> }).perFaction
+          ? (next.diplomacyAuto as { perFaction?: Record<string, string> }).perFaction
           : {},
         lastActionAt: typeof (next.diplomacyAuto as { lastActionAt?: unknown }).lastActionAt === 'number' ? (next.diplomacyAuto as { lastActionAt?: number }).lastActionAt : undefined,
       }
@@ -463,7 +488,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V10) cur = migrateV10ToV11(cur)
   if (cur.schemaVersion === SCHEMA_V11) cur = migrateV11ToV12(cur)
   if (cur.schemaVersion === SCHEMA_V12) cur = migrateV12ToV13(cur)
-  // 事件契约迁移对任意进入版本执行：v1-v12 链式迁移后必已 ≥ v12，v13 档幂等跳过（migrateEventContract 不改主版本）
+  if (cur.schemaVersion === SCHEMA_V13) cur = migrateV13ToV14(cur)
+  // 事件契约迁移对任意进入版本执行：v1-v13 链式迁移后必已 ≥ v13，v14 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }

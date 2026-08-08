@@ -15,7 +15,7 @@ import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, sh
 import { equivalentFleet, escortHarvestMult } from '../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../engine/balance'
 import { iconUse } from './icons'
-import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
+import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../engine/diplomacy'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import { escapeHtml } from './helpers'
 
@@ -466,9 +466,10 @@ function renderArchiveCollapse(el: HTMLElement, kind: string, label: string, row
   el.appendChild(fold)
 }
 
-/** 归档明细行（endless-expansion）：名称 + 归档徽标 + 第 N 周目标记（Q17 方案 B） */
-function archiveRow(name: string, badge: string, round: number | undefined, id: string): string {
-  return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(name)}</span><span class="archive-badge">${escapeHtml(badge)}</span>${round != null ? `<span class="archive-round">第 ${formatNumber(round)} 周目</span>` : ''}</div>`
+/** 归档明细行（endless-expansion）：名称 + 归档徽标 + 第 N 周目标记（Q17 方案 B）；
+ * actions 可选——胁迫态折叠保留赎罪/续签入口（ADR-0031，防赎罪路径被折叠锁死） */
+function archiveRow(name: string, badge: string, round: number | undefined, id: string, actions = ''): string {
+  return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(name)}</span><span class="archive-badge">${escapeHtml(badge)}</span>${round != null ? `<span class="archive-round">第 ${formatNumber(round)} 周目</span>` : ''}${actions ? `<span class="archive-actions">${actions}</span>` : ''}</div>`
 }
 
 /** 保底锁定占位（endless-expansion）：batch 2 未解锁且未获得的目标提示（仅 infinite 渲染，「完成 N 次探索解锁」） */
@@ -506,7 +507,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     lockHint.textContent = `军力上限达到 ${COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN')} 或遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。`
     el.appendChild(lockHint)
   }
-  // 外交自动化全局开关（diplo-auto：只自动贸易/技术共享，胁迫类保持手动；逐派系开关在各自卡片）
+  // 外交自动化全局开关（diplo-auto 扩展，ADR-0030：每派系三态——友好/胁迫/关；自动结盟仅通关后，胁迫仅生成派系）
   const autoCfg = state.diplomacyAuto
   const autoBar = document.createElement('div')
   autoBar.className = 'diplo-auto-bar'
@@ -515,7 +516,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     <label class="diplo-auto-toggle">
       <input type="checkbox" data-diplo-auto-global ${autoCfg?.enabled ? 'checked' : ''} /> 自动外交
     </label>
-    <span class="diplo-auto-hint">自动贸易/技术共享（好感≥40、20 秒冷却、预算内）；胁迫类操作保持手动</span>`
+    <span class="diplo-auto-hint">每派系可选 友好（自动贸易→结盟，仅通关后）/ 胁迫（生成派系自动勒索→条约）/ 关；20 秒冷却、预算内</span>`
   el.appendChild(autoBar)
 
   const archived = opts.archivedExpanded ?? {}
@@ -530,10 +531,13 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     if (!def) continue
     const f = state.factions[id]
     if (!f) continue
-    // 已结盟 = 归档（本周目语义，archivedRounds 记录归档周目；旧档 v11 及以下无 archivedRounds →
-    // 按 allied 判定兜底，已完成对象同样折叠，round 缺省不显示周目标记）
-    if (state.archivedRounds?.[id] != null || f.allied) {
-      archivedRows.push(archiveRow(def.name, '已结盟', state.archivedRounds?.[id], id))
+    // 已解决 = 折叠（本周目语义）：结盟（archivedRounds / allied）、臣服、条约中（ADR-0031 派生判定，
+    // 状态变化自动折/展；胁迫态折叠保留赎罪/续签入口——防赎罪路径被 UI 锁死）
+    const treatyActive = f.treatyUntil !== undefined && Date.now() < f.treatyUntil
+    if (state.archivedRounds?.[id] != null || f.allied || f.subjugated || treatyActive) {
+      const coerced = f.subjugated || treatyActive
+      const badge = f.subjugated ? '已臣服' : treatyActive ? '条约中' : '已结盟'
+      archivedRows.push(archiveRow(def.name, badge, state.archivedRounds?.[id], id, coerced ? renderCoercionActions(state, id) : ''))
       continue
     }
     const tradeC = tradeCost(state, id)
@@ -571,7 +575,12 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
       </div>
       <div class="build-actions faction-actions">
         <label class="diplo-auto-faction-label" data-diplo-auto-faction-label="${id}">
-          <input type="checkbox" data-diplo-auto-faction="${id}" ${autoCfg?.perFaction?.[id] === false ? '' : 'checked'} /> 自动贸易/共享
+          自动化
+          <select data-diplo-auto-mode="${id}" title="友好=自动贸易/技术共享→结盟（仅通关后）；胁迫=生成派系自动勒索→条约；关=不参与">
+            <option value="ally" ${diplomacyAutoMode(state, id) === 'ally' ? 'selected' : ''}>友好（结盟）</option>
+            <option value="coerce" ${diplomacyAutoMode(state, id) === 'coerce' ? 'selected' : ''}>胁迫</option>
+            <option value="off" ${diplomacyAutoMode(state, id) === 'off' ? 'selected' : ''}>关</option>
+          </select>
         </label>
         <button type="button" class="build-btn diplo-btn" data-diplomacy="${id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
           贸易 ${formatCost(tradeC)}

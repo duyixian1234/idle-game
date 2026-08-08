@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost } from './exploration'
-import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION } from './balance'
+import { generateConquestTarget } from './generate'
+import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX } from './balance'
 import { militaryCap } from './production'
+import type { GameState } from './types'
 
 function simulate(seed: number) {
   const state = createInitialState(0, seed)
@@ -153,5 +155,58 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     expect(escortFee(f)).toBe(Math.floor(rawFee20 * (1 - WARP_ESCORT_FEE_REDUCTION)))
     expect(escortFeePerShip(f)).toBeGreaterThan(0)
     expect(rawFee).toBeGreaterThan(0)
+  })
+})
+
+describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-economy ticket 01，ADR-0028）', () => {
+  /** 构造带矿物产出的 infinite 状态（miner Lv5 → 产出 = count × 3.5/s） */
+  function prodState(minerCount: number): GameState {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.buildings.miner = minerCount
+    s.upgrades.miner = 5
+    s.resources.mineral = 1e12
+    s.resources.energy = 1e12
+    s.resources.military = 1e9
+    s.planets.dawn = { unlocked: true }
+    return s
+  }
+  const fixedRolls = (values: number[]): (() => number) => {
+    let i = 0
+    return () => values[i++] ?? 0.5
+  }
+  const ROLLS = [0.1, 0.2, 0.3]
+
+  it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定', () => {
+    const cases: Array<[number, number]> = [
+      [100, 1_000],
+      [100, 300],
+      [500, 2_000],
+    ]
+    for (const [m1, m2] of cases) {
+      const t1 = generateConquestTarget(prodState(m1), fixedRolls(ROLLS))
+      const t2 = generateConquestTarget(prodState(m2), fixedRolls(ROLLS))
+      // 产出 10×/3×/4× → 奖励与成本同比例缩放（矿产出 = count × 3.5）
+      expect(t2.rewardMineral! / t1.rewardMineral!).toBeCloseTo(m2 / m1)
+      expect(t2.costMineral! / t1.costMineral!).toBeCloseTo(m2 / m1)
+      const ratio1 = (t1.rewardMineral! - t1.costMineral!) / t1.costMineral!
+      const ratio2 = (t2.rewardMineral! - t2.costMineral!) / t2.costMineral!
+      expect(ratio2).toBeCloseTo(ratio1)
+    }
+  })
+
+  it('价值密度有界：奖励 ≤ 2×成本（N ≤ 2M 结构性防印钞上限）、净正、零永久加成红线', () => {
+    for (const count of [100, 1_000, 10_000]) {
+      const t = generateConquestTarget(prodState(count), fixedRolls(ROLLS))
+      expect(t.rewardMineral!).toBeLessThanOrEqual(2 * t.costMineral!)
+      expect(t.rewardMineral!).toBeGreaterThan(t.costMineral!)
+      expect(t.bonus).toBeUndefined()
+    }
+  })
+
+  it('外交礼包好感钳制：+10 且初始 favor ∈ [0,29]（floor 采样）→ 最高 39 < 自动外交阈值 40（零钳制逻辑）', () => {
+    expect(GEN_FACTION_GIFT_FAVOR).toBe(10)
+    expect(GEN_FACTION_FAVOR_MAX - 1 + GEN_FACTION_GIFT_FAVOR).toBe(39)
+    expect(GEN_FACTION_FAVOR_MAX - 1 + GEN_FACTION_GIFT_FAVOR).toBeLessThan(40)
   })
 })

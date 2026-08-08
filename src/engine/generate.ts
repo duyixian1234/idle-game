@@ -1,11 +1,11 @@
 import {
   ENDLESS_BATCH_2_EXPLORATIONS,
+  GEN_CONQUEST_COST_ENERGY_SECONDS,
+  GEN_CONQUEST_COST_MINERAL_SECONDS,
   GEN_CONQUEST_GUARD_MAX,
   GEN_CONQUEST_GUARD_MIN,
-  GEN_CONQUEST_REWARD_MINERAL_FACTOR_MAX,
-  GEN_CONQUEST_REWARD_MINERAL_FACTOR_MIN,
-  GEN_CONQUEST_REWARD_TECH_FACTOR_MAX,
-  GEN_CONQUEST_REWARD_TECH_FACTOR_MIN,
+  GEN_CONQUEST_REWARD_MINERAL_SECONDS,
+  GEN_CONQUEST_REWARD_TECH_SECONDS,
   GEN_FACTION_FAVOR_MAX,
   GEN_FACTION_THREAT_MAX,
   GEN_FACTION_THREAT_MIN,
@@ -16,6 +16,7 @@ import {
   GEN_STRENGTH_GROWTH,
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
 } from './balance'
+import { netProduction } from './production'
 import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 /**
@@ -96,28 +97,30 @@ export function isEndlessTargetId(id: string): boolean {
 
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
-/** 军事目标生成：词库命名；guard = [MIN, MAX] 均匀采样 × GEN_STRENGTH_GROWTH^ngPlusLevel；
- * 奖励 = 一次性矿物或科技（按守卫量级缩放）；**永不生成 permanentBonus**（红线，单测锁定） */
+/**
+ * 军事目标生成：词库命名；guard = [MIN, MAX] 均匀采样 × GEN_STRENGTH_GROWTH^ngPlusLevel（**挑战阈值语义**）；
+ * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞）；
+ * **永不生成 permanentBonus**（红线，单测锁定）
+ */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
   const name = `${pick(CONQUEST_PREFIX, roll)}${pick(CONQUEST_NOUN, roll)}`
   const roundMult = Math.pow(GEN_STRENGTH_GROWTH, state.ngPlusLevel ?? 0)
   const guard = Math.max(GEN_CONQUEST_GUARD_MIN, Math.floor((GEN_CONQUEST_GUARD_MIN + roll() * (GEN_CONQUEST_GUARD_MAX - GEN_CONQUEST_GUARD_MIN)) * roundMult))
   const seq = state.generatedTargets.length
-  const target: GeneratedTarget = {
+  // 一次性奖励/成本：锚定目标创建（发现）时点的当期净产出，成本与奖励同源（ADR-0028）
+  const prod = netProduction(state)
+  return {
     kind: 'conquest',
     id: `gen:conquest:${seq}`,
     name,
     desc: `星际深处游荡的${name}，肃清后可回收大量资源。`,
     batch: 0,
     guard,
+    rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
+    rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS),
+    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS),
+    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS),
   }
-  // 一次性奖励：矿物或科技二选一（比例锚定守卫量级；无永久加成分支）
-  if (roll() < 0.5) {
-    target.rewardMineral = Math.floor(guard * (GEN_CONQUEST_REWARD_MINERAL_FACTOR_MIN + roll() * (GEN_CONQUEST_REWARD_MINERAL_FACTOR_MAX - GEN_CONQUEST_REWARD_MINERAL_FACTOR_MIN)))
-  } else {
-    target.rewardTech = Math.floor(guard * (GEN_CONQUEST_REWARD_TECH_FACTOR_MIN + roll() * (GEN_CONQUEST_REWARD_TECH_FACTOR_MAX - GEN_CONQUEST_REWARD_TECH_FACTOR_MIN)))
-  }
-  return target
 }
 
 /** 外交对象生成：词库命名；初始 favor [0, GEN_FACTION_FAVOR_MAX]、threat [MIN, MAX]；

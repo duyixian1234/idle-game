@@ -960,6 +960,28 @@
   padding: 2px 0;
 }
 
+.diplo-auto-faction-label select {
+  background: var(--panel, #1a1d24);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 1px 4px;
+}
+
+/* 归档折叠区胁迫态动作行（ADR-0031：赎罪/续签入口，防赎罪路径被折叠锁死） */
+.archive-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.archive-actions .build-btn {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
 /* ---- 隐藏建造物（hidden-buildings，2026-08-07）---- */
 .build-hidden-bar {
   display: flex;

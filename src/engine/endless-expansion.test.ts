@@ -13,7 +13,8 @@ import type { ExpeditionState, GameState } from './types'
 /** 派遣/攻占时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
 const CYCLE = 30 * 60_000
 
-/** 无尽模式状态：phase=infinite、足量资源/兵力、dawn 已解锁（攻占前置） */
+/** 无尽模式状态：phase=infinite、足量资源/兵力、dawn 已解锁（攻占前置）；
+ * 带生产建筑（miner/solar Lv5 → 各 350/s）——ticket 01 生成目标奖励/成本/礼包锚定当期净产出 */
 function infiniteState(): GameState {
   const s = createInitialState(0, 42)
   s.phase = 'infinite'
@@ -23,6 +24,10 @@ function infiniteState(): GameState {
   s.resources.military = 500_000
   s.resources.tech = 10_000_000
   s.planets.dawn = { unlocked: true }
+  s.buildings.miner = 100
+  s.upgrades.miner = 5
+  s.buildings.solar = 100
+  s.upgrades.solar = 5
   return s
 }
 
@@ -53,15 +58,37 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect(a.kind).toBe('conquest')
   })
 
-  it('军事目标：守卫 ≥ 500、奖励二选一（矿物或科技）、**永不生成 permanentBonus**（关键防回归）', () => {
+  it('军事目标：守卫 ≥ 500、奖励/成本同源锚当期产出（矿+科技双发）、**永不生成 permanentBonus**（关键防回归）', () => {
     const s = infiniteState()
     for (let i = 0; i < 50; i++) {
       const t = generateConquestTarget(s, fixedRolls([0.1, 0.2, 0.3, 0.4, 0.5]))
       expect(t.guard).toBeGreaterThanOrEqual(500)
       expect(t.bonus).toBeUndefined()
-      expect(t.rewardMineral != null || t.rewardTech != null).toBe(true)
-      expect(t.rewardMineral != null && t.rewardTech != null).toBe(false)
+      // ADR-0028：奖励矿+科技双发，成本与奖励同源（N=120 / M=60 → 奖励 = 2×成本）
+      expect(t.rewardMineral).toBeDefined()
+      expect(t.rewardTech).toBeDefined()
+      expect(t.costMineral).toBeDefined()
+      expect(t.costEnergy).toBeDefined()
+      expect(t.rewardMineral!).toBe(2 * t.costMineral!)
+      // 锚定当期净产出（350/s）：奖励恒定不随生成次数漂移
+      expect(t.rewardMineral!).toBe(42_000)
+      expect(t.rewardTech!).toBe(2_800)
+      expect(t.costMineral!).toBe(21_000)
+      expect(t.costEnergy!).toBe(21_000)
     }
+  })
+
+  it('军事目标奖励/成本随当期净产出缩放：同源锚定 → 净比值恒定（防印钞结构）', () => {
+    const s1 = infiniteState()
+    s1.buildings.miner = 100
+    const t1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.3]))
+    const s2 = infiniteState()
+    s2.buildings.miner = 1_000 // 矿物产出 ×10
+    const t2 = generateConquestTarget(s2, fixedRolls([0.1, 0.2, 0.3]))
+    expect(t2.rewardMineral!).toBe(t1.rewardMineral! * 10)
+    expect(t2.costMineral!).toBe(t1.costMineral! * 10)
+    // 净比值 (N−M)/M 恒定
+    expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBe((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!)
   })
 
   it('军事目标强度随周目缩放：×1.5^ngPlusLevel', () => {
@@ -226,6 +253,24 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
     expect(s.exploredFactions).toContain(t!.id)
   })
 
+  it('外交发现礼包（ADR-0028）：产能挂钩资源到账 + 好感 +10（<40 自动外交阈值）', () => {
+    const s = infiniteState()
+    const mineralBefore = s.resources.mineral
+    const techBefore = s.resources.tech
+    s.expeditions.push(fakeExpedition({ kind: 'faction', factionId: 'gen:faction' }))
+    settleExpeditions(s, CYCLE + 1)
+    const t = s.generatedTargets.find((x) => x.kind === 'faction' && x.id.startsWith('gen:faction:'))
+    expect(t).toBeDefined()
+    const f = s.factions[t!.id]
+    expect(f).toBeDefined()
+    // 好感 = initialFavor(0-29) + 10，恒 < 40（零钳制逻辑）
+    expect(f!.favor).toBeGreaterThanOrEqual(10)
+    expect(f!.favor).toBeLessThan(40)
+    // 礼包 = 当期净产出 × G 秒（350/s × 60 = 21,000 矿 + 350/s × 5 = 1,750 科技）
+    expect(s.resources.mineral - mineralBefore).toBe(21_000)
+    expect(s.resources.tech - techBefore).toBe(1_750)
+  })
+
   it('天体（手写机制型）：结算解锁 + 发现即归档（一次性不可再交互）', () => {
     const s = infiniteState()
     s.expeditions.push(fakeExpedition({ kind: 'planet', planetId: endlessTargetId('blackHoleObservatory') }))
@@ -313,7 +358,7 @@ describe('engine: endless-expansion 结盟归档与存档', () => {
     expect(s.archivedRounds.ferro).toBe(0)
   })
 
-  it('v11 → v13 迁移：补默认空数组与胁迫字段，写死目标版本为当前', () => {
+  it('v11 → v14 迁移：补默认空数组与胁迫字段，写死目标版本为当前', () => {
     const s = infiniteState()
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 11
@@ -323,6 +368,17 @@ describe('engine: endless-expansion 结盟归档与存档', () => {
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.generatedTargets).toEqual([])
     expect(migrated.archivedRounds).toEqual({})
+  })
+
+  it('v13 → v14 迁移：外交自动化 perFaction boolean → 三态模式（false→off，true→缺省 ally）', () => {
+    const s = infiniteState()
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.diplomacyAuto = { enabled: true, perFaction: { ferro: false, cygnus: true, lumen: 'off' } }
+    raw.schemaVersion = 13
+    const migrated = migrateSave(raw as unknown as GameState)
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.diplomacyAuto?.perFaction).toEqual({ ferro: 'off', lumen: 'off' })
+    expect(migrated.diplomacyAuto?.enabled).toBe(true)
   })
 
   it('NG+ 清空生成目标与归档标记（本周目语义）；无尽继续时探索可重注入', () => {

@@ -112,3 +112,63 @@ describe('折叠：军事对象（肃清即折叠）', () => {
     expect(el.querySelector('[data-archived-collapse="conquest"]')).toBeNull()
   })
 })
+
+describe('折叠：胁迫态（ADR-0031 派生判定，subjugated/条约中 → 折叠区）', () => {
+  /** ended 阶段 + 胁迫解锁（storyFlags 置位，渲染赎罪按钮） */
+  function coercionState(): GameState {
+    const s = endedState()
+    s.buildings.militaryPort = 25
+    s.planets.orbital = { unlocked: true }
+    s.storyFlags['coercionUnlocked'] = true
+    s.resources.mineral = 10_000_000
+    return s
+  }
+
+  it('条约中派系 → 折叠区（徽章「条约中」），主列表移除，保留赎罪入口', () => {
+    const s = coercionState()
+    s.factions.ferro.treatyUntil = Date.now() + 12 * 3600_000
+    s.factions.ferro.extortCount = 1
+    const el = document.createElement('div')
+    renderDiplomacyPanel(el, s)
+    const row = el.querySelector('[data-archived-row="ferro"]')
+    expect(row).not.toBeNull()
+    expect(row!.textContent).toContain('条约中')
+    expect(el.querySelector('[data-faction="ferro"]')).toBeNull()
+    // 折叠区保留赎罪按钮（data-diplomacy="ferro:atone"）——防赎罪路径被锁死
+    expect(el.querySelector('[data-diplomacy="ferro:atone"]')).not.toBeNull()
+  })
+
+  it('臣服派系 → 折叠区（徽章「已臣服」），赎罪可达', () => {
+    const s = coercionState()
+    s.factions.ferro.subjugated = true
+    s.factions.ferro.favor = 10
+    s.factions.ferro.threat = 80
+    const el = document.createElement('div')
+    renderDiplomacyPanel(el, s)
+    const row = el.querySelector('[data-archived-row="ferro"]')
+    expect(row).not.toBeNull()
+    expect(row!.textContent).toContain('已臣服')
+    expect(el.querySelector('[data-faction="ferro"]')).toBeNull()
+    expect(el.querySelector('[data-diplomacy="ferro:atone"]')).not.toBeNull()
+  })
+
+  it('条约到期 → 派生条件变假 → 自动展开回主列表（状态驱动折/展）', () => {
+    const s = coercionState()
+    s.factions.ferro.treatyUntil = Date.now() - 1000 // 已到期
+    const el = document.createElement('div')
+    renderDiplomacyPanel(el, s)
+    expect(el.querySelector('[data-faction="ferro"]')).not.toBeNull()
+    expect(el.querySelector('[data-archived-row="ferro"]')).toBeNull()
+  })
+
+  it('赎罪解除 → 自动展开回主列表', () => {
+    const s = coercionState()
+    s.factions.ferro.subjugated = true
+    s.factions.ferro.atoned = true // 已赎罪（状态解除）
+    s.factions.ferro.subjugated = false
+    const el = document.createElement('div')
+    renderDiplomacyPanel(el, s)
+    expect(el.querySelector('[data-faction="ferro"]')).not.toBeNull()
+    expect(el.querySelector('[data-archived-row="ferro"]')).toBeNull()
+  })
+})
