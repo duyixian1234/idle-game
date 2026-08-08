@@ -5,7 +5,7 @@ import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tut
 import type { NgPlusPreview } from '../engine/ngplus'
 import type { BulkPreview } from '../engine/bulk'
 import { buildingCost } from '../engine/buildings'
-import { formatCost, JUMPGATE_EFFECT_TEXT } from './panels'
+import { formatCost, JUMPGATE_EFFECT_TEXT } from './render/shared'
 import { escapeHtml } from './helpers'
 
 /** boot 浮层内容（Q13 定案）：ASCII 标题 + 3 行 SYSTEM INIT；

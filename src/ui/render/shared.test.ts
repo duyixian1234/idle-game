@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { renderAsciiBar } from './panels'
+import { renderAsciiBar } from './shared'
 
-describe('ui: renderAsciiBar（ui-redesign ticket 05，Q14 定案）', () => {
+describe('ui: renderAsciiBar（ui-redesign ticket 05，Q14 定案；panels-split 迁自 ascii-bar.test.ts）', () => {
   it('0 比例 → 全空（默认宽度 20）', () => {
     const s = renderAsciiBar(0)
     expect(s).toContain('data-progress')

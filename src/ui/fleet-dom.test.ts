@@ -4,7 +4,8 @@ import { fleetMaintenance, fleetPower } from '../engine/fleet'
 import { formatNumber } from '../engine/format'
 import { TECH_MAX_LEVEL } from '../engine/balance'
 import { buildLayout } from './layout'
-import { renderInterstellarPanel, renderMilitaryPanel } from './panels'
+import { renderMilitaryPanel } from './render/military'
+import { renderInterstellarPanel } from './render/interstellar'
 
 describe('ui: 舰队管理区（fleet）——渲染与状态', () => {
   /** 星港 + 船坞已建 + 足量资源（舰队解锁前置满足） */

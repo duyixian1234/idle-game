@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { settleExpeditions } from '../engine/exploration'
 import { factionAlliance } from '../engine/diplomacy'
-import { renderDiplomacyPanel, renderMilitaryPanel } from './panels'
+import { renderMilitaryPanel } from './render/military'
+import { renderDiplomacyPanel } from './render/diplomacy'
 import type { GameState } from '../engine/types'
 
 /** 派遣时长上限（测试周期常量）：fake 派遣用 30min，settle 时刻同口径保证到期 */

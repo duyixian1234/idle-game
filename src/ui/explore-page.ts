@@ -7,7 +7,7 @@ import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURAT
 import { explorePlanetOutputs } from '../engine/production'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
 import { iconUse } from './icons'
-import { renderAsciiBar } from './panels'
+import { renderAsciiBar } from './render/shared'
 import { escapeHtml } from './helpers'
 
 /** 顶部天体显隐控件（原设置页「顶部天体」组迁入探索页自动面板；data-planet-visibility 契约保留，

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { buildLayout } from './layout'
 import { renderExplorePage } from './explore-page'
-import { renderMilitaryPanel } from './panels'
+import { renderMilitaryPanel } from './render/military'
 
 /** 通关 + 舰队可护航状态：船坞 Lv1（3 艘）+ 太阳能产出 → 能源 ≥ 维护费（护航可用） */
 function escortUiState() {

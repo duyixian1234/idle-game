@@ -9,15 +9,13 @@ import { formatRate } from '../../engine/format'
 import { netProduction } from '../../engine/production'
 import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from '../../engine/types'
 import type { SoundManager } from '../../audio'
-import {
-  renderArchivePanel,
-  renderBuildPanel,
-  renderDiplomacyPanel,
-  renderInterstellarPanel,
-  renderMilitaryPanel,
-  renderSettingsPage,
-  renderTechPanel,
-} from '../panels'
+import { renderSettingsPage } from '../render/settings'
+import { renderBuildPanel } from '../render/build'
+import { renderTechPanel } from '../render/tech'
+import { renderDiplomacyPanel } from '../render/diplomacy'
+import { renderMilitaryPanel } from '../render/military'
+import { renderInterstellarPanel } from '../render/interstellar'
+import { renderArchivePanel } from '../render/archive'
 import {
   DEFAULT_LOG_DIRECTION,
   LOG_DIR_KEY,
