@@ -1,6 +1,5 @@
-/* ---- 结局面板 / 一键买满 / 开启新周目 / 终局工程 确认弹窗（共享遮罩与卡片体系） ---- */
+/* ---- 结局面板 / 开启新周目 / 终局工程 确认弹窗（共享遮罩与卡片体系；一键买满弹窗已删 ADR-0037） ---- */
 .ending-overlay,
-.buy-max-overlay,
 .ngplus-overlay,
 .megastructure-overlay {
   position: fixed;
@@ -15,14 +14,12 @@
 }
 
 .ending-overlay.hidden,
-.buy-max-overlay.hidden,
 .ngplus-overlay.hidden,
 .megastructure-overlay.hidden {
   display: none;
 }
 
 .ending-card,
-.buy-max-card,
 .ngplus-card,
 .megastructure-card,
 .explore-card {
@@ -35,8 +32,7 @@
   text-align: center;
 }
 
-/* 一键买满/开启新周目/终局工程确认弹窗内部结构 */
-.buy-max-card,
+/* 开启新周目/终局工程确认弹窗内部结构 */
 .ngplus-card,
 .megastructure-card {
   max-width: 440px;

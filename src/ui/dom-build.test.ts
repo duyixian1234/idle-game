@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { pushLog } from '../engine/core'
-import { previewMaxBuy } from '../engine/bulk'
 import { netProduction } from '../engine/production'
 import { createEventInstance } from '../engine/events'
 import { BUILDINGS, CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MILITARY_BUILDINGS, PLANETS } from '../engine/data'
@@ -12,10 +11,8 @@ import { appendLog, renderAutoConfigPanel, renderLogInto, renderPendingEvents } 
 import { buildLayout } from './layout'
 import { buildCardAction } from './render/shared'
 import { renderBuildPanel } from './render/build'
-import { renderTechPanel } from './render/tech'
 import { renderDiplomacyPanel } from './render/diplomacy'
 import { renderMilitaryPanel } from './render/military'
-import { renderBuyMaxModal } from './overlays'
 import { renderExplorePage } from './explore-page'
 import { renderBreakdownPanel, renderPlanetBar, renderResources, unlockRequirementText } from './bars'
 
@@ -45,9 +42,9 @@ describe('ui: 布局与冒烟', () => {
     for (const p of ['sector', 'archive', 'explore', 'settings']) {
       expect(container.querySelector(`[data-nav-page="${p}"]`)).toBeTruthy()
     }
-    // overlay 语义化契约
+    // overlay 语义化契约（ADR-0037：buy-max overlay 已删）
     expect(container.querySelector('[data-overlay="ending"]')).toBeTruthy()
-    expect(container.querySelector('[data-overlay="buy-max"]')).toBeTruthy()
+    expect(container.querySelector('[data-overlay="buy-max"]')).toBeNull()
     expect(container.querySelector('[data-overlay="ngplus"]')).toBeTruthy()
   })
 
@@ -272,42 +269,49 @@ describe('ui: 布局与冒烟', () => {
     expect(text).toContain(`科技点 ${formatNumber(500)}/${formatNumber(2_000)}`)
   })
 
-  it('建造面板展示升级预览（含全部加成的真实产出）', () => {
+  it('唯一大件展示升级预览（产出 ×2/级；普通建筑无升级预览，ADR-0036）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = TECH_MAX_LEVEL // 星港解锁前置
+    s.buildings.starportMine = 1
+    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
+    const starport = container.querySelector<HTMLElement>('[data-building="starportMine"] .build-upgrade-preview')
+    expect(starport).toBeTruthy()
+    // 星港 500/s，Lv0 → Lv1：总提升 +500/s
+    expect(starport!.textContent).toContain('◆ +500.00/秒')
+    // 普通建筑（采矿机）无升级预览
     s.buildings.miner = 2
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
-    expect(preview).toBeTruthy()
-    // 采矿机 1/s，0 级 → 1.5/s：每台 1 → 1.5，2 台总提升 +1/s
-    expect(preview!.textContent).toContain('◆ +1.00/秒 → +1.50/秒/台')
-    expect(preview!.textContent).toContain('总 +1.00/秒')
+    expect(container.querySelector('[data-building="miner"] .build-upgrade-preview')).toBeNull()
   })
 
-  it('升级后预览数值随等级变化（1 级 → 2 级 1.5→2/台）', () => {
+  it('唯一大件升级预览数值随等级变化（星港 Lv1 → Lv2：+1000/s）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
-    s.buildings.miner = 1
-    s.upgrades.miner = 1
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.starportMine = 1
+    s.upgrades.starportMine = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
-    expect(preview!.textContent).toContain('◆ +1.50/秒 → +2.00/秒/台')
-    expect(preview!.textContent).toContain('总 +0.50/秒')
+    const preview = container.querySelector<HTMLElement>('[data-building="starportMine"] .build-upgrade-preview')
+    expect(preview!.textContent).toContain('◆ +1,000.00/秒')
   })
 
-  it('升级预览含科技加成后的真实产出（行星钻探 矿物×1.5）', () => {
+  it('升级预览含科技加成后的真实产出（星港 500×1.5 行星钻探 → Lv1 总提升 +750/s）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
-    s.buildings.miner = 1
+    s.planets.dawn = { unlocked: true }
+    s.upgrades.deepDrill = TECH_MAX_LEVEL
+    s.buildings.starportMine = 1
     s.techLevels.planetDrill = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    const preview = container.querySelector<HTMLElement>('[data-building="miner"] .build-upgrade-preview')
-    // 每台 1×1.5=1.5/s → 升级后 1.5×1.5=2.25/s；1 台总提升 +0.75/s
-    expect(preview!.textContent).toContain('◆ +1.50/秒 → +2.25/秒/台')
-    expect(preview!.textContent).toContain('总 +0.75/秒')
+    const preview = container.querySelector<HTMLElement>('[data-building="starportMine"] .build-upgrade-preview')
+    // 当前 500×1.5=750/s → Lv1 后 1000×1.5=1500/s：总提升 +750/s
+    expect(preview!.textContent).toContain('◆ +750.00/秒')
   })
 
   it('未建造建筑不显示升级预览，但展示购买预览', () => {
@@ -361,136 +365,6 @@ describe('ui: 布局与冒烟', () => {
   })
 })
 
-describe('ui: 一键买满按钮与确认弹窗', () => {
-  it('建造面板渲染 +10/+100 批量按钮，禁用态与主按钮一致', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 5 // 买不起
-    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    const buyBtn = container.querySelector<HTMLButtonElement>('[data-build="miner"]')
-    const maxBtn = container.querySelector<HTMLButtonElement>('[data-buy-limit="miner:10"]')
-    expect(maxBtn).toBeTruthy()
-    expect(maxBtn!.disabled).toBe(buyBtn!.disabled)
-    expect(maxBtn!.textContent).toContain('+10')
-  })
-
-  it('已建建筑显示升级与升满按钮', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 1000
-    s.buildings.miner = 1
-    renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, BUILDINGS)
-    expect(container.querySelector('[data-upgrade-limit="miner:10"]')).toBeTruthy()
-    expect(container.querySelector('[data-upgrade="miner"]')).toBeTruthy()
-    // 未建建筑无升满按钮
-    expect(container.querySelector('[data-upgrade-limit="solar:10"]')).toBeNull()
-  })
-
-  it('科技面板升满按钮仅在可升级时渲染（Lv1-9）', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 100_000
-    s.resources.tech = 10_000
-    s.techLevels.planetDrill = 1 // 已研发可升级
-    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
-    expect(container.querySelector('[data-upgrade-tech-limit="planetDrill:10"]')).toBeTruthy()
-    // 未研发科技无升满按钮
-    expect(container.querySelector('[data-upgrade-tech-limit="nanoFab:10"]')).toBeNull()
-    // 满级无升满按钮
-    s.techLevels.planetDrill = TECH_MAX_LEVEL
-    renderTechPanel(container.querySelector('[data-panel="tech"]') as HTMLElement, s)
-    expect(container.querySelector('[data-upgrade-tech-limit="planetDrill:10"]')).toBeNull()
-  })
-
-  it('外交面板：贸易/技术共享有批量按钮，威慑/结盟无', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.planets.orbital = { unlocked: true }
-    s.resources.mineral = 3_000_000
-    s.resources.tech = 200_000
-    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
-    expect(container.querySelector('[data-diplomacy-limit="ferro:trade:10"]')).toBeTruthy()
-    expect(container.querySelector('[data-diplomacy-limit="ferro:techshare:10"]')).toBeTruthy()
-    expect(container.querySelector('[data-diplomacy-limit="ferro:alliance:10"]')).toBeNull()
-    expect(container.querySelector('[data-diplomacy-limit="ferro:intimidate:10"]')).toBeNull()
-  })
-
-  it('确认弹窗渲染花费/剩余与确认取消按钮', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 100
-    const preview = previewMaxBuy(s, 'building', 'miner')
-    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
-      title: '买满：采矿机',
-      summary: `将购买 ${preview.count} 台「采矿机」`,
-      preview,
-    })
-    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
-    expect(overlay.textContent).toContain('买满：采矿机')
-    expect(overlay.textContent).toContain('将购买 6 台')
-    expect(overlay.textContent).toContain('◆99')
-    expect(overlay.textContent).toContain('◆1')
-    expect(overlay.querySelector('[data-buy-max-confirm]')).toBeTruthy()
-    expect(overlay.querySelector('[data-buy-max-cancel]')).toBeTruthy()
-  })
-
-  it('确认弹窗展示清零红字警示', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 1000
-    s.resources.energy = 93 // 第 5 台后能源清零
-    const preview = previewMaxBuy(s, 'building', 'lab')
-    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
-      title: '买满：实验室',
-      summary: `将购买 ${preview.count} 台「实验室」`,
-      preview,
-    })
-    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
-    expect(overlay.querySelector('.buy-max-warn')).toBeTruthy()
-    expect(overlay.textContent).toContain('将清空资源：能源')
-  })
-
-  it('确认弹窗展示能源平衡警示（精炼厂）', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 1000
-    s.resources.energy = 500
-    s.buildings.solar = 1 // 冗余仅可驱动 2 台精炼厂
-    const preview = previewMaxBuy(s, 'building', 'refinery')
-    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
-      title: '买满：精炼厂',
-      summary: `将购买 ${preview.count} 台「精炼厂」`,
-      preview,
-    })
-    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
-    expect(overlay.textContent).toContain('能源平衡')
-    expect(overlay.textContent).toContain(`最多可驱动 ${formatNumber(2)} 台`)
-    expect(overlay.textContent).toContain(`本次将买 ${formatNumber(3)} 台`)
-  })
-
-  it('无警示时弹窗不渲染警示行', () => {
-    const container = document.createElement('div')
-    buildLayout(container)
-    const s = createInitialState(0)
-    s.resources.mineral = 100
-    const preview = previewMaxBuy(s, 'building', 'miner')
-    renderBuyMaxModal(container.querySelector('.buy-max-overlay') as HTMLElement, {
-      title: '买满：采矿机',
-      summary: '将购买 6 台「采矿机」',
-      preview,
-    })
-    const overlay = container.querySelector('.buy-max-overlay') as HTMLElement
-    expect(overlay.querySelector('.buy-max-warn')).toBeNull()
-  })
-})
-
 describe('ui: 建造卡片（building-cards）', () => {
   it('卡片渲染：data-build-card + 图标 use + 名称/徽标/预览/按钮组齐全', () => {
     const container = document.createElement('div')
@@ -498,7 +372,6 @@ describe('ui: 建造卡片（building-cards）', () => {
     const s = createInitialState(0)
     s.resources.mineral = 100
     s.buildings.miner = 3
-    s.upgrades.miner = 1
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, CIVIL_BUILDINGS)
     const card = container.querySelector<HTMLElement>('[data-building="miner"]')
     expect(card).toBeTruthy()
@@ -506,16 +379,15 @@ describe('ui: 建造卡片（building-cards）', () => {
     expect(card!.getAttribute('data-build-card')).toBe('miner')
     // 图标 use 引用 sprite symbol（非 emoji/内联 path）
     expect(card!.querySelector('use')?.getAttribute('href')).toBe('#ic-miner')
-    // 名称 + count 徽标 + 等级徽标
+    // 名称 + count 徽标（普通建筑无等级徽标——ADR-0036 无升级）
     expect(card!.textContent).toContain('采矿机')
     expect(card!.querySelector('.build-count')?.textContent).toContain('×3')
-    expect(card!.textContent).toContain('Lv.1')
-    // 预览与按钮组（存量契约）
-    expect(card!.querySelector('.build-upgrade-preview')).toBeTruthy()
+    // 预览与按钮组（ADR-0036/0037：无升级预览/按钮、无批量按钮）
+    expect(card!.querySelector('.build-upgrade-preview')).toBeNull()
     expect(card!.querySelector('.build-buy-preview')).toBeTruthy()
-    expect(card!.querySelector('[data-upgrade="miner"]')).toBeTruthy()
-    expect(card!.querySelector('[data-upgrade-limit="miner:10"]')).toBeTruthy()
-    expect(card!.querySelector('[data-buy-limit="miner:10"]')).toBeTruthy()
+    expect(card!.querySelector('[data-upgrade="miner"]')).toBeNull()
+    expect(card!.querySelector('[data-buy-limit]')).toBeNull()
+    expect(card!.querySelector('[data-upgrade-limit]')).toBeNull()
   })
 
   it('sprite 容器随布局输出一次（卡片只复制 use 引用）', () => {
@@ -660,18 +532,19 @@ describe('ui: 建造卡片（building-cards）', () => {
     // 资源不足 → null
     s.resources.mineral = 5
     expect(buildCardAction(s, 'miner')).toBeNull()
-    // 已拥有且升得起 → upgrade
+    // 普通建筑已拥有 → null（无升级入口，ADR-0036；购买走独立 data-build 按钮）
     s.resources.mineral = 100
     s.buildings.miner = 2
-    expect(buildCardAction(s, 'miner')).toEqual({ kind: 'upgrade' })
-    // 升不起 → null
-    s.resources.mineral = 1
     expect(buildCardAction(s, 'miner')).toBeNull()
-    // jumpgate 已建（无升级效果）→ null
-    s.resources.mineral = 10 ** 12
+    // unique 已拥有且升得起 → upgrade
     s.phase = 'ended'
+    s.planets.dawn = { unlocked: true }
     s.upgrades.deepDrill = 10
     s.buildings.starportMine = 1
+    s.resources.mineral = 10 ** 12
+    s.resources.tech = 10 ** 9
+    expect(buildCardAction(s, 'starportMine')).toEqual({ kind: 'upgrade' })
+    // jumpgate 已建（无升级效果）→ null
     s.buildings.stellarArray = 1
     s.buildings.thinkTank = 1
     s.buildings.jumpgate = 1

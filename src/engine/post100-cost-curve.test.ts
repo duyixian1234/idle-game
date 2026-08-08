@@ -5,15 +5,17 @@
  * - ≤100 台：动态下限不介入，成本 = 静态曲线（完全不变）
  * - >100 台高产出态：动态下限抬高买入价 ≥ 3 × netProd × 1.05^excess
  * - >100 台低产出态：动态下限 ≤ 静态时回退静态 × postFactor
- * - 升级继承：count > 100 时升级价自动含 post100 因子
+ * - 跨周目相对价格：post100 动态下限跟随 NG+ 产出 → 相对价格比值恒 1.00（ADR-0022 不塌缩）
  * - unique 大件不受影响（回归）
  * - 单调性：count 0→200 买入价单调不降
+ *
+ * ⚠️ ADR-0036：升级继承段已删（普通建筑无升级）；升级 ROI P=2 不变量测试失效已删。
  */
 import { describe, expect, it } from 'vitest'
 import { BUILDINGS } from './data'
-import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD, UPGRADE_PREMIUM, LEVEL_PRODUCTION_BONUS } from './balance'
+import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD } from './balance'
 import { createInitialState } from './engine'
-import { buildingCost, upgradeCost } from './buildings'
+import { buildingCost } from './buildings'
 import { netProduction } from './production'
 
 /** 高产出态：100 台 miner + 高 NG+ 永久加成 */
@@ -109,25 +111,22 @@ describe('post100-cost-curve: 低产出态回退静态', () => {
   })
 })
 
-describe('post100-cost-curve: 升级继承', () => {
-  it('count=101 高产出态：升级价 ≥ 买入价 × count × (1+0.15×level)', () => {
-    const base = highProdState(10)
-    const s = { ...base, buildings: { ...base.buildings, miner: 101 } }
-    s.upgrades.miner = 0
-    const buy = buildingCost(s, 'miner')
-    const up = upgradeCost(s, 'miner')
-    const mult = UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * 101
-    const expected = Math.max(1, Math.ceil(buy.mineral * mult * (1 + 0.15 * 0)))
-    expect(up.mineral).toBe(expected)
-  })
-
-  it('count=200 高产出态升级价远大于 count=101 升级价（postFactor 叠加）', () => {
-    const base = highProdState(10)
-    const s101 = { ...base, buildings: { ...base.buildings, miner: 101 } }
-    const s200 = { ...base, buildings: { ...base.buildings, miner: 200 } }
-    const up101 = upgradeCost(s101, 'miner').mineral
-    const up200 = upgradeCost(s200, 'miner').mineral
-    expect(up200).toBeGreaterThan(up101)
+describe('post100-cost-curve: 跨周目相对价格不塌缩（ADR-0022 / ADR-0036 不补偿验证）', () => {
+  it('post100 动态下限跟随 NG+ 永久加成：相对价格比值恒 1.00（普通买入价）', () => {
+    // 周目 0 vs 周目 10：permanentMult 2.5 → 净产出 ×2.5 → dynamicFloor ×2.5 → 相对价格不变
+    const base = highProdState(0) // ngPlusLevel=0 → permanentMult 1
+    const boosted = highProdState(10) // permanentMult 2.5
+    const s0 = { ...base, buildings: { ...base.buildings, miner: 150 } }
+    const s10 = { ...boosted, buildings: { ...boosted.buildings, miner: 150 } }
+    const np0 = netProduction(s0).mineral
+    const np10 = netProduction(s10).mineral
+    expect(np10).toBeCloseTo(np0 * 2.5, 6)
+    const cost0 = buildingCost(s0, 'miner').mineral
+    const cost10 = buildingCost(s10, 'miner').mineral
+    // 相对价格 = 成本/秒产出：两周目比值 ≈ 1.00（floor 误差 ±1e-3）
+    const ratio0 = cost0 / np0
+    const ratio10 = cost10 / np10
+    expect(ratio10 / ratio0).toBeCloseTo(1.0, 2)
   })
 })
 

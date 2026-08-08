@@ -561,3 +561,110 @@ describe('engine: v12 → v13 胁迫外交迁移', () => {
     expect(migrated2.diplomacyAuto).toEqual({ enabled: true, mode: 'ally', perFaction: {} })
   })
 })
+
+describe('engine: v14 → v15 普通建筑升级折算返还（ADR-0036）', () => {
+  /** 构造 v14 档（schemaVersion 14，含 7 普通建筑 upgrades 与 unique upgrades） */
+  function v14Raw(): Record<string, unknown> {
+    const s = createInitialState(0)
+    s.resources.mineral = 1000
+    s.resources.energy = 500
+    s.resources.tech = 200
+    s.buildings.miner = 1
+    s.buildings.solar = 1
+    s.buildings.starportMine = 1
+    s.upgrades.miner = 3
+    s.upgrades.solar = 1
+    s.upgrades.starportMine = 2 // unique：不动
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 14
+    return raw
+  }
+
+  it('7 普通建筑 upgrades>0：每级投入按原 upgradeCost 公式倒算返还，upgrades 清零', () => {
+    const migrated = deserializeSave(JSON.stringify(v14Raw()))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    // miner Lv0→1 13 + Lv1→2 15 + Lv2→3 19 = 47；solar Lv0→1 = 36；合计矿物返还 83
+    expect(migrated.resources.mineral).toBe(1000 + 47 + 36)
+    expect(migrated.upgrades.miner).toBe(0)
+    expect(migrated.upgrades.solar).toBe(0)
+  })
+
+  it('unique upgrades 不动（starportMine 等级保留）', () => {
+    const migrated = deserializeSave(JSON.stringify(v14Raw()))
+    expect(migrated.upgrades.starportMine).toBe(2)
+  })
+
+  it('upgrades=0 档迁移：无返还、资源原值', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 123
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 14
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.resources.mineral).toBe(123)
+  })
+
+  it('仅 unique 升级档：无返还、unique 等级保留', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 999
+    s.buildings.starportMine = 1
+    s.upgrades.starportMine = 5
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 14
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.resources.mineral).toBe(999)
+    expect(migrated.upgrades.starportMine).toBe(5)
+  })
+
+  it('v13 档链式迁移直达 v15（v13→v14→v15 不跳级）', () => {
+    const raw = v14Raw()
+    raw.schemaVersion = 13
+    // v13 派系已含胁迫字段（真实 v13 档自 v12→v13 迁移起就有）；此处仅验证链式迁移版本与返还
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    // v13→v14 补齐生效（diplomacyAuto 归一化）+ v14→v15 返还生效（同一 chain）
+    expect(migrated.diplomacyAuto).toBeDefined()
+    expect(migrated.upgrades.miner).toBe(0)
+    expect(migrated.resources.mineral).toBe(1000 + 47 + 36)
+  })
+
+  it('迁移后资源守恒：返还 = Σ 每级投入（无凭空增删）', () => {
+    // 深钻 count=2、upgrades=2：验证多台 ×count 因子（buy × count × (1+0.15×lv)）
+    const s = createInitialState(0)
+    s.resources.mineral = 0
+    s.resources.energy = 0
+    s.buildings.deepDrill = 2
+    s.upgrades.deepDrill = 2
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 14
+    const migrated = deserializeSave(JSON.stringify(raw))
+    // deepDrill base 2500/120，exp 0.81，count=2：static = floor(2500×3^0.81)=floor(6087.06)=6087
+    // Lv0: lf=1 → buy 6087/292；paid 矿 = ceil(6087×2)=12174，paid 能 = ceil(292×2)=584
+    // Lv1: lf=1.05 → buy floor(6087×1.05)=6391 / floor(292×1.05)=306；
+    //   paid 矿 = ceil(6391×2×1.15)=14700，paid 能 = ceil(306×2×1.15)=704
+    // 合计：矿 12174+14700=26874；能 584+704=1288
+    expect(migrated.upgrades.deepDrill).toBe(0)
+    expect(migrated.resources.mineral).toBe(26874)
+    expect(migrated.resources.energy).toBe(1288)
+  })
+
+  it('全部 7 普通建筑 upgrades>0 均折算返还并清零（lab/refinery/barracks/militaryPort 覆盖）', () => {
+    // 每建筑 count=1、upgrades=1：Lv0→1 投入 = ceil(首台买入价 × 1 × 1) > 0
+    const s = createInitialState(0)
+    for (const id of ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort']) {
+      s.buildings[id] = 1
+      s.upgrades[id] = 1
+    }
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 14
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    for (const id of ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort']) {
+      expect(migrated.upgrades[id], id).toBe(0)
+    }
+    // 返还 > 0：矿建筑全返矿；lab/refinery/barracks 返矿+能源；militaryPort 返矿+科技
+    expect(migrated.resources.mineral).toBeGreaterThan(0)
+    expect(migrated.resources.energy).toBeGreaterThan(0)
+    expect(migrated.resources.tech).toBeGreaterThan(0)
+  })
+})

@@ -6,7 +6,7 @@ import { tradeCost } from './diplomacy'
 import { raidableFaction, settleOfflineRaids } from './events'
 import { militaryCap } from './production'
 import { startConquest, settleConquests } from './conquest'
-import { executeDiplomacyMax } from './bulk'
+import { factionTrade } from './diplomacy'
 import type { GameState } from './types'
 
 /** 解锁成就直到声望达到目标值（按 ACHIEVEMENTS 遍历累积，越接近越好） */
@@ -43,20 +43,20 @@ describe('声望四加成接线', () => {
     expect(s.factions.cygnus.favor).toBe(favorBefore + 6)
   })
 
-  it('buy-max 自动兼容折扣（executeDiplomacyMax 循环调 factionTrade → tradeCost）', () => {
+  it('贸易折扣直接作用于单次贸易成本（factionTrade 扣费按 tradeCost 结算）', () => {
+    // ADR-0037：批量已删，单次贸易即入口——折扣在单次成本上生效
     const low = createInitialState(0)
     const high = createInitialState(0)
     setRep(high, 100)
     low.resources.mineral = 500_000
     high.resources.mineral = 500_000
-    const rLow = executeDiplomacyMax(low, 'cygnus', 'trade')
-    const rHigh = executeDiplomacyMax(high, 'cygnus', 'trade')
-    expect(rLow.ok).toBe(true)
-    expect(rHigh.ok).toBe(true)
-    // 高声望同预算买到更多次（成本 ×0.85 折扣）
-    const cLow = (rLow as { ok: true; value: { count: number } }).value.count
-    const cHigh = (rHigh as { ok: true; value: { count: number } }).value.count
-    expect(cHigh).toBeGreaterThan(cLow)
+    const costLow = tradeCost(low, 'cygnus').mineral
+    const costHigh = tradeCost(high, 'cygnus').mineral
+    expect(costHigh).toBeLessThan(costLow)
+    const mineralHighBefore = high.resources.mineral
+    expect(factionTrade(high, 'cygnus').ok).toBe(true)
+    // 扣费 = 折扣后成本（15% 折扣：5000 → 4250）
+    expect(high.resources.mineral).toBe(mineralHighBefore - costHigh)
   })
 
   it('骚扰阈值上移：低声望 threat 55 被骚扰，声望 40 后豁免，铁卫 70 满声望仍骚扰', () => {

@@ -1,5 +1,7 @@
 # 军力容量科技通道：军械科技每级 +10% 容量（整体乘法）
 
+> **⚠️ 修订（2026-08-08，[ADR-0036](./0036-ordinary-building-no-upgrade.md)）**：本 ADR 公式 `militaryCap = (100 + 200×军港×levelMultiplier(portLevel)) × ...` 中 `levelMultiplier(portLevel)` 项因 militaryPort 升级被砍而 **portLevel 恒 0**（`levelMultiplier(0)=1`），军港回 200/座线性。公式结构不变，但军港升级的 +50%/级乘法放大消失，军力容量等级放大从军港升级的 ×6（Lv10）缩到军械科技的 ×1.5（Lv5）。决策 1-4（军械科技通道本身）仍有效；后果中"军港仍是容量主引擎"语义不变且更纯粹（数量轴唯一引擎）。`COERCION_UNLOCK_MILITARY_CAP=5000` 仍由 25 军港达成，不变。
+
 军力容量公式 `militaryCap = ⌊(100 + 200×军港×(1+0.5·lv)) × (1+永久+声望)⌋` 此前无任何科技扩容通道——容量只有「军港数量流」一条增长路径，与舰队战力的科技指数增长（满配 ×4.5）脱节。决策：**军械科技（militaryTech）每级 +10% 容量，整体乘法叠加**（`×(1 + 0.1×militaryTechLv)`），Lv5 = +50%。
 
 **状态**: Accepted（2026-08-08 定稿，grill 三轮 Q3/Q5/Q6）

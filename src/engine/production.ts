@@ -74,15 +74,15 @@ function pipelineNominal(state: GameState): PipelineNominal {
     const def = BUILDINGS[id]
     if (!def || count <= 0) continue
     if (def.unique) {
-      // 唯一大件产出分支：base × 2^level（与普通建筑线性 levelMultiplier 并存，互不污染）
+      // 唯一大件产出分支：base × 2^level（等级维度；与普通建筑数量维度并存，互不污染）
       const uniqueMult = Math.pow(UNIQUE_UPGRADE_GROWTH, state.upgrades[id] ?? 0)
       for (const key of RESOURCE_KEYS) {
         base[key] += (def.produces[key] ?? 0) * uniqueMult
       }
     } else {
-      const mul = levelMultiplier(state.upgrades[id] ?? 0)
+      // 普通建筑产出回归 produces×count（ADR-0036：无 levelMultiplier 普通应用，数量维度唯一）
       for (const key of RESOURCE_KEYS) {
-        base[key] += (def.produces[key] ?? 0) * count * mul
+        base[key] += (def.produces[key] ?? 0) * count
       }
     }
     for (const key of RESOURCE_KEYS) {
@@ -128,9 +128,9 @@ export function productionReport(state: GameState): ProductionReport {
     for (const [id, count] of Object.entries(state.buildings)) {
       const def = BUILDINGS[id]
       if (!def || count <= 0 || !def.consumes) continue
-      const mul = levelMultiplier(state.upgrades[id] ?? 0)
+      // ADR-0036：普通建筑产出 = produces×count（无 levelMultiplier）；unique 大件无 consumes 侧折减（维护费独立结算）
       for (const key of RESOURCE_KEYS) {
-        const prod = (def.produces[key] ?? 0) * count * mul
+        const prod = (def.produces[key] ?? 0) * count
         nominal[key] -= prod * techMult[key] * permMult * (1 - energyRatio)
       }
     }
@@ -383,12 +383,13 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   const buildingRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
   const buildingSum = zeroResources()
   let energyDemand = 0
-  // 1. 建筑基础（与 pipelineNominal 同公式：数量 × 等级加成 / unique ×2^level；consumes 按台数或等级）
+  // 1. 建筑基础（与 pipelineNominal 同公式：普通=数量 × 固定产出 / unique=base × 2^level；consumes 按台数或等级）
   for (const [id, count] of Object.entries(state.buildings)) {
     const def = BUILDINGS[id]
     if (!def || count <= 0) continue
     const level = state.upgrades[id] ?? 0
-    const mult = def.unique ? Math.pow(UNIQUE_UPGRADE_GROWTH, level) : levelMultiplier(level)
+    // ADR-0036：普通建筑无等级维度（mult=1），unique 大件 ×2^level
+    const mult = def.unique ? Math.pow(UNIQUE_UPGRADE_GROWTH, level) : 1
     const per = def.unique ? 1 : count
     const name = def.name ?? id
     for (const key of RESOURCE_KEYS) {
@@ -468,9 +469,9 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     for (const [id, count] of Object.entries(state.buildings)) {
       const def = BUILDINGS[id]
       if (!def || count <= 0 || !def.consumes) continue
-      const mul = levelMultiplier(state.upgrades[id] ?? 0)
+      // ADR-0036：普通建筑产出 = produces×count（无 levelMultiplier 普通应用）
       for (const key of RESOURCE_KEYS) {
-        const prod = (def.produces[key] ?? 0) * count * mul
+        const prod = (def.produces[key] ?? 0) * count
         if (prod === 0) continue
         const loss = prod * techMult[key] * permMult * (1 - energyRatio)
         if (loss !== 0) ratioRows[key].push({ name: `${def.name ?? id}（能源不足）`, value: -loss, kind: 'sub' })

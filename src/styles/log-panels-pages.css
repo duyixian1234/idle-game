@@ -263,21 +263,17 @@
 
 /* ---- 主操作按钮：方括号「命令」语言 + 磷光绿底黑字瞬间反转（Q10/Q5 定案） ----
  * 零 DOM 改动：纯 CSS ::before/::after + 属性选择器驱动；
- * 反转是瞬间生效（hover 无 transition，250ms 重建不重放）。 */
+ * 反转是瞬间生效（hover 无 transition，250ms 重建不重放）。
+ * ⚠️ ADR-0037：data-buy-max/data-upgrade-max/data-upgrade-tech-max/data-diplomacy-max 已删（无批量按钮）。 */
 .build-btn[data-build]::before,
 .build-btn[data-upgrade]::before,
 .build-btn[data-research]::before,
 .build-btn[data-upgrade-tech]::before,
-.build-btn[data-buy-max]::before,
-.build-btn[data-upgrade-max]::before,
-.build-btn[data-upgrade-tech-max]::before,
-.build-btn[data-diplomacy-max]::before,
 .build-btn[data-conquest]::before,
 .build-btn[data-fleet-build]::before,
 .ending-btn[data-explore-dispatch]::before,
 .ending-btn[data-ngplus]::before,
 .ending-btn[data-ngplus-confirm]::before,
-.ending-btn[data-buy-max-confirm]::before,
 .ending-btn[data-megastructure-confirm]::before,
 .ending-btn[data-ending='infinite']::before {
   content: '[ ';
@@ -286,16 +282,11 @@
 .build-btn[data-upgrade]::after,
 .build-btn[data-research]::after,
 .build-btn[data-upgrade-tech]::after,
-.build-btn[data-buy-max]::after,
-.build-btn[data-upgrade-max]::after,
-.build-btn[data-upgrade-tech-max]::after,
-.build-btn[data-diplomacy-max]::after,
 .build-btn[data-conquest]::after,
 .build-btn[data-fleet-build]::after,
 .ending-btn[data-explore-dispatch]::after,
 .ending-btn[data-ngplus]::after,
 .ending-btn[data-ngplus-confirm]::after,
-.ending-btn[data-buy-max-confirm]::after,
 .ending-btn[data-megastructure-confirm]::after,
 .ending-btn[data-ending='infinite']::after {
   content: ' ]';
@@ -307,16 +298,11 @@
 .build-btn[data-upgrade]:hover:not(:disabled),
 .build-btn[data-research]:hover:not(:disabled),
 .build-btn[data-upgrade-tech]:hover:not(:disabled),
-.build-btn[data-buy-max]:hover:not(:disabled),
-.build-btn[data-upgrade-max]:hover:not(:disabled),
-.build-btn[data-upgrade-tech-max]:hover:not(:disabled),
-.build-btn[data-diplomacy-max]:hover:not(:disabled),
 .build-btn[data-conquest]:hover:not(:disabled),
 .build-btn[data-fleet-build]:hover:not(:disabled),
 .ending-btn[data-explore-dispatch]:hover,
 .ending-btn[data-ngplus]:hover,
 .ending-btn[data-ngplus-confirm]:hover,
-.ending-btn[data-buy-max-confirm]:hover,
 .ending-btn[data-megastructure-confirm]:hover,
 .ending-btn[data-ending='infinite']:hover {
   background: var(--phosphor);

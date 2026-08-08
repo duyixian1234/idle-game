@@ -100,7 +100,8 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
 
 /** 军械科技区（攻占「虫群前哨」解锁，军事线科技；data-tech 契约与科技面板卡片同构；
  * 渲染于科技面板列表末尾分组）：
- * 未攻占 → 锁定文案（desc 自带「攻占…后解锁」）；已攻占未研发 → 研发按钮；已研发可升级 → 升级按钮（含 +10/+100）。
+ * 未攻占 → 锁定文案（desc 自带「攻占…后解锁」）；已攻占未研发 → 研发按钮；已研发可升级 → 升级按钮（单次）。
+ * ⚠️ ADR-0037：无 +10/+100 批量按钮。
  * 2026-08-08 panels-split 落地：本函数从 panels.ts 迁至 military.ts，tech.ts 改 import './military'。 */
 export function renderMilitaryTechSection(el: HTMLElement, state: GameState): void {
   const def = TECHS.militaryTech
@@ -159,8 +160,6 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
         <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
           升级 ▶ ${formatCost(techCost(state, def.id))}
         </button>
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>
       </div>`
   }
   section.appendChild(card)
@@ -171,7 +170,7 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
  * 攻占列表 = 静态 4 区域 + 无尽生成军事目标（endless-expansion）；已归档（征服）目标移列表末尾折叠区。 */
 export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
-  // 段 1：军事建筑（兵营/军港，含升级与 buy-max；卡片化，与民用同构；军事 tab 不启用锁定卡折叠）
+  // 段 1：军事建筑（兵营/军港，卡片化，与民用同构；无升级入口——ADR-0036 普通建筑无升级；军事 tab 不启用锁定卡折叠）
   const buildSection = document.createElement('div')
   buildSection.className = 'military-section'
   renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)

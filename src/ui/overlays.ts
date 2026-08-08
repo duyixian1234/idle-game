@@ -3,7 +3,6 @@ import { BUILDINGS, CONQUESTS, FACTIONS, RESOURCE_META, TECHS } from '../engine/
 import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate } from '../engine/format'
 import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
 import type { NgPlusPreview } from '../engine/ngplus'
-import type { BulkPreview } from '../engine/bulk'
 import { buildingCost } from '../engine/buildings'
 import { formatCost, JUMPGATE_EFFECT_TEXT } from './render/shared'
 import { escapeHtml } from './helpers'
@@ -94,45 +93,6 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
       <div class="buy-max-actions">
         <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">确认建造</button>
         <button type="button" class="ending-btn ghost" data-megastructure-cancel>取消</button>
-      </div>
-    </div>`
-}
-
-/** 买满确认弹窗数据（summary 由调用方组装，preview 为引擎预演结果） */export interface BuyMaxModalData {
-  title: string
-  summary: string
-  preview: BulkPreview
-}
-
-/** 渲染一键买满确认弹窗（复用 ending overlay 卡片体系） */
-export function renderBuyMaxModal(el: HTMLElement, data: BuyMaxModalData): void {
-  const { preview } = data
-  const spendText = formatCost(preview.spent)
-  const remainText = formatCost(preview.remaining) || formatNumber(0)
-  const emptyText = preview.emptyWarnings.map((k) => RESOURCE_META[k].name).join('、')
-  const energy = preview.energyWarning
-  const energyWarn =
-    energy && energy.bought > energy.maxDriven
-      ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 能源平衡：当前产出 ${formatRate(energy.production)} · 需求 ${formatRate(energy.consumption)} · 最多可驱动 ${formatNumber(energy.maxDriven)} 台 · 本次将买 ${formatNumber(energy.bought)} 台，超出部分无产出。</div>`
-      : ''
-  const emptyWarn = emptyText
-    ? `<div class="buy-max-warn" data-buy-max-warn>⚠ 将清空资源：${escapeHtml(emptyText)}（执行后剩余不足 1）</div>`
-    : ''
-  el.innerHTML = `
-    <div class="buy-max-card">
-      <div class="buy-max-title">${escapeHtml(data.title)}</div>
-      <div class="buy-max-body">
-        <div class="buy-max-summary">${escapeHtml(data.summary)}</div>
-        <table class="buy-max-table">
-          <tr><th>总花费</th><td>${spendText || '0'}</td></tr>
-          <tr><th>执行后剩余</th><td>${remainText}</td></tr>
-        </table>
-        ${emptyWarn}
-        ${energyWarn}
-      </div>
-      <div class="buy-max-actions">
-        <button type="button" class="ending-btn primary" data-buy-max-confirm>确认花光</button>
-        <button type="button" class="ending-btn ghost" data-buy-max-cancel>取消</button>
       </div>
     </div>`
 }

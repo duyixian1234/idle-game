@@ -85,12 +85,12 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     expect(s.factions['gen:faction:0'].favor).toBe(favorBefore + 6)
   })
 
-  it('外交批量 +10：endless:starlightLeague:trade:10', () => {
+  it('外交单次贸易：endless:starlightLeague 好感 +6（无批量，ADR-0037）', () => {
     const s = infiniteState()
     settleWith(s, { kind: 'faction', factionId: 'endless:starlightLeague' })
-    dispatch(s, 'diplomacyMax', { factionId: 'endless:starlightLeague', action: 'trade', limit: 10 }, fakeDeps().deps)
-    // 初始 favor 25 + 发现礼包 +10（ADR-0028）= 35，10×6 = 95
-    expect(s.factions['endless:starlightLeague'].favor).toBe(95)
+    dispatch(s, 'diplomacy', { factionId: 'endless:starlightLeague', action: 'trade' }, fakeDeps().deps)
+    // 初始 favor 25 + 发现礼包 +10（ADR-0028）= 35，单次 +6 = 41
+    expect(s.factions['endless:starlightLeague'].favor).toBe(41)
   })
 
   it('军事动作 endless:warband 攻占成功且日志含真实名字', () => {
@@ -115,8 +115,9 @@ describe('回归：探索发现新目标（含冒号 id）的 dispatch 解析', 
     const s = infiniteState()
     dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
     expect(s.factions.ferro.favor).toBe(26) // 20 + 6
-    dispatch(s, 'diplomacyMax', { factionId: 'ferro', action: 'trade', limit: 10 }, fakeDeps().deps)
-    expect(s.factions.ferro.favor).toBe(86)
+    // 再次单次贸易：好感 32（无批量，ADR-0037）
+    dispatch(s, 'diplomacy', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
+    expect(s.factions.ferro.favor).toBe(32)
     dispatch(s, 'conquest', { id: 'outpost', invest: 100 }, fakeDeps().deps)
     expect(s.conquest.outpost).toMatchObject({ status: 'available', invested: 100 })
   })

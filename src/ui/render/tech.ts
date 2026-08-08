@@ -14,7 +14,8 @@ import { escapeHtml } from '../helpers'
 import { formatCost } from './shared'
 import { renderMilitaryTechSection } from './military'
 
-/** 渲染科技面板（tech-cards：与建造物同构的卡片网格；data-tech 契约与按钮 data-research/data-upgrade-tech(+limit) 原样保留） */
+/** 渲染科技面板（tech-cards：与建造物同构的卡片网格；data-tech 契约与按钮 data-research/data-upgrade-tech 原样保留；
+ * ⚠️ ADR-0037：无 +10/+100 批量按钮，科技升级单次操作统一为 1） */
 export function renderTechPanel(el: HTMLElement, state: GameState): void {
   el.innerHTML = ''
   const grid = document.createElement('div')
@@ -116,8 +117,6 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
         <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
           升级 ▶ ${formatCost(cost)}
         </button>
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>
       </div>`
     grid.appendChild(card)
   }

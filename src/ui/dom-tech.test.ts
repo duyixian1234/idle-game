@@ -36,6 +36,18 @@ describe('ui: 科技面板', () => {
     expect(btn!.disabled).toBe(false)
   })
 
+  it('全站无 +10/+100 批量按钮（ADR-0037：科技升级单次操作统一为 1）', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 100_000
+    s.techLevels.planetDrill = 1 // 可升级态：仍无批量按钮
+    renderTechPanel(el, s)
+    expect(el.querySelector('[data-upgrade-tech-limit]')).toBeNull()
+    expect(el.querySelector('[data-upgrade-tech-limit="planetDrill:10"]')).toBeNull()
+    expect(el.querySelector('[data-upgrade-tech-limit="planetDrill:100"]')).toBeNull()
+  })
+
   it('资源不足时升级按钮禁用', () => {
     const el = panel()
     const s = createInitialState(0)

@@ -144,8 +144,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 14
+/** 存档 schema 版本（v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 15
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -425,7 +425,7 @@ export interface GameState {
   playSeconds: number
 }
 
-// ---- 引擎动作结果（域模块与 UI 层共用；各域自持的 ActionResult 变体见 diplomacy/bulk/conquest）----
+// ---- 引擎动作结果（域模块与 UI 层共用；各域自持的 ActionResult 变体见 diplomacy/conquest）----
 
 /** 失败结果：ok === false 判失败（isActionFailure type guard） */
 export interface ActionFailure {

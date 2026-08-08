@@ -11,7 +11,6 @@ export interface AppElements {
   logEl: HTMLElement
   panel: HTMLElement
   endingOverlay: HTMLElement
-  buyMaxOverlay: HTMLElement
   ngplusOverlay: HTMLElement
   megastructureOverlay: HTMLElement
   tutorial: HTMLElement
@@ -68,7 +67,6 @@ export function buildLayout(container: HTMLElement): AppElements {
       <button type="button" class="nav-item" data-nav="settings">${iconUse('nav-settings', 'nav-icon')}<span class="nav-label">设置</span></button>
     </footer>
     <div class="ending-overlay hidden" data-overlay="ending" aria-label="结局"></div>
-    <div class="buy-max-overlay hidden" data-overlay="buy-max" aria-label="批量购买确认"></div>
     <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
     <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局工程确认"></div>
     <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="自动处理配置"></div>
@@ -90,7 +88,6 @@ export function buildLayout(container: HTMLElement): AppElements {
     logEl: container.querySelector('[data-log]') as HTMLElement,
     panel: container.querySelector('.panel') as HTMLElement,
     endingOverlay: container.querySelector('[data-overlay="ending"]') as HTMLElement,
-    buyMaxOverlay: container.querySelector('[data-overlay="buy-max"]') as HTMLElement,
     ngplusOverlay: container.querySelector('[data-overlay="ngplus"]') as HTMLElement,
     megastructureOverlay: container.querySelector('[data-overlay="megastructure"]') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,

@@ -62,7 +62,9 @@ export function renderAsciiBar(ratio: number, width = 20): string {
  * 卡片主体点击的纯函数判定（main.ts 委托调用；可测 seam）：
  * - 未解锁 / 满级 / 资源不足 / jumpgate 已建（无升级效果）→ null（无副作用）
  * - 终局工程建筑（究极建筑）未建造 → megastructure（走确认弹窗）
- * - count>0 且未满级 → upgrade；否则（未拥有）→ buy
+ * - unique 且 count>0 且未满级 → upgrade；否则（未拥有）→ buy。
+ *   ⚠️ ADR-0036：普通建筑无升级（升级入口仅 unique），count>0 的普通建筑卡片主体点击 = null
+ *   （购买走独立 data-build 按钮，卡片主体点击不再触发隐式升级）。
  */
 export function buildCardAction(state: GameState, id: string): BuildCardAction | null {
   const def = BUILDINGS[id]
@@ -71,7 +73,7 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
   if (MEGASTRUCTURE_BUILDINGS[id] && count <= 0) return { kind: 'megastructure' }
   const level = state.upgrades[id] ?? 0
   const maxed = def.unique === true && def.maxLevel != null && level >= def.maxLevel
-  if (count > 0 && def.id !== 'jumpgate' && !maxed) {
+  if (count > 0 && def.unique === true && def.id !== 'jumpgate' && !maxed) {
     return canAffordUpgrade(state, id) ? { kind: 'upgrade' } : null
   }
   if (count <= 0) {

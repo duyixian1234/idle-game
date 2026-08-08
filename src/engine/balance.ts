@@ -9,7 +9,9 @@ import type { ResourceKey } from './types'
  *
  * 设计原则（grill 四轮 18 决策）：
  * - 共享数学族根因子化：LEVEL_PRODUCTION_BONUS（合并 TECH_PER_LEVEL_BONUS）、
- *   UPGRADE_PREMIUM、TECH_UPGRADE_GROWTH——调参只动根因子。
+ *   TECH_UPGRADE_GROWTH——调参只动根因子。
+ *   ⚠️ ADR-0036 已删：UPGRADE_PREMIUM / ORDINARY_UPGRADE_LEVEL_GROWTH / LEVEL_COST_FACTOR
+ *   仅普通建筑升级用（见下方删除标注），普通升级取消后不再参与调参。
  * - 内容数据保持显式：建筑 baseCost/produces/costGrowth、星球解锁阈值、攻占 guard
  *   属手工调校内容，留在 data.ts 不派生。
  */
@@ -19,23 +21,10 @@ import type { ResourceKey } from './types'
 /** 每级产出加成系数（建筑升级与科技升级共用：+50%/级；原 data.ts 两处同名 0.5 合并） */
 export const LEVEL_PRODUCTION_BONUS = 0.5
 /**
- * 升级溢价 P（本次重平衡唯一新增根因子）：
- * 建筑升级成本 = buyCost × P × LEVEL_PRODUCTION_BONUS × count × (1 + ORDINARY_UPGRADE_LEVEL_GROWTH × level)。
- * 数学性质：升级每 +1/s 成本 ÷ 买入每 +1/s 成本恒等于 P，任意 count/L 不漂移。
- * P=2 定值（Q6b）：取 ROI∈[2,5] 带下界，升级「值得但略亏」，保持买/升交替决策。
- * 注：cost-softcap 定稿（2026-08-07）修正注释与实现一致——原注释写 ÷levelMultiplier(level)，
- * 实现从未存在该分母，而是 ×growth^level（升级指数叠加买入指数 ×count 三重爆炸）。
- * 现升级公式去掉 growth^level 连乘、改为 ×(1 + c×level) 温和增长（软上限同步买入多项式曲线）。
+ * ⚠️ ADR-0036 已删：UPGRADE_PREMIUM / ORDINARY_UPGRADE_LEVEL_GROWTH / LEVEL_COST_FACTOR
+ * 仅普通建筑升级用（upgradeCost 普通分支 + buildingCost 等级因子），普通升级取消后失效。
+ * 保留证据见 git history（balance-rework spec 2026-08-06 / cost-softcap 2026-08-07）。
  */
-export const UPGRADE_PREMIUM = 2
-/** 普通建筑升级成本随等级的温和增长系数 c：升级成本 = buyCost × P × 0.5 × count × (1 + c×level)。
- * c 由 cost-softcap ticket 03 balance-sim 校准（初值 0.15；Q9 推荐 0.1~0.2 量级）。 */
-export const ORDINARY_UPGRADE_LEVEL_GROWTH = 0.15
-/** 买入成本等级因子 f（level-cost-factor spec 定稿，2026-08-07）：
- * 买入成本最外层 × (1 + f × level)——成本随该建筑当前等级线性抬升，
- * 防「高等级 + 多台数」双堆叠（等级高的建筑补买新台也贵，买/升交替决策保留）。
- * level=0 时因子=1 天然无影响；f=0.05 → Lv10 ×1.5、Lv20 ×2。 */
-export const LEVEL_COST_FACTOR = 0.05
 /** 科技升级成本增长倍率（cost(lv) = base × 1.7^(lv−1)；满级 5 项合计 42.8 万科技点） */
 export const TECH_UPGRADE_GROWTH = 1.7
 

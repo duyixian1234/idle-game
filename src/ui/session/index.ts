@@ -1,9 +1,5 @@
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from '../../engine/events'
-import { BUILDINGS, PLANETS, RESOURCE_META, TECHS } from '../../engine/data'
-import { factionDef } from '../../engine/diplomacy'
-import { previewDiplomacyMax, previewMaxBuy } from '../../engine/bulk'
-import type { BulkKind } from '../../engine/bulk'
-import type { BulkPreview } from '../../engine/bulk'
+import { PLANETS, RESOURCE_META } from '../../engine/data'
 import { previewNewGamePlus } from '../../engine/ngplus'
 import { formatRate } from '../../engine/format'
 import { netProduction } from '../../engine/production'
@@ -20,11 +16,11 @@ import {
   renderLogInto,
 } from '../log'
 import type { LogDirection, LogFilter } from '../log'
-import { renderBuyMaxModal, renderMegastructureModal, renderNgPlusModal } from '../overlays'
+import { renderMegastructureModal, renderNgPlusModal } from '../overlays'
 import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
-import type { ActionDeps, ActionId, ActionPayloads } from '../actions'
+import type { ActionDeps } from '../actions'
 import { bindListeners } from './listeners'
 import type { SessionCtx, SessionUiState } from './listeners'
 import { startNewGamePlusSequence } from './actions-heavy'
@@ -99,8 +95,6 @@ export function createSession(args: CreateSessionArgs): Session {
       const stored = localStorage.getItem(LOG_FILTER_KEY) as LogFilter | null
       return stored && (LOG_FILTER_VALUES as readonly string[]).includes(stored) ? stored : 'all'
     })(),
-    // 一键买满确认弹窗待执行动作（点击「买满/升满」按钮或 Shift+点击 → 预演 → 确认后 dispatch）
-    buyMaxPending: null,
     // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
     exploreEscortChecked: new Set(),
     // 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回收起）
@@ -290,57 +284,6 @@ export function createSession(args: CreateSessionArgs): Session {
     playSound: (name) => sound.play(name),
   }
 
-  // ---- 一键买满确认弹窗 ----
-  // 点击「买满/升满」按钮或 Shift+点击购买/升级按钮 → 预演 → 弹窗展示 → 确认后 dispatch 执行
-  function closeBuyMaxModal(): void {
-    ui.buyMaxPending = null
-    els.buyMaxOverlay.classList.add('hidden')
-  }
-
-  function openBuyMaxModal(kind: BulkKind | 'diplomacy', id: string, action?: string): void {
-    let preview: BulkPreview
-    let title: string
-    let summary: string
-    let actionId: ActionId
-    let payload: ActionPayloads[ActionId]
-
-    if (kind === 'diplomacy') {
-      const act = action ?? 'trade'
-      const factionName = factionDef(state, id)?.name ?? id
-      preview = previewDiplomacyMax(state, id, act === 'techshare' ? 'techShare' : 'trade')
-      title = act === 'techshare' ? `共享满：${factionName}` : `买满贸易：${factionName}`
-      summary = act === 'techshare' ? `将技术共享 ${preview.count} 次直至好感上限` : `将贸易 ${preview.count} 次直至好感上限`
-      actionId = 'diplomacyMax'
-      payload = { factionId: id, action: act === 'techshare' ? 'techshare' : 'trade' }
-    } else if (kind === 'building') {
-      const name = BUILDINGS[id]?.name ?? id
-      preview = previewMaxBuy(state, kind, id)
-      title = `买满：${name}`
-      summary = `将购买 ${preview.count} 台「${name}」`
-      actionId = 'buyMax'
-      payload = { id }
-    } else if (kind === 'buildingUpgrade') {
-      const name = BUILDINGS[id]?.name ?? id
-      preview = previewMaxBuy(state, kind, id)
-      title = `升满：${name}`
-      summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
-      actionId = 'upgradeMax'
-      payload = { id }
-    } else {
-      const name = TECHS[id]?.name ?? id
-      preview = previewMaxBuy(state, kind, id)
-      title = `升满科技：${name}`
-      summary = `将升级 ${preview.count} 级（升至 Lv.${preview.targetLevel}）`
-      actionId = 'upgradeTechMax'
-      payload = { id }
-    }
-
-    if (preview.count <= 0) return // 无可执行操作（按钮 disabled 时不会触发）
-    ui.buyMaxPending = { actionId, payload }
-    renderBuyMaxModal(els.buyMaxOverlay, { title, summary, preview })
-    els.buyMaxOverlay.classList.remove('hidden')
-  }
-
   // ---- 无限模式手动开启新周目（确认弹窗） ----
   // 语义与结局面板「开启 NG+」完全一致；入口在探索页 NG+ 终局卡（仅 phase === 'infinite' 渲染）
   function closeNgPlusModal(): void {
@@ -405,8 +348,6 @@ export function createSession(args: CreateSessionArgs): Session {
     setActiveNav,
     resetSeenSnapshot,
     updatePanelTabs,
-    openBuyMaxModal,
-    closeBuyMaxModal,
     openNgPlusModal,
     closeNgPlusModal,
     openMegastructureModal,

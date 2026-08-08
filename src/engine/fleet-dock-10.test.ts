@@ -37,10 +37,8 @@ function escortState(): GameState {
   s.buildings.dock = 1
   s.upgrades.dock = 1 // cap 3
   s.fleet.count = 3
-  s.buildings.solar = 100
-  s.upgrades.solar = 5 // levelMultiplier(5) = 1 + 0.5×5 = 3.5 → 350 能源/s
-  s.buildings.miner = 100
-  s.upgrades.miner = 5 // → 350 矿物/s（护航 mineral 折算锚定需矿物产出 > 0）
+  s.buildings.solar = 100 // 100 能源/s（ADR-0036：普通建筑无升级，等级不放大产出）
+  s.buildings.miner = 100 // 100 矿物/s（护航 mineral 折算锚定需矿物产出 > 0）
   s.resources.mineral = 10_000_000_000
   s.resources.energy = 100_000_000_000
   s.resources.military = 50_000
@@ -522,7 +520,6 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     s.resources.energy = 100_000_000_000
     s.resources.military = 50_000
     s.buildings.solar = 100
-    s.upgrades.solar = 5
     s.buildings.starportMine = 1
     s.buildings.dock = 1
     s.fleet.count = 3

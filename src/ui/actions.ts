@@ -1,9 +1,7 @@
-import { BUILDINGS, PLANETS, RESOURCE_KEYS, RESOURCE_META, TECHS } from '../engine/data'
+import { BUILDINGS, PLANETS, TECHS } from '../engine/data'
 import { buyBuilding, upgradeBuilding } from '../engine/buildings'
 import { setActivePlanet } from '../engine/planets'
 import { researchTech, upgradeTech } from '../engine/tech'
-import { executeDiplomacyMax, executeLimitedBuy, executeLimitedDiplomacy, executeMaxBuy } from '../engine/bulk'
-import type { BulkSpend } from '../engine/bulk'
 import { formatNumber } from '../engine/format'
 import { pushLog } from '../engine/core'
 import { factionAlliance, factionAtone, factionDef, factionExtort, factionIntimidate, factionSubjugate, factionTechShare, factionTrade, factionTreaty, isFederationUnified } from '../engine/diplomacy'
@@ -13,7 +11,7 @@ import { fleetMaintenance } from '../engine/fleet'
 import { conquestDef, startConquest } from '../engine/conquest'
 import { startExpedition } from '../engine/exploration'
 import type { ConquestActionResult } from '../engine/conquest'
-import type { EventAutomationPolicy, GameState, LogType, ResourceKey } from '../engine/types'
+import type { EventAutomationPolicy, GameState, LogType } from '../engine/types'
 import type { SoundName } from '../audio'
 import { isActionFailure } from './helpers'
 
@@ -50,10 +48,6 @@ export interface ActionPayloads {
   research: { id: string }
   upgradeTech: { id: string }
   diplomacy: { factionId: string; action: DiplomacyAction }
-  buyMax: { id: string; limit?: number }
-  upgradeMax: { id: string; limit?: number }
-  upgradeTechMax: { id: string; limit?: number }
-  diplomacyMax: { factionId: string; action: 'trade' | 'techshare'; limit?: number }
   resolveEvent: { uid: number; optionId: string }
   setPlanet: { id: string }
   conquest: { id: string; invest: number }
@@ -83,34 +77,7 @@ export interface ActionDeps {
   playSound: (name: SoundName) => void
 }
 
-// ---- 一键买满（批量购买/升级） ----
-
-/** 按资源逐项格式化（◆12,345 ⚡67） */
-function formatCostText(spent: Record<ResourceKey, number>): string {
-  return RESOURCE_KEYS.filter((k) => spent[k] > 0)
-    .map((k) => `${RESOURCE_META[k].symbol}${formatNumber(spent[k])}`)
-    .join(' ') || formatNumber(0)
-}
-
-/** 批量成功反馈：次数 + 花费 + 剩余 */
-function bulkFeedbackText(result: unknown, prefix: string): ActionFeedback {
-  const v = (result as { ok: true; value: BulkSpend }).value
-  return {
-    logs: [{ type: 'system', text: `${prefix}：${formatNumber(v.count)} 次，花费 ${formatCostText(v.spent)}，剩余 ${formatCostText(v.remaining)}。` }],
-    sound: 'click',
-  }
-}
-
-/** 批量失败反馈（buyMax/upgradeMax/upgradeTechMax/diplomacyMax 共享；payload 仅取 id/factionId 命名用） */
-function bulkOnFailure(_state: GameState, _payload: { id?: string; factionId?: string }, reason: string): { logs: ActionLog[] } {
-  return { logs: [{ type: 'warning', text: `一键买满失败：${reason}。` }] }
-}
-
-/** 外交批量执行（payload 结构化：factionId + action + 可选 limit） */
-function runDiplomacyMax(state: GameState, payload: ActionPayloads['diplomacyMax']): unknown {
-  if (payload.limit != null) return executeLimitedDiplomacy(state, payload.factionId, payload.action === 'techshare' ? 'techShare' : 'trade', payload.limit)
-  return executeDiplomacyMax(state, payload.factionId, payload.action === 'techshare' ? 'techShare' : 'trade')
-}
+// ---- 外交动作 ----
 
 /** 外交动作分发（payload 结构化：factionId + action） */
 function runDiplomacy(state: GameState, payload: ActionPayloads['diplomacy']): unknown {
@@ -201,48 +168,6 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'diplomacy',
     run: runDiplomacy,
     feedback: diplomacyFeedback,
-  },
-  buyMax: {
-    id: 'buyMax',
-    run: (state, payload) => {
-      return payload.limit != null ? executeLimitedBuy(state, 'building', payload.id, payload.limit) : executeMaxBuy(state, 'building', payload.id)
-    },
-    feedback: (_state, _r, payload) => {
-      const name = BUILDINGS[payload.id]?.name ?? payload.id
-      return bulkFeedbackText(_r, payload.limit != null ? `批量购买「${name}」` : `一键买满「${name}」：购买`)
-    },
-    onFailure: bulkOnFailure,
-  },
-  upgradeMax: {
-    id: 'upgradeMax',
-    run: (state, payload) => {
-      return payload.limit != null ? executeLimitedBuy(state, 'buildingUpgrade', payload.id, payload.limit) : executeMaxBuy(state, 'buildingUpgrade', payload.id)
-    },
-    feedback: (_state, _r, payload) => {
-      const name = BUILDINGS[payload.id]?.name ?? payload.id
-      return bulkFeedbackText(_r, payload.limit != null ? `批量升级「${name}」` : `一键升满「${name}」：升级`)
-    },
-    onFailure: bulkOnFailure,
-  },
-  upgradeTechMax: {
-    id: 'upgradeTechMax',
-    run: (state, payload) => {
-      return payload.limit != null ? executeLimitedBuy(state, 'techUpgrade', payload.id, payload.limit) : executeMaxBuy(state, 'techUpgrade', payload.id)
-    },
-    feedback: (_state, _r, payload) => {
-      const name = TECHS[payload.id]?.name ?? payload.id
-      return bulkFeedbackText(_r, payload.limit != null ? `批量升级科技「${name}」` : `一键升满科技「${name}」：升级`)
-    },
-    onFailure: bulkOnFailure,
-  },
-  diplomacyMax: {
-    id: 'diplomacyMax',
-    run: runDiplomacyMax,
-    feedback: (_state, _r, payload) => {
-      const name = factionDef(_state, payload.factionId)?.name ?? payload.factionId
-      return bulkFeedbackText(_r, `与${name}${payload.limit != null ? '批量' : ''}${payload.action === 'techshare' ? '技术共享' : '贸易'}`)
-    },
-    onFailure: bulkOnFailure,
   },
   resolveEvent: {
     id: 'resolveEvent',

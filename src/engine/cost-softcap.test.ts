@@ -1,13 +1,14 @@
 /**
  * cost-softcap 性质测试（ticket 04）：锁定新成本曲线的数学性质，防回归。
  * - 买入：多项式软上限（count=0 = baseCost、单调递增、增长率递减）
- * - 升级：温和增长（无 growth^level 残留、×count 保留、ceil 保留）
  * - unique 大件回归：baseCost × 2^level 不受影响
  * - 相对价格：瓶颈资源口径、除零/缺失 guard
+ *
+ * ⚠️ ADR-0036：升级温和增长组已删（普通建筑无升级，upgrade-cost-monotonic 推翻）；
+ *   仅 unique 大件升级曲线保留（见「unique 大件回归」组）。
  */
 import { describe, expect, it } from 'vitest'
 import { BUILDINGS } from './data'
-import { ORDINARY_UPGRADE_LEVEL_GROWTH } from './balance'
 import { createInitialState } from './engine'
 import { buildingCost, upgradeCost } from './buildings'
 import { formatTimeToSave, timeToSave } from './format'
@@ -63,42 +64,6 @@ describe('cost-softcap: 买入多项式软上限', () => {
     // deepDrill 对照：旧公式 2500×1.3^100 ≈ 1.17e15，新公式应下降 ≥9 个数量级
     const deepDrill100 = costOf(stateWithCount('deepDrill', 100), 'deepDrill')
     expect(deepDrill100).toBeLessThan(1.17e15 / 1e9)
-  })
-})
-
-describe('cost-softcap: 升级温和增长', () => {
-  it('升级成本无 growth^level 指数残留（Lv 大时成本不爆炸）', () => {
-    const s = stateWithCount('miner', 2)
-    s.upgrades.miner = 100
-    const c = upgradeCost(s, 'miner').mineral ?? 0
-    // 温和公式：buyCost(2) × count × (1 + 0.15×100) ≈ 16×2×16 = 512 量级，远小于指数爆炸
-    expect(c).toBeLessThan(10_000)
-    expect(c).toBeGreaterThan(0)
-  })
-
-  it('×count 因子保留（整体升级规模效应：count 翻倍升级成本显著上升）', () => {
-    const one = stateWithCount('miner', 1)
-    const two = stateWithCount('miner', 2)
-    const c1 = upgradeCost(one, 'miner').mineral ?? 0
-    const c2 = upgradeCost(two, 'miner').mineral ?? 0
-    // count 翻倍 → mult 翻倍；buyCost 也随 count 微涨（13→16），总比例 ≈ 2×16/13 ≈ 2.46
-    expect(c2).toBeGreaterThan(c1 * 2) // ×count 因子起效（纯 buyCost 涨达不到 2 倍）
-    expect(c2).toBeLessThan(c1 * 3)
-  })
-
-  it('升级成本随等级单调不降（温和因子 1 + c×level 单调）', () => {
-    const s = stateWithCount('miner', 2)
-    let prev = 0
-    for (let level = 0; level <= 20; level += 1) {
-      s.upgrades.miner = level
-      const c = upgradeCost(s, 'miner').mineral ?? 0
-      expect(c, `Lv${level}`).toBeGreaterThanOrEqual(prev)
-      prev = c
-    }
-  })
-
-  it('c 常量 = 0.15 落 ROI∈[2,5] 语义带（P(Lv1)=2.3 / P(Lv10)=5.0）', () => {
-    expect(ORDINARY_UPGRADE_LEVEL_GROWTH).toBe(0.15)
   })
 })
 

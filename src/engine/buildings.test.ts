@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
-import { buildingCost, buyBuilding, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeBuilding, upgradeCost } from './buildings'
+import { buildingCost, buyBuilding, canAffordBuilding, isBuildingUnlocked, upgradeBuilding, upgradeCost } from './buildings'
 import { netProduction } from './production'
 import { productionReport } from './production'
-import { RESOURCE_KEYS } from './data'
 import { techCost } from './tech'
+
+/** 7 个普通可多次购买建筑（ADR-0036：砍升级对象） */
+const ORDINARY_IDS = ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort'] as const
 
 describe('engine: 建造建筑', () => {
   it('资源足够时建造成功并扣费', () => {
@@ -68,85 +70,40 @@ describe('engine: 建造建筑', () => {
     expect(s.buildings.refinery).toBe(1)
   })
 })
-describe('engine: 建筑升级', () => {
-  it('升级提升产出（+50%/级）', () => {
+describe('engine: 建筑升级（ADR-0036 机制二分：仅 unique 大件有升级）', () => {
+  it('普通建筑升级被拒（7 ids），状态不变', () => {
+    for (const id of ORDINARY_IDS) {
+      const s = createInitialState(0)
+      s.resources.mineral = 1_000_000
+      s.resources.energy = 1_000_000
+      s.resources.tech = 1_000_000
+      s.buildings[id] = 1
+      expect(upgradeBuilding(s, id), id).toMatchObject({ ok: false, reason: '该建筑没有可升级效果' })
+      expect(s.upgrades[id], id).toBeUndefined()
+    }
+  })
+
+  it('普通建筑升级成本为空（upgradeCost 无普通分支；upgradeBuilding 先拒绝）', () => {
     const s = createInitialState(0)
-    s.resources.mineral = 1000
+    s.buildings.miner = 2
+    expect(upgradeCost(s, 'miner')).toEqual({ mineral: 0, energy: 0, tech: 0, military: 0 })
+    expect(upgradeCost(s, 'deepDrill')).toEqual({ mineral: 0, energy: 0, tech: 0, military: 0 })
+  })
+
+  it('普通建筑产出回归 produces×count（无 levelMultiplier 放大；等级残留不生效）', () => {
+    const s = createInitialState(0)
     s.buildings.miner = 2
     expect(netProduction(s).mineral).toBe(2)
-    const upCost = upgradeCost(s, 'miner')
-    expect(upCost.mineral).toBeGreaterThan(0)
-    expect(canAffordUpgrade(s, 'miner')).toBe(true)
-    expect(upgradeBuilding(s, 'miner')).toEqual({ ok: true })
-    expect(s.upgrades.miner).toBe(1)
-    expect(netProduction(s).mineral).toBe(2 * 1.5)
-  })
-
-  it('升级成本随等级温和增长且不会下降（cost-softcap 多项式 + 等级因子）', () => {
-    const s = createInitialState(0)
-    s.buildings.miner = 1
-    // buyCost(Lv) = floor(13 × (1+0.05×Lv))，升级继承买入价 → 自动含等级因子：
-    // Lv0→1 成本 = buy(0) × count × (1+c×level) = 13×1×1 = 13。
-    expect(upgradeCost(s, 'miner').mineral).toBe(13)
-    s.upgrades.miner = 1
-    // buy(1)=13（floor 13.65）→ ceil(13×1×1.15)=15
-    expect(upgradeCost(s, 'miner').mineral).toBe(15)
-    s.upgrades.miner = 2
-    // buy(2)=14（floor 14.3）→ ceil(14×1×1.30)=19
-    expect(upgradeCost(s, 'miner').mineral).toBe(19)
-    s.upgrades.miner = 3
-    // buy(3)=14（floor 14.95）→ ceil(14×1×1.45)=21
-    expect(upgradeCost(s, 'miner').mineral).toBe(21)
-    s.upgrades.miner = 4
-    // buy(4)=15（floor 15.6）→ ceil(15×1×1.60)=24
-    expect(upgradeCost(s, 'miner').mineral).toBe(24)
+    // 防御残留：旧档/手工置等级的普通建筑等级不放大产出
     s.upgrades.miner = 5
-    // buy(5)=16（floor 16.25）→ ceil(16×1×1.75)=28
-    expect(upgradeCost(s, 'miner').mineral).toBe(28)
+    expect(netProduction(s).mineral).toBe(2)
   })
 
-  it('多台建筑升级成本按数量线性增长', () => {
-    const one = createInitialState(0)
-    one.buildings.miner = 1
-    const many = createInitialState(0)
-    many.buildings.miner = 2
-    // many: buyCost = floor(10×3^0.46)=16，mult = P×0.5×count = 2 → 16×2 = 32
-    expect(upgradeCost(many, 'miner').mineral).toBe(32)
-    expect(upgradeCost(many, 'miner').mineral).toBeGreaterThan(upgradeCost(one, 'miner').mineral)
-  })
-
-  it('买入成本随等级线性抬升：count=0 基准下 level 0/1/5/10 倍数 = 1/1.05/1.25/1.5', () => {
-    // deepDrill base 2500（mineral）/120（energy）：乘 1.05/1.25/1.5 后 floor 不产生舍入偏差
-    for (const lv of [0, 1, 5, 10]) {
-      const s = createInitialState(0)
-      s.upgrades.deepDrill = lv
-      const cost = buildingCost(s, 'deepDrill')
-      const factor = 1 + 0.05 * lv
-      expect(cost.mineral).toBe(Math.floor(2500 * factor))
-      expect(cost.energy).toBe(Math.floor(120 * factor))
-    }
-  })
-
-  it('升级后买入价与升级价同含等级因子且随等级单调不降', () => {
+  it('普通建筑买入成本无等级因子（upgrades 不影响 buildingCost）', () => {
     const s = createInitialState(0)
-    s.buildings.deepDrill = 2
-    const prevBuy: Record<string, number> = {}
-    const prevUp: Record<string, number> = {}
-    for (let lv = 0; lv <= 10; lv += 1) {
-      s.upgrades.deepDrill = lv
-      const buy = buildingCost(s, 'deepDrill')
-      const up = upgradeCost(s, 'deepDrill')
-      for (const key of RESOURCE_KEYS) {
-        if (buy[key] > 0) {
-          expect(buy[key], `${key} buy Lv${lv}`).toBeGreaterThanOrEqual(prevBuy[key] ?? 0)
-          prevBuy[key] = buy[key]
-        }
-        if (up[key] > 0) {
-          expect(up[key], `${key} up Lv${lv}`).toBeGreaterThanOrEqual(prevUp[key] ?? 0)
-          prevUp[key] = up[key]
-        }
-      }
-    }
+    const base = buildingCost(s, 'miner').mineral
+    s.upgrades.miner = 5
+    expect(buildingCost(s, 'miner').mineral).toBe(base)
   })
 
   it('唯一建筑和科技成本最终向上取整并随等级增长', () => {
@@ -162,33 +119,10 @@ describe('engine: 建筑升级', () => {
     expect(techCost(s, 'planetDrill').mineral).toBe(1_445)
   })
 
-  it('所有普通建筑在分段边界及后期等级成本不下降', () => {
-    for (const id of ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort']) {
-      const s = createInitialState(0)
-      s.buildings[id] = 2
-      let previous = upgradeCost(s, id)
-      for (let level = 1; level <= 8; level += 1) {
-        s.upgrades[id] = level
-        const current = upgradeCost(s, id)
-        for (const key of RESOURCE_KEYS) {
-          expect(current[key], `${id} ${key} Lv${level}`).toBeGreaterThanOrEqual(previous[key])
-        }
-        previous = current
-      }
-    }
-  })
-
-  it('未建造建筑不可升级', () => {
+  it('未建造建筑不可升级（先于普通建筑拒绝判定）', () => {
     const s = createInitialState(0)
     s.resources.mineral = 10_000
     expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '尚未建造该建筑' })
-  })
-
-  it('资源不足时升级失败', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 0
-    s.buildings.miner = 1
-    expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '资源不足' })
   })
 })
 describe('engine: 精炼厂能源互锁', () => {

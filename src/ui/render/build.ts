@@ -7,25 +7,17 @@ import type { GameState } from '../../engine/types'
 import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../../engine/data'
 import type { BuildingDef } from '../../engine/data'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../../engine/buildings'
-import { formatMultiplier, formatNumber, formatPercent, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
-import { militaryCap, netProduction, simulateProductionDelta, smelterGlobalMult } from '../../engine/production'
+import { formatMultiplier, formatNumber, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
+import { netProduction, simulateProductionDelta, smelterGlobalMult } from '../../engine/production'
 import { iconUse } from '../icons'
 import { escapeHtml } from '../helpers'
 import { formatCost, JUMPGATE_EFFECT_TEXT, type BuildPanelRenderOptions } from './shared'
 
-/** 升级预览：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
- * 唯一大件：升级 = 产出 ×2（机制建筑用效果文案），不走「再买一台」的台均折算。 */
+/** 升级预览（仅 unique 大件）：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
+ * 普通建筑无升级（ADR-0036 机制二分），不渲染升级预览。 */
 function upgradePreviewText(state: GameState, def: BuildingDef): string {
   const count = state.buildings[def.id] ?? 0
   if (count <= 0) return ''
-  if (def.id === 'militaryPort') {
-    const current = militaryCap(state)
-    const sim: GameState = {
-      ...state,
-      upgrades: { ...state.upgrades, militaryPort: (state.upgrades.militaryPort ?? 0) + 1 },
-    }
-    return `军力容量 ${formatNumber(current)} → ${formatNumber(militaryCap(sim))}（+${formatNumber(militaryCap(sim) - current)}）`
-  }
   if (def.unique) {
     if (def.id === 'ringSmelter') {
       const cur = smelterGlobalMult(state)
@@ -41,18 +33,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
     }
     return `产出 ${formatMultiplier(2)}（${parts.join('，')}）`
   }
-  const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
-  // 每台当前真实净产出 = 再买一台的总增量（同一加成口径）
-  const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
-  const parts: string[] = []
-  for (const k of RESOURCE_KEYS) {
-    const total = up.delta[k]
-    if (total === 0) continue
-    const perNow = buy.delta[k]
-    const perNext = perNow + total / count
-    parts.push(`${RESOURCE_META[k].symbol} ${formatRate(perNow)} → ${formatRate(perNext)}/台（总 ${formatRate(total)}）`)
-  }
-  return parts.join('，') || '无产出变化'
+  return ''
 }
 
 /** 购买预览：购买 1 台后的真实产出提升（即每台净贡献，含能源消耗提示）。
@@ -110,7 +91,7 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   const canUp = canAffordUpgrade(state, def.id)
   // unique 建筑按 maxLevel 封顶：满级后升级按钮替换为「已满级」提示（如船坞 Lv3）
   const maxed = unique && def.maxLevel != null && level >= def.maxLevel
-  // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；买满/升满按钮一律不渲染（禁 bulk）
+  // 唯一大件：已建造后隐藏购买入口（count 恒 1），只保留单级升级；普通建筑无升级（ADR-0036）
   const showBuy = !unique || count <= 0
   // cost-softcap Q10：买入成本相对当前净产出的「≈N 秒产出」（瓶颈资源口径；无成本/产出全 0 时省略）
   const costTime = showBuy
@@ -124,19 +105,13 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
         ${unique ? '建造 ' : ''}${formatCost(buyCost)}
       </button>`
     : ''
-  const bulkBuyBtns = !unique
-    ? `<button type="button" class="build-btn" data-buy-limit="${def.id}:10" ${canBuy ? '' : 'disabled'}>+10</button>
-       <button type="button" class="build-btn" data-buy-limit="${def.id}:100" ${canBuy ? '' : 'disabled'}>+100</button>`
-    : ''
-  // 升级按钮组：jumpgate 无升级效果（上游 f0458b0 决策）、maxLevel 满级后替换为「已满级」提示（如船坞 Lv3）
-  const upgradeBtns = count > 0 && def.id !== 'jumpgate'
+  // 升级按钮组（仅 unique 大件；jumpgate 无升级效果、maxLevel 满级后替换为「已满级」提示）
+  const upgradeBtns = unique && count > 0 && def.id !== 'jumpgate'
     ? maxed
       ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${formatNumber(def.maxLevel ?? 0)}）</span></div>`
-      : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="${unique ? `升级：产出 ${formatMultiplier(2)}（${formatCost(upCost)}）` : def.id === 'militaryPort' ? `升级：军力容量 +${formatPercent(50)}` : `升级：产出 +${formatPercent(50)}`}">
+      : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 ${formatMultiplier(2)}（${formatCost(upCost)}）">
           升级 ${formatCost(upCost)}
-        </button>
-        ${unique ? '' : `        <button type="button" class="build-btn upgrade-btn" data-upgrade-limit="${def.id}:10" ${canUp ? '' : 'disabled'}>+10</button>
-        <button type="button" class="build-btn upgrade-btn" data-upgrade-limit="${def.id}:100" ${canUp ? '' : 'disabled'}>+100</button>`}`
+        </button>`
     : ''
   // 隐藏入口（hidden-buildings）：从面板隐藏此建造物（恢复走头部「已隐藏」抽屉）
   const hideBtn = `<button type="button" class="build-btn build-hide-btn" data-hide-building="${def.id}" title="从建造面板隐藏此建筑（可在「已隐藏」抽屉恢复）">✕ 隐藏</button>`
@@ -145,12 +120,12 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
     <div class="build-card-body">
       ${info}
       <div class="build-preview">
-        ${count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
+        ${unique && count > 0 ? `<div class="build-upgrade-preview">升级：${upgradePreviewText(state, def)}</div>` : ''}
         ${showBuy ? `<div class="build-buy-preview">${buyPreviewText(state, def)}</div>` : ''}
         ${costTimeRow}
       </div>
     </div>
-    <div class="build-actions">${buyBtn}${bulkBuyBtns}${upgradeBtns}${hideBtn}</div>`
+    <div class="build-actions">${buyBtn}${upgradeBtns}${hideBtn}</div>`
   return card
 }
 
@@ -192,7 +167,8 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
  * 渲染建造面板（卡片网格，building-cards spec）：
  * 每个建造项 = 图标 + 信息区（名称/徽标/描述/预览）+ 按钮组；未解锁建筑渲染锁定卡（灰化图标 + 解锁条件）。
  * 存量契约原样保留：`data-building` 容器、`.build-count` 徽标、`.build-upgrade-preview`/`.build-buy-preview`、
- * `data-build`/`data-upgrade`/`data-buy-limit`/`data-upgrade-limit` 按钮、锁定文案（buildingLockReason）。
+ * `data-build`/`data-upgrade` 按钮、锁定文案（buildingLockReason）。
+ * ⚠️ ADR-0036/0037：普通建筑无升级按钮/预览（升级仅 unique）、无 +10/+100 批量按钮（单次操作统一为 1）。
  */
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''

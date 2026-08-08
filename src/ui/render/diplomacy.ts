@@ -191,13 +191,9 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
         <button type="button" class="build-btn diplo-btn" data-diplomacy="${id}:trade" ${canTrade ? '' : 'disabled'} title="花费矿物提升好感">
           贸易 ${formatCost(tradeC)}
         </button>
-        <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${id}:trade:10" ${canTrade ? '' : 'disabled'}>+10</button>
-        <button type="button" class="build-btn diplo-btn" data-diplomacy-limit="${id}:trade:100" ${canTrade ? '' : 'disabled'}>+100</button>
         <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy="${id}:techshare" ${canShare ? '' : 'disabled'} title="分享技术情报，花费科技点直接提升好感">
           技术共享 ${formatCost(shareC)}
         </button>
-        <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${id}:techshare:10" ${canShare ? '' : 'disabled'}>+10</button>
-        <button type="button" class="build-btn diplo-btn tech-share-btn" data-diplomacy-limit="${id}:techshare:100" ${canShare ? '' : 'disabled'}>+100</button>
         <button type="button" class="build-btn diplo-btn alliance-btn" data-diplomacy="${id}:alliance" ${canAlliance ? '' : 'disabled'} title="好感 ≥${formatNumber(ALLIANCE_FAVOR_THRESHOLD)} 后可结盟（消耗大量资源）">
           结盟 ${formatCost(ALLIANCE_COST)}
         </button>

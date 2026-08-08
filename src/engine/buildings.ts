@@ -1,14 +1,10 @@
 import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
 import {
-  LEVEL_COST_FACTOR,
-  LEVEL_PRODUCTION_BONUS,
-  ORDINARY_UPGRADE_LEVEL_GROWTH,
   POST100_BUY_TARGET_SECONDS,
   POST100_GROWTH,
   POST100_THRESHOLD,
   TECH_MAX_LEVEL,
   UNIQUE_UPGRADE_GROWTH,
-  UPGRADE_PREMIUM,
 } from './balance'
 import { netProduction } from './production'
 import { canAfford, isEnded, zeroResources } from './core'
@@ -32,8 +28,8 @@ import type { GameState, ResourceKey, ActionResult } from './types'
  *   NG+ ×64/×1024 等所有乘数，高加成下仍有摩擦。
  * - buyCost = max(staticCost, dynamicFloor) × postFactor：保证不低于静态曲线、不低于动态下限。
  * - ≤100 台 excess=0 → 完全不变（postFactor=1、dynamicFloor 不介入）。
- * - 最外层 × (1 + LEVEL_COST_FACTOR × level)：买入成本随建筑等级线性抬升（level-cost-factor
- *   spec，防「高等级+多台数」双堆叠）；unique 大件买入时 level 恒 0 因子=1 天然无影响。
+ * - ADR-0036：等级因子（1 + LEVEL_COST_FACTOR×level）已删——普通建筑升级取消后 upgrades 恒 0，
+ *   等级因子恒 1 失效（level-cost-factor spec 被 0036 推翻）。
  */
 export function buildingCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
@@ -50,7 +46,6 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
   const factor = Math.pow(count + 1, def.costExponent)
   const postFactor = excess > 0 ? Math.pow(POST100_GROWTH, excess) : 1
   const netProd = excess > 0 ? netProduction(state) : null
-  const levelFactor = 1 + LEVEL_COST_FACTOR * (state.upgrades[id] ?? 0)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
     const base = def.baseCost[key] ?? 0
@@ -64,39 +59,23 @@ export function buildingCost(state: GameState, id: string): Record<ResourceKey, 
       cost[key] = Math.max(1, Math.floor(Math.max(staticCost, dynamicFloor) * postFactor))
     }
   }
-  // 等级因子放最外层：对静态/post100 已定值整体 ×(1 + LEVEL_COST_FACTOR×level)
-  if (levelFactor !== 1) {
-    for (const key of RESOURCE_KEYS) {
-      if (cost[key] > 0) cost[key] = Math.max(1, Math.floor(cost[key] * levelFactor))
-    }
-  }
   return cost
 }
 
-function ordinaryUpgradeCostValue(base: number, multiplier: number, level: number): number {
-  const factor = 1 + ORDINARY_UPGRADE_LEVEL_GROWTH * level
-  return Math.max(1, Math.ceil(base * multiplier * factor))
-}
-
-/** 建筑升级成本按对象类型与等级计算，最终逐资源向上取整。 */
+/**
+ * 建筑升级成本（ADR-0036 机制二分）：仅唯一大件有升级（baseCost × UNIQUE_UPGRADE_GROWTH^level）。
+ * 普通可多次购买建筑无升级——调用方（upgradeBuilding）已封死拒绝；此处对非 unique 返回全 0
+ * （canAffordUpgrade 语义 = 无成本可升，UI 不再渲染普通升级入口）。
+ */
 export function upgradeCost(state: GameState, id: string): Record<ResourceKey, number> {
   const def = BUILDINGS[id]
+  if (!def?.unique) return zeroResources()
   const level = state.upgrades[id] ?? 0
-  if (def?.unique) {
-    const factor = Math.pow(UNIQUE_UPGRADE_GROWTH, level)
-    const cost = zeroResources()
-    for (const key of RESOURCE_KEYS) {
-      const base = def.baseCost[key] ?? 0
-      cost[key] = base > 0 ? Math.max(1, Math.ceil(base * factor)) : 0
-    }
-    return cost
-  }
-  const count = state.buildings[id] ?? 0
-  const buy = buildingCost(state, id)
-  const mult = UPGRADE_PREMIUM * LEVEL_PRODUCTION_BONUS * count
+  const factor = Math.pow(UNIQUE_UPGRADE_GROWTH, level)
   const cost = zeroResources()
   for (const key of RESOURCE_KEYS) {
-    cost[key] = buy[key] > 0 ? ordinaryUpgradeCostValue(buy[key], mult, level) : 0
+    const base = def.baseCost[key] ?? 0
+    cost[key] = base > 0 ? Math.max(1, Math.ceil(base * factor)) : 0
   }
   return cost
 }
@@ -170,13 +149,13 @@ export function buyBuilding(state: GameState, id: string): ActionResult {
   return { ok: true }
 }
 
-/** 升级建筑（每级产出 +50%；unique 建筑按 maxLevel 封顶） */
+/** 升级建筑（唯一大件：每级产出 ×2，按 maxLevel 封顶；普通建筑无升级，ADR-0036 机制二分） */
 export function upgradeBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
   if (!def) return { ok: false, reason: '未知建筑' }
   if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: '尚未建造该建筑' }
-  // 跃迁枢纽无升级效果（上游 f0458b0 决策：纯机制流建筑，升级无收益；NG+ 遗产不受影响）
-  if (id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
+  // 普通可多次购买建筑无升级（ADR-0036：数量维度仅「买多少」）；跃迁枢纽无升级效果（上游 f0458b0 决策：纯机制流建筑）
+  if (!def.unique || id === 'jumpgate') return { ok: false, reason: '该建筑没有可升级效果' }
   // unique 建筑按 maxLevel 封顶（如船坞 Lv1-3）
   if (def.maxLevel != null && (state.upgrades[id] ?? 0) >= def.maxLevel) {
     return { ok: false, reason: `已达最高等级（Lv.${formatNumber(def.maxLevel)}）` }

@@ -30,7 +30,7 @@ describe('ui: 军事面板', () => {
     expect(panel.textContent).toContain(`守卫 ${formatNumber(2_000)}⚔`)
   })
 
-  it('军事升级入口展示兵营产出与军港容量效果，跃迁枢纽无升级入口', () => {
+  it('军事建筑无升级入口（ADR-0036 普通建筑无升级）；跃迁枢纽亦无升级入口', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
@@ -42,9 +42,12 @@ describe('ui: 军事面板', () => {
     s.resources.tech = 1_000_000
     renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
     const panel = container.querySelector('[data-panel="military"]') as HTMLElement
-    expect(panel.querySelector('[data-upgrade="barracks"]')?.getAttribute('title')).toContain(`产出 +${formatPercent(50)}`)
-    expect(panel.querySelector('[data-upgrade="militaryPort"]')?.getAttribute('title')).toContain(`容量 +${formatPercent(50)}`)
-    expect(panel.querySelector('[data-building="militaryPort"]')?.textContent).toContain(`军力容量 ${formatNumber(300)} → ${formatNumber(400)}`)
+    // 兵营/军港为普通建筑：只有购买按钮，无升级按钮/预览
+    expect(panel.querySelector('[data-upgrade="barracks"]')).toBeNull()
+    expect(panel.querySelector('[data-upgrade="militaryPort"]')).toBeNull()
+    expect(panel.querySelector('[data-build="barracks"]')).toBeTruthy()
+    expect(panel.querySelector('[data-build="militaryPort"]')).toBeTruthy()
+    expect(panel.querySelector('[data-building="militaryPort"] .build-upgrade-preview')).toBeNull()
 
     const interstellar = document.createElement('div')
     renderBuildPanel(interstellar, { ...s, phase: 'ended', buildings: { ...s.buildings, starportMine: 1, stellarArray: 1, thinkTank: 1, jumpgate: 1 }, megastructureChoice: 'jumpgate' }, INTERSTELLAR_BUILDINGS)

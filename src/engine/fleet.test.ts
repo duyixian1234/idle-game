@@ -297,10 +297,9 @@ describe('engine: 数值锚点防回归（balance-sim 校准回写）', () => {
   })
 
   it('SHIP_MAINT_BASE：Lv2 满编 6 艘维护占星港时代能源产出 15~30%（balance-sim 锚点防回归）', () => {
-    // 星港时代模型（150 太阳能 × Lv8 × 科技 3.75 ≈ 2813 能源/s）
+    // 星港时代模型（600 太阳能 × 科技 3.75 = 2250 能源/s；ADR-0036：普通建筑无升级，台数承载产出）
     const s = fleetState()
-    s.buildings.solar = 150
-    s.upgrades.solar = 8
+    s.buildings.solar = 600
     s.techLevels.solarEfficiency = 1
     s.techLevels.fusionCell = 1
     s.upgrades.dock = 2

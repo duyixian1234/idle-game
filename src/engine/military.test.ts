@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
 import { buyBuilding, isBuildingUnlocked, upgradeBuilding } from './buildings'
 import { researchTech, upgradeTech } from './tech'
-import { canBulkBuy, executeMaxBuy, previewMaxBuy } from './bulk'
 import { militaryCap, netProduction, productionReport } from './production'
 import { settleOffline } from './offline'
 import type { GameState } from './types'
@@ -53,17 +52,27 @@ describe('engine: 军力资源（military）', () => {
     expect(militaryCap(s)).toBe(500)
   })
 
-  it('兵营升级提升军力产出，军港升级提升每座容量', () => {
+  it('普通军事建筑升级被拒（ADR-0036），军港 portLevel 恒 0：每座容量 200 线性', () => {
     const s = stateWithMilitary({ mineral: 1_000_000, energy: 1_000_000, tech: 1_000_000 })
     buyBuilding(s, 'barracks')
     buyBuilding(s, 'militaryPort')
     expect(netProduction(s).military).toBe(0.5)
     expect(militaryCap(s)).toBe(300)
 
-    expect(upgradeBuilding(s, 'barracks')).toEqual({ ok: true })
-    expect(upgradeBuilding(s, 'militaryPort')).toEqual({ ok: true })
-    expect(netProduction(s).military).toBe(0.75)
-    expect(militaryCap(s)).toBe(400)
+    // 兵营/军港升级封死拒绝（普通建筑无升级，数量维度唯一），upgrades 保持 0
+    expect(upgradeBuilding(s, 'barracks')).toMatchObject({ ok: false, reason: '该建筑没有可升级效果' })
+    expect(upgradeBuilding(s, 'militaryPort')).toMatchObject({ ok: false, reason: '该建筑没有可升级效果' })
+    expect(s.upgrades.militaryPort).toBeUndefined()
+    expect(militaryCap(s)).toBe(300)
+    // 军力产出无等级放大（produces×count）
+    expect(netProduction(s).military).toBe(0.5)
+  })
+
+  it('25 座军港 = 5100 军力容量（portLevel 恒 0 线性），达成胁迫外交解锁阈值 5000', () => {
+    const s = stateWithMilitary()
+    s.buildings.militaryPort = 25
+    // (100 + 200×25) × levelMultiplier(0)=1 → 5100 ≥ COERCION_UNLOCK_MILITARY_CAP(5000)
+    expect(militaryCap(s)).toBe(5100)
   })
 
   it('军力满上限时产出截断为 0（浪费语义，逼消费/扩容）', () => {
@@ -117,35 +126,6 @@ describe('engine: 军力资源（military）', () => {
   })
 })
 
-describe('engine: buy-max 与军力容量', () => {
-  it('军力已达上限时买满兵营停止（militaryCap），不产生纯浪费', () => {
-    const s = stateWithMilitary()
-    s.resources.military = 100 // 已达默认上限
-    const p = previewMaxBuy(s, 'building', 'barracks')
-    expect(p.count).toBe(0)
-    expect(p.stoppedReason).toBe('militaryCap')
-    expect(canBulkBuy(s, 'building', 'barracks')).toBe(false)
-    const r = executeMaxBuy(s, 'building', 'barracks')
-    expect(r).toEqual({ ok: true, value: expect.objectContaining({ count: 0, stoppedReason: 'militaryCap' }) })
-  })
-
-  it('有剩余容量时买满兵营正常执行到资源不足或军力满', () => {
-    const s = stateWithMilitary({ mineral: 50_000, energy: 50_000 })
-    const p = previewMaxBuy(s, 'building', 'barracks')
-    expect(p.count).toBeGreaterThan(0)
-    const r = executeMaxBuy(s, 'building', 'barracks')
-    expect(r.ok).toBe(true)
-    if (r.ok) expect(r.value.count).toBe(p.count)
-  })
-
-  it('军港买满不受军力容量限制（它是扩容建筑）', () => {
-    const s = stateWithMilitary({ mineral: 500_000, tech: 500_000 })
-    const p = previewMaxBuy(s, 'building', 'militaryPort')
-    expect(p.count).toBeGreaterThan(0)
-    expect(p.stoppedReason).toBe('resource')
-  })
-})
-
 describe('engine: 生产报告含军力（回归）', () => {
   it('productionReport 返回四资源名义产出', () => {
     const s = stateWithMilitary()
@@ -180,18 +160,13 @@ describe('engine: 军械科技（军事线科技，Lv1-5）', () => {
     expect(s.techLevels.militaryTech).toBe(5)
   })
 
-  it('buy-max 升满军械科技停在 Lv5（不越界到 Lv10）', () => {
+  it('军械科技单次升级至 Lv2（无批量，ADR-0037）', () => {
     const s = stateWithMilitary()
     s.techLevels.militaryTech = 1
     s.resources.mineral += 1_000_000
     s.resources.tech += 1_000_000
-    const p = previewMaxBuy(s, 'techUpgrade', 'militaryTech')
-    expect(p.count).toBe(4)
-    expect(p.targetLevel).toBe(5)
-    expect(p.stoppedReason).toBe('maxLevel')
-    const r = executeMaxBuy(s, 'techUpgrade', 'militaryTech')
-    expect(r.ok).toBe(true)
-    expect(s.techLevels.militaryTech).toBe(5)
+    expect(upgradeTech(s, 'militaryTech')).toEqual({ ok: true })
+    expect(s.techLevels.militaryTech).toBe(2)
   })
 
   it('生产科技（行星钻探 Lv10）封顶不受影响', () => {

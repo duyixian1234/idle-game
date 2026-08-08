@@ -1,5 +1,7 @@
 # 非唯一建筑 100 台后置成本曲线：动态下限挂净产出，防高周目塌缩
 
+> **⚠️ 修订（2026-08-08，[ADR-0036](./0036-ordinary-building-no-upgrade.md)）**：本 ADR 决策3"升级继承"（升级公式结构不动，`buyCost×count×(1+0.15×level)`）与澄清段关于普通建筑升级的部分**已失效**——7 个普通可多次购买建筑的升级能力被砍除（产出回归 `produces×count`，去 levelMultiplier）。仅 unique 建筑升级仍继承 buildingCost（unique 分支不含 count，不受影响）。post100 动态下限本身（决策 1/2/4/5）仍有效，应用于普通建筑买入价与 unique 升级价。升级 ROI 不变量 P=2（ADR-0021）随普通升级取消而失效。
+
 非唯一建筑（miner/solar/lab/refinery/deepDrill/barracks/militaryPort）在 **100 台之后**启动后置成本曲线：超阈每 1 台 ×`POST100_GROWTH`（1.05，150 台 ×12、200 台 ×132、300 台 ×1.7 万），且买入成本**动态下限 = 3 秒 × 当前净产出**（`POST100_BUY_TARGET_SECONDS = 3`）——成本锚定产出侧，自动跟随 NG+ 永久加成/科技/冶炼场等全部乘数，高周目（×64/×1024）相对价格不塌缩。
 
 **状态**: Accepted（2026-08-07 定稿，grill 三轮 + balance-sim 校准）

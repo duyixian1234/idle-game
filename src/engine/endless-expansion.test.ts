@@ -24,10 +24,9 @@ function infiniteState(): GameState {
   s.resources.military = 500_000
   s.resources.tech = 10_000_000
   s.planets.dawn = { unlocked: true }
-  s.buildings.miner = 100
-  s.upgrades.miner = 5
-  s.buildings.solar = 100
-  s.upgrades.solar = 5
+  // ADR-0036：普通建筑无升级（产出 = produces×count）——矿/能源产出 350/s 直接由台数承载
+  s.buildings.miner = 350
+  s.buildings.solar = 350
   return s
 }
 

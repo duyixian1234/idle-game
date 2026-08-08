@@ -1,9 +1,12 @@
 import { SCHEMA_VERSION } from './types'
-import type { GameState } from './types'
+import type { GameState, ResourceKey } from './types'
 import { ACHIEVEMENTS, achievementUnlocked } from './achievements'
 import { randSeed } from './rng'
 import type { MigrationSummary } from './types'
 import { formatNumber } from './format'
+import { BUILDINGS, RESOURCE_KEYS } from './data'
+import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD } from './balance'
+import { netProduction } from './production'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -33,6 +36,8 @@ const SCHEMA_V12 = 12
 const SCHEMA_V13 = 13
 /** 首个支持外交自动化逐派系三态模式的存档版本（endgame-discovery-economy / ADR-0030 占用） */
 const SCHEMA_V14 = 14
+/** 首个支持普通建筑取消升级的存档版本（ADR-0036：7 普通建筑升级投入折算返还，upgrades 清零） */
+const SCHEMA_V15 = 15
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -344,6 +349,89 @@ function migrateV13ToV14(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** 7 个普通可多次购买建筑（ADR-0036：砍升级对象；v15 迁移折算返还目标） */
+const ORDINARY_UPGRADEABLE_IDS = ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort'] as const
+
+/**
+ * 原普通建筑 buildingCost 副本（ADR-0036 前：含等级因子 1+0.05×lv 与 post100 动态下限）。
+ * 迁移专用：01 已删 buildingCost 等级因子，此处内置原公式（LEVEL_COST_FACTOR=0.05 写死）保证按历史价格倒算。
+ */
+function originalOrdinaryBuildingCost(sim: GameState, id: string): Record<ResourceKey, number> {
+  const def = BUILDINGS[id]
+  const count = sim.buildings[id] ?? 0
+  const excess = Math.max(0, count - POST100_THRESHOLD)
+  const factor = Math.pow(count + 1, def.costExponent)
+  const postFactor = excess > 0 ? Math.pow(POST100_GROWTH, excess) : 1
+  const netProd = excess > 0 ? netProduction(sim) : null
+  const levelFactor = 1 + 0.05 * (sim.upgrades[id] ?? 0) // 原 LEVEL_COST_FACTOR
+  const cost: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 0, military: 0 }
+  for (const key of RESOURCE_KEYS) {
+    const base = def.baseCost[key] ?? 0
+    if (base <= 0) continue
+    const staticCost = Math.max(1, Math.floor(base * factor))
+    let v: number
+    if (excess === 0) {
+      v = staticCost
+    } else {
+      const np = netProd![key]
+      const dynamicFloor = np > 0 ? Math.floor(POST100_BUY_TARGET_SECONDS * np) : 0
+      v = Math.max(1, Math.floor(Math.max(staticCost, dynamicFloor) * postFactor))
+    }
+    cost[key] = levelFactor !== 1 ? Math.max(1, Math.floor(v * levelFactor)) : v
+  }
+  return cost
+}
+
+/**
+ * v14 → v15：普通建筑升级折算返还（ADR-0036 决策5）。
+ * 遍历 7 普通建筑 upgrades，用原 upgradeCost 公式逐级倒算每级投入（每级按当时的 level 取原
+ * buildingCost 含等级因子；mult = UPGRADE_PREMIUM(2)×LEVEL_PRODUCTION_BONUS(0.5)×count = count），
+ * 按成本键累加返还 state.resources；返还后 upgrades[id] 清零。unique upgrades 不动。
+ * ⚠️ 内置原公式副本：01 已删 UPGRADE_PREMIUM/ORDINARY_UPGRADE_LEVEL_GROWTH/LEVEL_COST_FACTOR 与
+ * upgradeCost 普通分支——此处全部写死字面量（P=2、L=0.5 → P×L=1；c=0.15；F=0.05；post100 三常量
+ * 沿用当前 balance 值，本迁移与 post100 平衡改动解耦）防迁移结果随平衡演化漂移。
+ * ⚠️ 保真缺口（披露）：①dynamicFloor 用当前快照净产出近似历史逐级净产出（count>100 且升级过的 rare 场景）；
+ * ②count 用当前快照台数代逐级历史台数（正常玩法升级时台数不变，早期低台数升满后补台的档会略有超额返还）——
+ * 两者均为一次性迁移的近似口径，符合 ADR-0036「折算返还」善意图。
+ */
+function migrateV14ToV15(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const upgrades = { ...((next.upgrades as Record<string, number>) ?? {}) }
+  const buildings = (next.buildings as Record<string, number>) ?? {}
+  const resources = { ...(next.resources as Record<ResourceKey, number>) }
+  const baseState = next as unknown as GameState
+  for (const id of ORDINARY_UPGRADEABLE_IDS) {
+    const lvTotal = upgrades[id] ?? 0
+    const count = buildings[id] ?? 0
+    if (lvTotal <= 0) continue
+    const def = BUILDINGS[id]
+    if (!def || count <= 0) continue
+    for (let lv = 0; lv < lvTotal; lv += 1) {
+      // 模拟该级购买时的状态：仅 upgrades[id] 差异（原公式等级因子 1+0.05×lv 生效）
+      const sim: GameState = {
+        ...baseState,
+        buildings,
+        upgrades: { ...upgrades, [id]: lv },
+        resources: { ...resources },
+      }
+      const buy = originalOrdinaryBuildingCost(sim, id)
+      for (const key of RESOURCE_KEYS) {
+        const base = def.baseCost[key] ?? 0
+        if (base <= 0) continue
+        // 原 ordinaryUpgradeCostValue = max(1, ceil(buy × P(2) × L(0.5) × count × (1 + c(0.15)×lv)))
+        // P×L = 2×0.5 = 1 → 字面量 1（mult = count）；c=0.15 写死防漂移
+        const paid = Math.max(1, Math.ceil(buy[key] * count * (1 + 0.15 * lv)))
+        resources[key] = (resources[key] ?? 0) + paid
+      }
+    }
+    upgrades[id] = 0
+  }
+  next.upgrades = upgrades
+  next.resources = resources
+  next.schemaVersion = SCHEMA_V15
+  return next
+}
+
 /**
  * 事件契约迁移：补齐统一版本，并迁移已排队的已知事件实例。
  * 幂等（hadContract 检查）：eventConfigVersion 已达标 → 只归一化默认策略，不写迁移摘要。
@@ -467,6 +555,9 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
  * - v9 存档（无虫群强度倍率字段）→ 转 v10
  * - v10 存档（无自动探索字段）→ 转 v11
  * - v11 存档（无尽生成目标与归档标记为净新设计）→ 转 v12
+ * - v12 存档（无胁迫外交派系字段）→ 转 v13
+ * - v13 存档（外交自动化 perFaction boolean → 三态模式）→ 转 v14
+ * - v14 存档（普通建筑升级取消，升级投入折算返还）→ 转 v15
  * - 任意版本最后过事件契约迁移（幂等：eventConfigVersion 达标则跳过事件处理，主 schema 版本不变）
  * - 已是当前版本：事件迁移幂等跳过，原样返回
  *
@@ -490,7 +581,8 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V11) cur = migrateV11ToV12(cur)
   if (cur.schemaVersion === SCHEMA_V12) cur = migrateV12ToV13(cur)
   if (cur.schemaVersion === SCHEMA_V13) cur = migrateV13ToV14(cur)
-  // 事件契约迁移对任意进入版本执行：v1-v13 链式迁移后必已 ≥ v13，v14 档幂等跳过（migrateEventContract 不改主版本）
+  if (cur.schemaVersion === SCHEMA_V14) cur = migrateV14ToV15(cur)
+  // 事件契约迁移对任意进入版本执行：v1-v14 链式迁移后必已 ≥ v14，v15 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   return cur as unknown as GameState
 }

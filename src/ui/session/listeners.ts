@@ -5,11 +5,10 @@ import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
 import type { EventAutomationPolicy, EventTheme, GameState, ResourceKey } from '../../engine/types'
 import type { AppElements, NavId } from '../layout'
 import { dispatch } from '../actions'
-import type { ActionDeps, ActionId, ActionPayloads, DiplomacyAction } from '../actions'
+import type { ActionDeps, ActionId, DiplomacyAction } from '../actions'
 import { buildCardAction } from '../render/shared'
 import { unlockRequirementText } from '../bars'
 import { LOG_FILTER_KEY, type LogDirection, type LogFilter } from '../log'
-import type { BulkKind } from '../../engine/bulk'
 import { exportSave, importSaveFile, resetGame, startNewGamePlusSequence, toggleHiddenBuilding, toggleLogDirection, togglePlanetVisibility } from './actions-heavy'
 
 /**
@@ -33,8 +32,6 @@ export interface SessionUiState {
   endingDismissed: boolean
   logDirection: LogDirection
   lastLogId: number
-  /** 买满确认弹窗待执行动作（actionId + 结构化 payload；运行时联合，dispatch 时断言） */
-  buyMaxPending: { actionId: ActionId; payload: ActionPayloads[ActionId] } | null
   exploreEscortChecked: Set<number>
   /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回默认收起） */
   hiddenBuildingsOpen: boolean
@@ -67,8 +64,6 @@ export interface SessionCtx {
   setActiveNav(id: NavId): void
   resetSeenSnapshot(): void
   updatePanelTabs(): void
-  openBuyMaxModal(kind: BulkKind | 'diplomacy', id: string, action?: string): void
-  closeBuyMaxModal(): void
   openNgPlusModal(): void
   closeNgPlusModal(): void
   openMegastructureModal(id: string): void
@@ -309,32 +304,14 @@ export function bindListeners(ctx: SessionCtx): void {
     }
   })
 
-  // 一键买满确认弹窗：确认 / 取消 / 遮罩点击 / Esc
-  els.buyMaxOverlay.addEventListener('click', (e) => {
-    const t = e.target as HTMLElement
-    if (t === els.buyMaxOverlay) {
-      ctx.closeBuyMaxModal()
-      return
-    }
-    if (t.closest('[data-buy-max-confirm]')) {
-      if (ui.buyMaxPending) {
-        const { actionId, payload } = ui.buyMaxPending
-        ctx.closeBuyMaxModal()
-        // buyMaxPending 由 openBuyMaxModal 按 action 组装（运行时联合），此处断言
-        dispatch(getState(), actionId as ActionId, payload as never, deps)
-      }
-      return
-    }
-    if (t.closest('[data-buy-max-cancel]')) ctx.closeBuyMaxModal()
-  })
+  // 一键买满确认弹窗已删除（ADR-0037：无 buyMax，单次操作统一为 1）；buyMaxOverlay 元素已随 layout 移除
 
-  // Esc 统一关闭：自动配置 / 买满 / NG+ / 终局工程 / 分解面板
+  // Esc 统一关闭：自动配置 / NG+ / 终局工程 / 分解面板
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && ui.autoConfigOpen) {
       ui.autoConfigOpen = false
       render()
     }
-    if (e.key === 'Escape' && !els.buyMaxOverlay.classList.contains('hidden')) ctx.closeBuyMaxModal()
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) ctx.closeNgPlusModal()
     if (e.key === 'Escape' && !els.megastructureOverlay.classList.contains('hidden')) ctx.closeMegastructureModal()
     if (e.key === 'Escape' && ui.openBreakdown) {
@@ -470,13 +447,13 @@ export function bindListeners(ctx: SessionCtx): void {
     // 显式三元组 [data-attr, actionId, datasetKey]：
     // dataset 键为 camelCase（data-upgrade-tech → dataset.upgradeTech），
     // 不能靠 attr.slice(5) 推导（slice 得 kebab-case → undefined，升级科技静默失效）。
-    // kind 标注批量类别：Shift+点击主按钮 = 打开买满确认弹窗。
-    for (const [attr, actionId, dataKey, kind] of [
-      ['data-build', 'buy', 'build', 'building'],
-      ['data-upgrade', 'upgrade', 'upgrade', 'buildingUpgrade'],
-      ['data-research', 'research', 'research', 'none'],
-      ['data-upgrade-tech', 'upgradeTech', 'upgradeTech', 'techUpgrade'],
-      ['data-diplomacy', 'diplomacy', 'diplomacy', 'diplomacy'],
+    // ⚠️ ADR-0037：无批量/buyMax，单次操作统一为 1（Shift+点击不再触发买满，直接走单次动作）。
+    for (const [attr, actionId, dataKey] of [
+      ['data-build', 'buy', 'build'],
+      ['data-upgrade', 'upgrade', 'upgrade'],
+      ['data-research', 'research', 'research'],
+      ['data-upgrade-tech', 'upgradeTech', 'upgradeTech'],
+      ['data-diplomacy', 'diplomacy', 'diplomacy'],
     ] as const) {
       const btn = target.closest<HTMLElement>(`[${attr}]`)
       if (!btn) {
@@ -489,21 +466,6 @@ export function bindListeners(ctx: SessionCtx): void {
         ctx.openMegastructureModal(payload)
         return
       }
-      if (e.shiftKey && kind !== 'none') {
-        if (kind === 'diplomacy') {
-          // payload "factionId:action"（探索发现目标 id 可含 ':'）→ 从右往左切
-          const idx = String(payload).lastIndexOf(':')
-          const fid = String(payload).slice(0, idx)
-          const act = String(payload).slice(idx + 1)
-          if (act === 'trade' || act === 'techshare') {
-            ctx.openBuyMaxModal('diplomacy', fid, act)
-            return
-          }
-        } else {
-          ctx.openBuyMaxModal(kind, String(payload))
-          return
-        }
-      }
       // 单次升级（data-upgrade）：卡片短暂高亮（按钮 disabled 时不发 click，此处安全）
       if (actionId === 'upgrade') ctx.flashUpgrade(String(payload))
       // 动态分发（data-* 运行时契约）：按 actionId 组装结构化载荷
@@ -514,34 +476,6 @@ export function bindListeners(ctx: SessionCtx): void {
         dispatch(state, 'diplomacy', { factionId: fid, action: act }, deps)
       } else {
         dispatch(state, actionId as ActionId, { id: String(payload) } as never, deps)
-      }
-      return
-    }
-    // 固定次数批量按钮：资源不足时由引擎提前停止，不再提供买满/升满。
-    for (const [attr, dataKey, actionId] of [
-      ['data-buy-limit', 'buyLimit', 'buyMax'],
-      ['data-upgrade-limit', 'upgradeLimit', 'upgradeMax'],
-      ['data-upgrade-tech-limit', 'upgradeTechLimit', 'upgradeTechMax'],
-      ['data-diplomacy-limit', 'diplomacyLimit', 'diplomacyMax'],
-    ] as const) {
-      const btn = target.closest<HTMLElement>(`[${attr}]`)
-      if (!btn) {
-        continue
-      }
-      const raw = String(btn.dataset[dataKey] ?? '')
-      // 动态分发（data-* 运行时契约）：diplomacyMax 载荷为 "factionId:action[:limit]"，其余为 "id[:limit]"
-      if (actionId === 'diplomacyMax') {
-        // 从右往左解析：factionId 可含 ':'（endless:xxx），因此必须按 "action:limit" 收尾精确匹配，
-        // 不能用 lastIndexOf 单切（会把 action 误并入 factionId、limit 误作 action → 未知派系）
-        const m = /^(.*):(trade|techshare)(?::(\d+))?$/.exec(raw)
-        if (!m) return
-        const fid = m[1]
-        const act = m[2]
-        const limitText = m[3]
-        dispatch(state, 'diplomacyMax', { factionId: fid, action: act === 'techshare' ? 'techshare' : 'trade', ...(limitText ? { limit: Number(limitText) } : {}) }, deps)
-      } else {
-        const [id, limitText] = raw.split(':')
-        dispatch(state, actionId as ActionId, { id, ...(limitText ? { limit: Number(limitText) } : {}) } as never, deps)
       }
       return
     }

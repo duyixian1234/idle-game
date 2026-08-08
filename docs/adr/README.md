@@ -1,6 +1,6 @@
 # Architecture Decision Records — idle-game
 
-35 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
+37 篇 ADR，从代码实际（`src/`）、规格（`.scratch/*/spec.md`）与提交记录提取，2026-08-05 ~ 2026-08-08。术语表见根目录 `CONTEXT.md`。
 
 ## 架构
 
@@ -54,6 +54,8 @@
 | [0026](./0026-warpdrive-qualitative-rewards.md) | 星舰推进满级质变：动收益不动成本（Lv10/Lv20 摩擦降低） |
 | [0027](./0027-military-cap-tech-channel.md) | 军力容量科技通道：军械科技每级 +10% 容量（整体乘法） |
 | [0028](./0028-generated-target-co-source-economy.md) | 生成目标一次性经济同源锚定：军事收益/成本 + 外交礼包挂当期净产出 |
+| [0036](./0036-ordinary-building-no-upgrade.md) | 普通建筑取消升级：机制二分「数量×固定」与「唯一×等级」，消除 ×count 强制策略序 |
+| [0037](./0037-remove-bulk-buymax.md) | 移除 +10/+100 批量与 buyMax 买满：单次操作统一为 1 |
 | [0029](./0029-federation-progress-infinite-semantics.md) | 联邦统一度：infinite 阶段新派系不计入进度 |
 | [0030](./0030-auto-diplomacy-tiers.md) | 外交自动化分级：每派系三态 + 阶段门控 + raid 安全边界 |
 | [0031](./0031-coercion-derived-archiving.md) | 胁迫态派生折叠：subjugated/treaty 中 → 折叠区，状态变化自动折/展 |
@@ -84,3 +86,6 @@
 - 0034 ↔ 0002/0003：tick 注册表是「hub 收窄但可见」的延续——engine 域已拆深模块，tick 序列的组 DAG 让结算阶段成为可声明的偏序；Golden Order 与 0017 双层 seam 同为「行为一致由测试证明」。
 - 0035 ↔ 0003/0014：render 注册表把 session 从「知道全部面板」收窄为「调度注册表」，250ms 全量重建（0014）与阶段保序（overlay 末位）并存——z-order 约束从注释变成结构。
 - 0034 ↔ 0035：同批落地的两个注册表（先 tick 后 render），共享 Golden Order 保序机制——顺序漂移由测试暴露，行为一致可回归。
+- 0036 ↔ 0037：砍普通升级（0036）使升级 +10/+100 自动消失，移除批量（0037）是 0036 的 UI 延伸——`bulk.ts` 整删是两者共同后果。
+- 0036 → 0021/0022：升级 ROI 不变量 P=2 与 post100 升级继承随普通升级取消而失效（见 0022 修订标注）。
+- 0036 → 0027/0005：`militaryCap` portLevel 项失效（见 0027 修订标注）；v15 存档迁移折算返还（ADR-0005 链式范式）。

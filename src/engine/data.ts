@@ -35,7 +35,7 @@ export interface BuildingDef {
   requiresTech?: string[]
   /** 解锁前置星球（需已解锁） */
   requiresPlanet?: string[]
-  /** 唯一大件：count 恒 1、禁止重复建造；购买/升级入口语义变为「建造/升一级」；成本/产出/维护/能耗均走独立 ×2^level 分支（不复用 count 折算公式）；bulk 买满/升满禁用 */
+  /** 唯一大件：count 恒 1、禁止重复建造；购买/升级入口语义变为「建造/升一级」；成本/产出/维护/能耗均走独立 ×2^level 分支（不复用 count 折算公式）。⚠️ ADR-0036：升级仅 unique 建筑持有（普通建筑无升级） */
   unique?: boolean
   /** 升级上限（仅 unique 建筑使用，如船坞 Lv1-3；缺省 = 不限级；科技 TECHS 已有 maxLevel 先例） */
   maxLevel?: number

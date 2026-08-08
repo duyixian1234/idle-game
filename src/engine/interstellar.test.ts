@@ -5,7 +5,6 @@ import { CIVIL_BUILDINGS, INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS } from
 import { productionReport, smelterGlobalMult } from './production'
 import { explorationHarvestMult, explorationSlots } from './exploration'
 import { settleOffline } from './offline'
-import { canBulkBuy, executeMaxBuy, previewMaxBuy } from './bulk'
 import { JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS, TECH_MAX_LEVEL, UNIQUE_UPGRADE_GROWTH } from './balance'
 import { ACHIEVEMENTS } from './achievements'
 import type { GameState } from './types'
@@ -114,17 +113,18 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     expect(s.buildings.starportMine).toBe(1)
   })
 
-  it('唯一大件 bulk 屏蔽：preview count=0 / execute 失败 / canBulkBuy false', () => {
+  it('唯一大件可单级升级；普通建筑升级被拒（ADR-0036 机制二分）', () => {
     const s = endedState()
     s.buildings.starportMine = 1
-    expect(previewMaxBuy(s, 'building', 'starportMine').count).toBe(0)
-    expect(previewMaxBuy(s, 'buildingUpgrade', 'starportMine').count).toBe(0)
-    expect(executeMaxBuy(s, 'building', 'starportMine')).toMatchObject({ ok: false })
-    expect(executeMaxBuy(s, 'buildingUpgrade', 'starportMine')).toMatchObject({ ok: false })
-    expect(canBulkBuy(s, 'building', 'starportMine')).toBe(false)
-    expect(canBulkBuy(s, 'buildingUpgrade', 'starportMine')).toBe(false)
-    // 普通建筑不受影响
-    expect(canBulkBuy(s, 'building', 'miner')).toBe(true)
+    // unique 升级正常
+    s.resources.mineral = 100_000_000
+    s.resources.tech = 4_000_000
+    expect(upgradeBuilding(s, 'starportMine')).toEqual({ ok: true })
+    expect(s.upgrades.starportMine).toBe(1)
+    // 普通建筑升级封死拒绝（数量维度无等级）
+    s.buildings.miner = 1
+    expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '该建筑没有可升级效果' })
+    expect(s.upgrades.miner).toBeUndefined()
   })
 
   it('恒星阵列维护费硬扣：tick 扣矿、不因能源打折、能源产出完整', () => {

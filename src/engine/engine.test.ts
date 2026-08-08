@@ -24,22 +24,23 @@ describe('engine: 初始状态', () => {
 })
 
 describe('engine: simulateProductionDelta（预览口径）', () => {
-  it('无加成：买 1 台 +1/s，升级 1 级 1 台 +0.5/s', () => {
+  it('无加成：买 1 台 +1/s；普通建筑升级无效果（ADR-0036 无等级维度）', () => {
     const s = createInitialState(0)
     s.buildings.miner = 1
     const buy = simulateProductionDelta(s, { buildingId: 'miner', countDelta: 1 })
     expect(buy.delta.mineral).toBe(1)
+    // 普通建筑 levelDelta 不改变产出（升级已取消）
     const up = simulateProductionDelta(s, { buildingId: 'miner', levelDelta: 1 })
-    expect(up.delta.mineral).toBe(0.5)
+    expect(up.delta.mineral).toBe(0)
   })
 
-  it('多台升级总量线性：2 台 0 级升 1 级 +1/s', () => {
+  it('普通建筑多台升级无总量变化（levelDelta 恒 0 效果）', () => {
     const s = createInitialState(0)
     s.buildings.miner = 2
     const up = simulateProductionDelta(s, { buildingId: 'miner', levelDelta: 1 })
     expect(up.current.mineral).toBe(2)
-    expect(up.after.mineral).toBe(3)
-    expect(up.delta.mineral).toBe(1)
+    expect(up.after.mineral).toBe(2)
+    expect(up.delta.mineral).toBe(0)
   })
 
   it('含科技加成：行星钻探 ×1.5 后买 1 台 +1.5/s', () => {

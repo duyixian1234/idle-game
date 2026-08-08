@@ -4,10 +4,26 @@ import { createFactionState } from '../engine/diplomacy'
 import { formatNumber, formatPercent } from '../engine/format'
 import { buildLayout } from './layout'
 import { renderDiplomacyPanel } from './render/diplomacy'
-import { createSession } from './session'
-import type { SoundManager } from '../audio'
 
 describe('ui: 外交面板', () => {
+  it('外交面板无 +10/+100 批量按钮（ADR-0037：贸易/技术共享单次操作统一为 1）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 3_000_000
+    s.resources.tech = 200_000
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    // 单次按钮仍在，批量按钮（data-diplomacy-limit）全缺
+    expect(container.querySelector('[data-diplomacy="ferro:trade"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy="ferro:techshare"]')).toBeTruthy()
+    expect(container.querySelector('[data-diplomacy-limit]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:trade:10"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:trade:100"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:techshare:10"]')).toBeNull()
+    expect(container.querySelector('[data-diplomacy-limit="ferro:techshare:100"]')).toBeNull()
+  })
+
   it('显示技术共享按钮（科技点成本），资源不足禁用', () => {
     const container = document.createElement('div')
     buildLayout(container)
@@ -223,61 +239,3 @@ describe('ui: 外交面板', () => {
   })
 })
 
-describe('ui: 外交批量按钮真实点击链路（diplomacy-limit 解析回归，2026-08-07）', () => {
-  /** 完整链路：buildLayout → createSession（内部 bindListeners）→ render → 真实 DOM click */
-  function setupDiploSession() {
-    const container = document.createElement('div')
-    const els = buildLayout(container)
-    const state = createInitialState(Date.now())
-    state.planets.orbital = { unlocked: true }
-    state.resources.mineral = 1_000_000
-    state.resources.tech = 1_000_000
-    const session = createSession({
-      els,
-      sound: { isMuted: () => false, setMuted: () => {}, play: () => {} } as unknown as SoundManager,
-      state,
-      onSave: async () => {},
-    })
-    session.render()
-    return { els, state, session }
-  }
-
-  it('点击贸易 +10：好感上升且无失败日志（载荷 "fid:action:limit" 解析）', () => {
-    const { els, state } = setupDiploSession()
-    const btn = els.panel.querySelector<HTMLButtonElement>('[data-diplomacy-limit="ferro:trade:10"]')!
-    expect(btn.disabled).toBe(false)
-    const before = state.factions['ferro'].favor
-    const logBefore = state.log.length
-    btn.click()
-    expect(state.factions['ferro'].favor).toBeGreaterThan(before)
-    const newLogs = state.log.slice(logBefore).map((l) => l.text).join(' ')
-    expect(newLogs).toContain('与铁卫')
-    expect(newLogs).not.toContain('失败')
-  })
-
-  it('点击技术共享 +100：科技减少、好感上升', () => {
-    const { els, state } = setupDiploSession()
-    const btn = els.panel.querySelector<HTMLButtonElement>('[data-diplomacy-limit="ferro:techshare:100"]')!
-    expect(btn.disabled).toBe(false)
-    const before = state.factions['ferro'].favor
-    const techBefore = state.resources.tech
-    btn.click()
-    expect(state.factions['ferro'].favor).toBeGreaterThan(before)
-    expect(state.resources.tech).toBeLessThan(techBefore)
-  })
-
-  it('endless 派系（id 含冒号）点击贸易 +10：好感上升（factionId 保留完整冒号前缀）', () => {
-    const { els, state, session } = setupDiploSession()
-    // factionDef 需经 generatedTargets 命中才能渲染卡片
-    state.generatedTargets = [
-      { id: 'endless:starlightLeague', kind: 'faction', name: '星光同盟', desc: '测试', batch: 1, initialFavor: 50, tradeDiscount: 0, techShareCostMult: 1, intimidateCostMult: 1 },
-    ]
-    state.factions['endless:starlightLeague'] = { favor: 50, allied: false, tradeCount: 0, intimidateCount: 0, threat: 0 }
-    session.render()
-    const btn = els.panel.querySelector<HTMLButtonElement>('[data-diplomacy-limit="endless:starlightLeague:trade:10"]')!
-    expect(btn.disabled).toBe(false)
-    const before = state.factions['endless:starlightLeague'].favor
-    btn.click()
-    expect(state.factions['endless:starlightLeague'].favor).toBeGreaterThan(before)
-  })
-})

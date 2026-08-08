@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { explorePlanetOutputs, productionReport } from './production'
+import { explorePlanetOutputs, militaryCap, productionReport } from './production'
 import type { GameState } from './types'
 
 /** 通关后生产档：足量资源（探索天体机制测试统一基线） */
@@ -12,6 +12,15 @@ function prodState(overrides: Partial<GameState> = {}): GameState {
   s.resources.tech = 1_000_000
   return { ...s, ...overrides }
 }
+
+describe('engine: 军力容量 portLevel 恒 0（ADR-0036：普通建筑无升级）', () => {
+  it('25 座军港 = 5100 容量（levelMultiplier(0)=1 线性）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    expect(militaryCap(s)).toBe(5100) // (100 + 200×25) × 1
+  })
+})
 
 describe('engine: 探索产出型天体（production 管线）', () => {
   it('碎星矿带：基础 2×techMult + 矿物名义×2%，整体 ×(1+outputBonus)', () => {

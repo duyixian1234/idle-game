@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
-import { researchTech } from '../engine/tech'
 import { createEventInstance } from '../engine/events'
 import type { ActionDeps, ActionId } from './actions'
 import { ACTIONS, dispatch } from './actions'
@@ -46,12 +45,13 @@ describe('actions: 建造/升级/科技', () => {
     expect(s.log[0].text).toContain('建造了 采矿机')
   })
 
-  it('upgrade 成功日志带升级后等级', () => {
+  it('upgrade 成功日志带升级后等级（唯一大件入口，ADR-0036）', () => {
     const s = createInitialState(0)
-    s.resources.mineral = 100_000
-    s.buildings.miner = 1
-    dispatch(s, 'upgrade', { id: 'miner' }, fakeDeps().deps)
-    expect(s.upgrades.miner).toBe(1)
+    s.resources.mineral = 100_000_000
+    s.resources.tech = 4_000_000
+    s.buildings.starportMine = 1
+    dispatch(s, 'upgrade', { id: 'starportMine' }, fakeDeps().deps)
+    expect(s.upgrades.starportMine).toBe(1)
     expect(s.log[0].text).toContain('Lv.1')
   })
 
@@ -152,58 +152,13 @@ describe('actions: 星球切换', () => {
   })
 })
 
-describe('actions: 一键买满（批量）', () => {
-  it('buyMax 买满建筑：状态结算 + 成功日志 + 音效/渲染/保存', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 100
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'buyMax', { id: 'miner' }, deps)
-    expect(s.buildings.miner).toBe(6)
-    expect(s.resources.mineral).toBe(1)
-    expect(s.log[0].text).toContain(`一键买满「采矿机」：购买：${formatNumber(6)} 次`)
-    expect(s.log[0].text).toContain('花费 ◆99')
-    expect(s.log[0].text).toContain('剩余 ◆1')
-    expect(calls).toEqual(['sound:click', 'render', 'save'])
-  })
-
-  it('upgradeTechMax 升满科技：日志含目标等级', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 200_000
-    s.resources.tech = 5_000
-    researchTech(s, 'planetDrill')
-    dispatch(s, 'upgradeTechMax', { id: 'planetDrill' }, fakeDeps().deps)
-    expect(s.techLevels.planetDrill).toBe(10)
-    expect(s.log[0].text).toContain('一键升满科技「行星钻探」')
-  })
-
-  it('diplomacyMax 贸易到好感 100', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 3_000_000
-    dispatch(s, 'diplomacyMax', { factionId: 'ferro', action: 'trade' }, fakeDeps().deps)
-    expect(s.factions.ferro.favor).toBe(100)
-    expect(s.log[0].text).toContain('与铁卫同盟贸易')
-  })
-
-  it('批量失败写 warning 日志', () => {
-    const s = createInitialState(0)
-    s.resources.mineral = 5 // 首台都买不起
-    const { deps, calls } = fakeDeps()
-    dispatch(s, 'buyMax', { id: 'miner' }, deps)
-    expect(s.log[0].type).toBe('warning')
-    expect(s.log[0].text).toContain('一键买满失败：资源不足')
-    expect(calls).toEqual(['render'])
-  })
-})
-
 describe('actions: 注册表完整性', () => {
-  it('十七个动作全部注册（含 setAutoExplore）', () => {
+  it('十三个动作全部注册（ADR-0037 删 4 个 *Max 批量动作）', () => {
     expect(Object.keys(ACTIONS).sort()).toEqual(
       [
         'buy',
-        'buyMax',
         'conquest',
         'diplomacy',
-        'diplomacyMax',
         'explore',
         'fleetBuild',
         'megastructure',
@@ -213,9 +168,7 @@ describe('actions: 注册表完整性', () => {
         'setAutomationPolicy',
         'setPlanet',
         'upgrade',
-        'upgradeMax',
         'upgradeTech',
-        'upgradeTechMax',
       ].sort(),
     )
   })
