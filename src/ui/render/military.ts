@@ -28,8 +28,8 @@ function conquestRewardText(def: ConquestDef): string {
   if (def.bonus) {
     parts.push(def.bonus.kind === 'production' ? `全产出 +${formatPercent(def.bonus.value * 100)}` : `军力上限 +${formatPercent(def.bonus.value * 100)}`)
   }
-  if (def.unlockTech) parts.push('解锁军械科技')
-  return parts.join('、') || '无'
+  if (def.unlockTech) parts.push(t('ui.military.6'))
+  return parts.join('、') || t('ui.military.7')
 }
 
 /** 攻占区域单张卡片（守卫/奖励/状态/发起控件；conquest-cards：与建造物同构卡片，data-conquest 契约原样保留） */
@@ -44,8 +44,8 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
     <div class="build-info">
       <div class="build-name">
         ${escapeHtml(defName(def))}
-        ${conquered ? '<span class="build-count conquered-badge">已占领</span>' : ''}
-        ${ongoing ? '<span class="build-count ongoing-badge">攻占中</span>' : ''}
+        ${conquered ? `<span class="build-count conquered-badge">${t('ui.military.0')}</span>` : ''}
+        ${ongoing ? `<span class="build-count ongoing-badge">${t('ui.military.1')}</span>` : ''}
       </div>
       <div class="build-desc">${escapeHtml(defDesc(def))}</div>
       <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}</div>
@@ -56,7 +56,7 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
     card.innerHTML = `${icon}
       <div class="build-card-body">
         ${info}
-        <div class="build-lock"><span class="lock-hint conquered-hint">✓ 已肃清</span></div>
+        <div class="build-lock"><span class="lock-hint conquered-hint">${t('ui.military.2')}</span></div>
       </div>`
     return card
   }
@@ -67,16 +67,16 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
     card.innerHTML = `${icon}
       <div class="build-card-body">
         ${info}
-        <div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">⏳ 结算倒计时 ${formatDuration(Math.ceil(remainMs / 1000))} · 已投入 ${formatNumber(cs.invested ?? 0)}⚔</span></span></div>
+        <div class="build-lock"><span class="lock-hint" data-conquest-progress>${renderAsciiBar(ratio, 16)}<span class="conquest-meta">${t('ui.military.3', { a0: formatDuration(Math.ceil(remainMs / 1000)), a1: formatNumber(cs.invested ?? 0) })}</span></span></div>
       </div>`
     return card
   }
   if (!available) {
     const reason = state.planets[def.unlockPlanet]?.unlocked
       ? def.afterEnding && state.phase === 'playing'
-        ? '通关后开放'
-        : '不可攻占'
-      : `需解锁「${(PLANETS[def.unlockPlanet] ? defName(PLANETS[def.unlockPlanet]) : def.unlockPlanet)}」`
+        ? t('ui.military.8')
+        : t('ui.military.9')
+      : t('ui.military.10', { a0: PLANETS[def.unlockPlanet] ? defName(PLANETS[def.unlockPlanet]) : def.unlockPlanet })
     card.classList.add('locked')
     card.innerHTML = `${icon}
       <div class="build-card-body">
@@ -91,9 +91,9 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   card.innerHTML = `${icon}
     <div class="build-card-body">${info}</div>
     <div class="build-actions conquest-actions">
-      <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="投入军力" />
-      <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="投入军力发起攻占，10~30 分钟后结算；投入达到守卫强度必成，不足则按比例成功率">
-        攻占 ⚔
+      <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="${t('ui.military.11')}" />
+      <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="${t('ui.military.12')}">
+        ${t('ui.military.13')} ⚔
       </button>
     </div>`
   return card
@@ -118,14 +118,14 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
   section.className = 'military-section'
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = t('ui.military.0')
+  header.textContent = t('ui.military.20')
   section.appendChild(header)
   const card = document.createElement('div')
   card.className = 'build-card tech-card'
   card.setAttribute('data-tech', def.id)
   const mult = def.effect.kind === 'production' ? techMultiplier(def.effect, Math.max(1, level)) : 1
   const nextMult = def.effect.kind === 'production' ? techMultiplier(def.effect, level + 1) : 1
-  const effectText = `军力产出 ${formatMultiplier(mult)}${level >= 1 ? `（Lv.${formatNumber(level)}${upgradable ? ` → ${formatMultiplier(nextMult)}` : ''}）` : ''}`
+  const effectText = t('ui.military.14', { a0: formatMultiplier(mult) }) + (level >= 1 ? t('ui.military.15', { a0: formatNumber(level), a1: upgradable ? t('ui.military.16', { a0: formatMultiplier(nextMult) }) : '' }) : '')
   const info = `
     <div class="build-info">
       <div class="build-name">${escapeHtml(defName(def))}${researched ? `<span class="build-count researched-badge">${level >= def.maxLevel! ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}</div>
@@ -152,13 +152,13 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
     card.innerHTML = `${icon}
       <div class="build-card-body">
         ${info}
-        <div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>
+        <div class="build-lock"><span class="lock-hint researched-hint">${t('ui.military.4')}</span></div>
       </div>`
   } else {
     card.innerHTML = `${icon}
       <div class="build-card-body">${info}</div>
       <div class="build-actions">
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：军力产出 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="${t('ui.military.17', { a0: formatNumber(0.5), a1: formatNumber(level), a2: formatNumber(level + 1) })}">
           升级 ▶ ${formatCost(techCost(state, def.id))}
         </button>
       </div>`
@@ -185,7 +185,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const conqueredCount = staticDefs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.innerHTML = `攻占 <label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-auto ${state.autoConquest?.enabled ? 'checked' : ''} /> 自动攻占</label>`
+  header.innerHTML = `攻占 <label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-auto ${state.autoConquest?.enabled ? 'checked' : ''} />${t('ui.military.5')}</label>`
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
@@ -196,25 +196,25 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   // 静态 4 区域（旧档 v11 及以下 conquered 无 archivedRounds → 按 status 判定兜底）
   for (const def of staticDefs) {
     if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
-      archivedRows.push(archiveRow(defName(def), '已肃清', state.archivedRounds?.[def.id], def.id))
+      archivedRows.push(archiveRow(defName(def), t('ui.military.18'), state.archivedRounds?.[def.id], def.id))
     } else {
       conquestGrid.appendChild(renderConquestRow(def, state))
     }
   }
   // 无尽生成军事目标（动态）
-  for (const t of state.generatedTargets) {
-    if (t.kind !== 'conquest') continue
-    const def = conquestDef(state, t.id)
+  for (const gt of state.generatedTargets) {
+    if (gt.kind !== 'conquest') continue
+    const def = conquestDef(state, gt.id)
     if (!def) continue
-    if (state.archivedRounds?.[t.id] != null || conquestState(state, t.id).status === 'conquered') {
-      archivedRows.push(archiveRow(t.name, '已肃清', state.archivedRounds?.[t.id], t.id))
+    if (state.archivedRounds?.[gt.id] != null || conquestState(state, gt.id).status === 'conquered') {
+      archivedRows.push(archiveRow(gt.name, t('ui.military.18'), state.archivedRounds?.[gt.id], gt.id))
     } else {
       conquestGrid.appendChild(renderConquestRow(def, state))
     }
   }
   conquestSection.appendChild(conquestGrid)
   // 归档折叠区（已肃清军事目标）
-  renderArchiveCollapse(conquestSection, 'conquest', '已完成军事目标', archivedRows, Boolean(archived['conquest']))
+  renderArchiveCollapse(conquestSection, 'conquest', t('ui.military.19'), archivedRows, Boolean(archived['conquest']))
   // 保底锁定占位（endless-expansion：batch 2 未解锁且未获得）
   if (state.phase === 'infinite') {
     const locked = Object.values(ENDLESS_CONQUESTS).filter(
@@ -230,6 +230,6 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const progress = document.createElement('div')
   progress.className = 'conquest-header'
   progress.setAttribute('data-conquest-progress-header', '')
-  progress.textContent = t('ui.military.1', { a0: formatNumber(conqueredCount), a1: formatNumber(staticDefs.length) })
+  progress.textContent = t('ui.military.21', { a0: formatNumber(conqueredCount), a1: formatNumber(staticDefs.length) })
   el.appendChild(progress)
 }
