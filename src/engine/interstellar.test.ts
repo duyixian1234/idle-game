@@ -39,13 +39,14 @@ function withThreeInterstellar(s: GameState): GameState {
 }
 
 describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类别/维护费', () => {
-  it('INTERSTELLAR_BUILDINGS 含 6 座星系间建筑（含船坞）；CIVIL_BUILDINGS 不含 interstellar', () => {
-    expect(Object.keys(INTERSTELLAR_BUILDINGS).sort()).toEqual(['dock', 'jumpgate', 'ringSmelter', 'starportMine', 'stellarArray', 'thinkTank'])
+  it('INTERSTELLAR_BUILDINGS 含 7 座星系间建筑（含船坞/虫洞）；CIVIL_BUILDINGS 不含 interstellar', () => {
+    expect(Object.keys(INTERSTELLAR_BUILDINGS).sort()).toEqual(['dock', 'jumpgate', 'ringSmelter', 'starportMine', 'stellarArray', 'thinkTank', 'wormhole'])
     expect(CIVIL_BUILDINGS.starportMine).toBeUndefined()
     expect(CIVIL_BUILDINGS.miner).toBeDefined()
     expect(MEGASTRUCTURE_BUILDINGS.ringSmelter).toBeDefined()
     expect(MEGASTRUCTURE_BUILDINGS.jumpgate).toBeDefined()
-    expect(Object.keys(MEGASTRUCTURE_BUILDINGS)).toHaveLength(2)
+    expect(MEGASTRUCTURE_BUILDINGS.wormhole).toBeDefined()
+    expect(Object.keys(MEGASTRUCTURE_BUILDINGS)).toHaveLength(3)
   })
 
   it('唯一大件升级成本独立公式：Lv0→1 = baseCost，逐级 ×2', () => {

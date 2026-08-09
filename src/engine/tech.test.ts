@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { canResearchTech, canUpgradeTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
+import { alliedCount } from './core'
 import { buyBuilding, isBuildingUnlocked } from './buildings'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 import { netProduction, productionMultipliers } from './production'
+import type { GameState } from './types'
 
 describe('engine: 科技系统', () => {
   it('研发成功扣除资源并记录状态', () => {
@@ -203,3 +205,63 @@ describe('engine: 星舰科技线（fleet-power-exploration ticket 01）', () =>
     expect(upgradeTech(s, 'warpDrive')).toMatchObject({ ok: false, reason: '已满级' })
   })
 })
+
+describe('engine: 虫洞理论科技门控（wormhole-empire ticket 01）', () => {
+  const seedState = (): GameState => {
+    const s = createInitialState(0)
+    s.phase = 'ended' // 虫洞理论 afterEnding 门控：通关后才可见
+    s.resources.mineral = 10_000_000_000_000
+    s.resources.tech = 1_000_000_000_000
+    return s
+  }
+  const allyN = (s: GameState, n: number): void => {
+    // 借初始 4 派系重复标记结盟数不现实——直接注入足够多派系
+    for (let i = 0; i < n; i++) {
+      s.factions[`gen:faction:${i}`] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 20 }
+    }
+  }
+
+  it('通关前不可研发（afterEnding 门控）', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000_000_000_000
+    s.resources.tech = 1_000_000_000_000
+    allyN(s, 10)
+    expect(canResearchTech(s, 'wormholeTheory')).toBe(false)
+    const r = researchTech(s, 'wormholeTheory')
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { reason: string }).reason).toContain('通关后')
+  })
+
+  it('结盟 <10 不可研发（requiresAllies 门控），结盟 ≥10 可研发', () => {
+    const s9 = seedState()
+    allyN(s9, 9)
+    expect(canResearchTech(s9, 'wormholeTheory')).toBe(false)
+    const r9 = researchTech(s9, 'wormholeTheory')
+    expect(r9).toMatchObject({ ok: false })
+    expect((r9 as { reason: string }).reason).toContain('结盟')
+
+    const s10 = seedState()
+    allyN(s10, 10)
+    expect(canResearchTech(s10, 'wormholeTheory')).toBe(true)
+    expect(techCost(s10, 'wormholeTheory')).toMatchObject({ mineral: 1_000_000_000_000, tech: 50_000_000_000 })
+    expect(researchTech(s10, 'wormholeTheory')).toEqual({ ok: true })
+    expect(s10.techLevels.wormholeTheory).toBe(1)
+  })
+
+  it('研发后不可再研（已研发）、无升级线（unlockBuilding 不可升级）', () => {
+    const s = seedState()
+    allyN(s, 10)
+    researchTech(s, 'wormholeTheory')
+    expect(researchTech(s, 'wormholeTheory')).toMatchObject({ ok: false, reason: '已研发' })
+    expect(canUpgradeTech(s, 'wormholeTheory')).toBe(false)
+    expect(upgradeTech(s, 'wormholeTheory')).toMatchObject({ ok: false, reason: '已满级' })
+  })
+
+  it('alliedCount helper 与成就 allies3 同源（diplomacy.ts 公共函数）', () => {
+    const s = seedState()
+    expect(alliedCount(s)).toBe(0)
+    allyN(s, 3)
+    expect(alliedCount(s)).toBe(3)
+  })
+})
+

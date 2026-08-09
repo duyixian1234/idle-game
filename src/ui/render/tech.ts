@@ -6,7 +6,7 @@
 import type { GameState } from '../../engine/types'
 import { BUILDINGS, RESOURCE_META, TECHS } from '../../engine/data'
 import { TECH_MAX_LEVEL } from '../../engine/balance'
-import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techCost, techLevel, techRequirementsMet } from '../../engine/tech'
+import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techAlliesMet, techCost, techLevel, techRequirementsMet } from '../../engine/tech'
 import { techMultiplier } from '../../engine/production'
 import { formatMultiplier, formatNumber } from '../../engine/format'
 import { iconUse } from '../icons'
@@ -78,6 +78,17 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     }
 
     if (!researched) {
+      // 结盟数量门槛（wormhole-empire：优先显示结盟锁原因，如「需结盟 10 个派系」）
+      if (def.requiresAllies && !techAlliesMet(state, def.id)) {
+        card.classList.add('locked')
+        card.innerHTML = `${icon}
+          <div class="build-card-body">
+            ${info}
+            <div class="build-lock"><span class="lock-hint">🔒 需结盟 ${formatNumber(def.requiresAllies)} 个派系</span></div>
+          </div>`
+        grid.appendChild(card)
+        continue
+      }
       if (!met) {
         // 前置未满足：锁定卡（灰化 + 解锁条件）
         const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')

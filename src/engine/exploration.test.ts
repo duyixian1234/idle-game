@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
 import { checkPlanetUnlocks, setActivePlanet } from './planets'
 import {
+  escortFee,
   expeditionCost,
   expeditionMilitaryCost,
   expeditionPool,
@@ -11,6 +12,7 @@ import {
   isExploreAvailable,
   settleExpeditions,
   startExpedition,
+  wormholeLevelForSlot,
 } from './exploration'
 import { formatPercent } from './format'
 import { settleOffline } from './offline'
@@ -776,5 +778,101 @@ describe('engine: 探索与 NG+ 交互（决策 Q18）', () => {
     // 无派遣时为 0
     const s3 = endedState()
     expect(previewNewGamePlus(s3).lost.activeExpeditions).toBe(0)
+  })
+})
+
+describe('engine: 虫洞探索扩展（wormhole-empire ticket 03：槽位 20 + 能源减耗）', () => {
+  const wormholeLevel = (s: GameState, lv: number): void => {
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = lv
+  }
+
+  it('explorationSlots：无虫洞 = 现状基线（枢纽 Lv10 满 10）；虫洞每级 +1 至 Lv10 满 20', () => {
+    const s = endedState()
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 10
+    expect(explorationSlots(s)).toBe(10) // 现状基线
+
+    wormholeLevel(s, 1)
+    expect(explorationSlots(s)).toBe(11)
+    wormholeLevel(s, 5)
+    expect(explorationSlots(s)).toBe(15)
+    wormholeLevel(s, 10)
+    expect(explorationSlots(s)).toBe(20)
+  })
+
+  it('wormholeLevelForSlot：第 6-10 槽由枢纽承担、第 11-20 槽由虫洞承担', () => {
+    expect(wormholeLevelForSlot(5)).toBe(0) // 基础槽
+    expect(wormholeLevelForSlot(6)).toBe(0) // 枢纽槽，不要求虫洞
+    expect(wormholeLevelForSlot(11)).toBe(1)
+    expect(wormholeLevelForSlot(15)).toBe(5)
+    expect(wormholeLevelForSlot(20)).toBe(10)
+  })
+
+  it('expeditionCost：虫洞每级 −5% 探索能源（Lv10 −50%），矿物/军事点不变；无虫洞 = 现状基线', () => {
+    const s = endedState()
+    const base = expeditionCost(s, 0)
+    const noWormhole = expeditionCost(s, 0)
+    expect(noWormhole.energy).toBe(base.energy)
+
+    wormholeLevel(s, 5)
+    const c5 = expeditionCost(s, 0)
+    expect(c5.energy).toBe(Math.max(1, Math.floor(base.energy * (1 - 0.25))))
+    expect(c5.mineral).toBe(base.mineral)
+    expect(c5.military).toBe(base.military)
+
+    wormholeLevel(s, 10)
+    const c10 = expeditionCost(s, 0)
+    expect(c10.energy).toBe(Math.max(1, Math.floor(base.energy * (1 - 0.5))))
+  })
+
+  it('能源减耗只作用基础派遣能源：护航费（escortFee）不受虫洞影响', () => {
+    const s = endedState()
+    s.fleet = { count: 1 }
+    s.buildings.dock = 1
+    const fee0 = escortFee(s)
+    wormholeLevel(s, 10)
+    expect(escortFee(s)).toBe(fee0)
+  })
+})
+
+describe('engine: 虫洞发现权重（wormhole-empire ticket 04：非 resource 分支 ×(1+0.1×级)）', () => {
+  it('无虫洞：奖池权重与现状逐字节一致', () => {
+    const s = endedState()
+    const pool = expeditionPool(s)
+    const faction = pool.filter((e) => e.kind === 'faction')
+    const planet = pool.filter((e) => e.kind === 'planet')
+    const resource = pool.filter((e) => e.kind === 'resource')
+    // 4 势力 w1、5 天体 w2、resource max(2, 6-0)=6
+    expect(faction).toHaveLength(4)
+    expect(faction.every((e) => e.weight === 1)).toBe(true)
+    expect(planet).toHaveLength(5)
+    expect(planet.every((e) => e.weight === 2)).toBe(true)
+    expect(resource).toHaveLength(1)
+    expect(resource[0].weight).toBe(6)
+  })
+
+  it('虫洞 Lv10：faction/planet weight ×2，resource 不变', () => {
+    const s = endedState()
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = 10
+    const pool = expeditionPool(s)
+    const faction = pool.filter((e) => e.kind === 'faction')
+    const planet = pool.filter((e) => e.kind === 'planet')
+    const resource = pool.filter((e) => e.kind === 'resource')
+    expect(faction.every((e) => e.weight === 2)).toBe(true) // 1 × 2
+    expect(planet.every((e) => e.weight === 4)).toBe(true) // 2 × 2
+    expect(resource[0].weight).toBe(6) // resource 不放大
+  })
+
+  it('虫洞 Lv5：faction weight ×1.5、planet weight ×3', () => {
+    const s = endedState()
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = 5
+    const pool = expeditionPool(s)
+    const faction = pool.filter((e) => e.kind === 'faction')
+    const planet = pool.filter((e) => e.kind === 'planet')
+    expect(faction.every((e) => e.weight === 1.5)).toBe(true)
+    expect(planet.every((e) => e.weight === 3)).toBe(true)
   })
 })

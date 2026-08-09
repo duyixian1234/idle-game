@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, tick } from './engine'
 import { buildingCost, buyBuilding, canAffordBuilding, isBuildingUnlocked, upgradeBuilding, upgradeCost } from './buildings'
+import { megastructureLegacyBonus } from './ngplus'
 import { netProduction } from './production'
 import { productionReport } from './production'
 import { techCost } from './tech'
+import type { GameState } from './types'
 
 /** 7 个普通可多次购买建筑（ADR-0036：砍升级对象） */
 const ORDINARY_IDS = ['miner', 'solar', 'lab', 'refinery', 'deepDrill', 'barracks', 'militaryPort'] as const
@@ -123,6 +125,65 @@ describe('engine: 建筑升级（ADR-0036 机制二分：仅 unique 大件有升
     const s = createInitialState(0)
     s.resources.mineral = 10_000
     expect(upgradeBuilding(s, 'miner')).toMatchObject({ ok: false, reason: '尚未建造该建筑' })
+  })
+})
+
+describe('engine: 虫洞建筑（wormhole-empire ticket 02）', () => {
+  /** 通关 + 已研发虫洞理论 + 资源充足的虫洞可建状态 */
+  const wormholeReady = (): GameState => {
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.techLevels.wormholeTheory = 1
+    s.resources.mineral = 10_000_000_000_000
+    s.resources.tech = 1_000_000_000_000
+    return s
+  }
+
+  it('虫洞解锁链：未通关 / 未研发虫洞理论均锁定', () => {
+    const sPlaying = createInitialState(0)
+    sPlaying.resources.mineral = 10_000_000_000_000
+    sPlaying.resources.tech = 1_000_000_000_000
+    expect(isBuildingUnlocked(sPlaying, 'wormhole')).toBe(false)
+
+    const sEnded = wormholeReady()
+    sEnded.techLevels.wormholeTheory = 0
+    expect(isBuildingUnlocked(sEnded, 'wormhole')).toBe(false)
+  })
+
+  it('通关且研发虫洞理论后可建造（unique 大件 count 恒 1）', () => {
+    const s = wormholeReady()
+    expect(isBuildingUnlocked(s, 'wormhole')).toBe(true)
+    expect(buildingCost(s, 'wormhole')).toMatchObject({ mineral: 5_000_000_000_000, tech: 100_000_000_000 })
+    expect(buyBuilding(s, 'wormhole')).toEqual({ ok: true })
+    expect(s.buildings.wormhole).toBe(1)
+    // unique：禁止重复建造
+    expect(buyBuilding(s, 'wormhole')).toMatchObject({ ok: false, reason: '唯一建筑已建造，无法重复建造' })
+  })
+
+  it('虫洞 Lv1-10 可升级（成本 base × 2^level），Lv10 封顶', () => {
+    const s = wormholeReady()
+    buyBuilding(s, 'wormhole')
+    expect(upgradeCost(s, 'wormhole')).toMatchObject({ mineral: 5_000_000_000_000, tech: 100_000_000_000 })
+    for (let i = 1; i <= 10; i++) {
+      // 每次升级重置足额资源（Lv9→10 需 2560 兆矿 + 51.2 万亿科技）
+      s.resources.mineral = 10_000_000_000_000_000
+      s.resources.tech = 1_000_000_000_000_000
+      expect(upgradeBuilding(s, 'wormhole')).toEqual({ ok: true })
+    }
+    expect(s.upgrades.wormhole).toBe(10)
+    s.resources.mineral = 10_000_000_000_000_000
+    s.resources.tech = 1_000_000_000_000_000
+    const r = upgradeBuilding(s, 'wormhole')
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { reason: string }).reason).toContain('已达最高等级')
+  })
+
+  it('虫洞纳入 MEGASTRUCTURE_IDS（megastructureLegacyBonus 含虫洞等级 ×1.5%）', () => {
+    const s = wormholeReady()
+    expect(megastructureLegacyBonus(s)).toBe(0)
+    buyBuilding(s, 'wormhole')
+    s.upgrades.wormhole = 10
+    expect(megastructureLegacyBonus(s)).toBeCloseTo(10 * 0.015)
   })
 })
 describe('engine: 精炼厂能源互锁', () => {

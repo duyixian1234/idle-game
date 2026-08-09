@@ -7,7 +7,7 @@
 
 import type { GameState, ResourceKey } from '../../engine/types'
 import { RESOURCE_META } from '../../engine/data'
-import { formatMultiplier, formatNumber } from '../../engine/format'
+import { formatMultiplier, formatNumber, formatPercent } from '../../engine/format'
 import { BUILDINGS, MEGASTRUCTURE_BUILDINGS } from '../../engine/data'
 import { canAffordBuilding, canAffordUpgrade, isBuildingUnlocked } from '../../engine/buildings'
 import { JUMPGATE_HARVEST_PCT_PER_LEVEL, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from '../../engine/balance'
@@ -89,3 +89,6 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
 
 /** 跃迁枢纽效果文案单一真源（ADR-0038 枢纽 10 级化：槽位/倍率随等级；从 balance/exploration 常量拼装，改平衡只动常量） */
 export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_TABLE[1])}~+${formatNumber(JUMPGATE_SLOT_TABLE[10])}（随等级） · 天体收获倍率 ${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL)}→${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
+
+/** 虫洞效果文案单一真源（wormhole-empire：槽位/能源/权重/上限随等级；从 balance/exploration 常量拼装） */
+export const WORMHOLE_EFFECT_TEXT = `派遣槽 +${formatNumber(1)}/级（Lv${formatNumber(10)} 满 ${formatNumber(20)} 槽） · 探索能源 −${formatPercent(5)}/级（封顶 −${formatPercent(50)}） · 发现权重 +${formatPercent(10)}/级 · 生成上限 +${formatNumber(1)}/级`

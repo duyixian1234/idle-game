@@ -1,4 +1,4 @@
-import { pushLog } from './core'
+import { pushLog, alliedCount } from './core'
 import { COERCION_UNLOCK_MILITARY_CAP } from './balance'
 import { militaryCap } from './production'
 import { dockLevel } from './fleet'
@@ -43,11 +43,11 @@ export interface AchievementDef {
   recurring?: boolean
 }
 
-/** 派系字段求和辅助（贸易/威慑/好感/结盟数——周目内口径，NG+ 后 factions 重置） */
+/** 派系字段求和辅助（贸易/威慑/好感——周目内口径，NG+ 后 factions 重置）；
+ * 结盟数 alliedCount 已提升为 diplomacy.ts 公共 helper（虫洞科技/成就同源引用） */
 const sumTradeCount = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.tradeCount, 0)
 const sumIntimidateCount = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.intimidateCount, 0)
 const sumFavor = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.favor, 0)
-const alliedCount = (s: GameState): number => Object.values(s.factions).filter((f) => f.allied).length
 const conqueredCount = (s: GameState): number => Object.values(s.conquest).filter((c) => c.status === 'conquered').length
 const HOUR = 3600
 
@@ -61,7 +61,7 @@ export function endlessIIUnlocked(s: GameState): boolean {
   return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
 }
 
-/** 成就定义表（37 个：叙事 12 + 收集 16 + 终局 6 + 胁迫外交 3；文案实现期定稿） */
+/** 成就定义表（38 个：叙事 12 + 收集 17 + 终局 6 + 胁迫外交 3；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -390,6 +390,19 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     progress: (s) => [s.techLevels.warpDrive ?? 0, 20],
     rewardMineral: 2_000_000,
     rewardTech: 200_000,
+    rep: 8,
+  },
+  stellarEmpire: {
+    id: 'stellarEmpire',
+    icon: 'wormhole',
+    name: '星际帝国',
+    desc: `虫洞 Lv.10 且与 ${formatNumber(20)} 个派系结盟——文明触角伸向整个星海。`,
+    hint: '将虫洞升至 Lv.10，并与 20 个派系结盟（进入无限模式后持续探索与外交）。',
+    category: 'collect',
+    condition: (s) => (s.upgrades.wormhole ?? 0) >= 10 && alliedCount(s) >= 20,
+    progress: (s) => [Math.min(s.upgrades.wormhole ?? 0, 10), 10],
+    rewardMineral: 5_000_000,
+    rewardTech: 500_000,
     rep: 8,
   },
 

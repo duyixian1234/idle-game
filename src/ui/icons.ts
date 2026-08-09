@@ -79,6 +79,11 @@ export const ICONS: Record<string, string> = {
   jumpgate: `
     <ellipse cx="12" cy="12" rx="6.5" ry="3"/>
     <ellipse cx="12" cy="12" rx="3" ry="6.5"/>`,
+  // 虫洞 = 中心涡旋双环 + 四向引力线（wormhole-empire 终局探索线）
+  wormhole: `
+    <ellipse cx="12" cy="12" rx="7.5" ry="3.5"/>
+    <ellipse cx="12" cy="12" rx="3.5" ry="7.5"/>
+    <path d="M4 6.5l2.8 2.8M20 6.5l-2.8 2.8M4 17.5l2.8-2.8M20 17.5l-2.8-2.8"/>`,
   // 船坞 = 拱形船坞门 + 舰影
   dock: `
     <path d="M5 8.5V19h14V8.5"/>

@@ -188,6 +188,19 @@ export const BUILDINGS: Record<string, BuildingDef> = {
     requiresEnded: true,
     requires: ['starportMine', 'stellarArray', 'thinkTank'],
   },
+  wormhole: {
+    id: 'wormhole',
+    name: '虫洞',
+    desc: `贯通时空的捷径：等级决定探索扩张（每级 +1 探索信道至 Lv${formatNumber(10)} 满 ${formatNumber(20)} 槽；能源消耗每级 −${formatPercent(5)} 封顶 −${formatPercent(50)}；发现新目标权重每级 +${formatPercent(10)}；程序生成目标上限每级 +1）。终局工程「探索」线延伸。`,
+    category: 'interstellar',
+    unique: true,
+    maxLevel: 10,
+    baseCost: { mineral: 5_000_000_000_000, tech: 100_000_000_000 },
+    costExponent: 2,
+    produces: {},
+    requiresEnded: true,
+    requiresTech: ['wormholeTheory'],
+  },
   dock: {
     id: 'dock',
     name: '船坞',
@@ -217,10 +230,10 @@ export const INTERSTELLAR_BUILDINGS: Record<string, BuildingDef> = Object.fromEn
   Object.entries(BUILDINGS).filter(([, def]) => def.category === 'interstellar'),
 )
 
-/** 究极建筑 id 清单（终局工程双轨，单一事实源：MEGASTRUCTURE_BUILDINGS / ngplus 遗产折算共用，防新增星际建筑漂移） */
-export const MEGASTRUCTURE_IDS = ['ringSmelter', 'jumpgate'] as const
+/** 究极建筑 id 清单（终局工程三轨，单一事实源：MEGASTRUCTURE_BUILDINGS / ngplus 遗产折算共用，防新增星际建筑漂移） */
+export const MEGASTRUCTURE_IDS = ['ringSmelter', 'jumpgate', 'wormhole'] as const
 
-/** 究极建筑（终局工程双轨：星环冶炼场/跃迁枢纽，可独立建造、互不锁定） */
+/** 究极建筑（终局工程三轨：星环冶炼场/跃迁枢纽/虫洞，可独立建造、互不锁定） */
 export const MEGASTRUCTURE_BUILDINGS: Record<string, BuildingDef> = Object.fromEntries(
   MEGASTRUCTURE_IDS.map((id) => [id, BUILDINGS[id]]),
 )
@@ -258,6 +271,8 @@ export interface TechDef {
   icon?: string
   /** 前置科技 */
   requires?: string[]
+  /** 结盟派系数量门槛（如虫洞理论需结盟 ≥10；与 diplomacy.alliedCount 同口径，周目内） */
+  requiresAllies?: number
   /** 等级上限（缺省 TECH_MAX_LEVEL；军械科技等短升级线设 5） */
   maxLevel?: number
   /** 攻占区域后解锁（军事线科技；渲染于科技面板列表末尾的分组） */
@@ -451,6 +466,16 @@ export const TECHS: Record<string, TechDef> = {
     maxLevel: 20,
     afterEnding: true,
     icon: 'ship',
+  },
+  wormholeTheory: {
+    id: 'wormholeTheory',
+    name: '虫洞理论',
+    desc: `解析深空虫洞的时空拓扑，解锁「虫洞」建造——星际探索的第二条捷径。需与 ${formatNumber(10)} 个派系结盟。`,
+    cost: { mineral: 1_000_000_000_000, tech: 50_000_000_000 },
+    effect: { kind: 'unlockBuilding', buildingId: 'wormhole' },
+    requiresAllies: 10,
+    afterEnding: true,
+    icon: 'wormhole',
   },
 }
 

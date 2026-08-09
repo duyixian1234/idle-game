@@ -441,15 +441,15 @@ describe('ui: 建造卡片（building-cards）', () => {
     s.planets.dawn = { unlocked: true }
     s.buildings.deepDrill = 6
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: {} })
-    // 星际工程：星港已解锁（母星 + 深钻 ×6）→ 其余 5 个锁定 → 折叠行 + 前 3 张
+    // 星际工程：星港已解锁（母星 + 深钻 ×6）→ 其余 6 个锁定（含虫洞）→ 折叠行 + 前 3 张
     const collapse = container.querySelector<HTMLElement>('[data-locked-collapse]')
     expect(collapse).toBeTruthy()
-    expect(collapse!.textContent).toContain('还有 2 项未解锁')
+    expect(collapse!.textContent).toContain('还有 3 项未解锁')
     expect(collapse!.getAttribute('data-expanded')).toBe('false')
     expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(3)
     // 展开态：全显 + 收起行
     renderBuildPanel(container.querySelector('[data-panel="build"]') as HTMLElement, s, INTERSTELLAR_BUILDINGS, { zoneId: 'interstellar', lockedExpanded: { interstellar: true } })
-    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(5)
+    expect(container.querySelectorAll('[data-build-card][data-locked]')).toHaveLength(6)
     const expanded = container.querySelector<HTMLElement>('[data-locked-collapse]')
     expect(expanded!.textContent).toContain('收起锁定项')
     expect(expanded!.getAttribute('data-expanded')).toBe('true')

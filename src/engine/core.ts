@@ -30,3 +30,9 @@ export function canAfford(resources: Record<ResourceKey, number>, cost: Record<R
 export function isEnded(state: GameState): boolean {
   return state.phase === 'ended' || state.phase === 'infinite'
 }
+
+/** 已结盟派系数（周目内口径，NG+ 后 factions 重置）——外交解锁条件/成就同源引用的单一事实源。
+ * 置于零依赖核心层：diplomacy 与 achievements 均依赖 core，避免 achievements→diplomacy→reputation→achievements 环。 */
+export function alliedCount(state: GameState): number {
+  return Object.values(state.factions).filter((f) => f.allied).length
+}

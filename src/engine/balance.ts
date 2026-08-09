@@ -241,6 +241,15 @@ export const EXPEDITION_OUTPUT_BONUS_CAP = 0.5
 /** 跃迁枢纽探索收获倍率每级加成：1 + PCT × 枢纽等级（线性，Lv10 = ×4.0；只作用于 resource 分支补偿）。
  * ADR-0038：原深空导航/星际中继科技每级 +10% 的成长曲线并入枢纽（删除科技后由建筑等级承接） */
 export const JUMPGATE_HARVEST_PCT_PER_LEVEL = 0.3
+
+// ---- 虫洞探索线（wormhole-empire，ADR-0042：参数根因子，改参只动此处）----
+
+/** 虫洞每级探索能源减耗：1 − 0.05×等级（Lv10 −50%），只作用基础派遣能源（不含护航费） */
+export const WORMHOLE_ENERGY_REDUCTION_PER_LEVEL = 0.05
+/** 虫洞每级「发现新目标」权重放大：1 + 0.1×等级（Lv10 ×2），只作用奖池非 resource 分支 */
+export const WORMHOLE_DISCOVERY_MULT_PER_LEVEL = 0.1
+/** 虫洞每级程序生成目标上限加成：+1/级（Lv10 +10，叠加在 generatedCap 原公式上） */
+export const WORMHOLE_GENCAP_PER_LEVEL = 1
 /** 资源补偿返还（resource 分支入账：矿物/能源按投入比例返还；科技点 = 矿物投入 × techPerMineral，为科技点溢出提供出口）。
  * balance-sim 校准定稿（ticket 06，20 seed）：techPerMineral=0.005 → 耗尽后收益比 1.083×（锚点 1.1×）；
  * t=0.01 时 1.416× 超标成印钞机（否决）。收集期（发现物贴现 faction 1.8×/planet 2.0×）均值 10.4 次收完、收益比 ~1.68×。 */

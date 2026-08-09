@@ -5,14 +5,14 @@
 
 import type { GameState, ResourceKey } from '../../engine/types'
 import { INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS } from '../../engine/data'
-import { buildingCost, buildingLockReason, megastructurePrereqsMet } from '../../engine/buildings'
+import { buildingCost, buildingLockReason, isBuildingUnlocked, megastructurePrereqsMet } from '../../engine/buildings'
 import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../../engine/fleet'
 import { equivalentFleet, escortHarvestMult } from '../../engine/exploration'
 import { FLEET_HARVEST_PCT_PER_SHIP } from '../../engine/balance'
 import { formatMultiplier, formatNumber, formatRate } from '../../engine/format'
 import { iconUse } from '../icons'
 import { escapeHtml } from '../helpers'
-import { type BuildPanelRenderOptions, formatCost, JUMPGATE_EFFECT_TEXT } from './shared'
+import { type BuildPanelRenderOptions, formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT } from './shared'
 import { renderBuildPanel } from './build'
 
 /** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局工程区块。 */
@@ -150,17 +150,24 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
   for (const def of Object.values(MEGASTRUCTURE_BUILDINGS)) {
     const id = def.id
     const built = (state.buildings[id] ?? 0) > 0
+    const unlocked = isBuildingUnlocked(state, id)
     const card = document.createElement('div')
-    card.className = `megastructure-card${built ? ' built' : ''}`
+    card.className = `megastructure-card${built ? ' built' : ''}${!unlocked ? ' locked' : ''}`
     card.setAttribute('data-megastructure', id)
     if (built) card.setAttribute('data-built', '')
+    if (!unlocked) card.setAttribute('data-locked', '')
     const effectText =
       id === 'ringSmelter'
         ? `全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）· 耗能 ${formatRate(100, false)} 能源 × 等级`
-        : JUMPGATE_EFFECT_TEXT
+        : id === 'wormhole'
+          ? WORMHOLE_EFFECT_TEXT
+          : JUMPGATE_EFFECT_TEXT
+    // 虫洞特殊解锁链（requiresTech → 虫洞理论）：未通关 / 未研发时显示锁定原因（复用引擎判定）
     const statusText = built
       ? '✓ 已建造（效果生效）'
-      : `建造 ${formatCost(buildingCost(state, id))}`
+      : unlocked
+        ? `建造 ${formatCost(buildingCost(state, id))}`
+        : `🔒 ${buildingLockReason(state, id) ?? '未解锁'}`
     card.innerHTML = `
       <div class="megastructure-name">${escapeHtml(def.name)}</div>
       <div class="megastructure-effect">${escapeHtml(effectText)}</div>

@@ -136,3 +136,59 @@ describe('ui: 星系间工程分组与终局工程（interstellar-buildings）',
     expect(overlay.textContent).toContain('离线')
   })
 })
+
+describe('ui: 虫洞终局工程区块（wormhole-empire ticket 02）', () => {
+  /** 通关 + 三星系间 + 母星 + 深钻 ×6：终局工程区块渲染条件满足 */
+  function endedState(): ReturnType<typeof createInitialState> {
+    const s = createInitialState(0, 42)
+    s.phase = 'ended'
+    s.endingTriggered = true
+    s.planets.dawn = { unlocked: true }
+    s.buildings.deepDrill = 6
+    s.buildings.starportMine = 1
+    s.buildings.stellarArray = 1
+    s.buildings.thinkTank = 1
+    s.resources.mineral = 50_000_000_000_000_000
+    s.resources.tech = 1_000_000_000_000_000
+    return s
+  }
+
+  it('终局工程区块含虫洞卡：未研发虫洞理论 → 锁定态显示「需先研发：虫洞理论」', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    const section = panel.querySelector('[data-megastructure-section]') as HTMLElement
+    expect(section).toBeTruthy()
+    const card = section.querySelector('[data-megastructure="wormhole"]') as HTMLElement
+    expect(card).toBeTruthy()
+    expect(card.getAttribute('data-built')).toBeNull()
+    expect(card.classList.contains('locked')).toBe(true)
+    expect(card.textContent).toContain('需先研发')
+    expect(card.textContent).toContain('虫洞理论')
+    // 效果文案（WORMHOLE_EFFECT_TEXT）：槽位/能源/权重/上限
+    expect(card.textContent).toContain('派遣槽')
+    expect(card.textContent).toContain('探索能源')
+    expect(card.textContent).toContain('发现权重')
+    expect(card.textContent).toContain('生成上限')
+  })
+
+  it('研发虫洞理论后可建造：虫洞卡可建态（无锁定）、冶炼场/枢纽不受影响', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    s.techLevels.wormholeTheory = 1
+    const panel = container.querySelector('[data-panel="build"]') as HTMLElement
+    renderInterstellarPanel(panel, s)
+    const section = panel.querySelector('[data-megastructure-section]') as HTMLElement
+    const card = section.querySelector('[data-megastructure="wormhole"]') as HTMLElement
+    expect(card.getAttribute('data-built')).toBeNull()
+    expect(card.classList.contains('locked')).toBe(false)
+    expect(card.textContent).toContain('建造')
+    // 三座皆在区块内
+    expect(section.querySelector('[data-megastructure="ringSmelter"]')).toBeTruthy()
+    expect(section.querySelector('[data-megastructure="jumpgate"]')).toBeTruthy()
+    expect(section.querySelector('[data-megastructure="wormhole"]')).toBeTruthy()
+  })
+})

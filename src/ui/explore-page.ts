@@ -2,7 +2,7 @@ import type { GameState } from '../engine/types'
 import { ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
 import { formatDuration } from '../engine/offline'
-import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot } from '../engine/exploration'
+import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot } from '../engine/exploration'
 import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from '../engine/balance'
 import { explorePlanetOutputs } from '../engine/production'
 import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
@@ -49,12 +49,16 @@ export function renderExplorePage(
   const discovered = progress.factions.found + progress.planets.found
   const fleetReady = canEscort(state)
   const slotCards: string[] = []
-  // 展示上限 10 槽（基础 5 + 跃迁枢纽等级槽位，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
-  const SLOT_CAP = 10
+  // 展示上限 20 槽（基础 5 + 跃迁枢纽等级槽位 + 虫洞等级槽位，与 explorationSlots 上限一致）；未解锁槽保留占位卡片提示解锁需求
+  const SLOT_CAP = 20
   for (let i = 0; i < SLOT_CAP; i++) {
     const slotNo = i + 1
     if (i >= slots) {
-      const need = `跃迁枢纽 Lv${formatNumber(jumpgateLevelForSlot(slotNo))}（终局工程·探索路线）`
+      // 第 6-10 槽由跃迁枢纽解锁、第 11-20 槽由虫洞解锁（wormhole-empire 双门控）
+      const need =
+        slotNo <= 10
+          ? `跃迁枢纽 Lv${formatNumber(jumpgateLevelForSlot(slotNo))}（终局工程·探索路线）`
+          : `虫洞 Lv${formatNumber(wormholeLevelForSlot(slotNo))}（终局工程·探索线延伸）`
       slotCards.push(`
         <div class="build-card explore-slot locked" data-expedition-slot="${slotNo}" data-expedition-locked>
           <div class="build-card-icon">${iconUse('dispatch')}</div>

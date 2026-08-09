@@ -7,13 +7,13 @@ import type { GameState } from '../../engine/types'
 import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../../engine/data'
 import type { BuildingDef } from '../../engine/data'
 import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../../engine/buildings'
-import { formatMultiplier, formatNumber, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
+import { formatMultiplier, formatNumber, formatPercent, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
 import { netProduction, simulateProductionDelta, smelterGlobalMult } from '../../engine/production'
 import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from '../../engine/balance'
 import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
 import { iconUse } from '../icons'
 import { escapeHtml } from '../helpers'
-import { formatCost, JUMPGATE_EFFECT_TEXT, type BuildPanelRenderOptions } from './shared'
+import { formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT, type BuildPanelRenderOptions } from './shared'
 
 /** 升级预览（仅 unique 大件）：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
  * 普通建筑无升级（ADR-0036 机制二分），不渲染升级预览。 */
@@ -33,6 +33,12 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       const next = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * (lv + 1)
       return `Lv.${formatNumber(lv + 1)}：派遣槽 ${formatNumber(5 + JUMPGATE_SLOT_TABLE[lv + 1])} 槽 · 收获倍率 ${formatMultiplier(cur)} → ${formatMultiplier(next)}`
     }
+    if (def.id === 'wormhole') {
+      // wormhole-empire：虫洞机制流 → 升级预览显示下一级新增效果（槽位/能源/权重/上限），满级回退能力描述
+      const lv = state.upgrades.wormhole ?? 0
+      if (lv <= 0 || lv >= 10) return WORMHOLE_EFFECT_TEXT
+      return `Lv.${formatNumber(lv + 1)}：派遣槽 +1 · 探索能源 −${formatPercent(5)} · 发现权重 +${formatPercent(10)} · 生成上限 +${formatNumber(1)}`
+    }
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
     const parts: string[] = []
     for (const k of RESOURCE_KEYS) {
@@ -51,6 +57,7 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
   if (def.unique) {
     if (def.id === 'ringSmelter') return `建造：解锁全局产出乘数 ${formatMultiplier(2)}^等级（需升级激活）`
     if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
+    if (def.id === 'wormhole') return WORMHOLE_EFFECT_TEXT
     const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
     const parts: string[] = []
     for (const k of RESOURCE_KEYS) {

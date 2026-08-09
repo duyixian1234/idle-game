@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from './engine'
+import { createInitialState, startNewGamePlus } from './engine'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { formatNumber } from './format'
 import { ICONS } from '../ui/icons'
@@ -11,9 +11,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：37 个（ADR-0038 删深空导航/星际中继两探索成就）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：38 个（+wormhole-empire 星际帝国）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(38)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -252,9 +252,9 @@ describe('achievements: 胁迫外交', () => {
 })
 
 describe('achievements: 卡片化数据（icon/progress）', () => {
-  it('37 个成就 icon 非空且命中 ICONS 表', () => {
+  it('38 个成就 icon 非空且命中 ICONS 表', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(38)
     for (const d of defs) {
       expect(d.icon, `缺少成就图标：${d.id}`).toBeTruthy()
       expect(ICONS[d.icon], `成就图标不在 ICONS 表：${d.id} → ${d.icon}`).toBeTruthy()
@@ -267,14 +267,14 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     const story = defs.filter((d) => d.category === 'story')
     expect(story).toHaveLength(12)
     for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
-    // 有 progress 的成就数量与 spec 映射一致（19 个；ADR-0038 删 explorerDual/explorerTriple）
+    // 有 progress 的成就数量与 spec 映射一致（20 个；+stellarEmpire wormhole-empire）
     const withProgress = defs.filter((d) => d.progress)
     expect(withProgress.map((d) => d.id).sort()).toEqual(
       [
         'mineral1M', 'mineral100M', 'mineral1B', 'trades50', 'intimidates10', 'allies3',
         'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'explorerFirst', 'explorerContact',
         'explorerComplete', 'escortFirst', 'dockLord',
-        'warpVeteran', 'warpMaster',
+        'warpVeteran', 'warpMaster', 'stellarEmpire',
         'ng2', 'ng3',
       ].sort(),
     )
@@ -327,3 +327,73 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([2, 2])
   })
 })
+
+describe('achievements: 星际帝国（wormhole-empire ticket 05）', () => {
+  /** 虫洞 LvN + 结盟 M 的测试状态 */
+  const stateAt = (wormholeLv: number, allied: number): GameState => {
+    const s = createInitialState(0)
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = wormholeLv
+    for (let i = 0; i < allied; i++) {
+      s.factions[`gen:faction:${i}`] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 20 }
+    }
+    return s
+  }
+
+  it('边界：虫洞 Lv9 + 结盟 20 不达；Lv10 + 结盟 19 不达；Lv10 + 结盟 20 达成', () => {
+    expect(ACHIEVEMENTS.stellarEmpire.condition(stateAt(9, 20))).toBe(false)
+    expect(ACHIEVEMENTS.stellarEmpire.condition(stateAt(10, 19))).toBe(false)
+    expect(ACHIEVEMENTS.stellarEmpire.condition(stateAt(10, 20))).toBe(true)
+  })
+
+  it('progress：虫洞等级 / 10', () => {
+    expect(ACHIEVEMENTS.stellarEmpire.progress!(stateAt(4, 20))).toEqual([4, 10])
+    expect(ACHIEVEMENTS.stellarEmpire.progress!(stateAt(10, 20))).toEqual([10, 10])
+  })
+
+  it('类别/奖励/rep：collect 类周目可重解锁、矿物 500 万 + 科技 50 万、rep 8', () => {
+    expect(ACHIEVEMENTS.stellarEmpire.category).toBe('collect')
+    expect(ACHIEVEMENTS.stellarEmpire.rep).toBe(8)
+    expect(ACHIEVEMENTS.stellarEmpire.rewardMineral).toBe(5_000_000)
+    expect(ACHIEVEMENTS.stellarEmpire.rewardTech).toBe(500_000)
+    // icon 必须存在于 ICONS 表（完整性约束与其余成就同构）
+    expect(ICONS[ACHIEVEMENTS.stellarEmpire.icon]).toBeTruthy()
+  })
+
+  it('checkAchievements：达成即解锁发奖；周目内幂等；NG+ 后重置可重解锁', () => {
+    const s = stateAt(10, 20)
+    expect(s.resources.mineral).toBe(15) // 起始矿物
+    checkAchievements(s, 0)
+    expect(s.achievements.stellarEmpire).toBeTruthy()
+    // 同时满足 allies3(+50k)/favor300(+30k)/militaryCap5k(+5k 科技) 等——断言星际帝国奖励确实入账
+    expect(s.resources.mineral).toBeGreaterThanOrEqual(15 + 5_000_000)
+    expect(s.resources.tech).toBeGreaterThanOrEqual(0 + 500_000)
+    // 周目内幂等
+    const mineralAfter = s.resources.mineral
+    checkAchievements(s, 0)
+    expect(s.resources.mineral).toBe(mineralAfter)
+  })
+
+  it('NG+ 重置后（虫洞清零/结盟清零）可重解锁，声望按周目重计', () => {
+    const s = stateAt(10, 20)
+    checkAchievements(s, 0)
+    expect(s.achievements.stellarEmpire).toBeTruthy()
+    // 开启新周目：建筑/升级/派系全部重置 → 虫洞 0 级、结盟 0
+    startNewGamePlus(s, 0)
+    expect(s.upgrades.wormhole ?? 0).toBe(0)
+    expect(Object.values(s.factions).filter((f) => f.allied).length).toBe(0)
+    // 周目内不满足条件 → 不重解锁（unlockedInRound 已是旧周目，但条件不成立）
+    expect(ACHIEVEMENTS.stellarEmpire.condition(s)).toBe(false)
+    // 重新达成（新周目重爬）：恢复虫洞 + 结盟 → 可再次解锁
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = 10
+    for (let i = 0; i < 20; i++) {
+      s.factions[`gen:faction:${i}`] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 20 }
+    }
+    const mineralBefore = s.resources.mineral
+    const newly = checkAchievements(s, 0)
+    expect(newly.map((d) => d.id)).toContain('stellarEmpire')
+    expect(s.resources.mineral).toBeGreaterThan(mineralBefore)
+  })
+})
+

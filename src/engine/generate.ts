@@ -15,6 +15,7 @@ import {
   GEN_PLANET_PCT_MAX,
   GEN_PLANET_PCT_MIN,
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
+  WORMHOLE_GENCAP_PER_LEVEL,
 } from './balance'
 import { militaryCap, netProduction } from './production'
 import type { GeneratedTarget, GameState, ResourceKey } from './types'
@@ -63,14 +64,16 @@ function shuffle<T>(arr: T[], roll: () => number): T[] {
 // ---- 数量上限与批次 ----
 
 /** 无尽模式生成目标数量上限（每类独立，不封顶）：
- * `max(2 + floor(探索次数/10), 2 + 周目数)`——探索次数为主驱动（Q7 推荐 B），周目数保底（A）；
+ * `max(2 + floor(探索次数/10), 2 + 周目数) + 虫洞等级 × WORMHOLE_GENCAP_PER_LEVEL`——探索次数为主驱动（Q7 推荐 B），周目数保底（A），
+ * 虫洞等级叠加放大（wormhole-empire：每级 +1，Lv10 +10）；
  * `stats.explorations` 为周目内口径（NG+ 归零，engine.ts startNewGamePlus）→ 换周目后从 2+ngPlusLevel 起步。
  * 系数 GENERATED_CAP_EXPLORATIONS_DIVISOR 由 balance-sim 校准（ticket 05）。 */
 export function generatedCap(state: GameState, kind: GeneratedTarget['kind']): number {
   const byProgress = 2 + Math.floor((state.stats?.explorations ?? 0) / GENERATED_CAP_EXPLORATIONS_DIVISOR)
   const byRound = 2 + (state.ngPlusLevel ?? 0)
+  const wormholeLv = Math.min(state.upgrades?.wormhole ?? 0, 10)
   void kind // 每类独立上限语义体现在调用方按 kind 分别计数；cap 公式目前三类同构
-  return Math.max(byProgress, byRound)
+  return Math.max(byProgress, byRound) + wormholeLv * WORMHOLE_GENCAP_PER_LEVEL
 }
 
 /** 程序生成目标（batch 0）未归档活跃计数——数量上限只约束程序生成（手写保底不受限，Q13 定稿）。

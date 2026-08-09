@@ -167,6 +167,21 @@ describe('engine: endless-expansion 程序生成器', () => {
     s.stats.explorations = ENDLESS_BATCH_2_EXPLORATIONS
     expect(endlessBatchUnlocked(s, 2)).toBe(true)
   })
+
+  it('generatedCap：虫洞等级叠加提升（原公式 + 虫洞等级，wormhole-empire ticket 04）', () => {
+    const s = infiniteState()
+    expect(generatedCap(s, 'conquest')).toBe(2)
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = 5
+    expect(generatedCap(s, 'conquest')).toBe(7) // 2 + 5
+    s.stats.explorations = 30
+    s.upgrades.wormhole = 10
+    expect(generatedCap(s, 'conquest')).toBe(15) // 5 + 10
+    // 虫洞等级与周目保底取高后叠加：2+4=6 → +10 = 16
+    s.ngPlusLevel = 4
+    s.stats.explorations = 9
+    expect(generatedCap(s, 'conquest')).toBe(16) // max(2, 6) + 10
+  })
 })
 
 describe('engine: endless-expansion 探索奖池作用域', () => {

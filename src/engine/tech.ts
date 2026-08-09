@@ -1,8 +1,9 @@
 import { RESOURCE_KEYS, TECHS } from './data'
 import type { TechDef } from './data'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
-import { canAfford, zeroResources } from './core'
+import { canAfford, zeroResources, alliedCount } from './core'
 import { playMilestone } from './story'
+import { formatNumber } from './format'
 import type { GameState, ResourceKey, ActionResult } from './types'
 
 /**
@@ -46,16 +47,25 @@ export function techCost(state: GameState, id: string): Record<ResourceKey, numb
 export function techRequirementsMet(state: GameState, id: string): boolean {
   const def = TECHS[id]
   if (!def) return false
-  if (!def.requires) return true
-  return def.requires.every((t) => techLevel(state, t) > 0)
+  if (def.requires && !def.requires.every((t) => techLevel(state, t) > 0)) return false
+  if (def.requiresAllies && alliedCount(state) < def.requiresAllies) return false
+  return true
 }
 
-/** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置 + 通关门控） */
+/** 派生查询：结盟派系数量门槛是否满足（wormhole-empire：requiresAllies 周目内口径，与成就/外交同源） */
+export function techAlliesMet(state: GameState, id: string): boolean {
+  const need = TECHS[id]?.requiresAllies
+  if (!need) return true
+  return alliedCount(state) >= need
+}
+
+/** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置 + 通关门控 + 结盟门槛） */
 export function canResearchTech(state: GameState, id: string): boolean {
   const def = TECHS[id]
   if (!def) return false
   if (isTechResearched(state, id)) return false
   if (!techRequirementsMet(state, id)) return false
+  if (!techAlliesMet(state, id)) return false
   if (def.afterEnding && state.phase === 'playing') return false
   return canAfford(state.resources, techCost(state, id))
 }
@@ -75,6 +85,9 @@ export function researchTech(state: GameState, id: string): ActionResult {
   if (!def) return { ok: false, reason: '未知科技' }
   if (isTechResearched(state, id)) return { ok: false, reason: '已研发' }
   if (def.afterEnding && state.phase === 'playing') return { ok: false, reason: '通关后解锁' }
+  if (!techAlliesMet(state, id)) {
+    return { ok: false, reason: `需结盟 ${formatNumber(def.requiresAllies!)} 个派系` }
+  }
   if (!techRequirementsMet(state, id)) {
     const names = def.requires!.map((t) => TECHS[t]?.name ?? t).join('、')
     return { ok: false, reason: `需先研发：${names}` }

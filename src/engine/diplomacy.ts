@@ -51,6 +51,9 @@ import type { DiplomacyAutoMode, FactionState, GameState, GeneratedTarget, Resou
 
 /** 外交数值策略（结盟阈值/好感上限/成本与增长倍率）集中见 balance.ts */
 
+/** 已结盟派系数（周目内口径）——定义在 core.ts（零依赖核心，achievements/diplomacy 同源引用，防环依赖）；此处 re-export 供既有调用方 */
+export { alliedCount } from './core'
+
 /** 无尽生成目标 → FactionDef（程序生成外交对象与手写保底外交对象的运行时 def，接入现有外交动作） */
 export function factionDefFromTarget(t: GeneratedTarget): FactionDef {
   return {

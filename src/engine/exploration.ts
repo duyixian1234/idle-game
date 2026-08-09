@@ -37,6 +37,8 @@ import {
   SHIP_POWER_BASE,
   WARP_ESCORT_FEE_REDUCTION,
   WARP_EXPEDITION_COST_REDUCTION,
+  WORMHOLE_DISCOVERY_MULT_PER_LEVEL,
+  WORMHOLE_ENERGY_REDUCTION_PER_LEVEL,
   scaledClamp,
 } from './balance'
 import { fleetPowered, fleetPower } from './fleet'
@@ -104,6 +106,12 @@ export const JUMPGATE_SLOT_TABLE: Record<number, number> = {
   1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 4, 9: 4, 10: 5,
 }
 
+/** 虫洞等级 → 派遣槽加成表（wormhole-empire：每级 +1，Lv10 满 +10——与枢纽槽位并列叠加，总上限 20；
+ * 显式表仿 JUMPGATE_SLOT_TABLE，防非等差档位漂移） */
+export const WORMHOLE_SLOT_TABLE: Record<number, number> = {
+  1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10,
+}
+
 /** 解锁第 slotNo 号探索信道所需的最小跃迁枢纽等级（0 = 基础 5 槽内，无需枢纽）；
  * UI 锁定提示数据驱动用，与 JUMPGATE_SLOT_TABLE 同源防漂移 */
 export function jumpgateLevelForSlot(slotNo: number): number {
@@ -115,12 +123,33 @@ export function jumpgateLevelForSlot(slotNo: number): number {
   return 10
 }
 
-/** 探索槽位数量：基础 5 + 跃迁枢纽等级槽位（Lv1 +1、Lv10 +5，总上限 10）。
- * ADR-0038：深空导航/星际通信中继两科技删除后，探索队列增长由枢纽单一门控承接。
- * 等级读 `state.upgrades.jumpgate`（unique 建筑等级惯例，buildings 字段恒 0/1） */
+/** 解锁第 slotNo 号探索信道所需的最小虫洞等级（0 = 基础 + 枢纽槽内，无需虫洞）：
+ * 第 11-20 槽由虫洞承担（每级 +1），与 jumpgateLevelForSlot 同构；`explorationSlots` 组合求和为真值，
+ * 此处为 UI 提示型近似（假设枢纽先满，与 jumpgateLevelForSlot 对称）。 */
+export function wormholeLevelForSlot(slotNo: number): number {
+  if (slotNo <= 10) return 0
+  return Math.min(10, slotNo - 10)
+}
+
+/** 探索槽位数量：基础 5 + 跃迁枢纽等级槽位（Lv1 +1、Lv10 +5）+ 虫洞等级槽位（每级 +1、Lv10 +10），
+ * 总上限 20。无虫洞时与 ADR-0038 现状逐字节一致（虫洞 0 级 → +0）。
+ * 等级读 `state.upgrades.jumpgate` / `state.upgrades.wormhole`（unique 建筑等级惯例，buildings 字段恒 0/1） */
 export function explorationSlots(state: GameState): number {
   const jumpgateLv = Math.min(state.upgrades.jumpgate ?? 0, 10)
-  return Math.min(10, 5 + (JUMPGATE_SLOT_TABLE[jumpgateLv] ?? 0))
+  const wormholeLv = Math.min(state.upgrades.wormhole ?? 0, 10)
+  return Math.min(20, 5 + (JUMPGATE_SLOT_TABLE[jumpgateLv] ?? 0) + (WORMHOLE_SLOT_TABLE[wormholeLv] ?? 0))
+}
+
+/** 虫洞探索能源减耗比例：每级 WORMHOLE_ENERGY_REDUCTION_PER_LEVEL，Lv10 封顶 50%（只作用基础派遣能源，不含护航费） */
+export function wormholeEnergyReduction(state: GameState): number {
+  const wormholeLv = Math.min(state.upgrades.wormhole ?? 0, 10)
+  return Math.min(1, WORMHOLE_ENERGY_REDUCTION_PER_LEVEL * wormholeLv)
+}
+
+/** 虫洞「发现新目标」权重倍率：每级 +WORMHOLE_DISCOVERY_MULT_PER_LEVEL，Lv10 = ×2（只作用奖池非 resource 分支；resource 补偿不放大） */
+export function wormholeDiscoveryMult(state: GameState): number {
+  const wormholeLv = Math.min(state.upgrades.wormhole ?? 0, 10)
+  return 1 + WORMHOLE_DISCOVERY_MULT_PER_LEVEL * wormholeLv
 }
 
 /** 第 N 槽军事点消耗：min(CAP, max(40, floor(militaryCap × PCT))) × (slotIndex+1)（第 N 槽 = base×N）；
@@ -138,13 +167,17 @@ export function explorationHarvestMult(state: GameState): number {
   return 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * jumpgateLv
 }
 
-/** 当前第 N 槽派遣消耗：矿物/能源随每秒产出动态缩放（cap 随周目 ×1.5^level），军事点随军力上限自适应（×槽位） */
+/** 当前第 N 槽派遣消耗：矿物/能源随每秒产出动态缩放（cap 随周目 ×1.5^level，能源另乘虫洞减耗），军事点随军力上限自适应（×槽位） */
 export function expeditionCost(state: GameState, slotIndex: number = 0): { mineral: number; energy: number; military: number } {
   const prod = netProduction(state)
   const capGrowth = Math.pow(EXPEDITION_CAP_GROWTH, state.ngPlusLevel ?? 0)
+  const energy = Math.max(
+    1,
+    Math.floor(scaledClamp(prod.energy, EXPEDITION_ENERGY.min, EXPEDITION_ENERGY.factor, Math.floor(EXPEDITION_ENERGY.cap * capGrowth)) * (1 - wormholeEnergyReduction(state))),
+  )
   return {
     mineral: scaledClamp(prod.mineral, EXPEDITION_MINERAL.min, EXPEDITION_MINERAL.factor, Math.floor(EXPEDITION_MINERAL.cap * capGrowth)),
-    energy: scaledClamp(prod.energy, EXPEDITION_ENERGY.min, EXPEDITION_ENERGY.factor, Math.floor(EXPEDITION_ENERGY.cap * capGrowth)),
+    energy,
     military: expeditionMilitaryCost(state, slotIndex),
   }
 }
@@ -218,34 +251,37 @@ const ENDLESS_GEN_POOL: Array<{ kind: 'conquest' | 'faction' | 'planet'; weight:
  */
 export function expeditionPool(state: GameState): ExpeditionPoolEntry[] {
   const pool: ExpeditionPoolEntry[] = []
+  // 虫洞「发现新目标」权重放大（wormhole-empire）：只作用于非 resource 分支，resource 补偿不膨胀
+  const disc = wormholeDiscoveryMult(state)
+  const w = (base: number): number => base * disc
   for (const def of Object.values(EXPLORE_FACTIONS)) {
-    if (!state.exploredFactions.includes(def.id)) pool.push({ kind: 'faction', id: def.id, weight: POOL_WEIGHT_FACTION })
+    if (!state.exploredFactions.includes(def.id)) pool.push({ kind: 'faction', id: def.id, weight: w(POOL_WEIGHT_FACTION) })
   }
   for (const def of Object.values(EXPLORE_PLANETS)) {
-    if (!state.exploredPlanets.includes(def.id)) pool.push({ kind: 'planet', id: def.id, weight: POOL_WEIGHT_PLANET })
+    if (!state.exploredPlanets.includes(def.id)) pool.push({ kind: 'planet', id: def.id, weight: w(POOL_WEIGHT_PLANET) })
   }
   if (state.phase === 'infinite') {
     for (const def of Object.values(ENDLESS_CONQUESTS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'conquest', id, weight: POOL_WEIGHT_CONQUEST })
+        pool.push({ kind: 'conquest', id, weight: w(POOL_WEIGHT_CONQUEST) })
       }
     }
     for (const def of Object.values(ENDLESS_FACTIONS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'faction', id, weight: POOL_WEIGHT_FACTION })
+        pool.push({ kind: 'faction', id, weight: w(POOL_WEIGHT_FACTION) })
       }
     }
     for (const def of Object.values(ENDLESS_PLANETS)) {
       const id = endlessTargetId(def.id)
       if (endlessBatchUnlocked(state, def.batch) && !state.generatedTargets.some((t) => t.id === id)) {
-        pool.push({ kind: 'planet', id, weight: POOL_WEIGHT_PLANET })
+        pool.push({ kind: 'planet', id, weight: w(POOL_WEIGHT_PLANET) })
       }
     }
     for (const g of ENDLESS_GEN_POOL) {
       if (programmaticActiveCount(state, g.kind) < generatedCap(state, g.kind)) {
-        pool.push({ kind: g.kind, id: `gen:${g.kind}`, weight: g.weight })
+        pool.push({ kind: g.kind, id: `gen:${g.kind}`, weight: w(g.weight) })
       }
     }
   }
