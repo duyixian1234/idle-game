@@ -72,7 +72,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       card.innerHTML = `${icon}
         <div class="build-card-body">
           ${info}
-          <div class="build-lock"><span class="lock-hint">🔒 通关后解锁</span></div>
+          <div class="build-lock"><span class="lock-hint">${t('ui.tech.0')}</span></div>
         </div>`
       grid.appendChild(card)
       continue
@@ -117,7 +117,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       card.innerHTML = `${icon}
         <div class="build-card-body">
           ${info}
-          <div class="build-lock"><span class="lock-hint researched-hint">✓ 生效中</span></div>
+          <div class="build-lock"><span class="lock-hint researched-hint">${t('ui.tech.1')}</span></div>
         </div>`
       grid.appendChild(card)
       continue

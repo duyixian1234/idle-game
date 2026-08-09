@@ -1,4 +1,4 @@
-import {} from '../i18n'
+import { t } from '../i18n'
 import type { GameState } from '../engine/types'
 import {BUILDINGS, CONQUESTS, FACTIONS, RESOURCE_META, TECHS, defName, defDesc} from '../engine/data'
 import {formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate} from '../engine/format'
@@ -18,11 +18,11 @@ export function renderBootOverlay(el: HTMLElement, version: string): void {
   ██║██║  ██║██║     ██╔══╝
   ██║██████╔╝███████╗███████╗
   ╚═╝╚═════╝ ╚══════╝╚══════╝</pre>
-    <div class="boot-title">深空拓荒 · 星系统一联邦 <span class="boot-version">v${escapeHtml(version)}</span></div>
+    <div class="boot-title">${t('ui.overlays.0')}<span class="boot-version">v${escapeHtml(version)}</span></div>
     <div class="boot-line">&gt; SYSTEM INIT...</div>
-    <div class="boot-line">&gt; 导航阵列就绪</div>
-    <div class="boot-line">&gt; 采矿协议加载</div>
-    <div class="boot-skip">[ 任意键跳过 ]</div>`
+    <div class="boot-line">${t('ui.overlays.1')}</div>
+    <div class="boot-line">${t('ui.overlays.2')}</div>
+    <div class="boot-skip">${t('ui.overlays.3')}</div>`
 }
 
 /** 渲染新手引导浮层（未完成时显示） */
@@ -45,8 +45,8 @@ export function renderTutorial(el: HTMLElement, state: GameState): void {
       <div class="tutorial-title">${escapeHtml(step.title)}</div>
       <div class="tutorial-text">${escapeHtml(step.text)}</div>
       <div class="tutorial-actions">
-        <button type="button" class="tutorial-btn ghost" data-tutorial="skip">跳过引导</button>
-        <button type="button" class="tutorial-btn primary" data-tutorial="next">下一步</button>
+        <button type="button" class="tutorial-btn ghost" data-tutorial="skip">${t('ui.overlays.4')}</button>
+        <button type="button" class="tutorial-btn primary" data-tutorial="next">${t('ui.overlays.5')}</button>
       </div>
     </div>`
 }
@@ -64,13 +64,13 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
       <div class="buy-max-title">终局工程：${escapeHtml(defName(def))}</div>
       <div class="buy-max-summary">${escapeHtml(defDesc(def))}</div>
       <table class="buy-max-table">
-        <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
-        <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
+        <tr><th>${t('ui.overlays.6')}</th><td>${escapeHtml(effectText)}</td></tr>
+        <tr><th>${t('ui.overlays.7')}</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
       </table>
-      <div class="buy-max-warn" data-megastructure-warn>双轨工程：星环与星门皆可铸就，二者独立建造、互不影响。</div>
+      <div class="buy-max-warn" data-megastructure-warn>${t('ui.overlays.8')}</div>
       <div class="buy-max-actions">
-        <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">确认建造</button>
-        <button type="button" class="ending-btn ghost" data-megastructure-cancel>取消</button>
+        <button type="button" class="ending-btn primary" data-megastructure-confirm="${def.id}">${t('ui.overlays.9')}</button>
+        <button type="button" class="ending-btn ghost" data-megastructure-cancel>${t('ui.overlays.10')}</button>
       </div>
     </div>`
 }
@@ -92,33 +92,33 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
     <div class="ngplus-card" data-ngplus-card>
-      <div class="buy-max-title">开启新周目</div>
+      <div class="buy-max-title">${t('ui.overlays.11')}</div>
       <div class="buy-max-summary">第 ${formatNumber(state.ngPlusLevel)} 周目 → 第 ${formatNumber(preview.nextLevel)} 周目。此操作不可逆。</div>
-      <div class="ngplus-section-title">将失去（本周目）</div>
+      <div class="ngplus-section-title">${t('ui.overlays.12')}</div>
       <table class="buy-max-table">
-        <tr><th>资源</th><td>${resText}</td></tr>
-        <tr><th>建筑</th><td>${bldText}</td></tr>
-        <tr><th>科技</th><td>${techText}</td></tr>
-        <tr><th>派系</th><td>${facText}</td></tr>
-        <tr><th>攻占</th><td>${formatNumber(lost.conquered)}/${formatNumber(Object.keys(CONQUESTS).length)} 区域</td></tr>
-        <tr><th>探索</th><td>${formatNumber(lost.exploredCount)} 个发现物 · ${formatNumber(lost.activeExpeditions)} 支探索队（派遣中，将失去）</td></tr>
-        <tr><th>舰队</th><td>${formatNumber(lost.fleetCount)} 艘护卫舰（随星际工程重置）</td></tr>
-        <tr><th>声望</th><td>${formatNumber(lost.reputation)}</td></tr>
-        <tr><th>统计</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
+        <tr><th>${t('ui.overlays.13')}</th><td>${resText}</td></tr>
+        <tr><th>${t('ui.overlays.14')}</th><td>${bldText}</td></tr>
+        <tr><th>${t('ui.overlays.15')}</th><td>${techText}</td></tr>
+        <tr><th>${t('ui.overlays.16')}</th><td>${facText}</td></tr>
+        <tr><th>${t('ui.overlays.17')}</th><td>${formatNumber(lost.conquered)}/${formatNumber(Object.keys(CONQUESTS).length)} 区域</td></tr>
+        <tr><th>${t('ui.overlays.18')}</th><td>${formatNumber(lost.exploredCount)} 个发现物 · ${formatNumber(lost.activeExpeditions)} 支探索队（派遣中，将失去）</td></tr>
+        <tr><th>${t('ui.overlays.19')}</th><td>${formatNumber(lost.fleetCount)} 艘护卫舰（随星际工程重置）</td></tr>
+        <tr><th>${t('ui.overlays.20')}</th><td>${formatNumber(lost.reputation)}</td></tr>
+        <tr><th>${t('ui.overlays.21')}</th><td>在线 ${formatPlayTime(lost.playSeconds)} · 累计矿物 ${formatNumber(lost.totalMineralEarned)}</td></tr>
       </table>
-      <div class="ngplus-section-title">将继承</div>
+      <div class="ngplus-section-title">${t('ui.overlays.22')}</div>
       <table class="buy-max-table">
-        <tr><th>周目</th><td>第 ${formatNumber(preview.nextLevel)} 周目</td></tr>
-        <tr><th>产出加成</th><td>${formatMultiplier(preview.permanentMult)}</td></tr>
-        <tr><th>科技点</th><td>${formatNumber(preview.carryTech)}</td></tr>
-        <tr><th>图鉴派系</th><td>${escapeHtml(codexText)}（初始好感 +${formatNumber(25)}）</td></tr>
-        <tr><th>永久加成</th><td>${bonusText}</td></tr>
-        <tr><th>成就图鉴</th><td>${formatNumber(achCount)} 个（跨周目保留）</td></tr>
+        <tr><th>${t('ui.overlays.23')}</th><td>第 ${formatNumber(preview.nextLevel)} 周目</td></tr>
+        <tr><th>${t('ui.overlays.24')}</th><td>${formatMultiplier(preview.permanentMult)}</td></tr>
+        <tr><th>${t('ui.overlays.25')}</th><td>${formatNumber(preview.carryTech)}</td></tr>
+        <tr><th>${t('ui.overlays.26')}</th><td>${escapeHtml(codexText)}（初始好感 +${formatNumber(25)}）</td></tr>
+        <tr><th>${t('ui.overlays.27')}</th><td>${bonusText}</td></tr>
+        <tr><th>${t('ui.overlays.28')}</th><td>${formatNumber(achCount)} 个（跨周目保留）</td></tr>
       </table>
-      <div class="buy-max-warn">⚠ 确认后无法撤销：本周目资源、建筑、科技、派系好感、攻占进度与声望将全部清零。</div>
+      <div class="buy-max-warn">${t('ui.overlays.29')}</div>
       <div class="buy-max-actions">
-        <button type="button" class="ending-btn primary" data-ngplus-confirm>开启新周目</button>
-        <button type="button" class="ending-btn ghost" data-ngplus-cancel>取消</button>
+        <button type="button" class="ending-btn primary" data-ngplus-confirm>${t('ui.overlays.30')}</button>
+        <button type="button" class="ending-btn ghost" data-ngplus-cancel>${t('ui.overlays.31')}</button>
       </div>
     </div>`
 }
