@@ -1,4 +1,4 @@
-import { createInitialState, startNewGamePlus } from '../../engine/engine'
+import { createInitialState, enterInfiniteMode, startNewGamePlus } from '../../engine/engine'
 import { RESOURCE_META } from '../../engine/data'
 import { formatNumber } from '../../engine/format'
 import { pushLog } from '../../engine/core'
@@ -23,7 +23,8 @@ export async function importSaveFile(ctx: SessionCtx, file: File): Promise<void>
     const text = await file.text()
     const imported = deserializeSave(text)
     ctx.setState(imported)
-    ui.endingDismissed = false
+    // 导入档为存量 ended（auto-infinite-entry：旧版通关未进无限）：接管后自动进入无限模式
+    if (imported.phase === 'ended') enterInfiniteMode(imported)
     // 导入后立即按 8h 封顶结算离线收益，避免全量时间差无限产出
     const off = settleOffline(imported, Date.now())
     if (off.durationSeconds > 0) {
@@ -78,7 +79,6 @@ export async function resetGame(ctx: SessionCtx): Promise<void> {
   const fresh = createInitialState(Date.now())
   for (const scene of OPENING_SCENES) pushLog(fresh, 'story', scene)
   ctx.setState(fresh)
-  ui.endingDismissed = false
   ui.lastLogId = 0
   els.logEl.innerHTML = ''
   // 重置后为全新状态：seen 快照重置（pendingEvents/成就均为空，等价 0），导航回星域
@@ -89,10 +89,9 @@ export async function resetGame(ctx: SessionCtx): Promise<void> {
 }
 
 /** 手动开启新周目的统一序列：NG+ 推进 → 日志流重置 → seen 重置 → 渲染保存 */
-export function startNewGamePlusSequence(ctx: SessionCtx, keepEndingDismissed: boolean): void {
+export function startNewGamePlusSequence(ctx: SessionCtx): void {
   const { ui, els } = ctx
   startNewGamePlus(ctx.getState(), Date.now())
-  ui.endingDismissed = keepEndingDismissed
   ui.lastLogId = 0
   els.logEl.innerHTML = ''
   ctx.resetSeenSnapshot()

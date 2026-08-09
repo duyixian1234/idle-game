@@ -1,4 +1,3 @@
-import { enterInfiniteMode } from '../../engine/engine'
 import { MEGASTRUCTURE_BUILDINGS, PLANETS } from '../../engine/data'
 import { pushLog } from '../../engine/core'
 import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
@@ -29,7 +28,6 @@ export interface SessionUiState {
   autoConfigOpen: boolean
   autoExpandedCategory: string | undefined
   openBreakdown: ResourceKey | null
-  endingDismissed: boolean
   logDirection: LogDirection
   lastLogId: number
   exploreEscortChecked: Set<number>
@@ -68,7 +66,7 @@ export interface SessionCtx {
   closeNgPlusModal(): void
   openMegastructureModal(id: string): void
   closeMegastructureModal(): void
-  startNewGamePlusSequence(keepEndingDismissed: boolean): void
+  startNewGamePlusSequence(): void
   saveAutomationControl(target: HTMLInputElement | HTMLButtonElement | HTMLElement): void
   automationPolicyWithDefaults(category: EventTheme, current: EventAutomationPolicy | undefined, enabled: boolean): EventAutomationPolicy
   toggleMute(): void
@@ -287,24 +285,8 @@ export function bindListeners(ctx: SessionCtx): void {
     void deps.save()
   })
 
-  // 结局面板操作
-  els.endingOverlay.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-ending]')
-    if (!btn) return
-    const state = getState()
-    const action = btn.dataset.ending
-    if (action === 'infinite') {
-      enterInfiniteMode(state)
-      ui.endingDismissed = true
-      render()
-      void deps.save()
-    } else if (action === 'close') {
-      ui.endingDismissed = true
-      render()
-    }
-  })
-
   // 一键买满确认弹窗已删除（ADR-0037：无 buyMax，单次操作统一为 1）；buyMaxOverlay 元素已随 layout 移除
+  // 结局面板已退役（auto-infinite-entry：通关自动进入无限模式，ended 不再产生）
 
   // Esc 统一关闭：自动配置 / NG+ / 终局工程 / 分解面板
   window.addEventListener('keydown', (e) => {
@@ -320,7 +302,7 @@ export function bindListeners(ctx: SessionCtx): void {
     }
   })
 
-  // NG+ 确认弹窗（探索页入口与设置页入口共用；keepEndingDismissed=true：不改变结局面板收起态）
+  // NG+ 确认弹窗（探索页入口与设置页入口共用）
   els.ngplusOverlay.addEventListener('click', (e) => {
     const t = e.target as HTMLElement
     if (t === els.ngplusOverlay) {
@@ -333,8 +315,8 @@ export function bindListeners(ctx: SessionCtx): void {
     }
     if (t.closest('[data-ngplus-confirm]')) {
       ctx.closeNgPlusModal()
-      // 与结局面板 NG+ 分支一致的统一序列（探索页入口 keepEndingDismissed=true）
-      startNewGamePlusSequence(ctx, true)
+      // 与结局面板 NG+ 分支一致的统一序列（auto-infinite-entry：结局面板已退役，入口统一为 infinite 上下文）
+      startNewGamePlusSequence(ctx)
     }
   })
 
@@ -359,14 +341,7 @@ export function bindListeners(ctx: SessionCtx): void {
   // 探索页（一级 tab）：派遣 + 自动探索 + NG+ 终局卡
   // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
   els.navPages.explore.addEventListener('click', (e) => {
-    // 探索页无限入口（data-explore-infinite，仅 ended 且尽览渲染）：行为与结局面板 data-ending="infinite" 一致
-    const infiniteBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-explore-infinite]')
-    if (infiniteBtn) {
-      enterInfiniteMode(getState())
-      render()
-      void deps.save()
-      return
-    }
+    // auto-infinite-entry：data-explore-infinite 入口已删（通关自动进入无限模式，ended 不再产生）
     const ngplusBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-ngplus]')
     if (ngplusBtn) {
       ctx.openNgPlusModal()

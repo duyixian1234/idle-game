@@ -14,8 +14,26 @@ describe('engine: 结局判定', () => {
     s.nextEventAt = Number.MAX_SAFE_INTEGER
     const triggered = checkEnding(s)
     expect(triggered).toBe(true)
-    expect(s.phase).toBe('ended')
+    // auto-infinite-entry：通关即自动进入无限模式（不再停留 ended）
+    expect(s.phase).toBe('infinite')
+    expect(s.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 })
     expect(s.log.some((e) => e.text.includes('星系统一联邦'))).toBe(true)
+    expect(s.log.some((e) => e.text.includes('无限模式开启'))).toBe(true)
+    expect(s.storyFlags.endless).toBe(true)
+  })
+
+  it('结局演出先于无限模式叙事（日志 newest-first：终局场景 → 通关统计 → 无限开启，index 递减）', () => {
+    const s = createInitialState(0)
+    for (const id of Object.keys(s.factions)) s.factions[id].favor = 100
+    checkEnding(s)
+    const texts = s.log.map((e) => e.text)
+    const endingIdx = texts.findIndex((t) => t.includes('星系统一联邦'))
+    const statsIdx = texts.findIndex((t) => t.includes('通关统计'))
+    const infiniteIdx = texts.findIndex((t) => t.includes('无限模式开启'))
+    expect(endingIdx).toBeGreaterThanOrEqual(0)
+    // newest-first：执行序（场景 → 统计 → 无限）映射为 index 递减
+    expect(endingIdx).toBeGreaterThan(statsIdx)
+    expect(statsIdx).toBeGreaterThan(infiniteIdx)
   })
 
   it('结局仅触发一次', () => {
@@ -38,7 +56,7 @@ describe('engine: 结局判定', () => {
     for (const id of Object.keys(s.factions)) s.factions[id].favor = 100
     s.nextEventAt = Number.MAX_SAFE_INTEGER
     tick(s, 1000)
-    expect(s.phase).toBe('ended')
+    expect(s.phase).toBe('infinite')
     expect(s.endingTriggered).toBe(true)
   })
 })

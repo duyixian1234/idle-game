@@ -75,7 +75,8 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     for (const id of Object.keys(s.factions)) s.factions[id].favor = 100
     tick(s, 2000)
     expect(s.achievements.federation).toBeDefined()
-    expect(s.phase).toBe('ended')
+    // auto-infinite-entry：通关即自动进入无限模式（phase 不再停留 ended）
+    expect(s.phase).toBe('infinite')
   })
 
   it('tick 不重复解锁/不重复发奖励（已解锁成就幂等）', () => {

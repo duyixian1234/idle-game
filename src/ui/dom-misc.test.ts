@@ -143,7 +143,7 @@ describe('ui: 探索页', () => {
     expect(page.textContent).toContain(`天体 ${formatNumber(1)}/${formatNumber(5)}`)
   })
 
-  it('收集尽览（ended 集齐 4+5）：进度行 data-explore-progress + 群星尽览徽章 + 无限入口按钮', () => {
+  it('收集尽览：进度行 data-explore-progress + 群星尽览徽章（auto-infinite-entry：无无限入口按钮）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = endedState()
@@ -155,10 +155,9 @@ describe('ui: 探索页', () => {
     const endstate = page.querySelector('[data-explore-exhausted]')
     expect(endstate).toBeTruthy()
     expect(endstate!.textContent).toContain('群星尽览')
-    expect(endstate!.textContent).toContain('进入无限模式可发现军事目标与程序生成天体')
-    const btn = page.querySelector<HTMLButtonElement>('[data-explore-infinite]')
-    expect(btn).toBeTruthy()
-    expect(btn?.textContent).toContain('进入无限模式')
+    expect(endstate!.textContent).toContain('已尽览所有已知目标。继续探索仅回收资源。')
+    // 通关自动进入无限模式（ended 不再产生）——无手动入口按钮
+    expect(page.querySelector('[data-explore-infinite]')).toBeNull()
   })
 
   it('未尽览（ended 部分收集）：无群星尽览徽章、无无限入口按钮', () => {

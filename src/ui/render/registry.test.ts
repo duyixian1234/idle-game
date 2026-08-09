@@ -73,9 +73,8 @@ describe('render golden-order（ADR-0035）', () => {
       'explore',
       'settings',
       'pending-events',
-      // overlay（z-order 末位：自动配置 → 结局 → 教程 → 分解）
+      // overlay（z-order 末位：自动配置 → 教程 → 分解；auto-infinite-entry：结局面板退役，'ending' 节点已删）
       'auto-config',
-      'ending',
       'tutorial',
       'breakdown',
     ])

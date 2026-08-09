@@ -1,4 +1,4 @@
-import { createInitialState, tick } from './engine/engine'
+import { createInitialState, enterInfiniteMode, tick } from './engine/engine'
 import { checkPlanetUnlocks } from './engine/planets'
 import { RESOURCE_META } from './engine/data'
 import { formatNumber } from './engine/format'
@@ -51,6 +51,9 @@ async function main(): Promise<void> {
   }
 
   let state: GameState = (await loadGame()) ?? createInitialState(Date.now())
+  // 存量 ended 存档（auto-infinite-entry：旧版通关未进无限）加载即自动进入无限模式——
+  // 结局面板已退役、NG+ 入口仅 infinite 渲染，不转换则被锁死在 ended 死状态；enterInfiniteMode 守卫恰为 ended
+  if (state.phase === 'ended') enterInfiniteMode(state)
   // 音效管理
   const sound = new SoundManager()
 
@@ -94,9 +97,10 @@ async function main(): Promise<void> {
   function loop(): void {
     const logBefore = state.nextLogId
     tick(state, Date.now())
-    // 事件/结局音效检测
+    // 事件/结局音效检测（auto-infinite-entry：通关即自动进入无限，结局音效挂 playing→infinite 边沿；
+    // NG+ 后再通关仍触发；infinite 存档加载 phaseBefore 初始即 infinite 不误触发）
     if (state.log.some((e) => e.id >= logBefore && e.type === 'event')) sound.play('event')
-    if (state.phase === 'ended' && phaseBefore !== 'ended') sound.play('ending')
+    if (state.phase === 'infinite' && phaseBefore !== 'infinite') sound.play('ending')
     phaseBefore = state.phase
     session.render()
   }

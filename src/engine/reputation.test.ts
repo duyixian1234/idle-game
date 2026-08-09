@@ -46,8 +46,8 @@ describe('reputation', () => {
     expect(reputation(s)).toBe(26)
     expect(reputationBonuses(s).tradeDiscount).toBe(0.05)
     expect(reputationBonuses(s).raidThresholdBonus).toBe(0)
-    // rep 80+ → 命中 80 档（endlessII rep 8 定稿后：26 + 54 = 80）
-    unlockByIds(s, ['mineral1M', 'trades50', 'intimidates10', 'allies3', 'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'mineral100M', 'conquestAll', 'endless', 'endlessII']) // 3+4+4+4+4+4+4+4+5+6+4+8 = 54
+    // rep 80+ → 命中 80 档（endlessII rep 8 定稿后：26 + 54 = 80；auto-infinite-entry 删 endless，escortFirst 同 rep 4 替补）
+    unlockByIds(s, ['mineral1M', 'trades50', 'intimidates10', 'allies3', 'favor300', 'militaryCap5k', 'play24h', 'conquests2', 'mineral100M', 'conquestAll', 'escortFirst', 'endlessII']) // 3+4+4+4+4+4+4+4+5+6+4+8 = 54
     const rep = reputation(s)
     expect(rep).toBeGreaterThanOrEqual(80)
     const b = reputationBonuses(s)

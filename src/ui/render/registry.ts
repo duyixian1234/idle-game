@@ -6,7 +6,7 @@ import { CIVIL_BUILDINGS } from '../../engine/data'
 import { renderBreakdownPanel, renderPlanetBar, renderPlanetMechanic, renderResources } from '../bars'
 import { renderExplorePage } from '../explore-page'
 import { renderAutoConfigPanel, renderPendingEvents } from '../log'
-import { renderEndingOverlay, renderTutorial } from '../overlays'
+import { renderTutorial } from '../overlays'
 import { renderArchivePanel } from './archive'
 import { renderBuildPanel } from './build'
 import { renderDiplomacyPanel } from './diplomacy'
@@ -195,12 +195,6 @@ RENDER_NODES.register({
   id: 'auto-config',
   phase: 'overlay',
   render: (ctx) => renderAutoConfigPanel(ctx.els.autoConfigOverlay, ctx.state, ctx.ui.autoExpandedCategory),
-})
-RENDER_NODES.register({
-  id: 'ending',
-  phase: 'overlay',
-  render: (ctx) =>
-    renderEndingOverlay(ctx.els.endingOverlay, ctx.state, ctx.state.phase === 'ended' && !ctx.ui.endingDismissed),
 })
 RENDER_NODES.register({
   id: 'tutorial',

@@ -199,8 +199,7 @@ export function renderExplorePage(
       ${progress.exhausted
         ? `<div class="explore-endstate" data-explore-exhausted>
             <span class="explore-endstate-badge">群星尽览</span>
-            <span class="explore-endstate-text">已尽览所有已知目标。继续探索仅回收资源；${state.phase === 'ended' ? '进入无限模式可发现军事目标与程序生成天体。' : ''}</span>
-            ${state.phase === 'ended' ? '<button type="button" class="ending-btn primary" data-explore-infinite>进入无限模式</button>' : ''}
+            <span class="explore-endstate-text">已尽览所有已知目标。继续探索仅回收资源。</span>
           </div>`
         : ''}
       ${autoPanel}

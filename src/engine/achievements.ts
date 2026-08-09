@@ -61,7 +61,7 @@ export function endlessIIUnlocked(s: GameState): boolean {
   return Boolean(s.storyFlags.endless) && s.stats.totalMineralEarned >= 10_000_000_000
 }
 
-/** 成就定义表（38 个：叙事 12 + 收集 17 + 终局 6 + 胁迫外交 3；文案实现期定稿） */
+/** 成就定义表（37 个：叙事 11 + 收集 17 + 终局 6 + 胁迫外交 3；文案实现期定稿） */
 export const ACHIEVEMENTS: Record<string, AchievementDef> = {
   // ---- 叙事类（映射 storyFlags，首次触发即达成）----
   firstBuild: {
@@ -165,16 +165,8 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     rewardMineral: 50_000,
     rep: 4,
   },
-  endless: {
-    id: 'endless',
-    icon: 'infinity',
-    name: '无限启程',
-    desc: '进入无限模式，星海无垠，旅程没有终点。',
-    category: 'story',
-    condition: (s) => Boolean(s.storyFlags.endless),
-    rewardMineral: 100_000,
-    rep: 4,
-  },
+  // auto-infinite-entry：成就 endless（无限启程，storyFlags.endless）已删——通关自动进入无限模式后
+  // 该成就失去"玩家主动选择"语义（grill Q2=A，spec 见 .scratch/auto-infinite-entry）；endlessII 保留
   endlessII: {
     id: 'endlessII',
     icon: 'colony',
@@ -435,7 +427,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     icon: 'reborn',
     name: '二周目启程',
     desc: '带着旧世界的记忆与答案，再次降落。',
-    hint: '进入无限模式后开启新周目（NG+）。',
+    hint: '通关后开启新周目（NG+）。',
     category: 'finale',
     condition: (s) => s.ngPlusLevel >= 1,
     progress: (s) => [Math.min(s.ngPlusLevel, 1), 1],

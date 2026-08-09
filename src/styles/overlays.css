@@ -1,5 +1,4 @@
-/* ---- 结局面板 / 开启新周目 / 终局工程 确认弹窗（共享遮罩与卡片体系；一键买满弹窗已删 ADR-0037） ---- */
-.ending-overlay,
+/* ---- 开启新周目 / 终局工程 确认弹窗（共享遮罩与卡片体系；一键买满弹窗已删 ADR-0037；结局面板已退役 auto-infinite-entry） ---- */
 .ngplus-overlay,
 .megastructure-overlay {
   position: fixed;
@@ -13,13 +12,11 @@
   overflow-y: auto;
 }
 
-.ending-overlay.hidden,
 .ngplus-overlay.hidden,
 .megastructure-overlay.hidden {
   display: none;
 }
 
-.ending-card,
 .ngplus-card,
 .megastructure-card,
 .explore-card {
@@ -52,7 +49,7 @@
   margin: 6px 0 14px;
 }
 
-/* 探索尽览终态（explore-endstate）：群星尽览徽章 + 引导 + 无限入口按钮 */
+/* 探索尽览终态（explore-endstate）：群星尽览徽章 + 回收提示（auto-infinite-entry：无限入口按钮已删） */
 .explore-endstate {
   display: flex;
   flex-direction: column;
@@ -316,27 +313,6 @@
 .buy-max-actions .ending-btn {
   padding: 8px 16px;
   font-size: 13px;
-}
-
-.ending-title {
-  color: var(--mineral);
-  font-size: 24px;
-  letter-spacing: 4px;
-  margin-bottom: 16px;
-}
-
-.ending-stats {
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  margin: 6px 0;
-}
-
-.ending-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 20px;
 }
 
 .ending-btn {

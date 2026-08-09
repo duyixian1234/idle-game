@@ -50,29 +50,6 @@ export function renderTutorial(el: HTMLElement, state: GameState): void {
     </div>`
 }
 
-/** 渲染结局面板（含通关统计与无限/NG+ 入口） */
-export function renderEndingOverlay(el: HTMLElement, state: GameState, visible: boolean): void {
-  if (!visible || state.phase !== 'ended') {
-    el.classList.add('hidden')
-    el.innerHTML = ''
-    return
-  }
-  el.classList.remove('hidden')
-  const codex = state.factionCodex.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
-  el.innerHTML = `
-    <div class="ending-card">
-      <h1 class="ending-title">星系统一联邦</h1>
-      <p class="ending-stats">
-        统一历时 ${formatPlayTime(state.playSeconds)} · 累计采集矿物 ${formatNumber(state.stats.totalMineralEarned)}
-      </p>
-      <p class="ending-stats">派系图鉴：${escapeHtml(codex)} · NG+ 周目：${formatNumber(state.ngPlusLevel)}</p>
-      <div class="ending-actions">
-        <button type="button" class="ending-btn primary" data-ending="infinite">进入无限模式</button>
-        <button type="button" class="ending-btn ghost" data-ending="close">继续查看</button>
-      </div>
-    </div>`
-}
-
 /** 终局工程确认弹窗（复用 ending overlay 卡片体系）：效果预览 + 建造消耗 + 双轨提示 + 确认/取消 */
 export function renderMegastructureModal(el: HTMLElement, state: GameState, id: string): void {
   const def = BUILDINGS[id]

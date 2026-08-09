@@ -11,9 +11,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：38 个（+wormhole-empire 星际帝国）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：37 个（auto-infinite-entry 删 endless；+wormhole-empire 星际帝国）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(38)
+    expect(defs).toHaveLength(37)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -179,8 +179,8 @@ describe('achievements', () => {
 
     it('奖励与 rep：一次性矿物 500 万 + rep 8', () => {
       const s = makeState()
-      // 预解锁随 100 亿一并满足的成就，隔离 endlessII 的矿物增量（endless +10万 / mineral1M +1万 / mineral100M 科技 / mineral1B +50万）
-      for (const id of ['endless', 'mineral1M', 'mineral100M', 'mineral1B']) {
+      // 预解锁随 100 亿一并满足的成就，隔离 endlessII 的矿物增量（mineral1M +1万 / mineral100M 科技 / mineral1B +50万）
+      for (const id of ['mineral1M', 'mineral100M', 'mineral1B']) {
         s.achievements[id] = { unlockedAt: 1, unlockedInRound: 0 }
       }
       s.storyFlags.endless = true
@@ -198,7 +198,7 @@ describe('achievements', () => {
 
     it('story 类一次性语义：NG+ 后不重解锁、不重发奖励', () => {
       const s = makeState()
-      for (const id of ['endless', 'mineral1M', 'mineral1B']) {
+      for (const id of ['mineral1M', 'mineral1B']) {
         s.achievements[id] = { unlockedAt: 1, unlockedInRound: 0 }
       }
       s.storyFlags.endless = true
@@ -252,9 +252,9 @@ describe('achievements: 胁迫外交', () => {
 })
 
 describe('achievements: 卡片化数据（icon/progress）', () => {
-  it('38 个成就 icon 非空且命中 ICONS 表', () => {
+  it('37 个成就 icon 非空且命中 ICONS 表', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(38)
+    expect(defs).toHaveLength(37)
     for (const d of defs) {
       expect(d.icon, `缺少成就图标：${d.id}`).toBeTruthy()
       expect(ICONS[d.icon], `成就图标不在 ICONS 表：${d.id} → ${d.icon}`).toBeTruthy()
@@ -263,9 +263,9 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
 
   it('story 类不配 progress，收集/终局按 spec 配 progress', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    // story 类：12 个全部无 progress（叙事里程碑无量化进度）
+    // story 类：11 个全部无 progress（叙事里程碑无量化进度；auto-infinite-entry 删 endless）
     const story = defs.filter((d) => d.category === 'story')
-    expect(story).toHaveLength(12)
+    expect(story).toHaveLength(11)
     for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
     // 有 progress 的成就数量与 spec 映射一致（20 个；+stellarEmpire wormhole-empire）
     const withProgress = defs.filter((d) => d.progress)

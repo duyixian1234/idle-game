@@ -8,8 +8,9 @@ import type { GameState, ResourceKey } from './types'
  *   保证「结局面板/无限模式确认弹窗预览的继承数值」与「实际执行」永远一致（避免双实现漂移）。
  * - `previewNewGamePlus`：纯函数（不修改状态），供 UI 确认弹窗渲染「将失去/将继承」双清单。
  *
- * 契约（infinite-ngplus spec 定稿）：引擎层不为 `startNewGamePlus` 设 phase 守卫（playing/ended/infinite
- * 均可调用），入口合法性由 UI 门控——ended → 结局面板；infinite → 工具栏「开启新周目」。
+ * 契约（infinite-ngplus spec 定稿 + auto-infinite-entry 修订）：引擎层不为 `startNewGamePlus` 设 phase 守卫
+ * （playing/ended/infinite 均可调用），入口合法性由 UI 门控——通关后自动进入无限（phase 不再停留 ended），
+ * NG+ 入口 = 工具栏「开启新周目」/探索页终局卡（仅 phase === 'infinite' 渲染）。
  */
 
 /** NG+ 继承数值（科技点基数/永久加成/图鉴好感加成）集中见 balance.ts */

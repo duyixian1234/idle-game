@@ -85,8 +85,6 @@ export function createSession(args: CreateSessionArgs): Session {
     autoExpandedCategory: undefined,
     // 资源来源分解面板展开态（会话状态，互斥：一次只展开一个资源；null = 收起）
     openBreakdown: null,
-    // 结局面板临时收起标记
-    endingDismissed: false,
     // 日志排序方向（偏好记忆），已渲染日志游标
     logDirection: (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION,
     lastLogId: 0,
@@ -356,7 +354,7 @@ export function createSession(args: CreateSessionArgs): Session {
     closeNgPlusModal,
     openMegastructureModal,
     closeMegastructureModal,
-    startNewGamePlusSequence: (keepEndingDismissed) => startNewGamePlusSequence(ctx, keepEndingDismissed),
+    startNewGamePlusSequence: () => startNewGamePlusSequence(ctx),
     saveAutomationControl,
     automationPolicyWithDefaults,
     toggleMute() {

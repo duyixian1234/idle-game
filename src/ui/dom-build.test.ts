@@ -41,8 +41,8 @@ describe('ui: 布局与冒烟', () => {
     for (const p of ['sector', 'archive', 'explore', 'settings']) {
       expect(container.querySelector(`[data-nav-page="${p}"]`)).toBeTruthy()
     }
-    // overlay 语义化契约（ADR-0037：buy-max overlay 已删）
-    expect(container.querySelector('[data-overlay="ending"]')).toBeTruthy()
+    // overlay 语义化契约（ADR-0037：buy-max overlay 已删；auto-infinite-entry：ending overlay 已退役）
+    expect(container.querySelector('[data-overlay="ending"]')).toBeNull()
     expect(container.querySelector('[data-overlay="buy-max"]')).toBeNull()
     expect(container.querySelector('[data-overlay="ngplus"]')).toBeTruthy()
   })

@@ -238,12 +238,13 @@ export function tickGroupOrder(): TickGroupId[] {
 // ---- 结局、无限模式与 NG+ ----
 
 /** 结局：星系统一联邦达成时触发演出（仅一次），返回是否触发。
- * 结局判定不动（全员好感 ≥100/alied）；文本按是否曾被胁迫分支（diplomacy-coercion Q10 叙事痕迹）。 */
+ * 结局判定不动（全员好感 ≥100/alied）；文本按是否曾被胁迫分支（diplomacy-coercion Q10 叙事痕迹）。
+ * auto-infinite-entry：通关即自动进入无限模式（不再停留 ended）——演出与统计照常播报，
+ * 随后 applyInfiniteMode 直接置 infinite；结局面板已退役，NG+ 入口只在 infinite 下渲染。 */
 export function checkEnding(state: GameState): boolean {
   if (state.endingTriggered) return false
   if (!isFederationUnified(state)) return false
   state.endingTriggered = true
-  state.phase = 'ended'
   const scenes = isConquerorEnding(state) ? CONQUEROR_ENDING_SCENES : ENDING_SCENES
   for (const scene of scenes) pushLog(state, 'story', scene)
   pushLog(
@@ -251,6 +252,7 @@ export function checkEnding(state: GameState): boolean {
     'system',
     `【通关统计】统一历时 ${formatPlayTime(state.playSeconds)}；累计采集矿物 ${formatNumber(state.stats.totalMineralEarned)}；NG+ 周目：${formatNumber(state.ngPlusLevel)}。`,
   )
+  applyInfiniteMode(state)
   return true
 }
 
@@ -263,9 +265,17 @@ export function checkFederationPendingStory(state: GameState): void {
   }
 }
 
-/** 进入无限模式（数值继续膨胀，事件更密） */
+/** 进入无限模式（数值继续膨胀，事件更密）。
+ * 契约（auto-infinite-entry）：正常流程由 checkEnding 自动进入；本函数保留 ended 守卫，
+ * 供存量 ended 存档加载/导入转换与测试构造使用（ended → infinite 单向往前）。 */
 export function enterInfiniteMode(state: GameState): void {
   if (state.phase !== 'ended') return
+  applyInfiniteMode(state)
+}
+
+/** 应用无限模式（无守卫共享逻辑：phase → infinite + endless 初始化 + 叙事 + endless 里程碑）。
+ * checkEnding（通关自动进入）与 enterInfiniteMode（存量档转换/测试构造）同源引用，防双实现漂移。 */
+function applyInfiniteMode(state: GameState): void {
   state.phase = 'infinite'
   state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
   pushLog(state, 'story', '联邦的旗帜在星海间展开。没有终点的旅程，本身就是答案。无限模式开启——殖民地日志将继续书写。')

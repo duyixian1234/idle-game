@@ -274,8 +274,7 @@
 .ending-btn[data-explore-dispatch]::before,
 .ending-btn[data-ngplus]::before,
 .ending-btn[data-ngplus-confirm]::before,
-.ending-btn[data-megastructure-confirm]::before,
-.ending-btn[data-ending='infinite']::before {
+.ending-btn[data-megastructure-confirm]::before {
   content: '[ ';
 }
 .build-btn[data-build]::after,
@@ -287,8 +286,7 @@
 .ending-btn[data-explore-dispatch]::after,
 .ending-btn[data-ngplus]::after,
 .ending-btn[data-ngplus-confirm]::after,
-.ending-btn[data-megastructure-confirm]::after,
-.ending-btn[data-ending='infinite']::after {
+.ending-btn[data-megastructure-confirm]::after {
   content: ' ]';
 }
 
@@ -303,8 +301,7 @@
 .ending-btn[data-explore-dispatch]:hover,
 .ending-btn[data-ngplus]:hover,
 .ending-btn[data-ngplus-confirm]:hover,
-.ending-btn[data-megastructure-confirm]:hover,
-.ending-btn[data-ending='infinite']:hover {
+.ending-btn[data-megastructure-confirm]:hover {
   background: var(--phosphor);
   color: #000;
   border-color: var(--phosphor);
