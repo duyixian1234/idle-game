@@ -162,6 +162,9 @@ export interface ConquestState {
   finishAt?: number
   /** 投入军力（结算时按成功率消耗） */
   invested?: number
+  /** 舰队压制锁定战力（conquest-fleet，2026-08-09）：手动攻占发起时锁定、结算（成功/失败）释放；
+   * 锁定期间该战力不可用于骚扰击退/护航/新攻占（fleetAvailablePower 口径）；可选字段，无 SCHEMA 变更 */
+  fleetLocked?: number
 }
 
 /** 星球解锁状态 */

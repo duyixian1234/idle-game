@@ -51,7 +51,7 @@ export interface ActionPayloads {
   diplomacy: { factionId: string; action: DiplomacyAction }
   resolveEvent: { uid: number; optionId: string }
   setPlanet: { id: string }
-  conquest: { id: string; invest: number }
+  conquest: { id: string; invest: number; useFleet?: boolean }
   explore: { slot: number; escort: boolean }
   setAutoExplore: { enabled?: boolean; escort?: boolean }
   fleetBuild: Record<string, never>
@@ -192,8 +192,8 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
   },
   conquest: {
     id: 'conquest',
-    // payload: { id: 区域id, invest: 投入军力 }（探索发现目标 id 可含 ':'，结构化后无需解析）
-    run: (state, payload) => startConquest(state, payload.id, payload.invest, Date.now()),
+    // payload: { id: 区域id, invest: 投入军力, useFleet?: 舰队压制开关（UI 勾选，默认 true）}（探索发现目标 id 可含 ':'，结构化后无需解析）
+    run: (state, payload) => startConquest(state, payload.id, payload.invest, Date.now(), undefined, payload.useFleet ?? true),
     feedback: (_state, result, payload) => {
       const cdef = conquestDef(_state, payload.id)
       const name = cdef ? defName(cdef) : payload.id

@@ -11,6 +11,8 @@ import { conquestDef, conquestState, isConquestAvailable } from '../../engine/co
 import { endlessBatchUnlocked, endlessTargetId } from '../../engine/generate'
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techCost, techLevel } from '../../engine/tech'
 import { techMultiplier } from '../../engine/production'
+import { fleetAvailablePower } from '../../engine/fleet'
+import { FLEET_CONQUEST_CAP_PCT } from '../../engine/balance'
 import { formatMultiplier, formatNumber, formatPercent } from '../../engine/format'
 import { formatDuration } from '../../engine/offline'
 import { iconUse } from '../icons'
@@ -32,8 +34,14 @@ function conquestRewardText(def: ConquestDef): string {
   return parts.join('、') || t('ui.military.7')
 }
 
-/** 攻占区域单张卡片（守卫/奖励/状态/发起控件；conquest-cards：与建造物同构卡片，data-conquest 契约原样保留） */
-function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
+/** 舰队压制贡献预览：= min(可用战力, 守卫×FLEET_CONQUEST_CAP_PCT)（与引擎 startConquest 折算同式，UI 单一真源预览） */
+function fleetConquestContrib(state: GameState, guard: number): number {
+  return Math.floor(Math.min(fleetAvailablePower(state), guard * FLEET_CONQUEST_CAP_PCT))
+}
+
+/** 攻占区域单张卡片（守卫/奖励/状态/发起控件；conquest-cards：与建造物同构卡片，data-conquest 契约原样保留；
+ * fleetEnabled：舰队压制开关（conquest-fleet，UI 会话内存）——开启且可用战力 > 0 时显示贡献预览行） */
+function renderConquestRow(def: ConquestDef, state: GameState, fleetEnabled: boolean): HTMLElement {
   const card = document.createElement('div')
   card.className = 'build-card conquest-card'
   const cs = conquestState(state, def.id)
@@ -88,8 +96,11 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   // 可发起：投入军力输入框（建议值 = 足额所需或当前军力）+ 攻占按钮
   const maxInvest = Math.floor(state.resources.military)
   const suggest = Math.max(1, Math.min(def.guard, maxInvest))
+  // 舰队压制贡献预览（conquest-fleet）：开启且可用战力 > 0 → 显示「舰队压制：−N 军力」
+  const fleetContrib = fleetEnabled ? fleetConquestContrib(state, def.guard) : 0
+  const fleetHint = fleetContrib > 0 ? `<div class="conquest-meta" data-conquest-fleet-hint>${t('ui.military.23', { a0: formatNumber(fleetContrib) })}</div>` : ''
   card.innerHTML = `${icon}
-    <div class="build-card-body">${info}</div>
+    <div class="build-card-body">${info}${fleetHint}</div>
     <div class="build-actions conquest-actions">
       <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="${t('ui.military.11')}" />
       <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="${t('ui.military.12')}">
@@ -185,10 +196,11 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const conqueredCount = staticDefs.filter((d) => conquestState(state, d.id).status === 'conquered').length
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.innerHTML = `攻占 <label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-auto ${state.autoConquest?.enabled ? 'checked' : ''} />${t('ui.military.5')}</label>`
+  header.innerHTML = `攻占 <label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-auto ${state.autoConquest?.enabled ? 'checked' : ''} />${t('ui.military.5')}</label><label class="diplo-auto-toggle conquest-auto-toggle"><input type="checkbox" data-conquest-fleet ${opts.conquestFleetEnabled === false ? '' : 'checked'} />${t('ui.military.22')}</label>`
   conquestSection.appendChild(header)
   const archived = opts.archivedExpanded ?? {}
   const archivedRows: string[] = []
+  const fleetEnabled = opts.conquestFleetEnabled !== false
   // 可发起攻占卡网格（conquest-grid：复用 .build-grid 断点；已肃清对象不占网格槽，入下方归档折叠区）
   const conquestGrid = document.createElement('div')
   conquestGrid.className = 'build-grid'
@@ -198,7 +210,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
       archivedRows.push(archiveRow(defName(def), t('ui.military.18'), state.archivedRounds?.[def.id], def.id))
     } else {
-      conquestGrid.appendChild(renderConquestRow(def, state))
+      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled))
     }
   }
   // 无尽生成军事目标（动态）
@@ -209,7 +221,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (state.archivedRounds?.[gt.id] != null || conquestState(state, gt.id).status === 'conquered') {
       archivedRows.push(archiveRow(gt.name, t('ui.military.18'), state.archivedRounds?.[gt.id], gt.id))
     } else {
-      conquestGrid.appendChild(renderConquestRow(def, state))
+      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled))
     }
   }
   conquestSection.appendChild(conquestGrid)

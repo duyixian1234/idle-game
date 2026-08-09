@@ -490,6 +490,44 @@ describe('ui: 建造卡片（building-cards）', () => {
     expect(panel.textContent).not.toContain('攻占「虫群前哨」后解锁')
   })
 
+  it('舰队压制开关（conquest-fleet）：默认勾选、有舰队显示贡献预览、关闭/无舰队隐藏', () => {
+    const mk = () => {
+      const container = document.createElement('div')
+      buildLayout(container)
+      const s = createInitialState(0)
+      s.planets.ice = { unlocked: true }
+      s.resources.mineral = 1_000_000
+      s.resources.energy = 10_000
+      s.resources.military = 100_000
+      s.buildings.dock = 1
+      s.upgrades.dock = 1
+      s.fleet.count = 3 // 战力 3600
+      return { container, s }
+    }
+    // 默认开启 + 舰队存在 → 预览行（outpost 守卫 500 → 贡献 min(3600, 250) = 250）
+    const a = mk()
+    renderMilitaryPanel(a.container.querySelector('[data-panel="military"]') as HTMLElement, a.s)
+    const panelA = a.container.querySelector('[data-panel="military"]') as HTMLElement
+    const toggleA = panelA.querySelector<HTMLInputElement>('[data-conquest-fleet]')
+    expect(toggleA).toBeTruthy()
+    expect(toggleA?.checked).toBe(true)
+    const hintA = panelA.querySelector('[data-conquest-fleet-hint]')
+    expect(hintA?.textContent).toContain('−250.00 军力')
+    // 开关关闭 → 无预览行
+    const b = mk()
+    renderMilitaryPanel(b.container.querySelector('[data-panel="military"]') as HTMLElement, b.s, { conquestFleetEnabled: false })
+    const panelB = b.container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panelB.querySelector<HTMLInputElement>('[data-conquest-fleet]')?.checked).toBe(false)
+    expect(panelB.querySelector('[data-conquest-fleet-hint]')).toBeNull()
+    // 无舰队 → 无预览行（开关仍在）
+    const c = mk()
+    c.s.fleet.count = 0
+    renderMilitaryPanel(c.container.querySelector('[data-panel="military"]') as HTMLElement, c.s)
+    const panelC = c.container.querySelector('[data-panel="military"]') as HTMLElement
+    expect(panelC.querySelector('[data-conquest-fleet]')).toBeTruthy()
+    expect(panelC.querySelector('[data-conquest-fleet-hint]')).toBeNull()
+  })
+
   it('探索页天体/派系徽标接入 SVG 资产（building-cards ticket 06）', () => {
     const container = document.createElement('div')
     buildLayout(container)

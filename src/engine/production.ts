@@ -158,6 +158,17 @@ export function productionReport(state: GameState): ProductionReport {
   return { nominal, energyRatio }
 }
 
+/**
+ * 军力名义产能（未被容量截断）：兵营产出 × 科技系数 × 永久/NG+ 加成。
+ * 守卫锚定此值（conquest-fleet，generate.ts）：回充守卫恒 = 守卫/产能 秒——若锚被截断的净产出，
+ * 军力满员（room≤0）时净产出归零 → 守卫塌缩到 clamp 下限，攻占反而变便宜（设计悖论）。
+ */
+export function nominalMilitaryProduction(state: GameState): number {
+  const { nominal } = pipelineNominal(state)
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  return nominal.military * permMult
+}
+
 /** 贡税流：进行中条约 + 臣服派系的每秒矿物税（diplomacy-coercion；nowMs 可注入便于测试） */
 export function tributePerSec(state: GameState, nowMs = Date.now()): number {
   let total = 0

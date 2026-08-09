@@ -110,6 +110,8 @@ export function createSession(args: CreateSessionArgs): Session {
     justUnlockedAchievements: new Set(),
     justUnlockedUntil: 0,
     seenAchievementMaxAt: 0,
+    // 舰队压制开关（conquest-fleet：UI 会话内存默认开，刷新回默认；引擎侧 autoConquest 恒纯军力）
+    conquestFleetEnabled: true,
   }
 
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */

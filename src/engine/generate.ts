@@ -6,8 +6,7 @@ import {
   GEN_CONQUEST_COST_ENERGY_SECONDS,
   GEN_CONQUEST_COST_MINERAL_SECONDS,
   GEN_CONQUEST_GUARD_MIN,
-  GEN_CONQUEST_GUARD_PCT_MAX,
-  GEN_CONQUEST_GUARD_PCT_MIN,
+  GEN_CONQUEST_GUARD_SECONDS,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
   GEN_CONQUEST_REWARD_TECH_SECONDS,
   GEN_FACTION_FAVOR_MAX,
@@ -20,7 +19,7 @@ import {
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
   WORMHOLE_GENCAP_PER_LEVEL,
 } from './balance'
-import { militaryCap, netProduction } from './production'
+import { nominalMilitaryProduction, netProduction } from './production'
 import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 /**
@@ -103,20 +102,18 @@ export function isEndlessTargetId(id: string): boolean {
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
 /**
- * 军事目标生成：词库命名；guard = 军力容量 × [pct_min, pct_max]（clamp 500 下限，ADR-0033）——
- * 攻占军力成本随军港规模/军械科技上升，后期成真实门槛（挑战阈值语义）；
+ * 军事目标生成：词库命名；guard = 军力净产出 × GEN_CONQUEST_GUARD_SECONDS（clamp 500 下限，ADR-0033 修订 conquest-fleet）——
+ * 守卫锚回充速度而非容量上限：攻占需求与产能同源（ADR-0028 哲学同构），扩军港不再抬高攻占门槛、攻占节奏可预期；
  * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞）；
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
   const name = `${t(pick(CONQUEST_PREFIX, roll) as DeepKey<Zh>)}${t(pick(CONQUEST_NOUN, roll) as DeepKey<Zh>)}`
-  const guard = Math.max(
-    GEN_CONQUEST_GUARD_MIN,
-    Math.floor(militaryCap(state) * (GEN_CONQUEST_GUARD_PCT_MIN + roll() * (GEN_CONQUEST_GUARD_PCT_MAX - GEN_CONQUEST_GUARD_PCT_MIN))),
-  )
-  const seq = state.generatedTargets.length
-  // 一次性奖励/成本：锚定目标创建（发现）时点的当期净产出，成本与奖励同源（ADR-0028）
   const prod = netProduction(state)
+  // 守卫锚军力名义产能（不被容量截断）：回充守卫恒 = GEN_CONQUEST_GUARD_SECONDS 秒；
+  // 满员截断不压低守卫（否则军力越满守卫越小，攻占反而变便宜——设计悖论）
+  const guard = Math.max(GEN_CONQUEST_GUARD_MIN, Math.floor(nominalMilitaryProduction(state) * GEN_CONQUEST_GUARD_SECONDS))
+  const seq = state.generatedTargets.length
   return {
     kind: 'conquest',
     id: `gen:conquest:${seq}`,

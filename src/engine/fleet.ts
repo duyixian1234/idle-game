@@ -69,6 +69,19 @@ export function fleetPower(state: GameState): number {
 }
 
 /**
+ * 可用舰队战力 = 总战力 − Σ进行中攻占的锁定战力（conquest-fleet，2026-08-09）：
+ * 舰队压制攻占期间锁定的舰船不防空（骚扰击退）、不护航（探索等效舰数）、不参与新攻占——
+ * 锁定语义全引擎一致。零域保持（仅遍历 GameState.conquest，无模块依赖）。
+ */
+export function fleetAvailablePower(state: GameState): number {
+  let locked = 0
+  for (const cs of Object.values(state.conquest)) {
+    if (cs.startedAt != null && cs.fleetLocked != null) locked += cs.fleetLocked
+  }
+  return Math.max(0, fleetPower(state) - locked)
+}
+
+/**
  * 舰队维护费结算（软降级）：
  * - tick 模式（hard=false）：能源 ≥ 总维护费 → 扣费运转；不足 → 不扣费、停摆（无惩罚，恢复供能自动重启）；
  * - 离线模式（hard=true）：整段硬扣（同恒星阵列 applyMaintenance 口径），余额可为负、由调用方 clamp 0——

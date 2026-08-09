@@ -160,6 +160,8 @@ RENDER_NODES.register({
       archivedExpanded: ctx.ui.archivedExpanded,
       // ADR-0043：军事区隐藏抽屉展开态独立（此前漏传致抽屉条件恒 falsy、恢复入口不可见）
       hiddenBuildingsOpen: ctx.ui.hiddenBuildingsOpen,
+      // 舰队压制开关（conquest-fleet：UI 会话内存，勾选状态驱动手动攻占 useFleet）
+      conquestFleetEnabled: ctx.ui.conquestFleetEnabled,
     }),
 })
 RENDER_NODES.register({

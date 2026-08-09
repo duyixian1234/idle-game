@@ -117,7 +117,7 @@ describe('engine: 攻占系统（conquest）', () => {
 
 describe('engine: 自动攻占（ADR-0033）', () => {
   /** 开启自动攻占 + 一个 available 生成军事目标（守卫 800，无成本快照）；
-   * 军港 25 座 → 容量 5100（离线时军力被容量截断，需容量 ≥ 守卫 + 保底 20%） */
+   * 军港 25 座 → 容量 5100（离线时军力被容量截断，需容量 ≥ 守卫 + 保底 10%，conquest-fleet 修订） */
   function autoState(): GameState {
     const s = conquestState()
     s.autoConquest = { enabled: true }
@@ -139,12 +139,17 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     expect(s.autoConquest?.lastActionAt).toBe(60_000)
   })
 
-  it('军力不足保底（投满后 < 容量×20%）→ 不发起', () => {
+  it('军力不足保底（投满后 < 容量×10%）→ 不发起；恰好等于保底 → 发起', () => {
     const s = autoState()
-    s.resources.military = 1_500 // 容量 5100 → 保底 1020；1500 − 800 = 700 < 1020 → 跳过
+    s.resources.military = 1_300 // 容量 5100 → 保底 510；1300 − 800 = 500 < 510 → 跳过
     const logs = autoConquestTick(s, 60_000)
     expect(logs).toEqual([])
     expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+    const s2 = autoState()
+    s2.resources.military = 1_310 // 1310 − 800 = 510 = 保底 → 恰好可发
+    const logs2 = autoConquestTick(s2, 60_000)
+    expect(logs2.length).toBe(1)
+    expect(s2.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
   })
 
   it('仅生成目标：静态主线区域不自动发起', () => {
@@ -186,6 +191,81 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期）
     expect(s.conquest['gen:conquest:0'].invested).toBe(800)
     expect(s.resources.military).toBe(5_100 - 800) // 容量 5100 截断后投 800
+  })
+})
+
+describe('engine: 舰队压制攻占（conquest-fleet）', () => {
+  /** 舰队状态：船坞 Lv1（3 艘）、能源充足（powered）；shipyard 守卫 2000 已解锁 */
+  function fleetState(): GameState {
+    const s = conquestState()
+    s.planets.gas = { unlocked: true }
+    s.buildings.dock = 1
+    s.upgrades.dock = 1
+    s.fleet.count = 3 // 战力 3600
+    s.resources.energy = 10_000 // > 3 艘维护 118.75/s → powered
+    return s
+  }
+
+  it('useFleet=true + 舰队 powered → 锁定 fleetContrib = min(可用战力, 守卫×0.5)', () => {
+    const s = fleetState()
+    const r = startConquest(s, 'shipyard', 1_000, 0, () => 0.99)
+    expect(r.ok).toBe(true)
+    // min(3600, 2000×0.5=1000) = 1000
+    expect(s.conquest.shipyard.fleetLocked).toBe(1_000)
+    expect(s.conquest.shipyard.invested).toBe(1_000)
+  })
+
+  it('封顶生效：舰队战力 > 守卫×0.5 时只锁定守卫一半', () => {
+    const s = fleetState()
+    // nest 守卫 3000 × 0.5 = 1500 < 3600 → 锁定 1500（nest 为通关后区域，需 phase ≠ playing）
+    s.phase = 'infinite'
+    s.planets.dawn = { unlocked: true }
+    startConquest(s, 'nest', 1_000, 0, () => 0.99)
+    expect(s.conquest.nest.fleetLocked).toBe(1_500)
+  })
+
+  it('无舰队 / 舰队停摆（能源不足）→ 零锁定', () => {
+    const s1 = fleetState()
+    s1.fleet.count = 0
+    startConquest(s1, 'shipyard', 1_000, 0, () => 0.99)
+    expect(s1.conquest.shipyard.fleetLocked).toBeUndefined()
+    const s2 = fleetState()
+    s2.resources.energy = 0 // 停摆 → fleetPower 0
+    startConquest(s2, 'shipyard', 1_000, 0, () => 0.99)
+    expect(s2.conquest.shipyard.fleetLocked).toBeUndefined()
+  })
+
+  it('useFleet=false（自动攻占路径）→ 零锁定', () => {
+    const s = fleetState()
+    startConquest(s, 'shipyard', 1_000, 0, () => 0.99, false)
+    expect(s.conquest.shipyard.fleetLocked).toBeUndefined()
+  })
+
+  it('结算成功：锁定释放（conquered 无 fleetLocked）', () => {
+    const s = fleetState()
+    startConquest(s, 'shipyard', 1_000, 0) // 1000 军力 + 1000 舰队 = 足额必成
+    expect(s.conquest.shipyard.fleetLocked).toBe(1_000)
+    settleConquests(s, 60 * 60_000, () => 0)
+    expect(s.conquest.shipyard.status).toBe('conquered')
+    expect(s.conquest.shipyard.fleetLocked).toBeUndefined()
+  })
+
+  it('结算失败：锁定释放（available 无 fleetLocked，可重试）', () => {
+    const s = fleetState()
+    startConquest(s, 'shipyard', 200, 0) // 薄投：200+1000 = 1200/2000 = 60%
+    const logs = settleConquests(s, 60 * 60_000, () => 0.9) // 0.9 > 0.6 → 失败
+    expect(logs[0]).toContain('失利')
+    expect(s.conquest.shipyard.status).toBe('available')
+    expect(s.conquest.shipyard.fleetLocked).toBeUndefined()
+    expect(isConquestAvailable(s, 'shipyard')).toBe(true)
+  })
+
+  it('舰队锁定提升成功率：薄投 + 舰队 = 足额必成', () => {
+    const s = fleetState()
+    startConquest(s, 'shipyard', 1_000, 0) // 1000 军力 + 1000 锁定 = 2000 = 守卫 → 必成
+    const logs = settleConquests(s, 60 * 60_000, () => 0.999)
+    expect(logs[0]).toContain('捷报')
+    expect(s.conquest.shipyard.status).toBe('conquered')
   })
 })
 

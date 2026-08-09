@@ -90,20 +90,29 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBe((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!)
   })
 
-  it('军事目标守卫随军力容量缩放（ADR-0033：容量 × 15-40%，clamp 500 下限），不随周目直接缩放', () => {
+  it('军事目标守卫随军力净产出缩放（ADR-0033 修订 conquest-fleet：产出 × 40s，clamp 500 下限），不随容量/周目直接缩放', () => {
     const s1 = infiniteState()
     s1.planets.orbital = { unlocked: true }
-    s1.buildings.militaryPort = 0
+    s1.buildings.barracks = 0 // 无兵营 → 军力产出 0 → 守卫 clamp 500
     const g1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.3]))
-    // 无军港容量 100 → 守卫 clamp 500
     expect(g1.guard).toBe(500)
     const s3 = infiniteState()
     s3.planets.orbital = { unlocked: true }
-    s3.buildings.militaryPort = 25 // 容量 5100 → 守卫 ∈ [765, 2040]
+    s3.buildings.barracks = 100 // 军力产出 50/s → 守卫 = 50×40 = 2000
     const g3 = generateConquestTarget(s3, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g3.guard!).toBeGreaterThanOrEqual(500)
-    expect(g3.guard!).toBeGreaterThan(g1.guard!)
-    expect(g3.guard!).toBeLessThanOrEqual(2_040)
+    expect(g3.guard).toBe(2_000)
+    // 军械科技放大产出 → 守卫同涨（守卫锚回充速度：产出↑守卫↑但回充恒 40s）
+    const s4 = infiniteState()
+    s4.planets.orbital = { unlocked: true }
+    s4.buildings.barracks = 100
+    s4.techLevels.militaryTech = 5 // 产出 ×3 → 150/s → 守卫 6000
+    const g4 = generateConquestTarget(s4, fixedRolls([0.1, 0.2, 0.3]))
+    expect(g4.guard).toBe(6_000)
+    // 军港（容量）不影响守卫——堆容量不再抬高攻占门槛（剪刀差根治）
+    const s5 = structuredClone(s3)
+    s5.buildings.militaryPort = 25
+    const g5 = generateConquestTarget(s5, fixedRolls([0.1, 0.2, 0.3]))
+    expect(g5.guard).toBe(2_000)
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {

@@ -102,6 +102,21 @@ describe('engine: 舰队自动迎击（在线）', () => {
     expect(s.pendingEvents).toHaveLength(1)
     expect(s.pendingEvents[0].payload?.repelCost).toBe(3500)
   })
+
+  it('舰队压制锁定期间自动迎击用可用战力：3 艘(3600) 锁 1000 → 可用 2600 < 3500 → raid 弹窗、repel 按残余', () => {
+    const s = fleetRaiderState() // 3 艘战力 3600 ≥ 3500 本可自动迎击铁卫
+    s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 1, finishAt: 2, invested: 500, fleetLocked: 1_000 }
+    const outcome = triggerRandomEvent(s, () => 0.95)
+    expect(outcome).toBeNull() // 不自动迎击（可用 2600 < 3500）
+    expect(s.pendingEvents).toHaveLength(1)
+    const inst = s.pendingEvents[0]
+    expect(inst.payload?.repelCost).toBe(3500 - 2600) // 900，按可用战力削减
+    // 锁定释放后恢复自动迎击
+    delete s.conquest['gen:conquest:0'].fleetLocked
+    const outcome2 = triggerRandomEvent(s, () => 0.95)
+    expect(outcome2?.logText).toContain('护卫舰队迎击')
+    expect(s.pendingEvents).toHaveLength(1) // 新 raid 被拦截，旧事件卡仍在（未结算）
+  })
 })
 
 describe('engine: 军械科技舰队放大器（ticket 05）——倍率改变自动迎击判定边界', () => {

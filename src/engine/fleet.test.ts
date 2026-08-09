@@ -3,7 +3,7 @@ import { createInitialState, startNewGamePlus } from './engine'
 import { buyBuilding, isBuildingUnlocked, buildingLockReason, upgradeBuilding } from './buildings'
 import { buyShip } from './fleet'
 import { INTERSTELLAR_BUILDINGS } from './data'
-import { DOCK_SHIP_CAP, dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipBuyCost, shipCap } from './fleet'
+import { DOCK_SHIP_CAP, dockLevel, fleetAvailablePower, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipBuyCost, shipCap } from './fleet'
 import { deserializeSave, migrateSave, serializeSave } from './save'
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
@@ -177,6 +177,27 @@ describe('engine: 舰队数据模型（ticket 01 + fleet-dock-10）——船坞/
     expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 3))
     s.techLevels.warpDrive = 0
     expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 3))
+  })
+
+  it('fleetAvailablePower：无锁定 = fleetPower；有锁定 = 差额；多攻占叠加；停摆归零（conquest-fleet）', () => {
+    const s = fleetState()
+    s.upgrades.dock = 1
+    s.fleet.count = 3
+    s.resources.energy = 10_000 // powered，战力 3600
+    expect(fleetAvailablePower(s)).toBeCloseTo(fleetPower(s)) // 无锁定 = 总战力
+    // 单攻占锁定 1000 → 可用 2600
+    s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 1, finishAt: 2, invested: 500, fleetLocked: 1_000 }
+    expect(fleetAvailablePower(s)).toBeCloseTo(fleetPower(s) - 1_000)
+    // 多攻占叠加：再锁 500 → 可用 2100
+    s.conquest['gen:conquest:1'] = { status: 'available', startedAt: 3, finishAt: 4, invested: 300, fleetLocked: 500 }
+    expect(fleetAvailablePower(s)).toBeCloseTo(fleetPower(s) - 1_500)
+    // 已结算（conquered，无 startedAt）不计入
+    s.conquest['gen:conquest:2'] = { status: 'conquered', fleetLocked: 999 }
+    expect(fleetAvailablePower(s)).toBeCloseTo(fleetPower(s) - 1_500)
+    // 停摆：fleetPower 0 → 可用 0（clamp 不取负）
+    s.resources.energy = 1
+    expect(fleetPower(s)).toBe(0)
+    expect(fleetAvailablePower(s)).toBe(0)
   })
 })
 

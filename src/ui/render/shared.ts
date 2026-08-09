@@ -34,6 +34,8 @@ export interface BuildPanelRenderOptions {
   /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存不进存档；key = hiddenDrawerZone/zoneId，各区独立；
    * 置位时在头部按钮下方渲染恢复列表） */
   hiddenBuildingsOpen?: Record<string, boolean>
+  /** 舰队压制开关（conquest-fleet，军事面板专用）：手动攻占是否投入舰队战力（UI 会话内存，默认开） */
+  conquestFleetEnabled?: boolean
 }
 
 /** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局工程弹窗 */

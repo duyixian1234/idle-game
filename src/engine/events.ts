@@ -17,7 +17,7 @@ import type {
 import {ALL_FACTIONS, FACTIONS} from './data'
 import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, } from './balance'
 import {netProduction} from './production'
-import {fleetPower} from './fleet'
+import {fleetAvailablePower, fleetPower} from './fleet'
 import {raidThreshold} from './reputation'
 import {ensureCoercionUnlocked} from './diplomacy'
 import {rollDomain, streamFor} from './rng'
@@ -459,7 +459,7 @@ export function bugTerms(state: GameState, def: RandomEventDef): { strength: num
       fleetPowerValue * BUG_STRENGTH_FLEET_RATIO,
     )),
   )
-  return { strength, repelCost: Math.max(BUG_REPEL_MIN, strength - fleetPowerValue), curveFactor }
+  return { strength, repelCost: Math.max(BUG_REPEL_MIN, strength - fleetAvailablePower(state)), curveFactor }
 }
 
 /** 骚扰事件的选项与数值（供 createEventInstance 与离线结算共用，保证口径一致） */
@@ -473,13 +473,13 @@ export function raidTerms(state: GameState, factionId: string): { strength: numb
 }
 
 /** 生成骚扰事件实例（针对威胁度最高的未结盟派系）。
- * 舰队战力削减「军力击退」所需强度：repelCost = max(50, strength − fleetPower)，
+ * 舰队战力削减「军力击退」所需强度：repelCost = max(50, strength − 可用舰队战力)（conquest-fleet：舰队压制锁定期间不可防空），
  * 固化进 payload 保证 hint 与结算一致（与 terms 同源，防双实现漂移）。 */
 function createRaidInstance(state: GameState, base: EventInstance, rng: () => number): EventInstance {
   const raider = raidableFaction(state)
   const factionId = raider?.id ?? 'unknown'
   const terms = raidTerms(state, factionId)
-  const repelCost = Math.max(50, terms.strength - fleetPower(state))
+  const repelCost = Math.max(50, terms.strength - fleetAvailablePower(state))
   const story = eventStory('raid', rng)
   return {
     ...base,
@@ -774,7 +774,7 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
   const buyoff = Number(instance.payload?.buyoff ?? raidTerms(state, factionId).buyoff)
   if (optionId === 'repel') {
-    const repelCost = Number(instance.payload?.repelCost ?? Math.max(50, strength - fleetPower(state)))
+    const repelCost = Number(instance.payload?.repelCost ?? Math.max(50, strength - fleetAvailablePower(state)))
     if (state.resources.military < repelCost) {
       return { logType: 'warning', logText: t('log.events.31', { a0: factionName, a1: formatNumber(repelCost), a2: formatNumber(state.resources.military) }), changed: false }
     }
@@ -866,8 +866,8 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     let mineralLost = 0
     let energyLost = 0
     for (let i = 0; i < raidCount; i++) {
-      // ① 舰队自动迎击优先：够强不扣军力（舰队战力随停摆/科技动态，每轮重取）
-      if (fleetPower(state) >= terms.strength) {
+      // ① 舰队自动迎击优先：够强不扣军力（舰队战力随停摆/科技动态，每轮重取；可用战力口径——锁定舰不防空）
+      if (fleetAvailablePower(state) >= terms.strength) {
         f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
         fleetRepelled += 1
         repelled += 1
@@ -924,7 +924,7 @@ function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null
     const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL].find((candidate) => candidate.id === defId)
     if (!def) return null
     const terms = bugTerms(state, def)
-    if (fleetPower(state) < terms.strength) return null
+    if (fleetAvailablePower(state) < terms.strength) return null
     state.bugEscalation = 1
     return {
       logType: 'system',
@@ -938,7 +938,7 @@ function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null
   const raider = raidableFaction(state)
   if (!raider) return null
   const terms = raidTerms(state, raider.id)
-  if (fleetPower(state) < terms.strength) return null
+  if (fleetAvailablePower(state) < terms.strength) return null
   const f = state.factions[raider.id]
   // raid 遭遇解锁胁迫外交（diplomacy-coercion）：舰队自动迎击同为"遭遇"，
   // 与 applyRaid（事件卡结算）/ settleOfflineRaids（离线结算）口径一致，否则舰队够强时

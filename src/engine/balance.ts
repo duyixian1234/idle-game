@@ -267,17 +267,20 @@ export const OUTPOST_ENERGY_MULT = 1.2
 export const GENERATED_CAP_EXPLORATIONS_DIVISOR = 10
 /** 保底池第二批解锁阈值：第 N 次探索后解锁 batch 2（Q16 方案 B 定稿，sim 校准） */
 export const ENDLESS_BATCH_2_EXPLORATIONS = 15
-/** 程序生成军事目标守卫下限（clamp：早期军力容量小 → 守卫不低于 500，Q8 定稿保底） */
+/** 程序生成军事目标守卫下限（clamp：早期军力产出小 → 守卫不低于 500，Q8 定稿保底） */
 export const GEN_CONQUEST_GUARD_MIN = 500
-/** 守卫挂钩军力容量（ADR-0033，2026-08-08）：gen 目标守卫 = 军力容量 × [pct_min, pct_max]（clamp 500 下限）——
- * 攻占军力成本随军港规模/军械科技上升，后期占比 15-40% 成真实门槛（取代原 1.5^ng 周目缩放；
- * 奖励/成本仍锚当期净产出不随守卫，ADR-0028） */
-export const GEN_CONQUEST_GUARD_PCT_MIN = 0.15
-export const GEN_CONQUEST_GUARD_PCT_MAX = 0.4
+/** 守卫锚定军力产出秒数（conquest-fleet，2026-08-09，ADR-0033 修订）：gen 目标守卫 = 军力净产出 × 此秒数（clamp 500 下限）——
+ * 守卫锚回充速度而非容量上限：攻占需求与产能同源（ADR-0028 哲学同构），堆容量不再抬高攻占门槛；
+ * 40s = 回充满守卫恒 40s + 保底 10% 容量后总回充 ≈55s ≤ 自动攻占冷却 60s（原 15-40% 容量挂钩剪刀差根治） */
+export const GEN_CONQUEST_GUARD_SECONDS = 40
 /** 自动攻占冷却（ms，ADR-0033）：60s 一拍防频繁 tick；并行攻占受军力保底约束 */
 export const AUTO_CONQUEST_COOLDOWN_MS = 60_000
-/** 自动攻占军力保底：投满守卫后仍保留军力容量 × 此比例（防耗尽影响 raid 击退 / 探索派遣） */
-export const AUTO_CONQUEST_MILITARY_RESERVE_PCT = 0.2
+/** 自动攻占军力保底：投满守卫后仍保留军力容量 × 此比例（防耗尽影响 raid 击退 / 探索派遣）；
+ * conquest-fleet 修订：0.2 → 0.1（守卫改锚产出后保底主导回充，降比让总回充 ≈55s 跟上 60s 冷却） */
+export const AUTO_CONQUEST_MILITARY_RESERVE_PCT = 0.1
+/** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
+ * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
+export const FLEET_CONQUEST_CAP_PCT = 0.5
 /** 生成目标一次性经济同源锚定（endgame-discovery-economy，2026-08-08，ADR-0028）：
  * 军事目标奖励/攻占成本与外交礼包统一锚定当期净产出（×N 秒），成本与奖励同源 → 净比值恒定防印钞。
  * N/M/G 初值带由 balance-sim 校准（spec open items；N ∈ [30, 180] 秒带内）。 */

@@ -44,7 +44,7 @@ import {
   WORMHOLE_ENERGY_REDUCTION_PER_LEVEL,
   scaledClamp,
 } from './balance'
-import { fleetPowered, fleetPower } from './fleet'
+import { fleetAvailablePower, fleetPowered } from './fleet'
 import { playMilestone } from './story'
 import { militaryCap, netProduction } from './production'
 import { formatNumber, formatPercent } from './format'
@@ -206,11 +206,11 @@ export function canEscort(state: GameState): boolean {
   return fleetPowered(state)
 }
 
-/** 等效舰数 E = 舰队战力 / 单舰基础战力（= 舰数 × 军械倍率 × 星舰倍率）：护航倍率与费用共用同一杠杆——
- * 任何战力来源（买船/军械科技/星舰科技）涨倍率必涨费用，投入产出比例恒定，结构上无印钞路径；
- * 无科技时 E = 舰数，行为与 fleet-dock-10 原式逐字节一致。 */
+/** 等效舰数 E = 可用舰队战力 / 单舰基础战力（= 舰数 × 军械倍率 × 星舰倍率，扣除舰队压制锁定——锁定舰不护航）：
+ * 护航倍率与费用共用同一杠杆——任何战力来源（买船/军械科技/星舰科技）涨倍率必涨费用，投入产出比例恒定，结构上无印钞路径；
+ * 无科技/无锁定时 E = 舰数，行为与 fleet-dock-10 原式逐字节一致。 */
 export function equivalentFleet(state: GameState): number {
-  return fleetPower(state) / SHIP_POWER_BASE
+  return fleetAvailablePower(state) / SHIP_POWER_BASE
 }
 
 /** 单艘护航远征费（能源）= 能源净产出 × ESCORT_ENERGY_SECONDS（锚定当期产出，永不失效） */

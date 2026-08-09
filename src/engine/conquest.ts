@@ -1,10 +1,11 @@
 import { t } from '../i18n'
 import { CONQUESTS, defName } from './data'
 import type { ConquestDef } from './data'
-import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import { militaryCap } from './production'
+import { fleetAvailablePower } from './fleet'
 import { rollDomain } from './rng'
 import { formatNumber, formatPercent } from './format'
 import type { ConquestState, GameState } from './types'
@@ -71,8 +72,10 @@ export function isConquestAvailable(state: GameState, id: string): boolean {
 }
 
 /** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt；时长为 duration 域随机 10~30min，rng 可选注入供测试覆盖）。
- * 程序生成目标（gen:*）另扣发现时固化的产能挂钩资源费（ADR-0028，costMineral/costEnergy 快照；手写保底/静态区域无此字段 → 0） */
-export function startConquest(state: GameState, id: string, invest: number, nowMs: number, rng?: () => number): ConquestActionResult {
+ * 程序生成目标（gen:*）另扣发现时固化的产能挂钩资源费（ADR-0028，costMineral/costEnergy 快照；手写保底/静态区域无此字段 → 0）。
+ * useFleet（默认 true，conquest-fleet）：手动攻占「舰队压制」——舰队战力折算计入攻占（≤ 守卫 × FLEET_CONQUEST_CAP_PCT，
+ * 防满配舰队碾压），发起时锁定 cs.fleetLocked、结算（成功/失败）释放；自动攻占传 false 保持纯军力（不替玩家做防御取舍）。 */
+export function startConquest(state: GameState, id: string, invest: number, nowMs: number, rng?: () => number, useFleet = true): ConquestActionResult {
   const def = conquestDef(state, id)
   if (!def) return { ok: false, reason: t('log.conquest.0') }
   if (!isConquestAvailable(state, id)) return { ok: false, reason: t('log.conquest.1') }
@@ -86,7 +89,13 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
   state.resources.military -= invest
   state.resources.mineral -= costMineral
   state.resources.energy -= costEnergy
-  state.conquest[id] = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
+  const cs: ConquestState = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
+  if (useFleet) {
+    // 舰队压制：折算锁定 = min(可用战力, 守卫 × 封顶比例)；>0 才写字段（结算释放 = 删除字段）
+    const contrib = Math.floor(Math.min(fleetAvailablePower(state), def.guard * FLEET_CONQUEST_CAP_PCT))
+    if (contrib > 0) cs.fleetLocked = contrib
+  }
+  state.conquest[id] = cs
   return { ok: true }
 }
 
@@ -131,14 +140,15 @@ function settleOneConquest(
   if (!cs || cs.startedAt == null || cs.finishAt == null) return null
   if (nowMs < cs.finishAt) return null
   const invest = cs.invested ?? 0
-  // 成功率 = min(100%, 投入/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
-  const chance = Math.min(1, (invest / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
+  // 成功率 = min(100%, (投入军力 + 舰队压制锁定)/守卫 × (1 + 声望成功率加成))：薄投受益，足额投入仍必成（100% 封顶）
+  const chance = Math.min(1, ((invest + (cs.fleetLocked ?? 0)) / def.guard) * (1 + reputationBonuses(state).conquestSuccessBonus))
   const success = roll() < chance
   if (success) {
     cs.status = 'conquered'
     delete cs.startedAt
     delete cs.finishAt
     delete cs.invested
+    delete cs.fleetLocked // 舰队压制锁定释放（conquest-fleet）
     const rewards: string[] = []
     if (def.rewardMineral) {
       state.resources.mineral += def.rewardMineral
@@ -192,7 +202,8 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     if (guard <= 0) continue
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
     if (state.resources.military < guard + reserve) continue
-    const r = startConquest(state, gt.id, guard, nowMs)
+    // 自动攻占纯军力（useFleet=false，conquest-fleet Q6）：舰队锁定 = 防御真空取舍，自动系统不替玩家做
+    const r = startConquest(state, gt.id, guard, nowMs, undefined, false)
     if (r.ok) {
       cfg.lastActionAt = nowMs
       return [t('cq.5', { a0: gt.name, a1: formatNumber(guard) })]

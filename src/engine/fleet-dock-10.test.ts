@@ -110,6 +110,18 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
     // 停摆下发起护航被拒（能源不足先于护航条件命中；语义=停摆无护航，与 fleet-dock-10 一致）
     expect(startExpedition(s, 0, () => 0.99, 0, true)).toMatchObject({ ok: false })
   })
+
+  it('舰队压制锁定期间等效舰数用可用战力：锁 1000 → E=(3600−1000)/1200，倍率/费同步降（conquest-fleet）', () => {
+    const s = escortState()
+    expect(equivalentFleet(s)).toBe(3)
+    s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 1, finishAt: 2, invested: 500, fleetLocked: 1_000 }
+    expect(equivalentFleet(s)).toBeCloseTo(2600 / 1200)
+    expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * (2600 / 1200))
+    expect(escortFee(s)).toBe(Math.floor(escortFeePerShip(s) * (2600 / 1200)))
+    // 结算释放后恢复
+    delete s.conquest['gen:conquest:0'].fleetLocked
+    expect(equivalentFleet(s)).toBe(3)
+  })
 })
 
 describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {

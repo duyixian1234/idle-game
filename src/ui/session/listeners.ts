@@ -44,6 +44,8 @@ export interface SessionUiState {
   justUnlockedUntil: number
   /** 进入档案页时的最大 unlockedAt（持续高亮判定阈值：unlockedAt > 该值 → NEW 角标） */
   seenAchievementMaxAt: number
+  /** 舰队压制开关（conquest-fleet）：手动攻占是否投入舰队战力（UI 会话内存，默认开，刷新回默认；引擎侧 autoConquest 恒纯军力） */
+  conquestFleetEnabled: boolean
 }
 
 export interface SessionCtx {
@@ -176,6 +178,12 @@ export function bindListeners(ctx: SessionCtx): void {
       state.autoConquest.enabled = conquestAuto.checked
       render()
       void deps.save()
+    }
+    // 舰队压制开关（conquest-fleet：军事页 data-conquest-fleet；UI 会话内存不存档，刷新回默认开）
+    const conquestFleet = (e.target as HTMLElement).closest<HTMLInputElement>('[data-conquest-fleet]')
+    if (conquestFleet) {
+      ui.conquestFleetEnabled = conquestFleet.checked
+      render()
     }
   })
 
@@ -469,7 +477,7 @@ export function bindListeners(ctx: SessionCtx): void {
       const id = conquestBtn.dataset.conquest ?? ''
       const input = ctx.panels['military'].querySelector<HTMLInputElement>(`[data-conquest-input="${id}"]`)
       const invest = Number(input?.value ?? 0)
-      dispatch(state, 'conquest', { id, invest }, deps)
+      dispatch(state, 'conquest', { id, invest, useFleet: ui.conquestFleetEnabled }, deps)
       return
     }
     // 锁定卡折叠行（data-locked-collapse）：展开/收起对应分区全部锁定卡（UI 内存态，250ms 重建不重置）

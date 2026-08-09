@@ -478,6 +478,8 @@ export const en: Zh = {
     'Completed military targets',
     'Ordnance Tech',
     'Purge progress: {a0}/{a1}',
+    'Fleet suppression',
+    'Fleet suppression: −{a0} military',
     ],
     diplomacy: [
     'Round {a0}',

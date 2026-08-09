@@ -3,8 +3,8 @@ import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost } from './exploration'
 import { generateConquestTarget } from './generate'
-import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR } from './balance'
-import { militaryCap } from './production'
+import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS } from './balance'
+import { militaryCap, nominalMilitaryProduction } from './production'
 import type { GameState } from './types'
 
 function simulate(seed: number) {
@@ -119,6 +119,32 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
       expect(expeditionMilitaryCost(s, 0)).toBeLessThanOrEqual(1000)
       expect(expeditionMilitaryCost(s, 3)).toBeLessThanOrEqual(1000)
     }
+  })
+
+  it('守卫锚产出 + 保底 10%：后期攻占节奏（守卫+保底回充）≤ 自动攻占冷却 60s（conquest-fleet）', () => {
+    // 后期形态：100 军港（容量 30,150）+ 200 兵营 + 军械 Lv5（军力产出 300/s）
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 100
+    s.buildings.barracks = 200
+    s.techLevels.militaryTech = 5
+    const guard = generateConquestTarget(s, () => 0.5).guard!
+    expect(guard).toBe(200 * 0.5 * 3 * GEN_CONQUEST_GUARD_SECONDS) // 12,000（名义产能 × 40s）
+    const cap = militaryCap(s)
+    expect(cap).toBe(30_150) // (100 + 200×100) × 1.5
+    const prod = nominalMilitaryProduction(s)
+    expect(prod).toBe(300)
+    const rechargeSec = (guard + Math.floor(cap * 0.1)) / prod // (12,000 + 3,015) / 300 = 50.05s
+    expect(rechargeSec).toBeLessThanOrEqual(AUTO_CONQUEST_COOLDOWN_MS / 1000)
+    // 守卫不随军港（容量）漂移——堆容量不再抬高攻占门槛（剪刀差根治）
+    const s2 = createInitialState(0)
+    s2.phase = 'ended'
+    s2.planets.orbital = { unlocked: true }
+    s2.buildings.militaryPort = 1_000
+    s2.buildings.barracks = 200
+    s2.techLevels.militaryTech = 5
+    expect(generateConquestTarget(s2, () => 0.5).guard).toBe(guard)
   })
 
   it('军械容量每级 +10%：MILITARY_CAP_TECH_PER_LEVEL 常量生效（5 级 = ×1.5）', () => {
