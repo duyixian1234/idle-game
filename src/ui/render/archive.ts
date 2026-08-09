@@ -22,7 +22,7 @@ function reputationBonusText(b: ReputationBonuses): string {
   if (b.raidThresholdBonus > 0) parts.push(`骚扰阈值 ${formatPercent(55 + b.raidThresholdBonus)}`)
   if (b.militaryCapBonus > 0) parts.push(`军力上限 +${formatPercent(b.militaryCapBonus * 100)}`)
   if (b.conquestSuccessBonus > 0) parts.push(`攻占成功率 +${formatPercent(b.conquestSuccessBonus * 100)}`)
-  if (parts.length === 0) return '未解锁加成（声望 ≥20 解锁贸易折扣）'
+  if (parts.length === 0) return t('ui.archive.19')
   return parts.join(' · ')
 }
 
@@ -48,9 +48,9 @@ function renderAchievementCard(state: GameState, def: AchievementDef, opts: Arch
   card.className = `build-card ach-card${unlocked ? '' : ' ach-locked'}${inFlashWindow ? ' just-unlocked' : ''}${isNewlySeen ? ' ach-new' : ''}`
   card.setAttribute('data-achievement', def.id)
   const rewardParts: string[] = []
-  if (def.rewardMineral) rewardParts.push(`${formatNumber(def.rewardMineral)} 矿物`)
-  if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
-  const rewardText = rewardParts.length > 0 ? `奖励：${rewardParts.join('、')}` : ''
+  if (def.rewardMineral) rewardParts.push(t('ui.archive.20', { a0: formatNumber(def.rewardMineral) }))
+  if (def.rewardTech) rewardParts.push(t('ui.archive.21', { a0: formatNumber(def.rewardTech) }))
+  const rewardText = rewardParts.length > 0 ? t('ui.archive.2', { a0: rewardParts.join('、') }) : ''
   // 未解锁且有 hint → 显示解锁提示；否则显示 desc
   const displayDesc = !unlocked && def.hintKey ? t(def.hintKey) : defDesc(def)
   let progressHtml = ''
@@ -68,7 +68,7 @@ function renderAchievementCard(state: GameState, def: AchievementDef, opts: Arch
   if (unlocked && ach) {
     const d = new Date(ach.unlockedAt)
     const pad = (n: number) => String(n).padStart(2, '0')
-    timeHtml = `<span class="ach-time" data-ach-time="${def.id}">${pad(d.getHours())}:${pad(d.getMinutes())} · 第${ach.unlockedInRound}周目</span>`
+    timeHtml = `<span class="ach-time" data-ach-time="${def.id}">${t('ui.archive.0', { a0: pad(d.getHours()), a1: pad(d.getMinutes()), a2: ach.unlockedInRound })}</span>`
   }
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.icon)}</div>
@@ -76,15 +76,15 @@ function renderAchievementCard(state: GameState, def: AchievementDef, opts: Arch
       <div class="build-info">
         <div class="build-name ach-name">
           ${unlocked ? '✓' : '🔒'} ${escapeHtml(defName(def))}
-          <span class="ach-state">+${formatNumber(def.rep)} 声望</span>
+          <span class="ach-state">${t('ui.archive.1', { a0: formatNumber(def.rep) })}</span>
         </div>
         <div class="build-desc ach-desc">${escapeHtml(displayDesc)}</div>
       </div>
-      <div class="ach-reward">${rewardText || '奖励：无'}</div>
+      <div class="ach-reward">${rewardText || t('ui.archive.17')}</div>
       ${timeHtml}
       ${progressHtml}
     </div>
-    ${isNewlySeen ? '<span class="ach-new-badge" data-ach-new-badge>新</span>' : ''}`
+    ${isNewlySeen ? `<span class="ach-new-badge" data-ach-new-badge>${t('ui.archive.3')}</span>` : ''}`
   return card
 }
 
@@ -99,17 +99,17 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
   repSection.className = 'military-section'
   repSection.innerHTML = `
     <div class="rep-card">
-    <div class="rep-title">星系统一声望 <span class="rep-value">${formatNumber(rep)} / ${formatNumber(100)}</span></div>
+    <div class="rep-title">${t('ui.archive.4')}<span class="rep-value">${formatNumber(rep)} / ${formatNumber(100)}</span></div>
       <div class="rep-bonuses">${escapeHtml(reputationBonusText(bonuses))}</div>
-      <div class="rep-hint">声望由成就解锁驱动，影响外交与军事，不直接改变产出。</div>
+      <div class="rep-hint">${t('ui.archive.5')}</div>
     </div>`
   el.appendChild(repSection)
 
   // 段 2：成就卡片网格（叙事 / 收集 / 终局 三组，各一个 .build-grid；条目 .build-card.ach-card）
   const groups: { key: string; title: string }[] = [
-    { key: 'story', title: t('ui.archive.0') },
-    { key: 'collect', title: t('ui.archive.1') },
-    { key: 'finale', title: t('ui.archive.2') },
+    { key: 'story', title: t('ui.archiveCat.0') },
+    { key: 'collect', title: t('ui.archiveCat.1') },
+    { key: 'finale', title: t('ui.archiveCat.2') },
   ]
   for (const g of groups) {
     const defs = Object.values(ACHIEVEMENTS).filter((d) => d.category === g.key)
@@ -139,15 +139,15 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
   exploreSection.className = 'military-section'
   const exploreHeader = document.createElement('div')
   exploreHeader.className = 'conquest-header'
-  exploreHeader.textContent = '探索'
+exploreHeader.textContent = t('ui.archive.6')
   exploreSection.appendChild(exploreHeader)
   const exploreStats = document.createElement('div')
   exploreStats.className = 'rep-stats'
   exploreStats.setAttribute('data-explore-stats', '')
   const escortCount = state.stats.escortedExpeditions ?? 0
   exploreStats.innerHTML = `
-    <div>探索派遣：${formatNumber(state.stats.explorations)} 次${escortCount > 0 ? ` · 护航 ${formatNumber(escortCount)} 次` : ''}</div>
-    <div>探索收获：矿物 ${formatNumber(state.stats.exploreMineralEarned ?? 0)} · 能源 ${formatNumber(state.stats.exploreEnergyEarned ?? 0)} · 科技 ${formatNumber(state.stats.exploreTechEarned ?? 0)}</div>`
+    <div>${t('ui.archive.7', { a0: formatNumber(state.stats.explorations), a1: escortCount > 0 ? t('ui.archive.18', { a0: formatNumber(escortCount) }) : '' })}</div>
+    <div>${t('ui.archive.8', { a0: formatNumber(state.stats.exploreMineralEarned ?? 0), a1: formatNumber(state.stats.exploreEnergyEarned ?? 0), a2: formatNumber(state.stats.exploreTechEarned ?? 0) })}</div>`
   exploreSection.appendChild(exploreStats)
   el.appendChild(exploreSection)
 
@@ -156,7 +156,7 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
   statSection.className = 'military-section'
   const statHeader = document.createElement('div')
   statHeader.className = 'conquest-header'
-  statHeader.textContent = '本周目统计'
+statHeader.textContent = t('ui.archive.9')
   statSection.appendChild(statHeader)
   const tradeSum = Object.values(state.factions).reduce((a, f) => a + f.tradeCount, 0)
   const intimiSum = Object.values(state.factions).reduce((a, f) => a + f.intimidateCount, 0)
@@ -164,13 +164,13 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
   const stats = document.createElement('div')
   stats.className = 'rep-stats'
   stats.innerHTML = `
-    <div>在线时长：${formatPlayTime(state.playSeconds)}</div>
-    <div>累计获得矿物：${formatNumber(state.stats.totalMineralEarned)}</div>
-    <div>累计能源：${formatNumber(state.stats.totalEnergyEarned ?? 0)}</div>
-    <div>累计科技：${formatNumber(state.stats.totalTechEarned ?? 0)}</div>
-    <div>外交贸易：${formatNumber(tradeSum)} 次 · 威慑：${formatNumber(intimiSum)} 次</div>
-    <div>星域肃清：${formatNumber(conquered)}/${formatNumber(Object.keys(CONQUESTS).length)}</div>
-    <div>NG+ 周目：${formatNumber(state.ngPlusLevel)}</div>`
+    <div>${t('ui.archive.10', { a0: formatPlayTime(state.playSeconds) })}</div>
+    <div>${t('ui.archive.11', { a0: formatNumber(state.stats.totalMineralEarned) })}</div>
+    <div>${t('ui.archive.12', { a0: formatNumber(state.stats.totalEnergyEarned ?? 0) })}</div>
+    <div>${t('ui.archive.13', { a0: formatNumber(state.stats.totalTechEarned ?? 0) })}</div>
+    <div>${t('ui.archive.14', { a0: formatNumber(tradeSum), a1: formatNumber(intimiSum) })}</div>
+    <div>${t('ui.archive.15', { a0: formatNumber(conquered), a1: formatNumber(Object.keys(CONQUESTS).length) })}</div>
+    <div>${t('ui.archive.16', { a0: formatNumber(state.ngPlusLevel) })}</div>`
   statSection.appendChild(stats)
   el.appendChild(statSection)
 }
