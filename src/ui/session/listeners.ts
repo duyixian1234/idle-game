@@ -31,8 +31,8 @@ export interface SessionUiState {
   logDirection: LogDirection
   lastLogId: number
   exploreEscortChecked: Set<number>
-  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回默认收起） */
-  hiddenBuildingsOpen: boolean
+  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回默认收起；key = zoneId 各区独立，ADR-0043） */
+  hiddenBuildingsOpen: Record<string, boolean>
   /** 日志筛选类别（log-filter：单选互斥，'all' = 全部可见；localStorage 持久化） */
   logFilter: LogFilter
   /** 上次渲染时的已解锁成就 id 集合（UI 层 diff 检测新解锁，与引擎 checkAchievements 返回值无关） */
@@ -207,7 +207,9 @@ export function bindListeners(ctx: SessionCtx): void {
     }
     const showBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-show-hidden-buildings]')
     if (showBtn) {
-      ui.hiddenBuildingsOpen = !ui.hiddenBuildingsOpen
+      // 分区展开态（ADR-0043）：toggle 按钮携带 zone key，只翻转该区；缺省兜底 'build'
+      const zone = showBtn.dataset.showHiddenBuildings ?? 'build'
+      ui.hiddenBuildingsOpen = { ...ui.hiddenBuildingsOpen, [zone]: !ui.hiddenBuildingsOpen[zone] }
       render()
     }
   })

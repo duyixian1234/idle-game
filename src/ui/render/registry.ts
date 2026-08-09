@@ -158,6 +158,8 @@ RENDER_NODES.register({
     renderMilitaryPanel(ctx.panels['military'], ctx.state, {
       flashId: ctx.flashId,
       archivedExpanded: ctx.ui.archivedExpanded,
+      // ADR-0043：军事区隐藏抽屉展开态独立（此前漏传致抽屉条件恒 falsy、恢复入口不可见）
+      hiddenBuildingsOpen: ctx.ui.hiddenBuildingsOpen,
     }),
 })
 RENDER_NODES.register({

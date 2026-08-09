@@ -116,6 +116,24 @@ describe('ui: 军事面板', () => {
     expect(panel.querySelector('[data-tech="militaryTech"]')).toBeNull()
   })
 
+  it('军事面板隐藏抽屉：hiddenDrawerZone=military 独立展开（修复漏传 hiddenBuildingsOpen 回归）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 100_000
+    s.hiddenBuildings = ['barracks']
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    // military 区键置位 → 抽屉 + 恢复入口出现（renderMilitaryPanel 内部注入 hiddenDrawerZone='military'）
+    renderMilitaryPanel(panel, s, { hiddenBuildingsOpen: { military: true } })
+    expect(panel.querySelector('[data-build-hidden-drawer]')).toBeTruthy()
+    expect(panel.querySelector('[data-unhide-building="barracks"]')).toBeTruthy()
+    // 仅他区键置位 → 军事抽屉不展开（civil 键不连带军事区）
+    renderMilitaryPanel(panel, s, { hiddenBuildingsOpen: { civil: true } })
+    expect(panel.querySelector('[data-build-hidden-drawer]')).toBeNull()
+  })
+
   it('档案面板：探索小节展示派遣次数与探索收获三元组（ADR-0041）', () => {
     const container = document.createElement('div')
     buildLayout(container)

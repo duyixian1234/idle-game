@@ -23,6 +23,14 @@ _Avoid_: 工具类、util（深模块是域内聚，不是通用函数桶）
 跨 250ms 全量重建记忆、但不进存档的渲染态（折叠展开/角标快照/弹窗开关/typewriter 进度/升级高亮等），集中在 `ui/session` 的 `SessionUiState`。
 _Avoid_: 缓存（会话态是渲染事实，不是性能优化）
 
+**tick/渲染同源（Tick-Render Single Source）**:
+`ui/session` 的 `tickAndRender(nowMs)` 在同一闭包内先 `tick` 后 `render`，二者共享同一 `GameState` 引用——重操作（`setState` 替换引用）后 tick 推进与渲染展示不可能脱节。
+_Avoid_: 主循环持有独立 state 变量（ADR-0043 修复的数值冻结根因）
+
+**分区隐藏抽屉（Zone-scoped Hidden Drawer）**:
+建造页三区（民用/星际工程/军事）各自的「已隐藏 (N)」抽屉展开态按 `zoneId` 独立存于会话态（`hiddenBuildingsOpen: Record<string, boolean>`），一处展开不影响他区。
+_Avoid_: 全局布尔（军事区漏传即「点了没反应」的成因）
+
 **重操作（Heavy Operation）**:
 替换 `GameState` 引用的业务动作（导入/导出/重置/NG+ 序列），与 tick 原地修改是两种状态语义，走 `setState(next)` + 重建。
 _Avoid_: 重置（重置只是重操作之一）

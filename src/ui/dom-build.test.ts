@@ -131,7 +131,7 @@ describe('ui: 布局与冒烟', () => {
     expect(btn!.disabled).toBe(false)
   })
 
-  it('隐藏建造物（hidden-buildings）：卡片过滤 + 头部已隐藏按钮 + 抽屉恢复入口', () => {
+  it('隐藏建造物（hidden-buildings）：卡片过滤 + 头部已隐藏按钮 + 抽屉恢复入口（分区展开态）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = createInitialState(0)
@@ -146,13 +146,17 @@ describe('ui: 布局与冒烟', () => {
     expect(panel.querySelector('[data-build="miner"]')).toBeNull()
     expect(panel.querySelector('[data-show-hidden-buildings]')?.textContent).toContain('已隐藏 (1)')
     expect(panel.querySelector('[data-build-hidden-drawer]')).toBeNull()
-    // 抽屉展开：渲染恢复入口
-    renderBuildPanel(panel, s, BUILDINGS, { hiddenBuildingsOpen: true })
+    // 抽屉展开（civil 区键置位）：渲染恢复入口；toggle 按钮携带 zone key
+    renderBuildPanel(panel, s, BUILDINGS, { zoneId: 'civil', hiddenBuildingsOpen: { civil: true } })
     const drawer = panel.querySelector('[data-build-hidden-drawer]')
     expect(drawer).toBeTruthy()
     const restore = panel.querySelector<HTMLElement>('[data-unhide-building="miner"]')
     expect(restore).toBeTruthy()
     expect(restore!.textContent).toContain('恢复')
+    expect(panel.querySelector('[data-show-hidden-buildings]')?.getAttribute('data-show-hidden-buildings')).toBe('civil')
+    // 分区互斥：仅他区键置位 → civil 抽屉不展开
+    renderBuildPanel(panel, s, BUILDINGS, { zoneId: 'civil', hiddenBuildingsOpen: { military: true } })
+    expect(panel.querySelector('[data-build-hidden-drawer]')).toBeNull()
   })
 
   it('appendLog 最新在底：按时间正序追加', () => {

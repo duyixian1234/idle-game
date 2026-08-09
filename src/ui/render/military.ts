@@ -171,9 +171,11 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
 export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
   // 段 1：军事建筑（兵营/军港，卡片化，与民用同构；无升级入口——ADR-0036 普通建筑无升级；军事 tab 不启用锁定卡折叠）
+  // hiddenDrawerZone: 'military'：隐藏抽屉展开态按区独立（ADR-0043，修复军事区漏传 hiddenBuildingsOpen 致抽屉永不展开；
+  // 与 zoneId 解耦——不因抽屉修复而开启军事区锁定卡折叠）
   const buildSection = document.createElement('div')
   buildSection.className = 'military-section'
-  renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, opts)
+  renderBuildPanel(buildSection, state, MILITARY_BUILDINGS, { ...opts, hiddenDrawerZone: 'military' })
   el.appendChild(buildSection)
   // 段 4：攻占列表（静态 4 区域 + 无尽动态目标；已肃清 → 归档折叠区）——置面板底部（攻占 + 进度总览收束在最下方）
   const conquestSection = document.createElement('div')

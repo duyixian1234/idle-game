@@ -21,14 +21,18 @@ import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
 export interface BuildPanelRenderOptions {
   /** 分区 id：传入时启用锁定卡折叠（每区独立）；不传 = 不折叠（军事 tab 仅 2 建筑） */
   zoneId?: string
+  /** 隐藏抽屉分区键（hidden-buildings，ADR-0043）：与 zoneId 解耦——军事区需独立抽屉键但保持「不启用锁定卡折叠」。
+   * 缺省回退 zoneId，再回退 'build' */
+  hiddenDrawerZone?: string
   /** 折叠展开态（UI 会话内存，不进存档；key = zoneId，刷新回默认收起） */
   lockedExpanded?: Record<string, boolean>
   /** 刚升级高亮 id（短暂窗口内卡片加 just-upgraded 类触发一次性动画，过期自动消失） */
   flashId?: string | null
   /** 归档折叠展开态（endless-expansion：军事/外交归档区，UI 会话内存不进存档；key = kind） */
   archivedExpanded?: Record<string, boolean>
-  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存不进存档；true 时在头部按钮下方渲染恢复列表） */
-  hiddenBuildingsOpen?: boolean
+  /** 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存不进存档；key = hiddenDrawerZone/zoneId，各区独立；
+   * 置位时在头部按钮下方渲染恢复列表） */
+  hiddenBuildingsOpen?: Record<string, boolean>
 }
 
 /** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局工程弹窗 */

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { pushLog } from '../engine/core'
+import { formatNumber } from '../engine/format'
 import { buildLayout } from './layout'
 import { createSession } from './session'
 import type { SoundManager } from '../audio'
@@ -55,11 +56,44 @@ describe('session: 公开接口', () => {
     expect(() => session.render()).not.toThrow()
   })
 
+  it('tickAndRender：setState 后 tick 与 render 同源（导入/重置后资源不冻结，ADR-0043）', () => {
+    const { els, session } = setup()
+    // 模拟导入：新 state 引用，lastTick 设为 10 秒前（保证 dt > 0）+ 有矿物产出
+    const imported = createInitialState(Date.now() - 10_000)
+    imported.buildings.miner = 50 // 50 矿/s
+    const mineralBefore = imported.resources.mineral
+    session.setState(imported)
+    session.tickAndRender(Date.now())
+    // tick 推进的是会话当前 state（新引用），而非被替换掉的旧对象
+    expect(imported.resources.mineral).toBeGreaterThan(mineralBefore)
+    // render 展示的是同一新 state 推进后的值（若展示被替换掉的旧 state 初始值则冻结）
+    const val = els.resourceBar.querySelector('[data-resource="mineral"] [data-res-value]')
+    expect(val).toBeTruthy()
+    expect(val!.textContent).toBe(formatNumber(imported.resources.mineral))
+  })
+
   it('deps.render 触发全量重渲染（dispatch 副作用通路）', () => {
     const { els, session, state } = setup()
     state.resources.mineral = 999
     session.deps.render()
     expect(els.resourceBar.textContent).toContain('999')
+  })
+
+  it('隐藏抽屉分区 toggle：点击只翻转本区展开态（ADR-0043）', () => {
+    const { els, session } = setup()
+    session.state.hiddenBuildings = ['miner']
+    session.render()
+    const getToggle = (): HTMLElement | null =>
+      els.panel.querySelector<HTMLElement>('[data-panel="build"] [data-show-hidden-buildings]')
+    const getDrawer = (): HTMLElement | null =>
+      els.panel.querySelector<HTMLElement>('[data-panel="build"] [data-build-hidden-drawer]')
+    expect(getToggle()?.getAttribute('data-show-hidden-buildings')).toBe('civil')
+    // 点击展开 civil 区抽屉
+    getToggle()!.click()
+    expect(getDrawer()).toBeTruthy()
+    // 再次点击收起（toggle 在重建后重新查询）
+    getToggle()!.click()
+    expect(getDrawer()).toBeNull()
   })
 
   it('deps.save 触发 onSave 回调', async () => {

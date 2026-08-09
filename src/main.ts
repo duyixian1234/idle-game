@@ -1,4 +1,4 @@
-import { createInitialState, enterInfiniteMode, tick } from './engine/engine'
+import { createInitialState, enterInfiniteMode } from './engine/engine'
 import { checkPlanetUnlocks } from './engine/planets'
 import { RESOURCE_META } from './engine/data'
 import { formatNumber } from './engine/format'
@@ -87,25 +87,15 @@ async function main(): Promise<void> {
   })
 
   // 首次进入时播放开局叙事序列（在 session 建立后 pushLog：叙事计入角标差值=新报，
-  // 与原「resetSeenSnapshot 先于叙事」的行为一致；首次 render 在下方 loop() 中，顺序不变）
+  // 与原「resetSeenSnapshot 先于叙事」的行为一致；首次 render 在下方 tickAndRender 中，顺序不变）
   if (state.log.length === 0) {
     for (const scene of OPENING_SCENES) pushLog(state, 'story', scene)
   }
 
-  // 游戏循环：按真实时间差推进（tick 引擎 → session.render 全量重渲染）
-  let phaseBefore = state.phase
-  function loop(): void {
-    const logBefore = state.nextLogId
-    tick(state, Date.now())
-    // 事件/结局音效检测（auto-infinite-entry：通关即自动进入无限，结局音效挂 playing→infinite 边沿；
-    // NG+ 后再通关仍触发；infinite 存档加载 phaseBefore 初始即 infinite 不误触发）
-    if (state.log.some((e) => e.id >= logBefore && e.type === 'event')) sound.play('event')
-    if (state.phase === 'infinite' && phaseBefore !== 'infinite') sound.play('ending')
-    phaseBefore = state.phase
-    session.render()
-  }
-  setInterval(loop, TICK_INTERVAL_MS)
-  loop()
+  // 游戏循环：按真实时间差推进（session.tickAndRender —— tick + render 同源，ADR-0043；
+  // 重操作 setState 替换引用后两者共享会话当前 state，导入/重置后数值不再冻结）
+  setInterval(() => session.tickAndRender(Date.now()), TICK_INTERVAL_MS)
+  session.tickAndRender(Date.now())
 
   // 自动保存（节流）
   setInterval(() => {

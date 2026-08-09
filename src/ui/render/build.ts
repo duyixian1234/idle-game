@@ -189,6 +189,9 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
 export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record<string, BuildingDef>, opts: BuildPanelRenderOptions = {}): void {
   el.innerHTML = ''
   const defList = Object.values(defs)
+  // 隐藏抽屉分区键（ADR-0043）：hiddenDrawerZone 与 zoneId 解耦——军事区独立抽屉键但不启用锁定卡折叠；
+  // 缺省回退 zoneId，再回退 'build'（无 zone 调用兜底）
+  const drawerZone = opts.hiddenDrawerZone ?? opts.zoneId ?? 'build'
   const hiddenSet = new Set(state.hiddenBuildings)
   const unlockedDefs = defList.filter((d) => isBuildingUnlocked(state, d.id) && !hiddenSet.has(d.id))
   const hiddenDefs = defList.filter((d) => isBuildingUnlocked(state, d.id) && hiddenSet.has(d.id))
@@ -202,11 +205,11 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     const toggle = document.createElement('button')
     toggle.type = 'button'
     toggle.className = 'build-hidden-toggle'
-    toggle.setAttribute('data-show-hidden-buildings', '')
+    toggle.setAttribute('data-show-hidden-buildings', drawerZone)
     toggle.textContent = `已隐藏 (${hiddenDefs.length})`
     bar.appendChild(toggle)
     el.appendChild(bar)
-    if (opts.hiddenBuildingsOpen) {
+    if (opts.hiddenBuildingsOpen?.[drawerZone]) {
       const drawer = document.createElement('div')
       drawer.className = 'build-hidden-drawer'
       drawer.setAttribute('data-build-hidden-drawer', '')
@@ -239,21 +242,22 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     grid.appendChild(renderBuildingCard(state, def, opts.flashId ?? null))
   }
 
-  // 锁定卡折叠：启用折叠（zoneId）且 >3 张 → 只展示前 3 张 + 折叠行；否则全部展示
-  const zoneId = opts.zoneId
-  const expanded = zoneId ? Boolean(opts.lockedExpanded?.[zoneId]) : false
-  const showAllLocked = !zoneId || expanded || lockedDefs.length <= 3
+  // 锁定卡折叠：启用折叠（显式传 zoneId）且 >3 张 → 只展示前 3 张 + 折叠行；否则全部展示。
+  // 注意与隐藏抽屉的 zoneId 区分：此处用 opts.zoneId 原文（未传 = 不折叠，军事 tab 仅 2 建筑）
+  const collapseZone = opts.zoneId
+  const expanded = collapseZone ? Boolean(opts.lockedExpanded?.[collapseZone]) : false
+  const showAllLocked = !collapseZone || expanded || lockedDefs.length <= 3
   const shownLocked = showAllLocked ? lockedDefs : lockedDefs.slice(0, 3)
   for (const def of shownLocked) {
     grid.appendChild(renderLockedCard(state, def))
   }
   el.appendChild(grid)
 
-  if (zoneId && lockedDefs.length > 3) {
+  if (collapseZone && lockedDefs.length > 3) {
     const collapse = document.createElement('button')
     collapse.type = 'button'
     collapse.className = 'locked-collapse'
-    collapse.setAttribute('data-locked-collapse', zoneId)
+    collapse.setAttribute('data-locked-collapse', collapseZone)
     collapse.setAttribute('data-expanded', expanded ? 'true' : 'false')
     collapse.textContent = expanded ? '收起锁定项 ▴' : `还有 ${lockedDefs.length - 3} 项未解锁 ▾`
     el.appendChild(collapse)

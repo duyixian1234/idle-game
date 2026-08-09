@@ -3,6 +3,7 @@ import { PLANETS, RESOURCE_META } from '../../engine/data'
 import { previewNewGamePlus } from '../../engine/ngplus'
 import { formatRate } from '../../engine/format'
 import { netProduction } from '../../engine/production'
+import { tick } from '../../engine/engine'
 import type { EventAutomationPolicy, EventRiskLevel, EventTheme, GameState } from '../../engine/types'
 import type { SoundManager } from '../../audio'
 import { RENDER_NODES } from '../render/registry'
@@ -28,8 +29,8 @@ import { startNewGamePlusSequence } from './actions-heavy'
 /**
  * ui/session —— 渲染调度 + 会话 UI 状态 + 交互行为 的深层模块。
  *
- * 公开接口只有 createSession 工厂 + 返回的 4 项：state / setState / render / deps。
- * 16 个会话闭包态、render() 全量重建调度、18 处事件监听（listeners.ts）、
+ * 公开接口只有 createSession 工厂 + 返回的 5 项：state / setState / tickAndRender / render / deps。
+ * 16 个会话闭包态、tickAndRender 同源循环（ADR-0043）、render() 全量重建调度、18 处事件监听（listeners.ts）、
  * 5 个重操作序列（actions-heavy.ts）全部内聚于此，main.ts 只做启动装配。
  *
  * 域词汇：会话 UI 状态 = 折叠展开/角标快照/弹窗开关/升级高亮/typewriter 进度等不进存档的
@@ -48,10 +49,16 @@ export interface CreateSessionArgs {
 }
 
 export interface Session {
-  /** 当前 GameState 引用（main.loop: tick(session.state, ...); session.render()） */
+  /** 当前 GameState 引用（main 自动保存用；重操作 setState 替换后即最新） */
   get state(): GameState
   /** 替换内部 state 引用（导入/重置/NG+ 序列使用） */
   setState(next: GameState): void
+  /**
+   * tick + render 循环入口（ADR-0043）：同一闭包内先 tick 引擎再全量重渲染，
+   * 二者共享会话内部 state 引用——setState 替换引用后 tick 推进与渲染展示天然同源，
+   * 不可能出现「loop tick 旧引用、render 展示新引用」的数值冻结。
+   */
+  tickAndRender(nowMs: number): void
   /** 250ms tick 后的重渲染入口 */
   render(): void
   /** 给 dispatch 的副作用依赖（render 指向内部） */
@@ -95,8 +102,8 @@ export function createSession(args: CreateSessionArgs): Session {
     })(),
     // 手动护航勾选状态：跨渲染记忆的 UI 偏好（250ms 全量重建 DOM 下保留勾选；不污染存档）
     exploreEscortChecked: new Set(),
-    // 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回收起）
-    hiddenBuildingsOpen: false,
+    // 已隐藏建造物抽屉展开态（hidden-buildings：UI 会话内存，刷新回收起；key = zoneId 各区独立，ADR-0043）
+    hiddenBuildingsOpen: {},
     // 成就 flash 双轨（ach-flash：UI 层 diff 检测新解锁 + 持续高亮 seen 阈值，均不进存档）
     lastRenderedAchievementIds: new Set(),
     justUnlockedAchievements: new Set(),
@@ -205,6 +212,22 @@ export function createSession(args: CreateSessionArgs): Session {
     // 尾巴：一级导航角标（差值派生，无动画；读即已读由 setActiveNav 更新快照）+ 二级 tab 状态恢复（会话态同步，留主函数）
     renderBadges()
     updatePanelTabs()
+  }
+
+  // tick + render 同源循环（ADR-0043）：由 main 的 setInterval 调用。
+  // phaseBefore 跟踪跨 tick 阶段边沿（结局音效只播一次）；setState 替换 state 引用后
+  // 本函数 tick 的仍是会话当前引用（与 render 同源），导入/重置后数值不再冻结。
+  let phaseBefore = state.phase
+  function tickAndRender(nowMs: number): void {
+    const st = state
+    const logBefore = st.nextLogId
+    tick(st, nowMs)
+    // 事件/结局音效检测（auto-infinite-entry：通关即自动进入无限，结局音效挂 playing→infinite 边沿；
+    // NG+ 后再通关仍触发；infinite 存档加载 phaseBefore 初始即 infinite 不误触发）
+    if (st.log.some((e) => e.id >= logBefore && e.type === 'event')) sound.play('event')
+    if (st.phase === 'infinite' && phaseBefore !== 'infinite') sound.play('ending')
+    phaseBefore = st.phase
+    render()
   }
 
   // 一级导航页切换（互斥显隐；footer 与页容器不参与 250ms 重建，状态持久于 DOM）
@@ -373,6 +396,7 @@ export function createSession(args: CreateSessionArgs): Session {
     setState(next: GameState) {
       state = next
     },
+    tickAndRender,
     render,
     deps,
   }

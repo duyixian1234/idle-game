@@ -33,6 +33,7 @@
 | [0014](./0014-rebuild-render-session-ui-state.md) | 250ms 全量重建 + 会话 UI 态不进存档 + 差值角标 |
 | [0015](./0015-card-based-ui.md) | 卡片化改造：建造/科技/外交/军事/成就/探索同构 |
 | [0016](./0016-chinese-number-formatting.md) | 中文大数字缩写 + 相对价格显示 |
+| [0043](./0043-zone-hidden-drawer-session-tick-loop.md) | 隐藏建造物分区抽屉（civil/interstellar/military 独立展开态）+ 会话持有 tickAndRender 循环（setState 后 tick/render 同源防冻结） |
 
 ## 测试
 
