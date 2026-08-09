@@ -26,8 +26,8 @@ import type { GameState } from './types'
 const CYCLE = 30 * 60_000
 
 /**
- * 护航/自动探索测试状态：通关 + 船坞 Lv1（3 艘满编）+ 100 台太阳能（能源产出 ~350/s 可预测）。
- * 护航费 = 净产出能源 × 10s × 3 艘；netProduction 依赖科技系数（无科技 = ×1）保证可手算。
+ * 护航/自动探索测试状态：通关 + 船坞 Lv1（3 艘满编）+ 100 台太阳能（能源产出 100/s 可预测）。
+ * 护航费 = 净产出能源 × ESCORT_ENERGY_SECONDS × 3 艘；netProduction 依赖科技系数（无科技 = ×1）保证可手算。
  */
 function escortState(): GameState {
   const s = createInitialState(0, 42)
@@ -112,7 +112,7 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
 })
 
 describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
-  it('单艘远征费 = 能源净产出 × ESCORT_ENERGY_SECONDS（10s）；总费 = 单艘 × 舰数', () => {
+  it('单艘远征费 = 能源净产出 × ESCORT_ENERGY_SECONDS；总费 = 单艘 × 舰数', () => {
     const s = escortState()
     const energy = productionReport(s).nominal.energy
     expect(energy).toBeGreaterThan(0)
@@ -147,6 +147,31 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     expect(s.resources.mineral).toBe(before.mineral - cost.mineral)
     expect(s.resources.energy).toBe(before.energy - cost.energy - fee)
     expect(s.resources.military).toBe(before.military - cost.military)
+  })
+
+  it('护航费余额兜底（ADR-0044）：费用 > 当前能源 50% 时拒绝护航派遣且不扣资源；50% 边界放行', () => {
+    const s = escortState()
+    // 提高能源产出使 fee 显著大于基础成本封顶（60000）→ 50% 兜底窗口（energy ∈ [cost+fee, 2×fee)）非空
+    s.buildings.solar = 1_000_000 // 1,000,000 能源/s
+    const fee = escortFee(s)
+    const costEnergy = expeditionCost(s).energy
+    expect(fee).toBeGreaterThan(costEnergy) // fee 占大头，窗口非空
+    // 付得起（≥ cost+fee）但超 50% 兜底线（< 2×fee）→ 拒绝护航
+    s.resources.energy = fee * 1.5
+    const before = { ...s.resources }
+    const r = startExpedition(s, 0, () => 0.99, 0, true)
+    expect(r.ok).toBe(false)
+    expect(r.reason).toBe('护航费超出能源储备，暂缓')
+    expect(s.resources).toEqual(before) // 未出发不扣资源
+    expect(s.expeditions).toHaveLength(0)
+    // 能源 = 2×fee（恰好 50% 边界）→ 放行
+    s.resources.energy = fee * 2
+    const r2 = startExpedition(s, 0, () => 0.99, 0, true)
+    expect(r2.ok).toBe(true)
+    expect(s.expeditions).toHaveLength(1)
+    // 非护航派遣不受 50% 兜底影响（无舰队开销）
+    s.resources.energy = fee * 0.2
+    expect(startExpedition(s, 0, () => 0.99, 0, false).ok).toBe(true)
   })
 
   it('返还锚定（基础成本 + 远征费折算）× 护航返还率 ×（枢纽 × 护航倍率），只作用 resource 分支', () => {
@@ -316,6 +341,27 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     expect(s.resources.military).toBe(50_000 - 40 * (1 + 2 + 3 + 4 + 5 + 6 + 7))
   })
 
+  it('护航费余额兜底（ADR-0044）：autoExplore 护航在能源不足 2×费用时暂停，恢复后自动继续', () => {
+    const s = escortState()
+    s.buildings.solar = 1_000_000 // 使 fee 占大头（fee > 基础成本封顶 60000），50% 兜底窗口可达
+    s.autoExplore = { enabled: true, escort: true }
+    const fee = escortFee(s)
+    // 能源落在 [cost+fee, 2×fee) → 首支被 50% 兜底拒绝 → 暂停（enabled 保持开）
+    s.resources.energy = fee * 1.5
+    const logs = autoExploreDispatch(s, 0)
+    expect(logs[0].text).toContain('护航费超出能源储备')
+    expect(s.autoExplore.enabled).toBe(true)
+    expect(s.autoExplore.pausedAt).toBe(0)
+    expect(s.expeditions).toHaveLength(0)
+    // 能源恢复（≥ 2×fee 且足够覆盖 5 槽全队护航）→ 冷却后自动续派
+    s.resources.energy = fee * 8
+    const logs2 = autoExploreDispatch(s, 60_001)
+    expect(logs2).toHaveLength(5)
+    expect(s.expeditions).toHaveLength(5)
+    expect(s.expeditions.every((e) => e.escort === true)).toBe(true)
+    expect(s.autoExplore.pausedAt).toBeUndefined()
+  })
+
   it('tick 接入：派遣结算后自动续派（循环挂点）', () => {
     const s = escortState()
     s.buildings.militaryPort = 3 // cap 700：规避 tick 军力截断（无军港 cap 100）后 5 槽一轮 600 不足
@@ -364,6 +410,22 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
     const pause = logs.find((l) => l.text.includes('资源不足，自动探索暂停'))
     expect(pause).toBeDefined()
     expect(s.autoExplore.pausedAt).toBeGreaterThan(0)
+  })
+
+  it('离线护航续派：50% 余额兜底触发暂停（ADR-0044），enabled 保持开留待回归续算', () => {
+    const s = escortState()
+    s.buildings.solar = 1_000_000 // fee 占大头，50% 兜底窗口可达
+    s.autoExplore = { enabled: true, escort: true }
+    s.lastTick = 0
+    const fee = escortFee(s)
+    // 能源落在 [cost+fee, 2×fee) → 首轮首支即被 50% 兜底拒绝 → 离线暂停（enabled 保持开）
+    s.resources.energy = fee * 1.5
+    const logs = settleOfflineAutoExplore(s, 8 * 3600_000, 8 * 3600)
+    const pause = logs.find((l) => l.text.includes('护航费超出能源储备'))
+    expect(pause).toBeDefined()
+    expect(s.autoExplore.enabled).toBe(true)
+    expect(s.autoExplore.pausedAt).toBeGreaterThan(0)
+    expect(s.expeditions).toHaveLength(0)
   })
 
   it('settleOffline 主流程接入：autoExploreLogs 并入 expeditionLogs', () => {

@@ -54,6 +54,7 @@
 | [0024](./0024-fleet-maintenance-escort.md) | 舰队维护软降级 + 护航返还锚定（防印钞） |
 | [0025](./0025-tech-economy-outlets.md) | 科技点经济出口演进：兑换移除，出口重定向 |
 | [0026](./0026-warpdrive-qualitative-rewards.md) | 星舰推进满级质变：动收益不动成本（Lv10/Lv20 摩擦降低） |
+| [0044](./0044-escort-fee-energy-cap.md) | 护航费收敛：1s 产出锚定 + 50% 能源余额兜底（等效舰数放大后防抽干，ADR-0043 Q3 落地） |
 | [0027](./0027-military-cap-tech-channel.md) | 军力容量科技通道：军械科技每级 +10% 容量（整体乘法） |
 | [0028](./0028-generated-target-co-source-economy.md) | 生成目标一次性经济同源锚定：军事收益/成本 + 外交礼包挂当期净产出 |
 | [0036](./0036-ordinary-building-no-upgrade.md) | 普通建筑取消升级：机制二分「数量×固定」与「唯一×等级」，消除 ×count 强制策略序 |

@@ -356,8 +356,14 @@ export const WARP_ESCORT_FEE_REDUCTION = 0.1
 
 // ---- 舰队护航远征（fleet-dock-10：溢出能源 → 探索收益的转换器）----
 
-/** 护航单艘远征费锚点：单艘费 = 能源净产出 × 该秒数（锚定当期产出，能源膨胀时这笔开销同步膨胀，取舍永不失效） */
-export const ESCORT_ENERGY_SECONDS = 10
+/** 护航单艘远征费锚点：单艘费 = 能源净产出 × 该秒数（锚定当期产出，能源膨胀时这笔开销同步膨胀，取舍永不失效）。
+ * 2026-08-09（ADR-0044）：10s → 1s——等效舰数（fleet-power-exploration）放大总费后，
+ * 10s 锚定令单次护航费 ≈ 15 分钟产出、autoExplore 一次抽干能源储备；降为 1s 后单次 ≈ 1.5 分钟产出。 */
+export const ESCORT_ENERGY_SECONDS = 1
+/** 护航费余额兜底比例（ADR-0044）：单次护航费不得超过派遣前当前能源储备的该比例。
+ * 逐槽判定 → 余额 < 2×fee 即暂缓（AUTO_PAUSE_REASONS 冷却重试），能源底线 ≈ 单次护航费、
+ * 永不归零——防止 autoExplore 多槽连派把能源抽干（归零 → 能源依赖生产停滞） */
+export const ESCORT_FEE_ENERGY_CAP_PCT = 0.5
 /** 护航每艘收获倍率：+1%/艘（满编 24 艘 = +24%，与科技收获倍率乘法叠加，只作用 resource 分支补偿） */
 export const FLEET_HARVEST_PCT_PER_SHIP = 0.01
 /** 护航专属返还率（balance-sim 定标）：返还锚定（基础成本 + 远征费）；

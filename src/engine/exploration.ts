@@ -14,6 +14,7 @@ import {
   AUTO_EXPLORE_RETRY_MS,
   ESCORT_COMPENSATE_RATIO,
   ESCORT_ENERGY_SECONDS,
+  ESCORT_FEE_ENERGY_CAP_PCT,
   EXPEDITION_CAP_GROWTH,
   EXPEDITION_COMPENSATE_RATIO,
   EXPEDITION_ENERGY,
@@ -68,9 +69,11 @@ import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './ty
  *   轮盘同 `pickEventDef` 法；耗尽后只剩补偿 → 资源搬运器。
  * - 重复发现补偿：已收录势力再发现 → 好感 +5（封顶 100）；已收录天体再发现 → 产出增益 +10%（封顶 +50%）。
  *
- * 护航远征（fleet-dock-10 spec 定稿，2026-08-07）：
- * - 派遣可附加「护航」：一次性扣海量能源远征费（单艘 = 能源净产出 × 10s × 舰数，锚定当期产出永不失效），
- *   换取收获倍率（每艘 +1%）与大额返还（锚定「基础成本 + 远征费」，能源分支压低、矿物/科技突出）。
+ * 护航远征（fleet-dock-10 spec 定稿，2026-08-07；ADR-0044 修订费率，2026-08-09）：
+ * - 派遣可附加「护航」：一次性扣能源远征费（单艘 = 能源净产出 × ESCORT_ENERGY_SECONDS × 等效舰数，
+ *   锚定当期产出永不失效），换取收获倍率（每艘 +1%）与大额返还（锚定「基础成本 + 远征费」，
+ *   能源分支压低、矿物/科技突出）。
+ * - 护航费余额兜底（ADR-0044）：单次护航费 ≤ 当前能源 50%，不足暂缓（能源恢复后自动重试），防抽干生产停滞。
  * - 护航条件 = `fleetPowered`（有舰且能源 ≥ 总维护费）；停摆时护航请求被拒绝（可发起无护航派遣）。
  * - 出发时固化：远征费扣减、倍率、返还值全部固化进 result（`escort` 标记同步固化，成就/日志口径）；
  *   出发后造船/停摆不影响本笔——防 SL 契约结构上成立。
@@ -79,8 +82,9 @@ import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './ty
  *   资源不足 → 暂停（enabled 保持开，pausedAt 冷却重试），资源恢复自动继续。
  */
 
-/** 自动探索暂停原因集合（startExpedition 失败 reason 判定）：资源不足类暂停、其余异常跳过 */
-export const AUTO_PAUSE_REASONS = new Set(['矿物不足', '能源不足', '军力不足', '舰队能源不足，护航不可用'])
+/** 自动探索暂停原因集合（startExpedition 失败 reason 判定）：资源不足类暂停、其余异常跳过；
+ * 「护航费超出能源储备，暂缓」= 50% 余额兜底（ADR-0044），能源恢复后暂停冷却自动重试 */
+export const AUTO_PAUSE_REASONS = new Set(['矿物不足', '能源不足', '军力不足', '舰队能源不足，护航不可用', '护航费超出能源储备，暂缓'])
 
 export interface ExpeditionActionResult {
   ok: boolean
@@ -400,6 +404,11 @@ export function startExpedition(state: GameState, nowMs: number, rng?: () => num
   if (escort && !escortOn) return { ok: false, reason: '舰队能源不足，护航不可用' }
   const fee = escortOn ? escortFee(state) : 0
   if (escortOn && state.resources.energy < cost.energy + fee) return { ok: false, reason: '能源不足' }
+  // 护航费余额兜底（ADR-0044）：单次护航费不得超过当前能源储备的 50%——付得起但会一次抽干
+  // 过半储备时暂缓派遣（AUTO_PAUSE_REASONS 含此 reason，能源恢复后冷却自动重试），防生产停滞
+  if (escortOn && fee > state.resources.energy * ESCORT_FEE_ENERGY_CAP_PCT) {
+    return { ok: false, reason: '护航费超出能源储备，暂缓' }
+  }
   state.resources.mineral -= cost.mineral
   state.resources.energy -= cost.energy + fee
   state.resources.military -= cost.military
