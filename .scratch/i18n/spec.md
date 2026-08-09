@@ -1,6 +1,6 @@
 # 国际化文本支持（i18n）
 
-**Status:** ready-for-agent（01/02/03 完成；04 完成 106 处——log/archive/actions/build/interstellar/military/diplomacy/explore/overlays/tech 标签与弹窗，剩余 ~150 处复杂混合模板；05/06 待执行）
+**Status:** ready-for-agent（01/02/03/04 全部完成——生产代码用户可见文本 100% key 化，剩余 12 处为注释/正则/单位表；05 en 校对、06 回归待执行）
 
 ## Problem Statement
 
