@@ -3,7 +3,7 @@
 // 范围：renderInterstellarPanel + 内部 helpers（renderFleetSection / renderMegastructureSection）。
 // 跨域依赖：renderBuildPanel（./build）、JUMPGATE_EFFECT_TEXT（./shared）。
 
-import {} from '../../i18n'
+import { t } from '../../i18n'
 import type { GameState, ResourceKey } from '../../engine/types'
 import {INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, defName} from '../../engine/data'
 import {buildingCost, buildingLockReason, isBuildingUnlocked, megastructurePrereqsMet} from '../../engine/buildings'
@@ -23,7 +23,7 @@ export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts:
   section.setAttribute('data-interstellar', '')
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '星际工程'
+  header.textContent = t('ui.interstellar.0')
   section.appendChild(header)
   renderBuildPanel(section, state, INTERSTELLAR_BUILDINGS, { ...opts, zoneId: 'interstellar' })
   // 终局工程区块（冶炼场/枢纽双轨开放）：星际工程分组内最后一段（还原 f6d3cd5 前挂点）
@@ -42,7 +42,7 @@ export function renderFleetSection(el: HTMLElement, state: GameState): void {
   section.setAttribute('data-fleet', '')
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '舰队'
+  header.textContent = t('ui.interstellar.1')
   section.appendChild(header)
 
   // 船坞未建：显示锁定原因（复用引擎判定，UI 不重写解锁链）
@@ -139,11 +139,11 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
   section.setAttribute('data-megastructure-section', '')
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '终局工程'
+  header.textContent = t('ui.interstellar.2')
   section.appendChild(header)
   const desc = document.createElement('div')
   desc.className = 'megastructure-desc'
-  desc.textContent = '双轨工程：星环冶炼场与跃迁枢纽皆可铸就，独立建造、互不影响——文明的建设与探索双轨并进。'
+  desc.textContent = t('ui.interstellar.3')
   section.appendChild(desc)
 
   const cards = document.createElement('div')

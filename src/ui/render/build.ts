@@ -3,7 +3,7 @@
 // 范围：renderBuildPanel + 内部 helper（升级预览/购买预览/已解锁卡/锁定卡）。
 // 跨域共享项（formatCost/BuildPanelRenderOptions/JUMPGATE_EFFECT_TEXT）从 shared 引入。
 
-import {} from '../../i18n'
+import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import {BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS, defName, defDesc} from '../../engine/data'
 import type { BuildingDef } from '../../engine/data'
@@ -24,7 +24,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
   if (def.unique) {
     if (def.id === 'ringSmelter') {
       const cur = smelterGlobalMult(state)
-      return `全局产出 ${formatMultiplier(cur)} → ${formatMultiplier(cur * 2)}`
+      return t('ui.build.0', { a0: formatMultiplier(cur), a1: formatMultiplier(cur * 2) })
     }
     if (def.id === 'jumpgate') {
       // ADR-0038：枢纽 10 级化 → 升级预览显示当前→下一级（槽位/收获倍率），满级回退能力描述
@@ -32,13 +32,13 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       if (lv <= 0 || lv >= 10) return JUMPGATE_EFFECT_TEXT
       const cur = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * lv
       const next = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * (lv + 1)
-      return `Lv.${formatNumber(lv + 1)}：派遣槽 ${formatNumber(5 + JUMPGATE_SLOT_TABLE[lv + 1])} 槽 · 收获倍率 ${formatMultiplier(cur)} → ${formatMultiplier(next)}`
+      return t('ui.build.1', { a0: formatNumber(lv + 1), a1: formatNumber(5 + JUMPGATE_SLOT_TABLE[lv + 1]), a2: formatMultiplier(cur), a3: formatMultiplier(next) })
     }
     if (def.id === 'wormhole') {
       // wormhole-empire：虫洞机制流 → 升级预览显示下一级新增效果（槽位/能源/权重/上限），满级回退能力描述
       const lv = state.upgrades.wormhole ?? 0
       if (lv <= 0 || lv >= 10) return WORMHOLE_EFFECT_TEXT
-      return `Lv.${formatNumber(lv + 1)}：派遣槽 +1 · 探索能源 −${formatPercent(5)} · 发现权重 +${formatPercent(10)} · 生成上限 +${formatNumber(1)}`
+      return t('ui.build.2', { a0: formatNumber(lv + 1), a1: formatPercent(5), a2: formatPercent(10), a3: formatNumber(1) })
     }
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
     const parts: string[] = []
@@ -47,7 +47,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       if (d === 0) continue
       parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
     }
-    return `产出 ${formatMultiplier(2)}（${parts.join('，')}）`
+    return t('ui.build.3', { a0: formatMultiplier(2), a1: parts.join('，') })
   }
   return ''
 }
@@ -66,7 +66,7 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
       if (d === 0) continue
       parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
     }
-    return `建造：${parts.join('，') || '无产出'}`
+    return t('ui.build.4', { a0: parts.join('，') || '无产出' })
   }
   const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
   const parts: string[] = []
@@ -78,7 +78,7 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
   const consumes = (def.consumes && RESOURCE_KEYS.some((k) => (def.consumes![k] ?? 0) > 0))
     ? ` · 耗 ${RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${formatRate(def.consumes![k] ?? 0, false)}`).join(' ')}`
     : ''
-  return `购买 ${formatNumber(1)} 台：${parts.join('，') || '无产出'}${consumes}`
+  return t('ui.build.5', { a0: formatNumber(1), a1: parts.join('，') || '无产出', a2: consumes })
 }
 
 /** 已解锁建造项卡片（图标 + 信息 + 预览 + 按钮组） */
@@ -207,7 +207,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     toggle.type = 'button'
     toggle.className = 'build-hidden-toggle'
     toggle.setAttribute('data-show-hidden-buildings', drawerZone)
-    toggle.textContent = `已隐藏 (${hiddenDefs.length})`
+    toggle.textContent = t('ui.build.6', { a0: hiddenDefs.length })
     bar.appendChild(toggle)
     el.appendChild(bar)
     if (opts.hiddenBuildingsOpen?.[drawerZone]) {
@@ -228,7 +228,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
         restore.type = 'button'
         restore.className = 'build-hidden-restore'
         restore.setAttribute('data-unhide-building', def.id)
-        restore.textContent = '恢复'
+        restore.textContent = t('ui.build.7')
         row.append(icon, name, restore)
         drawer.appendChild(row)
       }

@@ -7,7 +7,7 @@
 // - renderArchiveCollapse / archiveRow / renderEndlessLockedHint：被 diplomacy+military 共用，
 //   按「首次使用」归入本文件；military.ts 通过 import 引用。
 
-import {} from '../../i18n'
+import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { FactionDef } from '../../engine/data'
 import {ENDLESS_FACTIONS, defName, defDesc} from '../../engine/data'
@@ -112,7 +112,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     const lockHint = document.createElement('div')
     lockHint.className = 'diplo-coercion-lock'
     lockHint.setAttribute('data-diplo-coercion-lock', '')
-    lockHint.textContent = `军力上限达到 ${COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN')} 或遭遇派系骚扰后，将解锁胁迫手段（勒索 / 进贡条约 / 臣服）。`
+    lockHint.textContent = t('ui.diplomacy.0', { a0: COERCION_UNLOCK_MILITARY_CAP.toLocaleString('zh-CN') })
     el.appendChild(lockHint)
   }
   // 外交自动化（diplo-auto 纯全局迭代，2026-08-08）：全局开关 + 全局方向（友好/胁迫）；

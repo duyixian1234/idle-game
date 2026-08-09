@@ -118,7 +118,7 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
   section.className = 'military-section'
   const header = document.createElement('div')
   header.className = 'conquest-header'
-  header.textContent = '军械科技'
+  header.textContent = t('ui.military.0')
   section.appendChild(header)
   const card = document.createElement('div')
   card.className = 'build-card tech-card'
@@ -230,6 +230,6 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   const progress = document.createElement('div')
   progress.className = 'conquest-header'
   progress.setAttribute('data-conquest-progress-header', '')
-  progress.textContent = `肃清进度：${formatNumber(conqueredCount)}/${formatNumber(staticDefs.length)}`
+  progress.textContent = t('ui.military.1', { a0: formatNumber(conqueredCount), a1: formatNumber(staticDefs.length) })
   el.appendChild(progress)
 }

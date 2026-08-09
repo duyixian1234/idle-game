@@ -1,4 +1,4 @@
-import {} from '../i18n'
+import { t } from '../i18n'
 import type { GameState } from '../engine/types'
 import {ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS, defName} from '../engine/data'
 import {formatMultiplier, formatNumber, formatPercent, formatRate} from '../engine/format'
@@ -167,7 +167,7 @@ export function renderExplorePage(
           .map((id) => {
             const def = EXPLORE_PLANETS[id] ?? state.generatedTargets.find((t) => t.kind === 'planet' && t.id === id)
             if (!def) return ''
-            return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(defName(def))}</span><span class="archive-badge">已探索</span><span class="archive-round">第 ${formatNumber(state.archivedRounds[id])} 周目</span></div>`
+            return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(defName(def))}</span><span class="archive-badge">${t('ui.explore.0')}</span><span class="archive-round">${t('ui.explore.1', { a0: formatNumber(state.archivedRounds[id]) })}</span></div>`
           })
           .filter(Boolean)
           .join('')

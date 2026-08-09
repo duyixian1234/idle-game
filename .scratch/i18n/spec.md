@@ -1,6 +1,6 @@
 # 国际化文本支持（i18n）
 
-**Status:** ready-for-agent（01/02 完成；03 叙事域完成、引擎运行时日志待续；04/05/06 待执行）
+**Status:** ready-for-agent（01/02/03 完成；04 部分完成——log/archive 标签 28 处，HTML 模板 ~280 处待续；05/06 待执行）
 
 ## Problem Statement
 
