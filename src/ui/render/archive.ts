@@ -107,9 +107,9 @@ export function renderArchivePanel(el: HTMLElement, state: GameState, opts: Arch
 
   // 段 2：成就卡片网格（叙事 / 收集 / 终局 三组，各一个 .build-grid；条目 .build-card.ach-card）
   const groups: { key: string; title: string }[] = [
-    { key: 'story', title: '叙事里程碑' },
-    { key: 'collect', title: '收集目标' },
-    { key: 'finale', title: '终局传奇' },
+    { key: 'story', title: t('ui.archive.0') },
+    { key: 'collect', title: t('ui.archive.1') },
+    { key: 'finale', title: t('ui.archive.2') },
   ]
   for (const g of groups) {
     const defs = Object.values(ACHIEVEMENTS).filter((d) => d.category === g.key)

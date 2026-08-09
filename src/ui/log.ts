@@ -1,4 +1,5 @@
 import { t } from '../i18n'
+import type { DeepKey, Zh } from '../i18n'
 import type { EventFormulaPart, EventTheme, GameState, LogEntry, LogType, ResourceKey } from '../engine/types'
 import { RESOURCE_META } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
@@ -22,20 +23,20 @@ export const DEFAULT_LOG_DIRECTION: LogDirection = 'newest-bottom'
 export type LogFilter = LogType | 'all'
 export const LOG_FILTER_KEY = 'idle-game-log-filter'
 /** 筛选 chip 组选项（默认「全部」；白名单校验与渲染共用同一真源） */
-export const LOG_FILTER_OPTIONS: ReadonlyArray<{ id: LogFilter; label: string }> = [
-  { id: 'all', label: '全部' },
-  { id: 'system', label: '系统' },
-  { id: 'story', label: '故事' },
-  { id: 'event', label: '事件' },
-  { id: 'reward', label: '奖励' },
-  { id: 'warning', label: '警告' },
+export const LOG_FILTER_OPTIONS: ReadonlyArray<{ id: LogFilter; label: DeepKey<Zh> }> = [
+  { id: 'all', label: 'ui.log.0' },
+  { id: 'system', label: 'ui.log.1' },
+  { id: 'story', label: 'ui.log.2' },
+  { id: 'event', label: 'ui.log.3' },
+  { id: 'reward', label: 'ui.log.4' },
+  { id: 'warning', label: 'ui.log.5' },
 ]
 export const LOG_FILTER_VALUES: readonly LogFilter[] = LOG_FILTER_OPTIONS.map((o) => o.id)
 
 /** 渲染日志筛选 chip 组（单选互斥：选中态 selected 类，值 = 选项 id；250ms 全量重建，委托监听稳定） */
 export function renderLogFilter(el: HTMLElement, currentFilter: LogFilter): void {
   el.innerHTML = `<div class="log-filter">${LOG_FILTER_OPTIONS.map(
-    (o) => `<button type="button" class="filter-chip${currentFilter === o.id ? ' selected' : ''}" data-log-filter-chip="${o.id}">${o.label}</button>`,
+    (o) => `<button type="button" class="filter-chip${currentFilter === o.id ? ' selected' : ''}" data-log-filter-chip="${o.id}">${t(o.label)}</button>`,
   ).join('')}</div>`
 }
 
@@ -174,26 +175,26 @@ function formatEventHint(hint: string): string {
   })
 }
 
-const AUTO_CATEGORIES: Array<{ id: EventTheme; name: string; options: Array<{ id: string; label: string }> }> = [
-  { id: 'trade', name: '贸易', options: [{ id: 'accept', label: '自动成交' }, { id: 'refuse', label: '拒绝' }] },
-  { id: 'disaster', name: '灾害', options: [{ id: 'collect', label: '自动采集' }, { id: 'shield', label: '护盾' }] },
-  { id: 'security', name: '安保', options: [{ id: 'repel', label: '击退' }, { id: 'buyoff', label: '买平安' }, { id: 'dispatch', label: '清剿' }, { id: 'jam', label: '干扰' }, { id: 'ignore', label: '无视' }] },
-  { id: 'exploration', name: '探索', options: [] },
-  { id: 'investment', name: '投资', options: [] },
+const AUTO_CATEGORIES: Array<{ id: EventTheme; name: DeepKey<Zh>; options: Array<{ id: string; label: DeepKey<Zh> }> }> = [
+  { id: 'trade', name: 'ui.log.6', options: [{ id: 'accept', label: 'ui.log.16' }, { id: 'refuse', label: 'ui.log.17' }] },
+  { id: 'disaster', name: 'ui.log.7', options: [{ id: 'collect', label: 'ui.log.18' }, { id: 'shield', label: 'ui.log.19' }] },
+  { id: 'security', name: 'ui.log.8', options: [{ id: 'repel', label: 'ui.log.20' }, { id: 'buyoff', label: 'ui.log.21' }, { id: 'dispatch', label: 'ui.log.22' }, { id: 'jam', label: 'ui.log.23' }, { id: 'ignore', label: 'ui.log.24' }] },
+  { id: 'exploration', name: 'ui.log.9', options: [] },
+  { id: 'investment', name: 'ui.log.10', options: [] },
 ]
 
-const RISK_LABELS: Array<{ id: string; label: string }> = [
-  { id: '', label: '不限' },
-  { id: 'low', label: '低' },
-  { id: 'medium', label: '中' },
-  { id: 'high', label: '高' },
-  { id: 'critical', label: '极高' },
+const RISK_LABELS: Array<{ id: string; label: DeepKey<Zh> }> = [
+  { id: '', label: 'ui.log.11' },
+  { id: 'low', label: 'ui.log.12' },
+  { id: 'medium', label: 'ui.log.13' },
+  { id: 'high', label: 'ui.log.14' },
+  { id: 'critical', label: 'ui.log.15' },
 ]
 
 function policySummary(category: typeof AUTO_CATEGORIES[number], policy: GameState['automationPolicies'][string] | undefined): string {
   if (!policy?.enabled) return '已关闭'
-  const risk = policy.maxRiskLevel ? ` · 风险≤${RISK_LABELS.find((item) => item.id === policy.maxRiskLevel)?.label ?? policy.maxRiskLevel}` : ''
-  const option = policy.fallbackOptionId ? ` · ${category.options.find((item) => item.id === policy.fallbackOptionId)?.label ?? policy.fallbackOptionId}` : ''
+  const risk = policy.maxRiskLevel ? ` · 风险≤${t(RISK_LABELS.find((item) => item.id === policy.maxRiskLevel)!.label)}` : ''
+  const option = policy.fallbackOptionId ? ` · ${t(category.options.find((item) => item.id === policy.fallbackOptionId)!.label)}` : ''
   return `已启用${risk}${option}`
 }
 
@@ -207,10 +208,10 @@ export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expande
         ${AUTO_CATEGORIES.map((category) => {
           const policy = state.automationPolicies[category.id]
           const expanded = expandedCategory === category.id
-          const riskOptions = RISK_LABELS.map((risk) => `<button type="button" class="option-pill${policy?.maxRiskLevel === (risk.id || undefined) ? ' selected' : ''}" data-auto-risk="${category.id}" value="${risk.id}">${risk.label}</button>`).join('')
-          const optionOptions = category.options.map((option) => `<button type="button" class="option-pill${policy?.fallbackOptionId === option.id ? ' selected' : ''}" data-auto-fallback="${category.id}" value="${option.id}">${option.label}</button>`).join('')
+          const riskOptions = RISK_LABELS.map((risk) => `<button type="button" class="option-pill${policy?.maxRiskLevel === (risk.id || undefined) ? ' selected' : ''}" data-auto-risk="${category.id}" value="${risk.id}">${t(risk.label)}</button>`).join('')
+          const optionOptions = category.options.map((option) => `<button type="button" class="option-pill${policy?.fallbackOptionId === option.id ? ' selected' : ''}" data-auto-fallback="${category.id}" value="${option.id}">${t(option.label)}</button>`).join('')
           return `<article data-auto-cat="${category.id}" class="auto-category${expanded ? ' expanded' : ''}">
-            <div data-auto-cat-row="${category.id}" class="auto-category-row"><span><strong>${category.name}</strong><small data-auto-summary>${policySummary(category, policy)}</small></span><input type="checkbox" data-auto-enabled="${category.id}" ${policy?.enabled ? 'checked' : ''} aria-label="${category.name}自动处理"></div>
+            <div data-auto-cat-row="${category.id}" class="auto-category-row"><span><strong>${t(category.name)}</strong><small data-auto-summary>${policySummary(category, policy)}</small></span><input type="checkbox" data-auto-enabled="${category.id}" ${policy?.enabled ? 'checked' : ''} aria-label="${t(category.name)}自动处理"></div>
             ${expanded ? `<div class="auto-category-details" data-auto-details="${category.id}">
               <div class="option-field"><span>风险上限</span><div class="option-pills" role="radiogroup">${riskOptions}</div></div>
               <label>冷却（分钟，0=不限）<input type="number" min="0" data-auto-cooldown="${category.id}" value="${policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0}"></label>
