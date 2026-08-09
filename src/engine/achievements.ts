@@ -5,7 +5,7 @@ import {militaryCap} from './production'
 import {dockLevel} from './fleet'
 import type { GameState } from './types'
 import {formatNumber} from './format'
-import {} from '../i18n'
+import { t } from '../i18n'
 import type { DeepKey, TranslateParams, Zh } from '../i18n'
 import {EXPLORE_FACTIONS, EXPLORE_PLANETS} from './data'
 
@@ -539,10 +539,10 @@ export function checkAchievements(state: GameState, nowMs: number = Date.now()):
     if (def.rewardMineral) state.resources.mineral += def.rewardMineral
     if (def.rewardTech) state.resources.tech += def.rewardTech
     const rewards: string[] = []
-    if (def.rewardMineral) rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
-    if (def.rewardTech) rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
-    const rewardText = rewards.length > 0 ? ` 奖励：${rewards.join('、')}` : ''
-    pushLog(state, 'reward', `【成就】「${defName(def)}」达成：+${formatNumber(def.rep)} 声望${rewardText}。`)
+    if (def.rewardMineral) rewards.push(t('achR.0', { a0: formatNumber(def.rewardMineral) }))
+    if (def.rewardTech) rewards.push(t('achR.1', { a0: formatNumber(def.rewardTech) }))
+    const rewardText = rewards.length > 0 ? t('achR.2', { a0: rewards.join(t('achR.4')) }) : ''
+    pushLog(state, 'reward', t('achR.3', { a0: defName(def), a1: formatNumber(def.rep), a2: rewardText }))
     newly.push(def)
   }
   return newly

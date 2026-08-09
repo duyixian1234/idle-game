@@ -34,7 +34,7 @@ function renderPlanetChip(def: PlanetDef, state: GameState): HTMLElement {
     btn.title = unlockRequirementText(def, state)
     btn.textContent = `🔒 ${defName(def)}`
   } else {
-    btn.title = active ? '当前星球' : `切换到 ${defName(def)}`
+    btn.title = active ? t('bar.0') : t('bar.1', { a0: defName(def) })
     btn.textContent = `● ${defName(def)}`
   }
   return btn
@@ -51,9 +51,9 @@ export function unlockRequirementText(def: PlanetDef, state: GameState): string 
     }
   }
   if (def.unlock.techs && def.unlock.techs.length > 0) {
-    parts.push(`科技：${def.unlock.techs.map((t) => (TECHS[t] ? defName(TECHS[t]) : t)).join('、')}`)
+    parts.push(t('bar.2', { a0: def.unlock.techs.map((tid) => (TECHS[tid] ? defName(TECHS[tid]) : tid)).join(t('bar.6')) }))
   }
-  return `解锁条件：${parts.length > 0 ? parts.join('，') : '已可解锁'}`
+  return t('bar.3', { a0: parts.length > 0 ? parts.join(t('bar.7')) : t('bar.4') })
 }
 
 /** 渲染当前星球机制状态条（规则与展示文本均来自 mechanics.ts 唯一真源） */
@@ -96,7 +96,7 @@ export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource
   const bd = productionBreakdown(state)[resource]
   el.classList.remove('hidden')
   const meta = RESOURCE_META[resource]
-  const fmt = (v: number): string => `${v > 0 ? '+' : ''}${formatNumber(v)}/秒`
+  const fmt = (v: number): string => `${v > 0 ? '+' : ''}${formatNumber(v)}${t('fmt.ratePerSec')}`
   const pct = (v: number): string => (bd.total !== 0 ? ` ${((v / bd.total) * 100).toFixed(1)}%` : '')
   const rows = (rs: BreakdownRow[]): string =>
     rs
@@ -111,7 +111,7 @@ export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource
     .join('')
   const consumption =
     bd.consumption && bd.consumption.rows.length > 0
-      ? `<details class="breakdown-consumption" data-breakdown-consumption><summary>消耗明细</summary>${rows(bd.consumption.rows)}</details>`
+      ? `<details class="breakdown-consumption" data-breakdown-consumption><summary>${t('bar.5')}</summary>${rows(bd.consumption.rows)}</details>`
       : ''
   const notes = [bd.capNote, bd.energyNote].filter(Boolean).map((n) => `<div class="breakdown-note" data-breakdown-note>${escapeHtml(n as string)}</div>`).join('')
   el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(t(meta.nameKey))} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`

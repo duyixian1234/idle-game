@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { iconSpriteHtml, iconUse } from './icons'
 
 /** 一级导航 id（B 架构 4 tab：星域 / 档案 / 探索 / 设置） */
@@ -29,25 +30,25 @@ export function buildLayout(container: HTMLElement): AppElements {
   container.className = 'game'
   container.innerHTML = `
     <header class="topbar">
-      <div class="resource-bar" aria-label="资源条"></div>
-      <nav class="planet-bar" aria-label="星域总览"></nav>
+      <div class="resource-bar" aria-label="${t('ui.layout.0')}"></div>
+      <nav class="planet-bar" aria-label="${t('ui.layout.1')}"></nav>
     </header>
-    <div class="breakdown-panel hidden" data-breakdown-panel aria-label="资源来源分解"></div>
+    <div class="breakdown-panel hidden" data-breakdown-panel aria-label="${t('ui.layout.2')}"></div>
     <main class="content">
-      <section class="nav-page" data-nav-page="sector" aria-label="星域">
-        <div class="mechanic-bar" data-mechanic aria-label="星球机制"></div>
-        <section class="panel" aria-label="操作面板">
+      <section class="nav-page" data-nav-page="sector" aria-label="${t('ui.layout.3')}">
+        <div class="mechanic-bar" data-mechanic aria-label="${t('ui.layout.4')}"></div>
+        <section class="panel" aria-label="${t('ui.layout.5')}">
           <div class="panel-tabs">
-            <button type="button" class="tab active" data-tab="log">日志<span class="tab-badge hidden" data-panel-tab-badge="log"></span></button>
-            <button type="button" class="tab" data-tab="build">建造</button>
-            <button type="button" class="tab" data-tab="tech">科技</button>
-            <button type="button" class="tab" data-tab="diplomacy" disabled>外交</button>
-            <button type="button" class="tab" data-tab="military" disabled>军事</button>
+            <button type="button" class="tab active" data-tab="log">${t('ui.layout.17')}<span class="tab-badge hidden" data-panel-tab-badge="log"></span></button>
+            <button type="button" class="tab" data-tab="build">${t('ui.layout.18')}</button>
+            <button type="button" class="tab" data-tab="tech">${t('ui.layout.19')}</button>
+            <button type="button" class="tab" data-tab="diplomacy" disabled>${t('ui.layout.20')}</button>
+            <button type="button" class="tab" data-tab="military" disabled>${t('ui.layout.21')}</button>
           </div>
           <div class="panel-body" data-panel="log">
-            <div class="log-head"><span aria-hidden="true">[ 航行日志 ]<span class="log-cursor" data-log-cursor></span></span><span class="log-head-actions"><button type="button" class="log-dir-toggle" data-tool="logdir" title="切换日志排序方向">📜 最新在底</button><button type="button" class="log-auto-config" data-auto-config-trigger>自动处理</button></span></div>
-            <div class="log-filter-row" data-log-filter-bar aria-label="日志筛选"></div>
-            <div class="log-area" data-log aria-label="日志流"></div>
+            <div class="log-head"><span aria-hidden="true">${t('ui.layout.26')}<span class="log-cursor" data-log-cursor></span></span><span class="log-head-actions"><button type="button" class="log-dir-toggle" data-tool="logdir" title="${t('ui.layout.27')}">📜 ${t('ui.session.1')}</button><button type="button" class="log-auto-config" data-auto-config-trigger>${t('ui.layout.28')}</button></span></div>
+            <div class="log-filter-row" data-log-filter-bar aria-label="${t('ui.layout.6')}"></div>
+            <div class="log-area" data-log aria-label="${t('ui.layout.7')}"></div>
           </div>
           <div class="panel-body hidden" data-panel="build"></div>
           <div class="panel-body hidden" data-panel="tech"></div>
@@ -55,23 +56,23 @@ export function buildLayout(container: HTMLElement): AppElements {
           <div class="panel-body hidden" data-panel="military"></div>
         </section>
       </section>
-      <section class="nav-page hidden" data-nav-page="archive" aria-label="档案"></section>
-      <section class="nav-page hidden" data-nav-page="explore" aria-label="探索"></section>
-      <section class="nav-page hidden" data-nav-page="settings" aria-label="设置"></section>
+      <section class="nav-page hidden" data-nav-page="archive" aria-label="${t('ui.layout.8')}"></section>
+      <section class="nav-page hidden" data-nav-page="explore" aria-label="${t('ui.layout.9')}"></section>
+      <section class="nav-page hidden" data-nav-page="settings" aria-label="${t('ui.layout.10')}"></section>
     </main>
-    <footer class="nav-bar" aria-label="一级导航">
-      <button type="button" class="nav-item active" data-nav="sector">${iconUse('nav-sector', 'nav-icon')}<span class="nav-label">星域</span><span class="nav-badge hidden" data-nav-badge="sector"></span></button>
-      <button type="button" class="nav-item" data-nav="archive">${iconUse('nav-archive', 'nav-icon')}<span class="nav-label">档案</span><span class="nav-badge hidden" data-nav-badge="archive"></span></button>
-      <button type="button" class="nav-item" data-nav="explore">${iconUse('nav-explore', 'nav-icon')}<span class="nav-label">探索</span></button>
-      <button type="button" class="nav-item" data-nav="settings">${iconUse('nav-settings', 'nav-icon')}<span class="nav-label">设置</span></button>
+    <footer class="nav-bar" aria-label="${t('ui.layout.11')}">
+      <button type="button" class="nav-item active" data-nav="sector">${iconUse('nav-sector', 'nav-icon')}>${t('ui.layout.22')}</span><span class="nav-badge hidden" data-nav-badge="sector"></span></button>
+      <button type="button" class="nav-item" data-nav="archive">${iconUse('nav-archive', 'nav-icon')}>${t('ui.layout.23')}</span><span class="nav-badge hidden" data-nav-badge="archive"></span></button>
+      <button type="button" class="nav-item" data-nav="explore">${iconUse('nav-explore', 'nav-icon')}>${t('ui.layout.24')}</span></button>
+      <button type="button" class="nav-item" data-nav="settings">${iconUse('nav-settings', 'nav-icon')}>${t('ui.layout.25')}</span></button>
     </footer>
-    <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="开启新周目确认"></div>
-    <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="终局工程确认"></div>
-    <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="自动处理配置"></div>
-    <div class="tutorial hidden" aria-label="新手引导"></div>
+    <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="${t('ui.layout.12')}"></div>
+    <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="${t('ui.layout.13')}"></div>
+    <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="${t('ui.layout.14')}"></div>
+    <div class="tutorial hidden" aria-label="${t('ui.layout.15')}"></div>
     <input type="file" class="hidden" id="import-file" accept=".json,application/json" />
     <div class="scanline" data-scanline aria-hidden="true"></div>
-    <div class="boot-overlay hidden" data-boot aria-label="开机序列"></div>
+    <div class="boot-overlay hidden" data-boot aria-label="${t('ui.layout.16')}"></div>
     ${iconSpriteHtml()}
   `
   const root = container

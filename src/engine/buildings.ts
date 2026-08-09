@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS , defName} from './data'
 import {
   POST100_BUY_TARGET_SECONDS,
@@ -98,24 +99,24 @@ export function isBuildingUnlocked(state: GameState, id: string): boolean {
 /** 建筑锁定原因（UI 锁定卡片展示；返回 null = 未锁定）。优先级：通关 → 星球 → 建筑满级 → 前置建筑/科技 */
 export function buildingLockReason(state: GameState, id: string): string | null {
   const def = BUILDINGS[id]
-  if (!def) return '未知建筑'
-  if (def.requiresEnded && !isEnded(state)) return '通关后解锁'
+  if (!def) return t('bd.0')
+  if (def.requiresEnded && !isEnded(state)) return t('bd.1')
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) {
-    return `需解锁星球：${def.requiresPlanet.map((p) => (PLANETS[p] ? defName(PLANETS[p]) : p)).join('、')}`
+    return t('bd.2', { a0: def.requiresPlanet.map((p) => (PLANETS[p] ? defName(PLANETS[p]) : p)).join(t('bd.13')) })
   }
   if (def.requiresMaxLevel && !def.requiresMaxLevel.every((bid) => (state.upgrades[bid] ?? 0) >= TECH_MAX_LEVEL)) {
-    return `需「${def.requiresMaxLevel.map((bid) => (BUILDINGS[bid] ? defName(BUILDINGS[bid]) : bid)).join('、')}」升级满级`
+    return t('bd.3', { a0: def.requiresMaxLevel.map((bid) => (BUILDINGS[bid] ? defName(BUILDINGS[bid]) : bid)).join(t('bd.13')) })
   }
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) {
-    return `需先建造：${def.requires.map((r) => (BUILDINGS[r] ? defName(BUILDINGS[r]) : r)).join('、')}`
+    return t('bd.4', { a0: def.requires.map((r) => (BUILDINGS[r] ? defName(BUILDINGS[r]) : r)).join(t('bd.13')) })
   }
   if (def.requiresCount && !Object.entries(def.requiresCount).every(([id, need]) => (state.buildings[id] ?? 0) >= need)) {
-    return `需拥有：${Object.entries(def.requiresCount)
+    return t('bd.5', { a0: Object.entries(def.requiresCount)
       .map(([id, need]) => `${BUILDINGS[id] ? defName(BUILDINGS[id]) : id} ×${formatNumber(need)}`)
-      .join('、')}`
+      .join(t('bd.13')) })
   }
   if (def.requiresTech && !def.requiresTech.every((tid) => techLevel(state, tid) > 0)) {
-    return `需先研发：${def.requiresTech.map((tid) => (TECHS[tid] ? defName(TECHS[tid]) : tid)).join('、')}`
+    return t('bd.6', { a0: def.requiresTech.map((tid) => (TECHS[tid] ? defName(TECHS[tid]) : tid)).join(t('bd.13')) })
   }
   return null
 }
@@ -143,11 +144,11 @@ export function canAffordUpgrade(state: GameState, id: string): boolean {
 /** 建造建筑（唯一大件：count 恒 1、禁重复建造） */
 export function buyBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
-  if (!def) return { ok: false, reason: '未知建筑' }
-  if (!isBuildingUnlocked(state, id)) return { ok: false, reason: '前置建筑未解锁' }
-  if (def.unique && (state.buildings[id] ?? 0) > 0) return { ok: false, reason: '唯一建筑已建造，无法重复建造' }
+  if (!def) return { ok: false, reason: t('bd.0') }
+  if (!isBuildingUnlocked(state, id)) return { ok: false, reason: t('bd.7') }
+  if (def.unique && (state.buildings[id] ?? 0) > 0) return { ok: false, reason: t('bd.8') }
   const cost = buildingCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('bd.9') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   const wasEmpty = Object.values(state.buildings).every((c) => c <= 0)
   state.buildings[id] = def.unique ? 1 : (state.buildings[id] ?? 0) + 1
@@ -159,16 +160,16 @@ export function buyBuilding(state: GameState, id: string): ActionResult {
 /** 升级建筑（唯一大件：每级产出 ×2，按 maxLevel 封顶；普通建筑无升级，ADR-0036 机制二分） */
 export function upgradeBuilding(state: GameState, id: string): ActionResult {
   const def = BUILDINGS[id]
-  if (!def) return { ok: false, reason: '未知建筑' }
-  if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: '尚未建造该建筑' }
+  if (!def) return { ok: false, reason: t('bd.0') }
+  if ((state.buildings[id] ?? 0) <= 0) return { ok: false, reason: t('bd.10') }
   // 普通可多次购买建筑无升级（ADR-0036：数量维度仅「买多少」）；跃迁枢纽 10 级化（ADR-0038）后为可升级 unique 大件
-  if (!def.unique) return { ok: false, reason: '该建筑没有可升级效果' }
+  if (!def.unique) return { ok: false, reason: t('bd.11') }
   // unique 建筑按 maxLevel 封顶（如船坞 Lv1-3）
   if (def.maxLevel != null && (state.upgrades[id] ?? 0) >= def.maxLevel) {
-    return { ok: false, reason: `已达最高等级（Lv.${formatNumber(def.maxLevel)}）` }
+    return { ok: false, reason: t('bd.12', { a0: formatNumber(def.maxLevel) }) }
   }
   const cost = upgradeCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('bd.9') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.upgrades[id] = (state.upgrades[id] ?? 0) + 1
   return { ok: true }

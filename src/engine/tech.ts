@@ -83,18 +83,18 @@ export function canUpgradeTech(state: GameState, id: string): boolean {
 /** 研发科技（Lv0→1） */
 export function researchTech(state: GameState, id: string): ActionResult {
   const def = TECHS[id]
-  if (!def) return { ok: false, reason: '未知科技' }
-  if (isTechResearched(state, id)) return { ok: false, reason: '已研发' }
-  if (def.afterEnding && state.phase === 'playing') return { ok: false, reason: '通关后解锁' }
+  if (!def) return { ok: false, reason: t('tecR.0') }
+  if (isTechResearched(state, id)) return { ok: false, reason: t('tecR.1') }
+  if (def.afterEnding && state.phase === 'playing') return { ok: false, reason: t('tecR.2') }
   if (!techAlliesMet(state, id)) {
-    return { ok: false, reason: `需结盟 ${formatNumber(def.requiresAllies!)} 个派系` }
+    return { ok: false, reason: t('tecR.3', { a0: formatNumber(def.requiresAllies!) }) }
   }
   if (!techRequirementsMet(state, id)) {
     const names = def.requires!.map((reqId) => (TECHS[reqId] ? t(TECHS[reqId].nameKey) : reqId)).join('、')
-    return { ok: false, reason: `需先研发：${names}` }
+    return { ok: false, reason: t('tecR.4', { a0: names }) }
   }
   const cost = techCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('tecR.5') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.techLevels[id] = 1
   // 首次研发叙事
@@ -106,11 +106,11 @@ export function researchTech(state: GameState, id: string): ActionResult {
 export function upgradeTech(state: GameState, id: string): ActionResult {
   const def = TECHS[id]
   const level = techLevel(state, id)
-  if (!def) return { ok: false, reason: '未知科技' }
-  if (level <= 0) return { ok: false, reason: '尚未研发该科技' }
-  if (!canTechUpgrade(def, level)) return { ok: false, reason: '已满级' }
+  if (!def) return { ok: false, reason: t('tecR.0') }
+  if (level <= 0) return { ok: false, reason: t('tecR.6') }
+  if (!canTechUpgrade(def, level)) return { ok: false, reason: t('tecR.7') }
   const cost = techCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('tecR.5') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.techLevels[id] = level + 1
   return { ok: true }

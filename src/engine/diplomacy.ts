@@ -273,8 +273,6 @@ export function factionTechShare(state: GameState, id: string): ActionResult {
 // ---- 胁迫外交（diplomacy-coercion） ----
 
 /** 解锁叙事文案（按通道区分；首次解锁播报，幂等） */
-const COERCION_UNLOCK_RAID_TEXT = '威胁可以成为筹码——外交压制手段已解锁。'
-const COERCION_UNLOCK_MILITARY_TEXT = '你的军事威慑力已经成型——外交压制手段已解锁。'
 
 /** 解锁查询：storyFlags 标记（由 raid 遭遇或军力达标置位，见 ensureCoercionUnlocked） */
 export function coercionUnlocked(state: GameState): boolean {
@@ -298,7 +296,7 @@ export function maybeUnlockCoercionByMilitary(state: GameState): boolean {
 export function ensureCoercionUnlocked(state: GameState, via: 'raid' | 'military'): boolean {
   const unlocked = via === 'military' ? maybeUnlockCoercionByMilitary(state) : unlockCoercion(state)
   if (unlocked) {
-    pushLog(state, 'story', via === 'military' ? COERCION_UNLOCK_MILITARY_TEXT : COERCION_UNLOCK_RAID_TEXT)
+    pushLog(state, 'story', via === 'military' ? t('diploCo.1') : t('diploCo.0'))
   }
   return unlocked
 }

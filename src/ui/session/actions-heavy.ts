@@ -33,10 +33,10 @@ export async function importSaveFile(ctx: SessionCtx, file: File): Promise<void>
         .filter((k) => off.gains[k] > 0)
         .map((k) => `${t(RESOURCE_META[k].nameKey)} +${formatNumber(off.gains[k])}`)
         .join('、')
-      pushLog(imported, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
+      pushLog(imported, 'reward', t('imp.0', { a0: formatDuration(off.rawDurationSeconds), a1: gainsText || t('imp.6') }))
       for (const raidLog of off.raidLogs) pushLog(imported, 'warning', raidLog)
       for (const conquestLog of off.conquestLogs) {
-        pushLog(imported, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+        pushLog(imported, conquestLog.startsWith('【军事捷报】') || conquestLog.startsWith(t('engine.0')) ? 'reward' : 'warning', conquestLog)
       }
       // 探索派遣离线到期：回归自动入账（结果日志播报，防静默）
       for (const expLog of off.expeditionLogs) pushLog(imported, expLog.type, expLog.text)
@@ -46,12 +46,12 @@ export async function importSaveFile(ctx: SessionCtx, file: File): Promise<void>
     els.logEl.innerHTML = ''
     // 导入接管新档：seen 快照重置为当前存量（刷新语义①，避免存量重报）
     ctx.resetSeenSnapshot()
-    pushLog(imported, 'system', `导入成功：来自朋友的存档已接管殖民地。`)
+    pushLog(imported, 'system', t('imp.1'))
     ctx.render()
     void ctx.deps.save()
   } catch (err) {
-    const msg = err instanceof Error ? err.message : '未知错误'
-    pushLog(ctx.getState(), 'warning', `存档导入失败：${msg}`)
+    const msg = err instanceof Error ? err.message : t('imp.2')
+    pushLog(ctx.getState(), 'warning', t('imp.3', { a0: msg }))
     ctx.render()
   }
 }
@@ -68,13 +68,13 @@ export function exportSave(ctx: SessionCtx): void {
   a.download = `idle-save-${date}.json`
   a.click()
   URL.revokeObjectURL(url)
-  pushLog(state, 'system', '存档已导出为 JSON 文件，可分享给朋友。')
+  pushLog(state, 'system', t('imp.4'))
 }
 
 /** 重置游戏：删档 → 全新状态 → 开局叙事 → seen 重置 → 导航回星域 → 渲染保存 */
 export async function resetGame(ctx: SessionCtx): Promise<void> {
   const { ui, els } = ctx
-  const confirmed = window.confirm('⚠️ 确定要删除当前存档并重新开始吗？此操作不可撤销。')
+  const confirmed = window.confirm(t('imp.5'))
   if (!confirmed) return
   await deleteSave()
   const fresh = createInitialState(Date.now())

@@ -43,12 +43,12 @@ export function checkPlanetUnlocks(state: GameState): string[] {
     if (!planetRequirementsMet(state, def.id)) continue
     state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
     unlockedNow.push(def.id)
-    pushLog(state, 'story', `【星域广播】探测信号确认：「${defName(def)}」已进入可殖民范围。`)
+    pushLog(state, 'story', t('pl.0', { a0: defName(def) }))
     // 播放该星球的多段解锁叙事
     const scenes = PLANET_STORIES[def.id] ?? []
     for (const scene of scenes) pushLog(state, 'story', t(scene))
     if (def.id === 'orbital') {
-      pushLog(state, 'story', '星域扫描捕获四个文明信号：铁卫同盟、圣光议会、天鹅贸易联盟、沃克斯矿业集团。外交频道已开放。')
+      pushLog(state, 'story', t('pl.1'))
       playMilestone(state, 'orbitalUnlocked')
     }
   }
@@ -58,9 +58,9 @@ export function checkPlanetUnlocks(state: GameState): string[] {
 /** 切换当前星球（仅已解锁星球），切换后重置停留时长。
  * discoverOnly 探索天体也接受（发现解锁后即可切换，见 EXPLORE_PLANETS）。 */
 export function setActivePlanet(state: GameState, id: string): ActionResult {
-  if (!PLANETS[id] && !EXPLORE_PLANETS[id]) return { ok: false, reason: '未知星球' }
-  if (!state.planets[id]?.unlocked) return { ok: false, reason: '该星球尚未解锁' }
-  if (state.activePlanet === id) return { ok: false, reason: '已在该星球' }
+  if (!PLANETS[id] && !EXPLORE_PLANETS[id]) return { ok: false, reason: t('pl.2') }
+  if (!state.planets[id]?.unlocked) return { ok: false, reason: t('pl.3') }
+  if (state.activePlanet === id) return { ok: false, reason: t('pl.4') }
   state.activePlanet = id
   state.planetStaySeconds = 0
   // 首次抵达母星叙事（曲率引擎）

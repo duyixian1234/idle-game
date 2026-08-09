@@ -1,3 +1,6 @@
+import { t } from '../i18n'
+import type { DeepKey, Zh } from '../i18n'
+import { RESOURCE_META } from './data'
 import {
   ENDLESS_BATCH_2_EXPLORATIONS,
   GEN_CONQUEST_COST_ENERGY_SECONDS,
@@ -37,14 +40,13 @@ import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 // ---- 生成词库（命名/描述素材，程序生成专用） ----
 
-const CONQUEST_PREFIX = ['掠夺者', '流亡', '狂怒', '幽影', '暴君', '亡潮', '赤潮', '虚空']
-const CONQUEST_NOUN = ['舰队', '巢穴', '堡垒', '方舟', '军团', '尖塔', '船坞', '母舰']
-const FACTION_PREFIX = ['星辉', '静默', '流浪', '共鸣', '苍蓝', '灰烬', '翡翠', '余烬']
-const FACTION_NOUN = ['共同体', '行会', '教团', '同盟', '部落', '议会', '商会', '远征队']
-const PLANET_PREFIX = ['碎星', '极光', '暗潮', '新星', '磁暴', '冻云', '晶矿', '等离子']
-const PLANET_NOUN = ['带', '云', '场', '海', '域', '环', '平原', '墓场']
+const CONQUEST_PREFIX = ['gen.cqPre.0', 'gen.cqPre.1', 'gen.cqPre.2', 'gen.cqPre.3', 'gen.cqPre.4', 'gen.cqPre.5', 'gen.cqPre.6', 'gen.cqPre.7']
+const CONQUEST_NOUN = ['gen.cqNoun.0', 'gen.cqNoun.1', 'gen.cqNoun.2', 'gen.cqNoun.3', 'gen.cqNoun.4', 'gen.cqNoun.5', 'gen.cqNoun.6', 'gen.cqNoun.7']
+const FACTION_PREFIX = ['gen.facPre.0', 'gen.facPre.1', 'gen.facPre.2', 'gen.facPre.3', 'gen.facPre.4', 'gen.facPre.5', 'gen.facPre.6', 'gen.facPre.7']
+const FACTION_NOUN = ['gen.facNoun.0', 'gen.facNoun.1', 'gen.facNoun.2', 'gen.facNoun.3', 'gen.facNoun.4', 'gen.facNoun.5', 'gen.facNoun.6', 'gen.facNoun.7']
+const PLANET_PREFIX = ['gen.plPre.0', 'gen.plPre.1', 'gen.plPre.2', 'gen.plPre.3', 'gen.plPre.4', 'gen.plPre.5', 'gen.plPre.6', 'gen.plPre.7']
+const PLANET_NOUN = ['gen.plNoun.0', 'gen.plNoun.1', 'gen.plNoun.2', 'gen.plNoun.3', 'gen.plNoun.4', 'gen.plNoun.5', 'gen.plNoun.6', 'gen.plNoun.7']
 const PRODUCING_RESOURCES: ResourceKey[] = ['mineral', 'energy', 'tech']
-const RESOURCE_LABEL: Record<ResourceKey, string> = { mineral: '矿物', energy: '能源', tech: '科技', military: '军力' }
 
 /** 从词库取一项（roll 推进一位） */
 function pick<T>(arr: T[], roll: () => number): T {
@@ -107,7 +109,7 @@ export function isEndlessTargetId(id: string): boolean {
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${pick(CONQUEST_PREFIX, roll)}${pick(CONQUEST_NOUN, roll)}`
+  const name = `${t(pick(CONQUEST_PREFIX, roll) as DeepKey<Zh>)}${t(pick(CONQUEST_NOUN, roll) as DeepKey<Zh>)}`
   const guard = Math.max(
     GEN_CONQUEST_GUARD_MIN,
     Math.floor(militaryCap(state) * (GEN_CONQUEST_GUARD_PCT_MIN + roll() * (GEN_CONQUEST_GUARD_PCT_MAX - GEN_CONQUEST_GUARD_PCT_MIN))),
@@ -119,7 +121,7 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
     kind: 'conquest',
     id: `gen:conquest:${seq}`,
     name,
-    desc: `星际深处游荡的${name}，肃清后可回收大量资源。`,
+    desc: t('gen.0', { a0: name }),
     batch: 0,
     guard,
     rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
@@ -132,13 +134,13 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
 /** 外交对象生成：词库命名；初始 favor [0, GEN_FACTION_FAVOR_MAX]、threat [MIN, MAX]；
  * 特性从 3 类池随机抽 1-2 个（数值落在现有区间：tradeDiscount 0.05-0.08 / techShareCostMult 0.5 / intimidateCostMult 0.75） */
 export function generateFactionTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${pick(FACTION_PREFIX, roll)}${pick(FACTION_NOUN, roll)}`
+  const name = `${t(pick(FACTION_PREFIX, roll) as DeepKey<Zh>)}${t(pick(FACTION_NOUN, roll) as DeepKey<Zh>)}`
   const seq = state.generatedTargets.length
   const target: GeneratedTarget = {
     kind: 'faction',
     id: `gen:faction:${seq}`,
     name,
-    desc: `在偏远星区活动的${name}，正等待与你建立外交联系。`,
+    desc: t('gen.1', { a0: name }),
     batch: 0,
     initialFavor: Math.floor(roll() * GEN_FACTION_FAVOR_MAX),
     initialThreat: GEN_FACTION_THREAT_MIN + Math.floor(roll() * (GEN_FACTION_THREAT_MAX - GEN_FACTION_THREAT_MIN)),
@@ -157,7 +159,7 @@ export function generateFactionTarget(state: GameState, roll: () => number): Gen
 /** 天体生成：词库命名；单种产出（mineral/energy/tech 均匀抽 1 种）；
  * output ∈ [MIN, MAX]、outputPct ∈ [PCT_MIN, PCT_MAX]（封死不破现有天花板，Q10 定稿） */
 export function generatePlanetTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${pick(PLANET_PREFIX, roll)}${pick(PLANET_NOUN, roll)}`
+  const name = `${t(pick(PLANET_PREFIX, roll) as DeepKey<Zh>)}${t(pick(PLANET_NOUN, roll) as DeepKey<Zh>)}`
   const seq = state.generatedTargets.length
   const resKey = pick(PRODUCING_RESOURCES, roll)
   const output = Math.round((GEN_PLANET_OUTPUT_MIN + roll() * (GEN_PLANET_OUTPUT_MAX - GEN_PLANET_OUTPUT_MIN)) * 100) / 100
@@ -166,7 +168,7 @@ export function generatePlanetTarget(state: GameState, roll: () => number): Gene
     kind: 'planet',
     id: `gen:planet:${seq}`,
     name,
-    desc: `富含${RESOURCE_LABEL[resKey]}的${name}，可提供持续的${RESOURCE_LABEL[resKey]}产出。`,
+    desc: t('gen.2', { a0: t(RESOURCE_META[resKey].nameKey), a1: name }),
     batch: 0,
     output: { [resKey]: output },
     outputPct: { [resKey]: outputPct },

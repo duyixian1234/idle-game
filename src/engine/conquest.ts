@@ -108,11 +108,11 @@ export function settleConquests(state: GameState, nowMs: number, rng?: () => num
     if (log) logs.push(log)
   }
   // 无尽生成军事目标（动态）：快照守卫/奖励，与静态同机制；无 unlockTech/unlockPlanet/里程碑
-  for (const t of state.generatedTargets) {
-    if (t.kind !== 'conquest') continue
-    const def = conquestDef(state, t.id)
+  for (const gt of state.generatedTargets) {
+    if (gt.kind !== 'conquest') continue
+    const def = conquestDef(state, gt.id)
     if (!def) continue
-    const log = settleOneConquest(state, t.id, def, nowMs, roll, false)
+    const log = settleOneConquest(state, gt.id, def, nowMs, roll, false)
     if (log) logs.push(log)
   }
   return logs
@@ -142,11 +142,11 @@ function settleOneConquest(
     const rewards: string[] = []
     if (def.rewardMineral) {
       state.resources.mineral += def.rewardMineral
-      rewards.push(`${formatNumber(def.rewardMineral)} 矿物`)
+      rewards.push(t('cq.0', { a0: formatNumber(def.rewardMineral) }))
     }
     if (def.rewardTech) {
       state.resources.tech += def.rewardTech
-      rewards.push(`${formatNumber(def.rewardTech)} 科技点`)
+      rewards.push(t('cq.1', { a0: formatNumber(def.rewardTech) }))
     }
     if (def.bonus) {
       state.permanentBonuses[def.bonus.kind] = (state.permanentBonuses[def.bonus.kind] ?? 0) + def.bonus.value
@@ -154,7 +154,7 @@ function settleOneConquest(
     }
     if (isStatic && def.unlockTech) {
       state.techLevels[def.unlockTech] = 1
-      rewards.push(`解锁「军械科技」`)
+      rewards.push(t('cq.2'))
     }
     // 归档周目标记（endless-expansion：征服 = 军事目标不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
     state.archivedRounds[id] = state.ngPlusLevel ?? 0
@@ -165,11 +165,11 @@ function settleOneConquest(
         playMilestone(state, 'conquestAll')
       }
     }
-    return `【军事捷报】「${defName(def)}」攻占成功！获得 ${rewards.join('、') || '无'}。`
+    return t('cq.3', { a0: defName(def), a1: rewards.join(t('cq.6')) || t('cq.7') })
   }
   // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
   state.conquest[id] = { status: 'available' }
-  return `【军事战报】对「${defName(def)}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`
+  return t('cq.4', { a0: defName(def), a1: formatNumber(invest) })
 }
 
 /**
@@ -184,20 +184,20 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
   const cfg = state.autoConquest
   if (!cfg?.enabled) return []
   if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
-  for (const t of state.generatedTargets) {
-    if (t.kind !== 'conquest') continue
-    const cs = state.conquest[t.id]
+  for (const gt of state.generatedTargets) {
+    if (gt.kind !== 'conquest') continue
+    const cs = state.conquest[gt.id]
     if (cs?.status !== 'available' || cs.startedAt != null) continue
-    const guard = t.guard ?? 0
+    const guard = gt.guard ?? 0
     if (guard <= 0) continue
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
     if (state.resources.military < guard + reserve) continue
-    const r = startConquest(state, t.id, guard, nowMs)
+    const r = startConquest(state, gt.id, guard, nowMs)
     if (r.ok) {
       cfg.lastActionAt = nowMs
-      return [`自动攻占：对「${t.name}」投入 ${formatNumber(guard)} 军力发起攻占。`]
+      return [t('cq.5', { a0: gt.name, a1: formatNumber(guard) })]
     }
-    if (r.reason === '矿物不足' || r.reason === '能源不足') {
+    if (r.reason === t('cq.8') || r.reason === t('cq.9') || r.reason === '矿物不足' || r.reason === '能源不足') {
       cfg.pausedAt = nowMs
     }
   }

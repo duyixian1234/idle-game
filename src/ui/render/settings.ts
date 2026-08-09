@@ -3,8 +3,8 @@
 // 范围：renderSettingsPage（一级 tab：通用/存档/危险区/关于 四组）。
 // 跨域依赖：type SettingsStatus（./shared）。
 
-import { escapeHtml } from '../helpers'
 import { getLanguage, t } from '../../i18n'
+import { escapeHtml } from '../helpers'
 import type { SettingsStatus } from './shared'
 
 /** 渲染设置页（一级 tab）：通用（音频 + 语言）/ 存档 / 危险区（重置 + NG+）/ 关于 四组。250ms 重建无 transition 干扰；
@@ -14,9 +14,9 @@ export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): voi
   const lang = getLanguage()
   el.innerHTML = `
     <section class="settings-group">
-      <h2 class="settings-title">通用</h2>
+      <h2 class="settings-title">${t('ui.settingsPage.0')}</h2>
       <div class="settings-actions">
-        <button type="button" class="tool-btn" data-tool="mute">${status.isMuted ? '🔇 已静音' : '🔊 静音'}</button>
+        <button type="button" class="tool-btn" data-tool="mute">${status.isMuted ? t('ui.settingsPage.1') : t('ui.settingsPage.2')}</button>
       </div>
       <div class="settings-actions" data-lang-row>
         <span class="settings-label">${t('ui.settings.langLabel')}</span>
@@ -25,23 +25,23 @@ export function renderSettingsPage(el: HTMLElement, status: SettingsStatus): voi
       </div>
     </section>
     <section class="settings-group">
-      <h2 class="settings-title">存档</h2>
+      <h2 class="settings-title">${t('ui.settingsPage.3')}</h2>
       <div class="settings-actions">
-        <button type="button" class="tool-btn" data-tool="export">导出存档</button>
-        <button type="button" class="tool-btn" data-tool="import">导入存档</button>
+        <button type="button" class="tool-btn" data-tool="export">${t('ui.settingsPage.4')}</button>
+        <button type="button" class="tool-btn" data-tool="import">${t('ui.settingsPage.5')}</button>
       </div>
     </section>
     <section class="settings-group danger-zone">
-      <h2 class="settings-title">危险区</h2>
-      <p class="danger-hint">删除当前存档并重新开始，此操作不可撤销。</p>
+      <h2 class="settings-title">${t('ui.settingsPage.6')}</h2>
+      <p class="danger-hint">${t('ui.settingsPage.7')}</p>
       <div class="settings-actions">
-        <button type="button" class="tool-btn danger" data-tool="reset">重置存档</button>
-        ${state?.phase === 'infinite' ? '<button type="button" class="tool-btn danger" data-setting-action="ngplus">开启新周目</button>' : ''}
+        <button type="button" class="tool-btn danger" data-tool="reset">${t('ui.settingsPage.8')}</button>
+        ${state?.phase === 'infinite' ? `<button type="button" class="tool-btn danger" data-setting-action="ngplus">${t('ui.settingsPage.9')}</button>` : ''}
       </div>
     </section>
     <section class="settings-group">
-      <h2 class="settings-title">关于</h2>
-      <div class="about-version">深空拓荒 · 星系统一联邦 v${escapeHtml(status.version)}</div>
+      <h2 class="settings-title">${t('ui.settingsPage.10')}</h2>
+      <div class="about-version">${t('ui.settingsPage.11', { a0: escapeHtml(status.version) })}</div>
       <div class="about-status">${escapeHtml(status.statusText)}</div>
     </section>`
 }

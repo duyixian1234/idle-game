@@ -362,8 +362,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { cost, reward: Math.floor(cost * 1.4), curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
-        { id: 'confront', label: '正面迎战', hint: `-${formatNumber(cost)} 军力` },
-        { id: 'retreat', label: '暂时撤退' },
+        { id: 'confront', label: t('evopt.0'), hint: t('evopt.1', { a0: formatNumber(cost) }) },
+        { id: 'retreat', label: t('evopt.2') },
       ],
     }
   }
@@ -379,8 +379,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { cost, gain, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: terms.breakdown },
       options: [
-        { id: 'accept', label: '成交', hint: `-${formatNumber(cost)} 矿物 +${formatNumber(gain)} 科技点` },
-        { id: 'refuse', label: '拒绝' },
+        { id: 'accept', label: t('evopt.3'), hint: t('evopt.4', { a0: formatNumber(cost), a1: formatNumber(gain) }) },
+        { id: 'refuse', label: t('evopt.5') },
       ],
     }
   }
@@ -402,8 +402,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
       payload: { gain, shieldCost, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
-        { id: 'collect', label: '常规采集', hint: `+${formatNumber(gain)} 矿物` },
-        { id: 'shield', label: '科技防护罩', hint: `-${formatNumber(shieldCost)} 科技点 +${formatNumber(gain * 2)} 矿物` },
+        { id: 'collect', label: t('evopt.6'), hint: t('evopt.7', { a0: formatNumber(gain) }) },
+        { id: 'shield', label: t('evopt.8'), hint: t('evopt.9', { a0: formatNumber(shieldCost), a1: formatNumber(gain * 2) }) },
       ],
     }
   }
@@ -426,10 +426,10 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     payload: { cost, jamCost, strength: terms.strength, repelCost: terms.repelCost, curveVersion: EVENT_CONTRACT_VERSION },
     settlement: { deltas: {}, breakdown: curve.breakdown },
     options: [
-      { id: 'repel', label: '军力击退', hint: `-${formatNumber(terms.repelCost)} 军力` },
-      { id: 'dispatch', label: '派遣清剿队', hint: `-${formatNumber(cost)} 矿物` },
-      { id: 'jam', label: '神经干扰', hint: `-${formatNumber(jamCost)} 科技点` },
-      { id: 'ignore', label: '暂不处理' },
+      { id: 'repel', label: t('evopt.10'), hint: t('evopt.11', { a0: formatNumber(terms.repelCost) }) },
+      { id: 'dispatch', label: t('evopt.12'), hint: t('evopt.13', { a0: formatNumber(cost) }) },
+      { id: 'jam', label: t('evopt.14'), hint: t('evopt.15', { a0: formatNumber(jamCost) }) },
+      { id: 'ignore', label: t('evopt.16') },
     ],
   }
 
@@ -487,8 +487,8 @@ function createRaidInstance(state: GameState, base: EventInstance, rng: () => nu
     desc: story || t('log.events.8', { a0: raider?.name ?? '未知势力' }),
     payload: { factionId, ...terms, repelCost },
     options: [
-      { id: 'repel', label: '军力击退', hint: `-${formatNumber(repelCost)} 军力（威胁 −${formatNumber(RAID_THREAT_LOSS)}）` },
-      { id: 'buyoff', label: '付税买平安', hint: `-${formatNumber(terms.buyoff)} 矿物 好感 +${formatNumber(RAID_BUYOFF_FAVOR_GAIN)}` },
+      { id: 'repel', label: t('evopt.10'), hint: t('evopt.17', { a0: formatNumber(repelCost), a1: formatNumber(RAID_THREAT_LOSS) }) },
+      { id: 'buyoff', label: t('evopt.18'), hint: t('evopt.19', { a0: formatNumber(terms.buyoff), a1: formatNumber(RAID_BUYOFF_FAVOR_GAIN) }) },
       { id: 'ignore', label: '无视', hint: `矿/能各 -${formatPercent(RAID_IGNORE_LOSS_PCT * 100)}` },
     ],
   }
@@ -738,20 +738,20 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
     }
     if (!rule && optionId && !fallback.allowed) {
       recordAutomation(state, instance, { source: 'automation', status: 'paused', reason: fallback.reason!, failureReason: fallback.reason }, nowMs)
-      pushLog(state, 'warning', `自动处理暂停：${instance.title || instance.defId}。${fallback.reason}`)
+      pushLog(state, 'warning', t('evlog.0', { a0: instance.title || instance.defId, a1: fallback.reason ?? '' }))
       results.push({ eventUid: instance.uid, status: 'paused', reason: fallback.reason! })
       continue
     }
     if (!optionId) {
       const reason = conflicting
-        ? '规则冲突，无法安全选择选项'
-        : '没有可用规则或类别默认处理方式，暂停等待人工处理'
+        ? t('evlog.1')
+        : t('evlog.2')
       recordAutomation(state, instance, { source: 'automation', status: 'paused', reason, failureReason: reason }, nowMs)
-      pushLog(state, 'warning', `自动处理暂停：${instance.title || instance.defId}。${reason}`)
+      pushLog(state, 'warning', t('evlog.0', { a0: instance.title || instance.defId, a1: reason ?? '' }))
       results.push({ eventUid: instance.uid, status: 'paused', reason })
       continue
     }
-    const reason = rule?.reason ?? '类别默认处理'
+    const reason = rule?.reason ?? t('evlog.3')
     const outcome = resolveEvent(state, instance.uid, optionId, { source: 'automation', ruleId: rule?.id, reason, nowMs })
     const status = outcome.changed || !rule ? 'resolved' : 'failed'
     if (status === 'failed') {
@@ -768,7 +768,7 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
 function applyRaid(state: GameState, instance: EventInstance, optionId: string): EventOutcome {
   const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
-  const factionName = FACTIONS[factionId] ? defName(FACTIONS[factionId]) : '未知势力'
+  const factionName = FACTIONS[factionId] ? defName(FACTIONS[factionId]) : t('evlog.4')
   // raid 遭遇解锁胁迫外交（diplomacy-coercion；处理 raid 即"遭遇"；军力达标为另一通道）
   ensureCoercionUnlocked(state, 'raid')
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
@@ -891,10 +891,10 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     totalFleetRepelled += fleetRepelled
     totalMineralLost += mineralLost
     totalEnergyLost += energyLost
-    const fleetText = fleetRepelled > 0 ? `，${formatNumber(fleetRepelled)} 次被护卫舰队迎击` : ''
-    const militaryText = repelled - fleetRepelled > 0 ? `，${formatNumber(repelled - fleetRepelled)} 次被军力击退` : ''
+    const fleetText = fleetRepelled > 0 ? t('evlog.5', { a0: formatNumber(fleetRepelled) }) : ''
+    const militaryText = repelled - fleetRepelled > 0 ? t('evlog.6', { a0: formatNumber(repelled - fleetRepelled) }) : ''
     logs.push(
-      `${defName(def)}的舰队在离线期间${formatNumber(raidCount)}次抵近边境：${formatNumber(repelled)} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${formatNumber(mineralLost)} 矿物被洗劫` : ''}。`,
+      t('evlog.7', { a0: defName(def), a1: formatNumber(raidCount), a2: formatNumber(repelled), a3: fleetText, a4: militaryText, a5: mineralLost > 0 ? t('evlog.8', { a0: formatNumber(mineralLost) }) : '' }),
     )
   }
   return {
@@ -1033,7 +1033,7 @@ export function resolveEvent(
         source: 'manual',
         status: outcome.changed ? 'resolved' : 'failed',
         optionId,
-        reason: outcome.changed ? '手动处理' : '手动处理失败',
+        reason: outcome.changed ? t('evlog.9') : t('evlog.10'),
         deltas: outcome.settlement?.deltas ?? outcome.deltas,
         failureReason: outcome.changed ? undefined : outcome.logText,
       },

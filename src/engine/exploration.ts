@@ -469,7 +469,7 @@ export function settleExpeditions(state: GameState, nowMs: number): ExpeditionLo
 
 function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): ExpeditionLog {
   const r = exp.result
-  const escortNote = exp.escort ? '（护航编队）' : ''
+  const escortNote = exp.escort ? t('expR.0') : ''
   if (r.kind === 'conquest') {
     return settleConquestResult(state, r.targetId, nowMs, escortNote)
   }
@@ -520,12 +520,12 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
   state.stats.totalTechEarned = (state.stats.totalTechEarned ?? 0) + r.tech
   // 尽览宣告（explore-endstate）：奖池无未发现目标时，资源补偿日志由「未发现新文明」改为明确终态——
   // 自动探索每笔结算由此天然宣告"无新内容"，不额外加日志、不刷屏。实时计算反映同循环先前结算的最新集合。
-  const headText = exploreProgress(state).exhausted ? '已尽览所有已知目标，无新发现' : '未发现新文明'
+  const headText = exploreProgress(state).exhausted ? t('expR.1') : t('expR.2')
   return {
     type: 'reward',
     text: exp.escort
-      ? `护航编队返航：${headText}，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`
-      : `探索队返航：${headText}，回收了 ${formatNumber(r.mineral)} 矿物、${formatNumber(r.energy)} 能源与 ${formatNumber(r.tech)} 科技点。`,
+      ? t('expR.3', { a0: headText, a1: formatNumber(r.mineral), a2: formatNumber(r.energy), a3: formatNumber(r.tech) })
+      : t('expR.4', { a0: headText, a1: formatNumber(r.mineral), a2: formatNumber(r.energy), a3: formatNumber(r.tech) }),
   }
 }
 

@@ -508,7 +508,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
       event.priority = 'critical'
       event.handlingMode = 'blocking'
       event.migrationStatus = 'unknown'
-      event.migrationNote = `未知事件 ${String(event.defId)} 已安全暂停，需人工处理`
+      event.migrationNote = t('sav.0', { a0: String(event.defId) })
     }
     if (event.defId === 'trade' && isPlainObject(event.payload)) {
       const payload = { ...(event.payload as Record<string, unknown>) }
@@ -527,8 +527,8 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
       unknownEvents,
       compensation: {},
       notes: [
-        migratedEvents > 0 ? `已迁移 ${formatNumber(migratedEvents)} 个待处理事件` : '没有需要转换的待处理事件',
-        ...(unknownEvents > 0 ? [`${formatNumber(unknownEvents)} 个未知事件已安全暂停`] : []),
+        migratedEvents > 0 ? t('sav.1', { a0: formatNumber(migratedEvents) }) : t('sav.2'),
+        ...(unknownEvents > 0 ? [t('sav.3', { a0: formatNumber(unknownEvents) })] : []),
       ],
     }
     next.migrationSummary = summary
@@ -597,8 +597,8 @@ export function deserializeSave(json: string): GameState {
   try {
     raw = JSON.parse(json)
   } catch {
-    throw new Error('存档文件不是有效的 JSON')
+    throw new Error(t('sav.4'))
   }
-  if (!isValidSave(raw)) throw new Error('存档格式无效或版本不兼容')
+  if (!isValidSave(raw)) throw new Error(t('sav.5'))
   return migrateSave(raw as GameState)
 }
