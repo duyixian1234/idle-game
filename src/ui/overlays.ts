@@ -1,11 +1,12 @@
+import {} from '../i18n'
 import type { GameState } from '../engine/types'
-import { BUILDINGS, CONQUESTS, FACTIONS, RESOURCE_META, TECHS } from '../engine/data'
-import { formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate } from '../engine/format'
-import { currentTutorialStep, TUTORIAL_STEPS, tutorialDone } from '../engine/tutorial'
+import {BUILDINGS, CONQUESTS, FACTIONS, RESOURCE_META, TECHS, defName, defDesc} from '../engine/data'
+import {formatMultiplier, formatNumber, formatPercent, formatPlayTime, formatRate} from '../engine/format'
+import {currentTutorialStep, TUTORIAL_STEPS, tutorialDone} from '../engine/tutorial'
 import type { NgPlusPreview } from '../engine/ngplus'
-import { buildingCost } from '../engine/buildings'
-import { formatCost, JUMPGATE_EFFECT_TEXT } from './render/shared'
-import { escapeHtml } from './helpers'
+import {buildingCost} from '../engine/buildings'
+import {formatCost, JUMPGATE_EFFECT_TEXT} from './render/shared'
+import {escapeHtml} from './helpers'
 
 /** boot 浮层内容（Q13 定案）：ASCII 标题 + 3 行 SYSTEM INIT；
  *  容器由 buildLayout 一次性构建（非重建元素），显隐由 main 层控制。 */
@@ -60,8 +61,8 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
       : JUMPGATE_EFFECT_TEXT
   el.innerHTML = `
     <div class="megastructure-card" data-megastructure-modal>
-      <div class="buy-max-title">终局工程：${escapeHtml(def.name)}</div>
-      <div class="buy-max-summary">${escapeHtml(def.desc)}</div>
+      <div class="buy-max-title">终局工程：${escapeHtml(defName(def))}</div>
+      <div class="buy-max-summary">${escapeHtml(defDesc(def))}</div>
       <table class="buy-max-table">
         <tr><th>效果</th><td>${escapeHtml(effectText)}</td></tr>
         <tr><th>建造消耗</th><td>${formatCost(buildingCost(state, id)) || formatNumber(0)}</td></tr>
@@ -79,11 +80,11 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
   const { lost } = preview
   // 将失去（本周目内清零）
   const resText = lost.resources.map((k) => `${RESOURCE_META[k].symbol}${formatNumber(state.resources[k])}`).join('、') || '无'
-  const bldText = lost.buildings.map((id) => `${BUILDINGS[id]?.name ?? id} ×${formatNumber(state.buildings[id] ?? 0)}`).join('、') || '无'
-  const techText = lost.techs.map((id) => `${TECHS[id]?.name ?? id} Lv.${formatNumber(state.techLevels[id] ?? 0)}`).join('、') || '无'
-  const facText = lost.alliedFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
+  const bldText = lost.buildings.map((id) => `${(BUILDINGS[id] ? defName(BUILDINGS[id]) : id)} ×${formatNumber(state.buildings[id] ?? 0)}`).join('、') || '无'
+  const techText = lost.techs.map((id) => `${(TECHS[id] ? defName(TECHS[id]) : id)} Lv.${formatNumber(state.techLevels[id] ?? 0)}`).join('、') || '无'
+  const facText = lost.alliedFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join('、') || '无'
   // 将继承（NG+ 后生效，预览值）
-  const codexText = preview.codexFactions.map((id) => FACTIONS[id]?.name ?? id).join('、') || '无'
+  const codexText = preview.codexFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join('、') || '无'
   const bonusText =
     Object.entries(preview.permanentBonuses)
       .map(([k, v]) => `${k === 'production' ? '全产出' : '军力上限'} +${formatPercent(v * 100)}`)

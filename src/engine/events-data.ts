@@ -10,16 +10,16 @@ export const EVENT_CONTRACT_VERSION = 1
 
 /** 随机事件定义表（静态基础事件） */
 export const EVENT_DEFS: RandomEventDef[] = [
-  { id: 'trade', name: '贸易商', weight: 4, kind: 'trade', theme: 'trade', decisionType: 'exchange', riskLevel: 'low', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 500 }, family: 'trade' },
-  { id: 'meteor', name: '陨石雨', weight: 3, kind: 'meteor', theme: 'disaster', decisionType: 'collect', riskLevel: 'medium', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 300 }, family: 'disaster' },
-  { id: 'bug', name: '虫族警报', weight: 2, kind: 'bug', theme: 'security', decisionType: 'defend', riskLevel: 'high', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 800 }, family: 'security' },
+  { id: 'trade', nameKey: 'event.trade', weight: 4, kind: 'trade', theme: 'trade', decisionType: 'exchange', riskLevel: 'low', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 500 }, family: 'trade' },
+  { id: 'meteor', nameKey: 'event.meteor', weight: 3, kind: 'meteor', theme: 'disaster', decisionType: 'collect', riskLevel: 'medium', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 300 }, family: 'disaster' },
+  { id: 'bug', nameKey: 'event.bug', weight: 2, kind: 'bug', theme: 'security', decisionType: 'defend', riskLevel: 'high', stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 800 }, family: 'security' },
 ]
 
 /** 无限模式组合池：基础事件 + 主题/风险变体 + 阶段首领。 */
 export const ENDLESS_EVENT_POOL: RandomEventDef[] = [
   {
     id: 'trade-frontier',
-    name: '边境贸易商',
+    nameKey: 'event.trade-frontier',
     weight: 3,
     kind: 'trade',
     theme: 'trade',
@@ -37,7 +37,7 @@ export const ENDLESS_EVENT_POOL: RandomEventDef[] = [
   },
   {
     id: 'storm-surge',
-    name: '风暴陨石雨',
+    nameKey: 'event.storm-surge',
     weight: 2,
     kind: 'meteor',
     theme: 'disaster',
@@ -55,7 +55,7 @@ export const ENDLESS_EVENT_POOL: RandomEventDef[] = [
   },
   {
     id: 'void-swarm',
-    name: '虚空虫群',
+    nameKey: 'event.void-swarm',
     weight: 2,
     kind: 'bug',
     theme: 'security',
@@ -73,7 +73,7 @@ export const ENDLESS_EVENT_POOL: RandomEventDef[] = [
   },
   {
     id: 'endless-overseer',
-    name: '无尽监督者',
+    nameKey: 'event.endless-overseer',
     weight: 1,
     kind: 'boss',
     theme: 'security',

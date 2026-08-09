@@ -3,9 +3,10 @@
 // 范围：renderMilitaryPanel + 内部 helpers（renderMilitaryTechSection / renderConquestRow / conquestRewardText）。
 // 跨域依赖：renderBuildPanel（./build）、archive-row helpers（./diplomacy）、renderFleetSection（panels.ts 临时，issue 06 迁至 interstellar.ts）。
 
+import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { ConquestDef } from '../../engine/data'
-import { CONQUESTS, ENDLESS_CONQUESTS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, TECHS } from '../../engine/data'
+import { CONQUESTS, ENDLESS_CONQUESTS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, TECHS, defName, defDesc} from '../../engine/data'
 import { conquestDef, conquestState, isConquestAvailable } from '../../engine/conquest'
 import { endlessBatchUnlocked, endlessTargetId } from '../../engine/generate'
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techCost, techLevel } from '../../engine/tech'
@@ -42,11 +43,11 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
   const info = `
     <div class="build-info">
       <div class="build-name">
-        ${escapeHtml(def.name)}
+        ${escapeHtml(defName(def))}
         ${conquered ? '<span class="build-count conquered-badge">已占领</span>' : ''}
         ${ongoing ? '<span class="build-count ongoing-badge">攻占中</span>' : ''}
       </div>
-      <div class="build-desc">${escapeHtml(def.desc)}</div>
+      <div class="build-desc">${escapeHtml(defDesc(def))}</div>
       <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}</div>
     </div>`
   const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
@@ -75,7 +76,7 @@ function renderConquestRow(def: ConquestDef, state: GameState): HTMLElement {
       ? def.afterEnding && state.phase === 'playing'
         ? '通关后开放'
         : '不可攻占'
-      : `需解锁「${PLANETS[def.unlockPlanet]?.name ?? def.unlockPlanet}」`
+      : `需解锁「${(PLANETS[def.unlockPlanet] ? defName(PLANETS[def.unlockPlanet]) : def.unlockPlanet)}」`
     card.classList.add('locked')
     card.innerHTML = `${icon}
       <div class="build-card-body">
@@ -127,8 +128,8 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
   const effectText = `军力产出 ${formatMultiplier(mult)}${level >= 1 ? `（Lv.${formatNumber(level)}${upgradable ? ` → ${formatMultiplier(nextMult)}` : ''}）` : ''}`
   const info = `
     <div class="build-info">
-      <div class="build-name">${escapeHtml(def.name)}${researched ? `<span class="build-count researched-badge">${level >= def.maxLevel! ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}</div>
-      <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
+      <div class="build-name">${escapeHtml(defName(def))}${researched ? `<span class="build-count researched-badge">${level >= def.maxLevel! ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}</div>
+      <div class="build-desc">${escapeHtml(defDesc(def))}（${escapeHtml(effectText)}）</div>
     </div>`
   const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
   // 未攻占且未研发 → 锁定文案；已研发（含测试预置）直接进入研发/升级分支
@@ -137,7 +138,7 @@ export function renderMilitaryTechSection(el: HTMLElement, state: GameState): vo
     card.innerHTML = `${icon}
       <div class="build-card-body">
         ${info}
-        <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(def.desc)}</span></div>
+        <div class="build-lock"><span class="lock-hint">🔒 ${escapeHtml(defDesc(def))}</span></div>
       </div>`
   } else if (!researched) {
     card.innerHTML = `${icon}
@@ -195,7 +196,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
   // 静态 4 区域（旧档 v11 及以下 conquered 无 archivedRounds → 按 status 判定兜底）
   for (const def of staticDefs) {
     if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
-      archivedRows.push(archiveRow(def.name, '已肃清', state.archivedRounds?.[def.id], def.id))
+      archivedRows.push(archiveRow(defName(def), '已肃清', state.archivedRounds?.[def.id], def.id))
     } else {
       conquestGrid.appendChild(renderConquestRow(def, state))
     }

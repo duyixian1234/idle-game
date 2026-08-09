@@ -1,11 +1,13 @@
-import { BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
+import {defName} from '../engine/data'
+import {t} from '../i18n'
+import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import { LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC } from './balance'
-import { PLANET_MECHANICS } from './mechanics'
-import { zeroResources } from './core'
-import { reputationBonuses } from './reputation'
-import { fleetMaintenance } from './fleet'
-import { formatNumber } from './format'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC} from './balance'
+import {PLANET_MECHANICS} from './mechanics'
+import {zeroResources} from './core'
+import {reputationBonuses} from './reputation'
+import {fleetMaintenance} from './fleet'
+import {formatNumber} from './format'
 import type { GameState, ResourceKey } from './types'
 
 /**
@@ -182,7 +184,7 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
       if (base !== 0) values[key] = base * bonus * permMult * smelterMult
     }
-    out.push({ planetId: id, name: def.name, values })
+    out.push({ planetId: id, name: defName(def), values })
   }
   return out
 }
@@ -195,8 +197,8 @@ function planetOutputDef(state: GameState, id: string): PlanetDef | undefined {
   if (!t) return undefined
   return {
     id: t.id,
-    name: t.name,
-    desc: t.desc,
+    nameText: t.name,
+    descText: t.desc,
     unlock: { resources: {} },
     mechanicId: (t.mechanicId as PlanetDef['mechanicId']) ?? 'none',
     output: t.output,
@@ -391,7 +393,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     // ADR-0036：普通建筑无等级维度（mult=1），unique 大件 ×2^level
     const mult = def.unique ? Math.pow(UNIQUE_UPGRADE_GROWTH, level) : 1
     const per = def.unique ? 1 : count
-    const name = def.name ?? id
+    const name = defName(def)
     for (const key of RESOURCE_KEYS) {
       const v = (def.produces[key] ?? 0) * per * mult
       if (v !== 0) {
@@ -427,7 +429,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   for (const key of RESOURCE_KEYS) {
     const delta = mechView[key] - mechBefore[key]
     if (delta !== 0) {
-      const name = PLANET_MECHANICS[activePlanetDef(state)?.mechanicId ?? 'none'].name
+      const name = t(PLANET_MECHANICS[activePlanetDef(state)?.mechanicId ?? 'none'].nameKey)
       mechRows[key].push({ name, mult: mechBefore[key] !== 0 ? mechView[key] / mechBefore[key] : undefined, value: delta, kind: 'mult' })
     }
   }
@@ -440,7 +442,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     const def = planetOutputDef(state, id)
     if (!def?.output) continue
     const bonus = 1 + (ps.outputBonus ?? 0)
-    const name = def.name ?? id
+    const name = defName(def)
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * mechView[key]
       if (base === 0) continue
@@ -474,7 +476,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
         const prod = (def.produces[key] ?? 0) * count
         if (prod === 0) continue
         const loss = prod * techMult[key] * permMult * (1 - energyRatio)
-        if (loss !== 0) ratioRows[key].push({ name: `${def.name ?? id}（能源不足）`, value: -loss, kind: 'sub' })
+        if (loss !== 0) ratioRows[key].push({ name: `${defName(def) ?? id}（能源不足）`, value: -loss, kind: 'sub' })
       }
     }
   }
@@ -512,7 +514,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     for (const key of RESOURCE_KEYS) {
       const perUnit = bd.consumes?.[key] ?? 0
       if (perUnit <= 0) continue
-      energyConsumption.push({ name: bd.name ?? id, count: bd.unique ? undefined : count, level: level > 0 ? level : undefined, value: -perUnit * units * demandMult, kind: 'sub' })
+      energyConsumption.push({ name: defName(bd), count: bd.unique ? undefined : count, level: level > 0 ? level : undefined, value: -perUnit * units * demandMult, kind: 'sub' })
     }
   }
   if (state.fleet.count > 0) {
@@ -526,7 +528,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     const mult = Math.pow(UNIQUE_UPGRADE_GROWTH, level)
     for (const key of RESOURCE_KEYS) {
       const m = bd.maintenance[key] ?? 0
-      if (m > 0) mineralConsumption.push({ name: bd.name ?? id, level: level > 0 ? level : undefined, value: -m * mult, kind: 'sub' })
+      if (m > 0) mineralConsumption.push({ name: defName(bd), level: level > 0 ? level : undefined, value: -m * mult, kind: 'sub' })
     }
   }
 

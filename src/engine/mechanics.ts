@@ -1,6 +1,7 @@
 import { RESOURCE_KEYS } from './data'
 import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS, LOGISTICS_TECH_ENERGY_RATIO, OUTPOST_MINERAL_MULT, OUTPOST_ENERGY_MULT } from './balance'
 import type { GameState, MechanicId, ResourceKey } from './types'
+import type { DeepKey, TranslateParams, Zh } from '../i18n'
 import { formatMultiplier, formatNumber, formatPercent } from './format'
 
 /**
@@ -12,10 +13,12 @@ import { formatMultiplier, formatNumber, formatPercent } from './format'
  * 由引擎负责 pushLog，避免机制模块反向依赖 engine。
  */
 export interface PlanetMechanic {
-  /** 机制名（UI 展示） */
-  name: string
-  /** 机制描述（UI 展示） */
-  desc: string
+  /** 机制名（UI 展示；i18n key，渲染处 t(nameKey)） */
+  nameKey: DeepKey<Zh>
+  /** 机制描述（UI 展示；i18n key，占位符参数见 descArgs） */
+  descKey: DeepKey<Zh>
+  /** desc 占位符参数 */
+  descArgs?: TranslateParams
   /** 对名义产出的修正（引擎 productionReport 调用，纯函数） */
   apply(state: GameState, nominal: Record<ResourceKey, number>): void
   /** 状态条动态文本（UI 调用；nowMs 可注入便于测试） */
@@ -32,8 +35,8 @@ export interface PlanetMechanic {
 
 /** 无机制：标准产出行星 */
 const none: PlanetMechanic = {
-  name: '无',
-  desc: '标准产出行星。',
+  nameKey: 'mech.none.name',
+  descKey: 'mech.none.desc',
   apply() {
     /* 无修正 */
   },
@@ -46,8 +49,9 @@ const none: PlanetMechanic = {
 
 /** 轨道工厂站（奥伯斯）：将矿物产能转化为科技点（稀有合金冶炼） */
 const orbitalForge: PlanetMechanic = {
-  name: '轨道工厂',
-  desc: `将 ${formatPercent(ORBITAL_FORGE_CONVERT_RATIO * 100)} 矿物产能转化为科技点（稀有合金冶炼）。`,
+  nameKey: 'mech.orbitalForge.name',
+  descKey: 'mech.orbitalForge.desc',
+  descArgs: { pct: formatPercent(ORBITAL_FORGE_CONVERT_RATIO * 100) },
   apply(state, nominal) {
     if (!state.planets.orbital?.unlocked) return
     const converted = nominal.mineral * ORBITAL_FORGE_CONVERT_RATIO
@@ -71,8 +75,9 @@ export function gravityWellMultiplier(planetStaySeconds: number): number {
 
 /** 冰封星·霜落：引力井衰减，驻留越久产出越低（封底 50%） */
 const gravityWell: PlanetMechanic = {
-  name: '引力井衰减',
-  desc: `强引力扭曲时空，驻留越久产出越低（约 25 分钟后衰减至 ${formatPercent(GRAVITY_WELL_FLOOR * 100)} 封底）；切换星球后重置。`,
+  nameKey: 'mech.gravityWell.name',
+  descKey: 'mech.gravityWell.desc',
+  descArgs: { pct: formatPercent(GRAVITY_WELL_FLOOR * 100) },
   apply(_state, nominal) {
     const mult = gravityWellMultiplier(_state.planetStaySeconds)
     for (const k of RESOURCE_KEYS) nominal[k] *= mult
@@ -91,8 +96,9 @@ const STORM_HARVEST_MIN_GAIN = 100
 
 /** 气态巨星·风暴之喉：能源 ×1.5；每 5 分钟风暴结晶（科技点） */
 const massProduction: PlanetMechanic = {
-  name: '风暴批量生产',
-  desc: `风暴能量驱动巨型平台：能源产出 ${formatMultiplier(1.5)}；每 5 分钟自动凝聚风暴结晶（科技点）。`,
+  nameKey: 'mech.massProduction.name',
+  descKey: 'mech.massProduction.desc',
+  descArgs: { mult: formatMultiplier(1.5) },
   apply(_state, nominal) {
     nominal.energy *= 1.5
   },
@@ -114,8 +120,9 @@ const WARP_CORE_MULT = 3
 
 /** 母星·曙光：曲率时间加速，所有产出 ×3 */
 const warpCore: PlanetMechanic = {
-  name: '曲率时间加速',
-  desc: `曲率核心扭曲时空流速：所有产出 ${formatMultiplier(WARP_CORE_MULT)}。终局的前夜。`,
+  nameKey: 'mech.warpCore.name',
+  descKey: 'mech.warpCore.desc',
+  descArgs: { mult: formatMultiplier(WARP_CORE_MULT) },
   apply(_state, nominal) {
     for (const k of RESOURCE_KEYS) nominal[k] *= WARP_CORE_MULT
   },
@@ -126,8 +133,8 @@ const warpCore: PlanetMechanic = {
 
 /** 星际物流港·枢纽：科技点折算能源（每 1 科技点顶 LOGISTICS_TECH_ENERGY_RATIO 能源缺口） */
 const logisticsHub: PlanetMechanic = {
-  name: '物流枢纽',
-  desc: '科技点折算能源：科技盈余可填平精炼厂等建筑的能源缺口，能源不足打折幅度降低。',
+  nameKey: 'mech.logisticsHub.name',
+  descKey: 'mech.logisticsHub.desc',
   apply() {
     /* 产出无直接修正（折算作用于能源结算，见 energyAdjust） */
   },
@@ -141,8 +148,9 @@ const logisticsHub: PlanetMechanic = {
 
 /** 殖民前哨·拓荒：矿物产出 ×1.25，能源需求 ×1.2（矿多但更吃能源的取舍） */
 const outpost: PlanetMechanic = {
-  name: '殖民拓荒',
-  desc: `矿物产出 +${formatPercent(25)}，但重型冶炼消耗更多能源（能源需求 ${formatMultiplier(OUTPOST_ENERGY_MULT)}）。`,
+  nameKey: 'mech.outpost.name',
+  descKey: 'mech.outpost.desc',
+  descArgs: { pct: formatPercent(25), mult: formatMultiplier(OUTPOST_ENERGY_MULT) },
   apply(_state, nominal) {
     nominal.mineral *= OUTPOST_MINERAL_MULT
   },

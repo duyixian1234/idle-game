@@ -1,7 +1,9 @@
-import { EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS } from './data'
-import { pushLog } from './core'
-import { PLANET_STORIES, playMilestone } from './story'
-import { techLevel } from './tech'
+import {defName} from '../engine/data'
+import { t } from '../i18n'
+import {EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS} from './data'
+import {pushLog} from './core'
+import {PLANET_STORIES, playMilestone} from './story'
+import {techLevel} from './tech'
 import type { GameState, ActionResult } from './types'
 
 /**
@@ -41,10 +43,10 @@ export function checkPlanetUnlocks(state: GameState): string[] {
     if (!planetRequirementsMet(state, def.id)) continue
     state.planets[def.id] = { unlocked: true, unlockedAt: Date.now() }
     unlockedNow.push(def.id)
-    pushLog(state, 'story', `【星域广播】探测信号确认：「${def.name}」已进入可殖民范围。`)
+    pushLog(state, 'story', `【星域广播】探测信号确认：「${defName(def)}」已进入可殖民范围。`)
     // 播放该星球的多段解锁叙事
     const scenes = PLANET_STORIES[def.id] ?? []
-    for (const scene of scenes) pushLog(state, 'story', scene)
+    for (const scene of scenes) pushLog(state, 'story', t(scene))
     if (def.id === 'orbital') {
       pushLog(state, 'story', '星域扫描捕获四个文明信号：铁卫同盟、圣光议会、天鹅贸易联盟、沃克斯矿业集团。外交频道已开放。')
       playMilestone(state, 'orbitalUnlocked')

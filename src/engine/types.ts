@@ -1,6 +1,9 @@
 /** 四种资源（军力为唯一有上限资源，上限由军港容量决定） */
 export type ResourceKey = 'mineral' | 'energy' | 'tech' | 'military'
 
+// 类型层面引用 i18n key（import type 无运行时依赖；*Key 字段统一用 DeepKey<Zh> 保证 t() 类型安全）
+import type { DeepKey, Zh } from '../i18n'
+
 /** 星球机制 id（与 PLANETS.mechanicId / PLANET_MECHANICS 联动） */
 export type MechanicId = 'none' | 'orbitalForge' | 'gravityWell' | 'massProduction' | 'warpCore' | 'logisticsHub' | 'outpost'
 
@@ -461,7 +464,8 @@ export type ActionResult<T = undefined> = ActionSuccess<T> | ActionFailure
 
 export interface RandomEventDef {
   id: string
-  name: string
+  /** i18n key：事件名（zh/en 资源，渲染处 t(nameKey)） */
+  nameKey: DeepKey<Zh>
   /** 触发权重 */
   weight: number
   kind: 'trade' | 'meteor' | 'bug' | 'raid' | 'boss'

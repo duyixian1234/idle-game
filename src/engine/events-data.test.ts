@@ -11,7 +11,7 @@ describe('events-data: 定义契约完整性', () => {
     expect(EVENT_DEFS.length).toBeGreaterThan(0)
     for (const def of EVENT_DEFS) {
       expect(def.id).toBeTruthy()
-      expect(def.name).toBeTruthy()
+      expect(def.nameKey).toBeTruthy()
       expect(def.weight).toBeGreaterThan(0)
       expect(['trade', 'meteor', 'bug', 'raid', 'boss']).toContain(def.kind)
       expect(def.theme).toBeTruthy()

@@ -34,6 +34,20 @@
   color: var(--accent);
 }
 
+/* 语言选择激活态（i18n：当前语言高亮） */
+.tool-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: rgba(99, 179, 237, 0.1);
+}
+
+.settings-label {
+  color: var(--text-dim);
+  font-size: 13px;
+  align-self: center;
+  margin-right: 4px;
+}
+
 .tool-btn.danger {
   border-color: #6a3a3a;
 }

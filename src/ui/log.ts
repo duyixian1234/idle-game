@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { EventFormulaPart, EventTheme, GameState, LogEntry, LogType, ResourceKey } from '../engine/types'
 import { RESOURCE_META } from '../engine/data'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
@@ -156,7 +157,7 @@ function renderSettlementDetails(settlement?: { deltas: Record<string, number>; 
   const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ${formatMultiplier(part.multiplier)}` : ''}</li>`).join('')
   const deltas = Object.entries(settlement.deltas).map(([key, value]) => {
     const resource = RESOURCE_META[key as ResourceKey]
-    const label = resource?.name ?? key
+    const label = resource ? t(resource.nameKey) : key
     const unit = resource?.symbol ?? ''
     return `${label} ${value > 0 ? '+' : ''}${formatNumber(value)}${unit}`
   }).join('、') || '待选择选项'

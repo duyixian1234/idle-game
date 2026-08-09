@@ -1,5 +1,9 @@
-/** 中文大数字单位（每 4 位十进制一级）。 */
-export const BIG_UNITS = ['', '万', '亿', '兆', '京', '垓', '秭', '穰', '沟', '涧', '正', '载'] as const
+import { getLanguage, t } from '../i18n'
+
+/** 中文大数字单位（每 4 位十进制一级）——i18n：zh 语言分支。 */
+const ZH_BIG_UNITS = ['', '万', '亿', '兆', '京', '垓', '秭', '穰', '沟', '涧', '正', '载'] as const
+/** 英文大数字单位（每 3 位十进制一级，K/M/B/T…）——i18n：en 语言分支。 */
+const EN_BIG_UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'] as const
 
 const FRACTION_DIGITS = 2
 const ROUNDING_EPSILON = 1e-9
@@ -31,27 +35,33 @@ export function formatPlainNumber(n: number): string {
 }
 
 /**
- * Chinese unit formatting for game values.
+ * Localized unit formatting for game values.
  *
- * Values below 10000 keep zh-CN grouping; values from 10000 use one of the
- * four-digit Chinese units and retain two decimal places. Rounding is done
- * before choosing the unit so values such as 999999.995 carry into 100.00万.
+ * Values below the localized threshold keep zh-CN/en grouping; larger values use
+ * per-language units (zh: 万/亿/兆… 4-digit; en: K/M/B/T… 3-digit) with two
+ * decimal places. Rounding is done before choosing the unit so values such as
+ * 999999.995 carry into the next unit. Two-decimal contract (formatNumber(1)==='1.00',
+ * ADR-0016) is language-independent.
  */
 export function formatBigNumber(n: number): string {
   if (!Number.isFinite(n)) return formatPlainNumber(n)
+  const lang = getLanguage()
+  const units = lang === 'en' ? EN_BIG_UNITS : ZH_BIG_UNITS
+  const base = lang === 'en' ? 3 : 4
+  const threshold = 10 ** base
   const absolute = Math.abs(n)
   const rounded = roundHalfAwayFromZero(absolute)
   const sign = n < 0 && rounded !== 0 ? '-' : ''
-  if (rounded < 10_000) return `${sign}${formatPlainNumber(rounded)}`
+  if (rounded < threshold) return `${sign}${formatPlainNumber(rounded)}`
 
-  let order = Math.min(Math.floor(Math.log10(rounded) / 4), BIG_UNITS.length - 1)
-  let scaled = rounded / 10 ** (order * 4)
+  let order = Math.min(Math.floor(Math.log10(rounded) / base), units.length - 1)
+  let scaled = rounded / 10 ** (order * base)
   scaled = roundHalfAwayFromZero(scaled)
-  if (scaled >= 10_000 && order < BIG_UNITS.length - 1) {
+  if (scaled >= threshold && order < units.length - 1) {
     order += 1
-    scaled = roundHalfAwayFromZero(rounded / 10 ** (order * 4))
+    scaled = roundHalfAwayFromZero(rounded / 10 ** (order * base))
   }
-  return `${sign}${formatPlainNumber(scaled)}${BIG_UNITS[order]}`
+  return `${sign}${formatPlainNumber(scaled)}${units[order]}`
 }
 
 /** UI resource/cost values use the compact Chinese-unit form. */
@@ -62,7 +72,7 @@ export function formatNumber(n: number): string {
 /** Signed per-second rate with the localized business unit. */
 export function formatRate(n: number, showPlus = true): string {
   const sign = showPlus && n > 0 ? '+' : ''
-  return `${sign}${formatNumber(n)}/秒`
+  return `${sign}${formatNumber(n)}${t('fmt.ratePerSec')}`
 }
 
 /** Percentage points with the localized business unit. */
@@ -70,17 +80,17 @@ export function formatPercent(n: number): string {
   return `${formatNumber(n)}%`
 }
 
-/** Multipliers with the localized business unit. */
+/** Multipliers with the localized business unit（zh: 2.00倍；en: ×2.00，乘号在前）。 */
 export function formatMultiplier(n: number): string {
-  return `${formatNumber(n)}倍`
+  return `${t('fmt.multiplierPrefix')}${formatNumber(n)}${t('fmt.multiplierSuffix')}`
 }
 
-/** 通关时长格式化 */
+/** 通关时长格式化（i18n：fmt.playTimeMinutes/Hours，裸数字占位）。 */
 export function formatPlayTime(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  if (h <= 0) return `${m}分钟`
-  return `${h}小时${m}分`
+  if (h <= 0) return t('fmt.playTimeMinutes', { n: String(m) })
+  return t('fmt.playTimeHours', { h: String(h), m: String(m) })
 }
 
 /**
@@ -102,12 +112,12 @@ export function timeToSave(cost: Record<string, number>, production: Record<stri
   return hasValid ? bottleneck : null
 }
 
-/** 秒数 → 「≈N 秒/分钟/小时」文案（s<60、分<3600、其余小时，向上取整，防「0 秒」误导） */
+/** 秒数 → 「≈N 秒/分钟/小时」文案（s<60、分<3600、其余小时，向上取整，防「0 秒」误导；i18n：fmt.timeToSave.*） */
 export function formatTimeToSave(seconds: number): string {
   const s = Math.max(1, Math.ceil(seconds))
-  if (s < 60) return `≈${s} 秒产出`
+  if (s < 60) return t('fmt.timeToSave.second', { n: String(s) })
   const minutes = Math.ceil(s / 60)
-  if (minutes < 60) return `≈${minutes} 分钟产出`
+  if (minutes < 60) return t('fmt.timeToSave.minute', { n: String(minutes) })
   const hours = Math.ceil(minutes / 60)
-  return `≈${hours} 小时产出`
+  return t('fmt.timeToSave.hour', { n: String(hours) })
 }

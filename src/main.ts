@@ -16,6 +16,7 @@ import { createSession } from './ui/session'
 import { renderBootOverlay } from './ui/overlays'
 import { markBootSeen, shouldShowBoot } from './ui/boot'
 import { prefersReducedMotion } from './ui/typewriter'
+import { initLanguage, t } from './i18n'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
@@ -23,6 +24,9 @@ const TICK_INTERVAL_MS = 250
 const APP_VERSION = '0.1.0'
 
 async function main(): Promise<void> {
+  // 语言初始化（i18n）：localStorage 优先，无记录跟随浏览器语言——必须在任何引擎文本生成
+  // （离线结算日志、开局叙事）之前，确保首帧即正确语言。语言是会话 UI 偏好，不进存档。
+  initLanguage(localStorage, navigator.language)
   const container = document.getElementById('app') as HTMLElement
   const els = buildLayout(container)
 
@@ -63,7 +67,7 @@ async function main(): Promise<void> {
   if (offline.durationSeconds > 0) {
     const gainsText = (['mineral', 'energy', 'tech'] as const)
       .filter((k) => offline.gains[k] > 0)
-      .map((k) => `${RESOURCE_META[k].name} +${formatNumber(offline.gains[k])}`)
+      .map((k) => `${t(RESOURCE_META[k].nameKey)} +${formatNumber(offline.gains[k])}`)
       .join('、')
     const capText = offline.capped ? `（已达 ${formatDuration(offlineCapSeconds(state))} 封顶）` : ''
     pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
@@ -89,7 +93,7 @@ async function main(): Promise<void> {
   // 首次进入时播放开局叙事序列（在 session 建立后 pushLog：叙事计入角标差值=新报，
   // 与原「resetSeenSnapshot 先于叙事」的行为一致；首次 render 在下方 tickAndRender 中，顺序不变）
   if (state.log.length === 0) {
-    for (const scene of OPENING_SCENES) pushLog(state, 'story', scene)
+    for (const scene of OPENING_SCENES) pushLog(state, 'story', t(scene))
   }
 
   // 游戏循环：按真实时间差推进（session.tickAndRender —— tick + render 同源，ADR-0043；

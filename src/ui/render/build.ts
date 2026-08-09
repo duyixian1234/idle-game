@@ -3,17 +3,18 @@
 // 范围：renderBuildPanel + 内部 helper（升级预览/购买预览/已解锁卡/锁定卡）。
 // 跨域共享项（formatCost/BuildPanelRenderOptions/JUMPGATE_EFFECT_TEXT）从 shared 引入。
 
+import {} from '../../i18n'
 import type { GameState } from '../../engine/types'
-import { BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../../engine/data'
+import {BUILDINGS, RESOURCE_META, RESOURCE_KEYS, TECHS, defName, defDesc} from '../../engine/data'
 import type { BuildingDef } from '../../engine/data'
-import { buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost } from '../../engine/buildings'
-import { formatMultiplier, formatNumber, formatPercent, formatRate, formatTimeToSave, timeToSave } from '../../engine/format'
-import { netProduction, simulateProductionDelta, smelterGlobalMult } from '../../engine/production'
-import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from '../../engine/balance'
-import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
-import { iconUse } from '../icons'
-import { escapeHtml } from '../helpers'
-import { formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT, type BuildPanelRenderOptions } from './shared'
+import {buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost} from '../../engine/buildings'
+import {formatMultiplier, formatNumber, formatPercent, formatRate, formatTimeToSave, timeToSave} from '../../engine/format'
+import {netProduction, simulateProductionDelta, smelterGlobalMult} from '../../engine/production'
+import {JUMPGATE_HARVEST_PCT_PER_LEVEL} from '../../engine/balance'
+import {JUMPGATE_SLOT_TABLE} from '../../engine/exploration'
+import {iconUse} from '../icons'
+import {escapeHtml} from '../helpers'
+import {formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT, type BuildPanelRenderOptions} from './shared'
 
 /** 升级预览（仅 unique 大件）：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
  * 普通建筑无升级（ADR-0036 机制二分），不渲染升级预览。 */
@@ -94,11 +95,11 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
   const info = `
     <div class="build-info">
       <div class="build-name">
-        ${escapeHtml(def.name)}
+        ${escapeHtml(defName(def))}
         ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${formatNumber(count)}</span>`}
         ${level > 0 ? `<span class="build-level">Lv.${formatNumber(level)}</span>` : ''}
       </div>
-      <div class="build-desc">${escapeHtml(def.desc)}</div>
+      <div class="build-desc">${escapeHtml(defDesc(def))}</div>
     </div>`
 
   const buyCost = buildingCost(state, def.id)
@@ -159,18 +160,18 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
   const reqParts = lockReason
     ? [lockReason]
     : [
-        ...(def.requires ?? []).map((r) => `建筑·${BUILDINGS[r]?.name ?? r}`),
-        ...(def.requiresTech ?? []).map((t) => `科技·${TECHS[t]?.name ?? t}`),
+        ...(def.requires ?? []).map((r) => `建筑·${(BUILDINGS[r] ? defName(BUILDINGS[r]) : r)}`),
+        ...(def.requiresTech ?? []).map((t) => `科技·${(TECHS[t] ? defName(TECHS[t]) : t)}`),
       ]
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.id)}</div>
     <div class="build-card-body">
       <div class="build-info">
         <div class="build-name">
-          ${escapeHtml(def.name)}
+          ${escapeHtml(defName(def))}
           ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : ''}
         </div>
-        <div class="build-desc">${escapeHtml(def.desc)}</div>
+        <div class="build-desc">${escapeHtml(defDesc(def))}</div>
       </div>
       <div class="build-lock">
         <span class="lock-hint">${escapeHtml(reqParts.join('、'))}</span>
@@ -222,7 +223,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
         icon.innerHTML = iconUse(def.id)
         const name = document.createElement('span')
         name.className = 'build-hidden-name'
-        name.textContent = def.name
+        name.textContent = defName(def)
         const restore = document.createElement('button')
         restore.type = 'button'
         restore.className = 'build-hidden-restore'

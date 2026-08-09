@@ -1,6 +1,7 @@
 import { MEGASTRUCTURE_BUILDINGS, PLANETS } from '../../engine/data'
 import { pushLog } from '../../engine/core'
 import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
+import { setLanguage } from '../../i18n'
 import type { EventAutomationPolicy, EventTheme, GameState, ResourceKey } from '../../engine/types'
 import type { AppElements, NavId } from '../layout'
 import { dispatch } from '../actions'
@@ -118,12 +119,19 @@ export function bindListeners(ctx: SessionCtx): void {
     }
   })
 
-  // 设置页：静音/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局工程已移至建造页星际工程分组）
+  // 设置页：静音/语言/导出/导入/重置（原 toolbar 工具迁入，data-tool 契约不变；终局工程已移至建造页星际工程分组）
   // 重操作实现见 actions-heavy.ts（import/export/reset）；logdir 已迁至日志页头部、planet-visibility 已迁至探索页
   els.navPages.settings.addEventListener('click', (e) => {
     const actionBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-setting-action]')
-    if (actionBtn?.dataset.settingAction === 'ngplus') {
+    const settingAction = actionBtn?.dataset.settingAction
+    if (settingAction === 'ngplus') {
       ctx.openNgPlusModal()
+      return
+    }
+    // 语言切换（i18n）：纯 UI 会话偏好——setLanguage 持久化 + 全量重渲染，不动 GameState（存档零影响）
+    if (settingAction === 'lang-zh' || settingAction === 'lang-en') {
+      setLanguage(settingAction === 'lang-en' ? 'en' : 'zh')
+      render()
       return
     }
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]')

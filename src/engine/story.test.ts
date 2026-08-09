@@ -1,26 +1,28 @@
 import { describe, expect, it } from 'vitest'
+import { defName } from './data'
 import { CONQUEROR_ENDING_SCENES, ENDING_SCENES, EVENT_STORIES, MILESTONE_STORIES, OPENING_SCENES, PLANET_STORIES, playMilestone } from './story'
 import { createInitialState, tick } from './engine'
 import { buyBuilding } from './buildings'
 import { checkPlanetUnlocks } from './planets'
 import { pushLog } from './core'
 import { PLANETS } from './data'
+import { t } from '../i18n'
 
-/** 统计中文字符数（排除空白与标点装饰） */
-function chineseCharCount(text: string): number {
-  return Array.from(text).filter((ch) => /[\u4e00-\u9fff]/.test(ch)).length
+/** 统计中文字符数（排除空白与标点装饰）；叙事 key 经 t() 取当前语言（默认 zh）文本 */
+function chineseCharCount(keyOrText: string): number {
+  return Array.from(t(keyOrText as never)).filter((ch) => /[\u4e00-\u9fff]/.test(ch)).length
 }
 
 describe('engine: 剧情文本内容', () => {
-  it('全量文本总量达标（≥3000 字）', () => {
+  it('全量文本总量达标（≥3000 字，i18n zh 资源 story 域）', () => {
     const all = [
       ...OPENING_SCENES,
       ...Object.values(PLANET_STORIES).flat(),
       ...Object.values(MILESTONE_STORIES),
       ...Object.values(EVENT_STORIES).flat(),
       ...ENDING_SCENES,
-    ].join('')
-    const count = chineseCharCount(all)
+    ].map((k) => t(k))
+    const count = chineseCharCount(all.join(''))
     expect(count).toBeGreaterThanOrEqual(3000)
   })
 
@@ -28,7 +30,7 @@ describe('engine: 剧情文本内容', () => {
     const nonStartPlanets = Object.values(PLANETS).filter((p) => p.id !== 'barren')
     for (const p of nonStartPlanets) {
       const scenes = PLANET_STORIES[p.id] ?? []
-      expect(scenes.length, `${p.name} 叙事不足 2 段`).toBeGreaterThanOrEqual(2)
+      expect(scenes.length, `${defName(p)} 叙事不足 2 段`).toBeGreaterThanOrEqual(2)
     }
   })
 
@@ -64,9 +66,9 @@ describe('engine: 剧情文本内容', () => {
   it('里程碑叙事仅触发一次', () => {
     const s = createInitialState(0)
     playMilestone(s, 'firstBuild')
-    const count1 = s.log.filter((e) => e.text === MILESTONE_STORIES.firstBuild).length
+    const count1 = s.log.filter((e) => e.text === t(MILESTONE_STORIES.firstBuild)).length
     playMilestone(s, 'firstBuild')
-    const count2 = s.log.filter((e) => e.text === MILESTONE_STORIES.firstBuild).length
+    const count2 = s.log.filter((e) => e.text === t(MILESTONE_STORIES.firstBuild)).length
     expect(count1).toBe(1)
     expect(count2).toBe(1)
   })
@@ -76,7 +78,7 @@ describe('engine: 剧情文本内容', () => {
     s.resources.mineral = 100
     buyBuilding(s, 'miner')
     expect(s.storyFlags.firstBuild).toBe(true)
-    expect(s.log.some((e) => e.text.includes('第一台采矿机'))).toBe(true)
+    expect(s.log.some((e) => e.text.includes(t(MILESTONE_STORIES.firstBuild)))).toBe(true)
   })
 
   it('日志推送与叙事共存', () => {
@@ -90,7 +92,7 @@ describe('engine: 剧情文本内容', () => {
     s.stats.totalMineralEarned = 10_000_000_000
     tick(s, 10_000)
     expect(s.storyFlags.endlessII).toBeUndefined()
-    expect(s.log.some((e) => e.text.includes('百亿之年'))).toBe(false)
+    expect(s.log.some((e) => e.text.includes(t(MILESTONE_STORIES.endlessII)))).toBe(false)
   })
 
   it('永恒殖民叙事：条件满足播放且仅一次（挂点与成就谓词同源）', () => {
@@ -99,13 +101,13 @@ describe('engine: 剧情文本内容', () => {
     s.stats.totalMineralEarned = 10_000_000_000
     tick(s, 10_000)
     expect(s.storyFlags.endlessII).toBe(true)
-    const count = s.log.filter((e) => e.text.includes('百亿之年')).length
+    const count = s.log.filter((e) => e.text.includes(t(MILESTONE_STORIES.endlessII))).length
     expect(count).toBe(1)
     // 成就同步解锁（同源判定：100 亿 + 无限模式）
     expect(s.achievements.endlessII).toBeDefined()
     expect(s.achievements.endlessII?.unlockedInRound).toBe(0)
     // 再次 tick 不重复播放
     tick(s, 20_000)
-    expect(s.log.filter((e) => e.text.includes('百亿之年')).length).toBe(1)
+    expect(s.log.filter((e) => e.text.includes(t(MILESTONE_STORIES.endlessII))).length).toBe(1)
   })
 })

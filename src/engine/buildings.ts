@@ -1,4 +1,4 @@
-import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS } from './data'
+import { BUILDINGS, PLANETS, RESOURCE_KEYS, TECHS , defName} from './data'
 import {
   POST100_BUY_TARGET_SECONDS,
   POST100_GROWTH,
@@ -101,21 +101,21 @@ export function buildingLockReason(state: GameState, id: string): string | null 
   if (!def) return '未知建筑'
   if (def.requiresEnded && !isEnded(state)) return '通关后解锁'
   if (def.requiresPlanet && !def.requiresPlanet.every((p) => state.planets[p]?.unlocked)) {
-    return `需解锁星球：${def.requiresPlanet.map((p) => PLANETS[p]?.name ?? p).join('、')}`
+    return `需解锁星球：${def.requiresPlanet.map((p) => (PLANETS[p] ? defName(PLANETS[p]) : p)).join('、')}`
   }
-  if (def.requiresMaxLevel && !def.requiresMaxLevel.every((t) => (state.upgrades[t] ?? 0) >= TECH_MAX_LEVEL)) {
-    return `需「${def.requiresMaxLevel.map((t) => BUILDINGS[t]?.name ?? t).join('、')}」升级满级`
+  if (def.requiresMaxLevel && !def.requiresMaxLevel.every((bid) => (state.upgrades[bid] ?? 0) >= TECH_MAX_LEVEL)) {
+    return `需「${def.requiresMaxLevel.map((bid) => (BUILDINGS[bid] ? defName(BUILDINGS[bid]) : bid)).join('、')}」升级满级`
   }
   if (def.requires && !def.requires.every((req) => (state.buildings[req] ?? 0) > 0)) {
-    return `需先建造：${def.requires.map((r) => BUILDINGS[r]?.name ?? r).join('、')}`
+    return `需先建造：${def.requires.map((r) => (BUILDINGS[r] ? defName(BUILDINGS[r]) : r)).join('、')}`
   }
   if (def.requiresCount && !Object.entries(def.requiresCount).every(([id, need]) => (state.buildings[id] ?? 0) >= need)) {
     return `需拥有：${Object.entries(def.requiresCount)
-      .map(([id, need]) => `${BUILDINGS[id]?.name ?? id} ×${formatNumber(need)}`)
+      .map(([id, need]) => `${BUILDINGS[id] ? defName(BUILDINGS[id]) : id} ×${formatNumber(need)}`)
       .join('、')}`
   }
-  if (def.requiresTech && !def.requiresTech.every((t) => techLevel(state, t) > 0)) {
-    return `需先研发：${def.requiresTech.map((t) => TECHS[t]?.name ?? t).join('、')}`
+  if (def.requiresTech && !def.requiresTech.every((tid) => techLevel(state, tid) > 0)) {
+    return `需先研发：${def.requiresTech.map((tid) => (TECHS[tid] ? defName(TECHS[tid]) : tid)).join('、')}`
   }
   return null
 }

@@ -1,4 +1,4 @@
-import { BUILDINGS, PLANETS, TECHS } from '../engine/data'
+import {BUILDINGS,PLANETS,TECHS ,defName} from '../engine/data'
 import { buyBuilding, upgradeBuilding } from '../engine/buildings'
 import { setActivePlanet } from '../engine/planets'
 import { researchTech, upgradeTech } from '../engine/tech'
@@ -99,24 +99,24 @@ function diplomacyFeedback(state: GameState, _result: unknown, payload: ActionPa
   const favor = f?.favor ?? 0
   const logs: ActionLog[] = []
   if (action === 'trade') {
-    logs.push({ type: 'system', text: `与${def?.name}达成贸易，好感 +${formatNumber(6)}（当前 ${formatNumber(favor)}）。` })
+    logs.push({ type: 'system', text: `与${(def ? defName(def) : "?")}达成贸易，好感 +${formatNumber(6)}（当前 ${formatNumber(favor)}）。` })
   } else if (action === 'alliance') {
-    logs.push({ type: 'reward', text: `与${def?.name}正式结盟！星系统一的版图再近一步。` })
+    logs.push({ type: 'reward', text: `与${(def ? defName(def) : "?")}正式结盟！星系统一的版图再近一步。` })
     if (isFederationUnified(state)) {
       logs.push({ type: 'story', text: '【星系统一联邦】四个派系已全部达成统一条件。旧时代的裂痕正在愈合……' })
     }
   } else if (action === 'techshare') {
-    logs.push({ type: 'system', text: `向${def?.name}共享技术情报，好感 +${formatNumber(15)}（当前 ${formatNumber(favor)}）。` })
+    logs.push({ type: 'system', text: `向${(def ? defName(def) : "?")}共享技术情报，好感 +${formatNumber(15)}（当前 ${formatNumber(favor)}）。` })
   } else if (action === 'extort') {
-    logs.push({ type: 'warning', text: `你对${def?.name}展示舰队，勒索了一笔资源——好感 -${formatNumber(30)}，威胁 +${formatNumber(25)}（当前 ${formatNumber(favor)}）。` })
+    logs.push({ type: 'warning', text: `你对${(def ? defName(def) : "?")}展示舰队，勒索了一笔资源——好感 -${formatNumber(30)}，威胁 +${formatNumber(25)}（当前 ${formatNumber(favor)}）。` })
   } else if (action === 'treaty') {
-    logs.push({ type: 'system', text: `${def?.name}签署进贡条约：12 小时内持续进贡矿物（离线照常结算）。` })
+    logs.push({ type: 'system', text: `${(def ? defName(def) : "?")}签署进贡条约：12 小时内持续进贡矿物（离线照常结算）。` })
   } else if (action === 'subjugate') {
-    logs.push({ type: 'warning', text: `${def?.name}在军力面前臣服——但你需要持续派驻军力维持，否则将叛变。` })
+    logs.push({ type: 'warning', text: `${(def ? defName(def) : "?")}在军力面前臣服——但你需要持续派驻军力维持，否则将叛变。` })
   } else if (action === 'atone') {
-    logs.push({ type: 'story', text: `你向${def?.name}支付赔偿，解除胁迫并开启赎罪期——洗白之路开启。` })
+    logs.push({ type: 'story', text: `你向${(def ? defName(def) : "?")}支付赔偿，解除胁迫并开启赎罪期——洗白之路开启。` })
   } else {
-    logs.push({ type: 'system', text: `对${def?.name}展示威慑，其军力下降，好感 -${formatNumber(8)}（当前 ${formatNumber(favor)}）。` })
+    logs.push({ type: 'system', text: `对${(def ? defName(def) : "?")}展示威慑，其军力下降，好感 -${formatNumber(8)}（当前 ${formatNumber(favor)}）。` })
   }
   return { logs, sound: action === 'alliance' ? 'success' : 'click' }
 }
@@ -136,7 +136,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'buy',
     run: (state, payload) => buyBuilding(state, payload.id),
     feedback: (state, _r, payload) => {
-      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      const name = (BUILDINGS[payload.id] ? defName(BUILDINGS[payload.id]) : payload.id)
       return { logs: [{ type: 'system', text: `建造了 ${name}（第 ${formatNumber(state.buildings[payload.id] ?? 0)} 台）。` }], sound: 'click' }
     },
   },
@@ -144,7 +144,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'upgrade',
     run: (state, payload) => upgradeBuilding(state, payload.id),
     feedback: (state, _r, payload) => {
-      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      const name = (BUILDINGS[payload.id] ? defName(BUILDINGS[payload.id]) : payload.id)
       return { logs: [{ type: 'system', text: `${name} 升级至 Lv.${formatNumber(state.upgrades[payload.id] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
@@ -152,7 +152,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'research',
     run: (state, payload) => researchTech(state, payload.id),
     feedback: (_state, _r, payload) => {
-      const name = TECHS[payload.id]?.name ?? payload.id
+      const name = (TECHS[payload.id] ? defName(TECHS[payload.id]) : payload.id)
       return { logs: [{ type: 'reward', text: `科技「${name}」研发完成，新能力已生效。` }], sound: 'success' }
     },
   },
@@ -160,7 +160,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'upgradeTech',
     run: (state, payload) => upgradeTech(state, payload.id),
     feedback: (state, _r, payload) => {
-      const name = TECHS[payload.id]?.name ?? payload.id
+      const name = (TECHS[payload.id] ? defName(TECHS[payload.id]) : payload.id)
       return { logs: [{ type: 'reward', text: `科技「${name}」升级至 Lv.${formatNumber(state.techLevels[payload.id] ?? 0)}，产出提升。` }], sound: 'upgrade' }
     },
   },
@@ -185,7 +185,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     id: 'setPlanet',
     run: (state, payload) => setActivePlanet(state, payload.id),
     feedback: (_state, _r, payload) => {
-      const name = PLANETS[payload.id]?.name ?? payload.id
+      const name = (PLANETS[payload.id] ? defName(PLANETS[payload.id]) : payload.id)
       return { logs: [{ type: 'system', text: `舰队坐标锁定：前往「${name}」。` }] }
     },
   },
@@ -194,7 +194,8 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     // payload: { id: 区域id, invest: 投入军力 }（探索发现目标 id 可含 ':'，结构化后无需解析）
     run: (state, payload) => startConquest(state, payload.id, payload.invest, Date.now()),
     feedback: (_state, result, payload) => {
-      const name = conquestDef(_state, payload.id)?.name ?? payload.id
+      const cdef = conquestDef(_state, payload.id)
+      const name = cdef ? defName(cdef) : payload.id
       const v = result as ConquestActionResult
       if (v.ok) {
         return { logs: [{ type: 'system', text: `远征军出发：对「${name}」发起攻占，预计 10~30 分钟后结算。` }], sound: 'upgrade' }
@@ -202,7 +203,8 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
       return { logs: [] }
     },
     onFailure: (_state, payload, reason) => {
-      const name = conquestDef(_state, payload.id)?.name ?? payload.id
+      const cdef = conquestDef(_state, payload.id)
+      const name = cdef ? defName(cdef) : payload.id
       return { logs: [{ type: 'warning', text: `攻占「${name}」失败：${reason}。` }] }
     },
   },
@@ -256,7 +258,7 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     // 终局工程：建造究极建筑（payload = buildingId；双轨开放，独立建造、互不影响）
     run: (state, payload) => buyBuilding(state, payload.id),
     feedback: (_state, _r, payload) => {
-      const name = BUILDINGS[payload.id]?.name ?? payload.id
+      const name = (BUILDINGS[payload.id] ? defName(BUILDINGS[payload.id]) : payload.id)
       return { logs: [{ type: 'reward', text: `终局工程落定：${name} 建成。文明双轨并进，星环与星门同辉。` }], sound: 'success' }
     },
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: `终局工程失败：${reason}。` }] }),

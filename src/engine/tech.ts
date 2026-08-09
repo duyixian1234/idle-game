@@ -4,6 +4,7 @@ import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 import { canAfford, zeroResources, alliedCount } from './core'
 import { playMilestone } from './story'
 import { formatNumber } from './format'
+import { t } from '../i18n'
 import type { GameState, ResourceKey, ActionResult } from './types'
 
 /**
@@ -89,7 +90,7 @@ export function researchTech(state: GameState, id: string): ActionResult {
     return { ok: false, reason: `需结盟 ${formatNumber(def.requiresAllies!)} 个派系` }
   }
   if (!techRequirementsMet(state, id)) {
-    const names = def.requires!.map((t) => TECHS[t]?.name ?? t).join('、')
+    const names = def.requires!.map((reqId) => (TECHS[reqId] ? t(TECHS[reqId].nameKey) : reqId)).join('、')
     return { ok: false, reason: `需先研发：${names}` }
   }
   const cost = techCost(state, id)

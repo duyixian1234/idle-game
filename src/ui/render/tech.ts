@@ -3,8 +3,9 @@
 // 范围：renderTechPanel。
 // 依赖：renderMilitaryTechSection（panels.ts 内部，issue 05 迁至 military.ts 后改路径）。
 
+import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
-import { BUILDINGS, RESOURCE_META, TECHS } from '../../engine/data'
+import { BUILDINGS, RESOURCE_META, TECHS, defName, defDesc} from '../../engine/data'
 import { TECH_MAX_LEVEL } from '../../engine/balance'
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techAlliesMet, techCost, techLevel, techRequirementsMet } from '../../engine/tech'
 import { techMultiplier } from '../../engine/production'
@@ -38,17 +39,17 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁；带 label 的探索类（星舰线）显示自定义文案
     let effectText: string
     if (def.effect.kind === 'unlockBuilding') {
-      effectText = `解锁建筑：${BUILDINGS[def.effect.buildingId]?.name ?? def.effect.buildingId}`
+      effectText = `解锁建筑：${(BUILDINGS[def.effect.buildingId] ? defName(BUILDINGS[def.effect.buildingId]) : def.effect.buildingId)}`
     } else if (def.effect.kind === 'exploration') {
-      // ADR-0038：探索类科技仅剩带 label 的星舰线（纯 UI 文案，无信道/倍率逻辑）
-      effectText = def.effect.label
+      // ADR-0038：探索类科技仅剩带 labelKey 的星舰线（纯 UI 文案，无信道/倍率逻辑）
+      effectText = def.effect.labelKey
         ? level >= 1
-          ? `${def.effect.label}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）`
-          : def.effect.label
+          ? `${t(def.effect.labelKey)}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）`
+          : t(def.effect.labelKey)
         : ''
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
-      effectText = `${RESOURCE_META[def.effect.resource].name}产出 ${formatMultiplier(cur)}`
+      effectText = `${t(RESOURCE_META[def.effect.resource].nameKey)}产出 ${formatMultiplier(cur)}`
       if (upgradable) {
         const next = techMultiplier(def.effect, level + 1)
         effectText += ` → ${formatMultiplier(next)}`
@@ -58,10 +59,10 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     const info = `
       <div class="build-info">
         <div class="build-name">
-          ${escapeHtml(def.name)}
+          ${escapeHtml(defName(def))}
           ${researched ? `<span class="build-count researched-badge">${level >= (def.maxLevel ?? TECH_MAX_LEVEL) ? 'Lv.MAX' : `Lv.${formatNumber(level)}`}</span>` : ''}
         </div>
-        <div class="build-desc">${escapeHtml(def.desc)}（${escapeHtml(effectText)}）</div>
+        <div class="build-desc">${escapeHtml(defDesc(def))}（${escapeHtml(effectText)}）</div>
       </div>`
     const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
 
@@ -91,7 +92,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
       }
       if (!met) {
         // 前置未满足：锁定卡（灰化 + 解锁条件）
-        const names = def.requires!.map((t) => escapeHtml(TECHS[t]?.name ?? t)).join('、')
+        const names = def.requires!.map((t) => escapeHtml((TECHS[t] ? defName(TECHS[t]) : t))).join('、')
         card.classList.add('locked')
         card.innerHTML = `${icon}
           <div class="build-card-body">

@@ -76,7 +76,7 @@ describe('ui: 外交面板', () => {
     expect(panel.querySelector('[data-faction="ashCommune"]')).toBeNull()
     // 发现 4 家探索势力 → 8 条目
     for (const id of ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
-      s.factions[id] = createFactionState({ id, name: id, desc: '', initialFavor: 10, initialThreat: 30 })
+      s.factions[id] = createFactionState({ id, nameText: id, descText: '', initialFavor: 10, initialThreat: 30 })
     }
     renderDiplomacyPanel(panel, s)
     expect(panel.querySelectorAll('[data-faction]')).toHaveLength(8)
@@ -88,7 +88,7 @@ describe('ui: 外交面板', () => {
     const s = createInitialState(0)
     s.planets.orbital = { unlocked: true }
     for (const id of ['ashCommune', 'ringOrder', 'obsidianPact', 'nodeIntellect']) {
-      s.factions[id] = createFactionState({ id, name: id, desc: '', initialFavor: 10, initialThreat: 30 })
+      s.factions[id] = createFactionState({ id, nameText: id, descText: '', initialFavor: 10, initialThreat: 30 })
     }
     const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
     renderDiplomacyPanel(panel, s)
@@ -113,7 +113,7 @@ describe('ui: 外交面板', () => {
     s.resources.energy = 1_000_000
     s.resources.tech = 100_000
     const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
-    s.factions.obsidianPact = createFactionState({ id: 'obsidianPact', name: '黑曜协议', desc: '', initialFavor: 5, initialThreat: 55, intimidateCostMult: 0.75 })
+    s.factions.obsidianPact = createFactionState({ id: 'obsidianPact', nameText: '黑曜协议', descText: '', initialFavor: 5, initialThreat: 55, intimidateCostMult: 0.75 })
     renderDiplomacyPanel(panel, s)
     const btn = panel.querySelector<HTMLButtonElement>('[data-diplomacy="obsidianPact:intimidate"]')
     // 基础威慑：矿 3万 / 能 1.5万 / 科 1万 → ×0.75 = 2.25万 / 1.125万 / 7,500

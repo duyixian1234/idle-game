@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type {
   EventCurveConfig,
   EventCurveInput,
@@ -13,39 +14,23 @@ import type {
   RandomEventDef,
   ResourceKey,
 } from './types'
-import { ALL_FACTIONS, FACTIONS } from './data'
-import {
-  MEAN_EVENT_GAP_SECONDS,
-  RAID_BUYOFF_FAVOR_GAIN,
-  RAID_EVENT_WEIGHT,
-  RAID_GAP_SECONDS,
-  RAID_IGNORE_LOSS_PCT,
-  RAID_OFFLINE_LOSS_CAP,
-  RAID_STRENGTH_MULT,
-  RAID_THREAT_LOSS,
-  BUG_ESCALATION_STEP,
-  BUG_ESCALATION_CAP,
-  BUG_STRENGTH_FLEET_RATIO,
-  BUG_REPEL_MIN,
-  BUG_STRENGTH_BASE,
-  TRADE_GAIN_STOCK_PCT,
-  TRADE_COST_STOCK_PCT,
-  TRADE_SOFT_CAP_RATE_SECONDS,
-} from './balance'
-import { netProduction } from './production'
-import { fleetPower } from './fleet'
-import { raidThreshold } from './reputation'
-import { ensureCoercionUnlocked } from './diplomacy'
-import { rollDomain, streamFor } from './rng'
-import { EVENT_STORIES } from './story'
-import { pushLog } from './core'
-import { formatNumber, formatPercent } from './format'
+import {ALL_FACTIONS, FACTIONS} from './data'
+import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, } from './balance'
+import {netProduction} from './production'
+import {fleetPower} from './fleet'
+import {raidThreshold} from './reputation'
+import {ensureCoercionUnlocked} from './diplomacy'
+import {rollDomain, streamFor} from './rng'
+import {EVENT_STORIES} from './story'
+import {pushLog} from './core'
+import {formatNumber, formatPercent} from './format'
 import type {
   EventAutomationAudit,
   EventAutomationPolicy,
   EventAutomationRule,
 } from './types'
-import { ENDLESS_EVENT_POOL, EVENT_CONTRACT_VERSION, EVENT_DEFS } from './events-data'
+import {ENDLESS_EVENT_POOL, EVENT_CONTRACT_VERSION, EVENT_DEFS} from './events-data'
+import {defName} from './data'
 
 
 
@@ -134,7 +119,7 @@ export function raidableFaction(state: GameState): { id: string; name: string; t
     if (!best || f.threat > best.threat) best = { id: def.id, threat: f.threat }
   }
   if (!best) return null
-  return { id: best.id, name: ALL_FACTIONS[best.id]?.name ?? best.id, threat: best.threat }
+  return { id: best.id, name: ALL_FACTIONS[best.id] ? defName(ALL_FACTIONS[best.id]) : best.id, threat: best.threat }
 }
 
 export function endlessLayer(state: GameState): number {
@@ -194,7 +179,7 @@ export function pickEventDef(state: GameState, rng?: () => number): RandomEventD
   if (raidableFaction(state)) {
     pool.push({
       id: 'raid',
-      name: '军事骚扰',
+      nameKey: 'event.raid',
       weight: RAID_EVENT_WEIGHT,
       kind: 'raid',
       theme: 'security',
@@ -327,14 +312,14 @@ export function tradeEventTerms(state: GameState): { cost: number; gain: number;
 export function eventStory(defId: string, rng: () => number = Math.random): string {
   const pool = EVENT_STORIES[defId]
   if (!pool || pool.length === 0) return ''
-  return pool[Math.floor(rng() * pool.length)]
+  return t(pool[Math.floor(rng() * pool.length)])
 }
 
 /** 生成事件实例（交互类事件），数值固化进 payload 保证提示与结算一致 */
 export function createEventInstance(state: GameState, defId: string, rng: () => number = Math.random): EventInstance {
   const uid = state.nextEventId
   state.nextEventId += 1
-  const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL, { id: 'raid', name: '军事骚扰', weight: RAID_EVENT_WEIGHT, kind: 'raid' as const, theme: 'security' as const, decisionType: 'defend' as const, riskLevel: 'high' as const, stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 0 } }]
+  const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL, { id: 'raid', nameKey: 'event.raid', weight: RAID_EVENT_WEIGHT, kind: 'raid' as const, theme: 'security' as const, decisionType: 'defend' as const, riskLevel: 'high' as const, stage: { min: 0 }, endless: true, curveVersion: EVENT_CONTRACT_VERSION, stageEligibility: { min: 0 }, endlessEligibility: true, curve: { baseValue: 0 } } as RandomEventDef]
     .find((candidate) => candidate.id === defId)
   const base: EventInstance = {
     uid,
@@ -372,7 +357,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     const cost = Math.max(100, Math.floor(curve.value))
     return {
       ...base,
-      title: def.name,
+      title: defName(def),
       desc: '监督者封锁了航道。击败它可完成本阶段，并开启下一段无尽链。',
       payload: { cost, reward: Math.floor(cost * 1.4), curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
@@ -783,7 +768,7 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
 function applyRaid(state: GameState, instance: EventInstance, optionId: string): EventOutcome {
   const factionId = String(instance.payload?.factionId ?? 'unknown')
   const f = state.factions[factionId]
-  const factionName = FACTIONS[factionId]?.name ?? '未知势力'
+  const factionName = FACTIONS[factionId] ? defName(FACTIONS[factionId]) : '未知势力'
   // raid 遭遇解锁胁迫外交（diplomacy-coercion；处理 raid 即"遭遇"；军力达标为另一通道）
   ensureCoercionUnlocked(state, 'raid')
   const strength = Number(instance.payload?.strength ?? raidTerms(state, factionId).strength)
@@ -909,7 +894,7 @@ export function settleOfflineRaids(state: GameState, durationSeconds: number, ga
     const fleetText = fleetRepelled > 0 ? `，${formatNumber(fleetRepelled)} 次被护卫舰队迎击` : ''
     const militaryText = repelled - fleetRepelled > 0 ? `，${formatNumber(repelled - fleetRepelled)} 次被军力击退` : ''
     logs.push(
-      `${def.name}的舰队在离线期间${formatNumber(raidCount)}次抵近边境：${formatNumber(repelled)} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${formatNumber(mineralLost)} 矿物被洗劫` : ''}。`,
+      `${defName(def)}的舰队在离线期间${formatNumber(raidCount)}次抵近边境：${formatNumber(repelled)} 次被击退${fleetText}${militaryText}${mineralLost > 0 ? `，${formatNumber(mineralLost)} 矿物被洗劫` : ''}。`,
     )
   }
   return {

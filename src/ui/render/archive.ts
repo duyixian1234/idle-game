@@ -3,12 +3,13 @@
 // 范围：renderArchivePanel + 内部 helpers（reputationBonusText / renderAchievementCard）。
 // 跨域依赖：renderAsciiBar（./shared）。
 
+import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { AchievementDef } from '../../engine/achievements'
 import type { ReputationBonuses } from '../../engine/reputation'
 import { ACHIEVEMENTS } from '../../engine/achievements'
 import { reputation, reputationBonuses } from '../../engine/reputation'
-import { CONQUESTS } from '../../engine/data'
+import { CONQUESTS, defName, defDesc} from '../../engine/data'
 import { formatNumber, formatPercent, formatPlayTime } from '../../engine/format'
 import { iconUse } from '../icons'
 import { escapeHtml } from '../helpers'
@@ -51,7 +52,7 @@ function renderAchievementCard(state: GameState, def: AchievementDef, opts: Arch
   if (def.rewardTech) rewardParts.push(`${formatNumber(def.rewardTech)} 科技点`)
   const rewardText = rewardParts.length > 0 ? `奖励：${rewardParts.join('、')}` : ''
   // 未解锁且有 hint → 显示解锁提示；否则显示 desc
-  const displayDesc = !unlocked && def.hint ? def.hint : def.desc
+  const displayDesc = !unlocked && def.hintKey ? t(def.hintKey) : defDesc(def)
   let progressHtml = ''
   if (def.progress && !unlocked) {
     const [n, total] = def.progress(state)
@@ -74,7 +75,7 @@ function renderAchievementCard(state: GameState, def: AchievementDef, opts: Arch
     <div class="build-card-body">
       <div class="build-info">
         <div class="build-name ach-name">
-          ${unlocked ? '✓' : '🔒'} ${escapeHtml(def.name)}
+          ${unlocked ? '✓' : '🔒'} ${escapeHtml(defName(def))}
           <span class="ach-state">+${formatNumber(def.rep)} 声望</span>
         </div>
         <div class="build-desc ach-desc">${escapeHtml(displayDesc)}</div>

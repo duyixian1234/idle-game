@@ -1,14 +1,15 @@
+import {} from '../i18n'
 import type { GameState } from '../engine/types'
-import { ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS } from '../engine/data'
-import { formatMultiplier, formatNumber, formatPercent, formatRate } from '../engine/format'
-import { formatDuration } from '../engine/offline'
-import { canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot } from '../engine/exploration'
-import { ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from '../engine/balance'
-import { explorePlanetOutputs } from '../engine/production'
-import { endlessBatchUnlocked, endlessTargetId } from '../engine/generate'
-import { iconUse } from './icons'
-import { renderAsciiBar } from './render/shared'
-import { escapeHtml } from './helpers'
+import {ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS, defName} from '../engine/data'
+import {formatMultiplier, formatNumber, formatPercent, formatRate} from '../engine/format'
+import {formatDuration} from '../engine/offline'
+import {canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot} from '../engine/exploration'
+import {ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES} from '../engine/balance'
+import {explorePlanetOutputs} from '../engine/production'
+import {endlessBatchUnlocked, endlessTargetId} from '../engine/generate'
+import {iconUse} from './icons'
+import {renderAsciiBar} from './render/shared'
+import {escapeHtml} from './helpers'
 
 /**
  * 渲染探索页（一级 tab 内嵌）：
@@ -166,7 +167,7 @@ export function renderExplorePage(
           .map((id) => {
             const def = EXPLORE_PLANETS[id] ?? state.generatedTargets.find((t) => t.kind === 'planet' && t.id === id)
             if (!def) return ''
-            return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(def.name)}</span><span class="archive-badge">已探索</span><span class="archive-round">第 ${formatNumber(state.archivedRounds[id])} 周目</span></div>`
+            return `<div class="archive-row" data-archived-row="${id}"><span class="archive-name">${escapeHtml(defName(def))}</span><span class="archive-badge">已探索</span><span class="archive-round">第 ${formatNumber(state.archivedRounds[id])} 周目</span></div>`
           })
           .filter(Boolean)
           .join('')

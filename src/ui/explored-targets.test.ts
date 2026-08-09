@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode } from '../engine/engine'
 import { settleExpeditions, startExpedition } from '../engine/exploration'
+import { defName } from '../engine/data'
 import { conquestDef, isConquestAvailable } from '../engine/conquest'
 import { canFactionTrade, factionDef } from '../engine/diplomacy'
 import { renderMilitaryPanel } from './render/military'
@@ -127,7 +128,7 @@ describe('回归：探索发现新目标的 UI 渲染与引擎可操作性', () 
   it('外交面板渲染 endless 派系且按钮可点；引擎动作可执行', () => {
     const s = infiniteState()
     settleWith(s, { kind: 'faction', factionId: 'endless:starlightLeague' })
-    expect(factionDef(s, 'endless:starlightLeague')?.name).toBe('星光商会')
+    expect(defName(factionDef(s, 'endless:starlightLeague')!)).toBe('星光商会')
     expect(canFactionTrade(s, 'endless:starlightLeague')).toBe(true)
     const el = document.createElement('div')
     renderDiplomacyPanel(el, s)

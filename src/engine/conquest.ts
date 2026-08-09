@@ -1,4 +1,5 @@
-import { CONQUESTS } from './data'
+import { t } from '../i18n'
+import { CONQUESTS, defName } from './data'
 import type { ConquestDef } from './data'
 import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { playMilestone } from './story'
@@ -46,8 +47,8 @@ export function conquestDef(state: GameState, id: string): ConquestDef | undefin
   if (!t) return undefined
   return {
     id: t.id,
-    name: t.name,
-    desc: t.desc,
+    nameText: t.name,
+    descText: t.desc,
     guard: t.guard ?? 0,
     unlockPlanet: 'dawn',
     afterEnding: false,
@@ -121,7 +122,7 @@ export function settleConquests(state: GameState, nowMs: number, rng?: () => num
 function settleOneConquest(
   state: GameState,
   id: string,
-  def: Pick<ConquestDef, 'guard' | 'rewardMineral' | 'rewardTech' | 'bonus' | 'unlockTech' | 'name'>,
+  def: Pick<ConquestDef, 'guard' | 'rewardMineral' | 'rewardTech' | 'bonus' | 'unlockTech' | 'nameKey' | 'nameText'>,
   nowMs: number,
   roll: () => number,
   isStatic: boolean,
@@ -164,11 +165,11 @@ function settleOneConquest(
         playMilestone(state, 'conquestAll')
       }
     }
-    return `【军事捷报】「${def.name}」攻占成功！获得 ${rewards.join('、') || '无'}。`
+    return `【军事捷报】「${defName(def)}」攻占成功！获得 ${rewards.join('、') || '无'}。`
   }
   // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
   state.conquest[id] = { status: 'available' }
-  return `【军事战报】对「${def.name}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`
+  return `【军事战报】对「${defName(def)}」的攻势失利，投入的 ${formatNumber(invest)} 军力全军覆没。可重整旗鼓再试。`
 }
 
 /**

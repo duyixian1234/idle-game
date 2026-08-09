@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, startNewGamePlus } from './engine'
+import { t } from '../i18n'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { formatNumber } from './format'
 import { ICONS } from '../ui/icons'
@@ -19,7 +20,7 @@ describe('achievements', () => {
     for (const d of defs) {
       expect(d.rep).toBeGreaterThan(0)
       expect(typeof d.condition).toBe('function')
-      expect(d.name.length).toBeGreaterThan(0)
+      expect(t(d.nameKey).length).toBeGreaterThan(0)
     }
   })
 

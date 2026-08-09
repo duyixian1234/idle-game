@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import { createInitialState, enterInfiniteMode, startNewGamePlus } from '../../engine/engine'
 import { RESOURCE_META } from '../../engine/data'
 import { formatNumber } from '../../engine/format'
@@ -30,7 +31,7 @@ export async function importSaveFile(ctx: SessionCtx, file: File): Promise<void>
     if (off.durationSeconds > 0) {
       const gainsText = (['mineral', 'energy', 'tech'] as const)
         .filter((k) => off.gains[k] > 0)
-        .map((k) => `${RESOURCE_META[k].name} +${formatNumber(off.gains[k])}`)
+        .map((k) => `${t(RESOURCE_META[k].nameKey)} +${formatNumber(off.gains[k])}`)
         .join('、')
       pushLog(imported, 'reward', `导入存档离线收益：离开 ${formatDuration(off.rawDurationSeconds)}，获得 ${gainsText || '无产出'}。`)
       for (const raidLog of off.raidLogs) pushLog(imported, 'warning', raidLog)
@@ -77,7 +78,7 @@ export async function resetGame(ctx: SessionCtx): Promise<void> {
   if (!confirmed) return
   await deleteSave()
   const fresh = createInitialState(Date.now())
-  for (const scene of OPENING_SCENES) pushLog(fresh, 'story', scene)
+  for (const scene of OPENING_SCENES) pushLog(fresh, 'story', t(scene))
   ctx.setState(fresh)
   ui.lastLogId = 0
   els.logEl.innerHTML = ''

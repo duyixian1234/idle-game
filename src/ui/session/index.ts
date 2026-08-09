@@ -1,5 +1,6 @@
+import { t } from '../../i18n'
 import { DEFAULT_AUTOMATION_FALLBACK, DEFAULT_AUTOMATION_MAX_RISK } from '../../engine/events'
-import { PLANETS, RESOURCE_META } from '../../engine/data'
+import { PLANETS, RESOURCE_META , defName} from '../../engine/data'
 import { previewNewGamePlus } from '../../engine/ngplus'
 import { formatRate } from '../../engine/format'
 import { netProduction } from '../../engine/production'
@@ -163,10 +164,10 @@ export function createSession(args: CreateSessionArgs): Session {
     ui.lastRenderedAchievementIds = currentAchIds
     const justUnlocked = nowMs < ui.justUnlockedUntil ? new Set(ui.justUnlockedAchievements) : new Set<string>()
     // settings 页派生状态文本
-    const activePlanet = PLANETS[state.activePlanet]?.name ?? state.activePlanet
+    const activePlanet = (PLANETS[state.activePlanet] ? defName(PLANETS[state.activePlanet]) : state.activePlanet)
     const prodText = Object.entries(getNetProduction())
       .filter(([, v]) => v !== 0)
-      .map(([k, v]) => `${RESOURCE_META[k as keyof typeof RESOURCE_META]?.name ?? k}:${formatRate(v)}`)
+      .map(([k, v]) => `${RESOURCE_META[k as keyof typeof RESOURCE_META] ? t(RESOURCE_META[k as keyof typeof RESOURCE_META].nameKey) : k}:${formatRate(v)}`)
       .join(' ')
     const ctx: RenderCtx = {
       state,

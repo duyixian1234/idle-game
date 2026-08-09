@@ -7,16 +7,17 @@
 // - renderArchiveCollapse / archiveRow / renderEndlessLockedHint：被 diplomacy+military 共用，
 //   按「首次使用」归入本文件；military.ts 通过 import 引用。
 
+import {} from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { FactionDef } from '../../engine/data'
-import { ENDLESS_FACTIONS } from '../../engine/data'
-import { ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, TECH_SHARE_COST } from '../../engine/balance'
-import { canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost } from '../../engine/diplomacy'
-import { endlessBatchUnlocked, endlessTargetId } from '../../engine/generate'
-import { formatMultiplier, formatNumber, formatPercent } from '../../engine/format'
-import { iconUse } from '../icons'
-import { escapeHtml } from '../helpers'
-import { formatCost, renderAsciiBar } from './shared'
+import {ENDLESS_FACTIONS, defName, defDesc} from '../../engine/data'
+import {ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, TECH_SHARE_COST} from '../../engine/balance'
+import {canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost} from '../../engine/diplomacy'
+import {endlessBatchUnlocked, endlessTargetId} from '../../engine/generate'
+import {formatMultiplier, formatNumber, formatPercent} from '../../engine/format'
+import {iconUse} from '../icons'
+import {escapeHtml} from '../helpers'
+import {formatCost, renderAsciiBar} from './shared'
 
 /** 好感度横条（收敛到通用 ASCII 进度条组件，行为等价） */
 function renderFavorBar(favor: number): string {
@@ -151,7 +152,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     if (state.archivedRounds?.[id] != null || f.allied || f.subjugated || treatyActive) {
       const coerced = f.subjugated || treatyActive
       const badge = f.subjugated ? '已臣服' : treatyActive ? '条约中' : '已结盟'
-      archivedRows.push(archiveRow(def.name, badge, state.archivedRounds?.[id], id, coerced ? renderCoercionActions(state, id) : ''))
+      archivedRows.push(archiveRow(defName(def), badge, state.archivedRounds?.[id], id, coerced ? renderCoercionActions(state, id) : ''))
       continue
     }
     const tradeC = tradeCost(state, id)
@@ -174,10 +175,10 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
       <div class="build-card-body">
         <div class="build-info faction-info">
           <div class="build-name">
-            ${escapeHtml(def.name)}
+            ${escapeHtml(defName(def))}
             ${perks.length > 0 ? perks.map((p) => `<span class="faction-perk" data-faction-perk="${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('') : ''}
           </div>
-          <div class="build-desc">${escapeHtml(def.desc)}</div>
+          <div class="build-desc">${escapeHtml(defDesc(def))}</div>
           <div class="favor-row">
             <span class="favor-label">好感</span>
             ${renderFavorBar(f.favor)}

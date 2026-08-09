@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { CONQUESTS, FACTIONS, PLANETS, RESOURCE_KEYS } from './data'
 import { autoDiplomacyTick, coercionTick, createFactions, ensureCoercionUnlocked, federationProgress, isConquerorEnding, isFederationUnified } from './diplomacy'
 import { autoConquestTick, settleConquests } from './conquest'
@@ -246,7 +247,7 @@ export function checkEnding(state: GameState): boolean {
   if (!isFederationUnified(state)) return false
   state.endingTriggered = true
   const scenes = isConquerorEnding(state) ? CONQUEROR_ENDING_SCENES : ENDING_SCENES
-  for (const scene of scenes) pushLog(state, 'story', scene)
+  for (const scene of scenes) pushLog(state, 'story', t(scene))
   pushLog(
     state,
     'system',

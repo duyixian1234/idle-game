@@ -1,21 +1,38 @@
 import type { MechanicId, ResourceKey } from './types'
 import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
+import { t } from '../i18n'
+import type { DeepKey, TranslateParams, Zh } from '../i18n'
 
-/** 资源显示元信息（icon = icons.ts 资源 symbol id，资源条用；symbol 文字符号保留给内联文本场景） */
-export const RESOURCE_META: Record<ResourceKey, { name: string; symbol: string; icon: string }> = {
-  mineral: { name: '矿物', symbol: '◆', icon: 'res-mineral' },
-  energy: { name: '能源', symbol: '⚡', icon: 'res-energy' },
-  tech: { name: '科技点', symbol: '◎', icon: 'res-tech' },
-  military: { name: '军力', symbol: '⚔', icon: 'res-military' },
+/** 数据定义显示名：动态文本快照（程序生成目标）优先，否则 t(nameKey)。渲染与日志统一入口。 */
+export function defName(def: { nameKey?: DeepKey<Zh>; nameText?: string }): string {
+  return def.nameText ?? (def.nameKey ? t(def.nameKey) : '?')
+}
+
+/** 数据定义显示描述：动态文本快照优先，否则 t(descKey, descArgs)。 */
+export function defDesc(def: { descKey?: DeepKey<Zh>; descText?: string; descArgs?: TranslateParams }): string {
+  return def.descText ?? (def.descKey ? t(def.descKey, def.descArgs) : '')
+}
+
+/** 资源显示元信息（icon = icons.ts 资源 symbol id，资源条用；symbol 文字符号保留给内联文本场景；
+ * nameKey = 资源名 i18n key，渲染处 t(nameKey)） */
+export const RESOURCE_META: Record<ResourceKey, { nameKey: DeepKey<Zh>; symbol: string; icon: string }> = {
+  mineral: { nameKey: 'res.mineral', symbol: '◆', icon: 'res-mineral' },
+  energy: { nameKey: 'res.energy', symbol: '⚡', icon: 'res-energy' },
+  tech: { nameKey: 'res.tech', symbol: '◎', icon: 'res-tech' },
+  military: { nameKey: 'res.military', symbol: '⚔', icon: 'res-military' },
 }
 
 export const RESOURCE_KEYS: ResourceKey[] = ['mineral', 'energy', 'tech', 'military']
 
 export interface BuildingDef {
   id: string
-  name: string
-  desc: string
+  /** i18n key：建筑名（zh/en 资源，渲染处 t(nameKey)） */
+  nameKey: DeepKey<Zh>
+  /** i18n key：建筑描述（占位符 {mult}/{rate}/{n}…，参数见 descArgs） */
+  descKey: DeepKey<Zh>
+  /** desc 占位符参数（设计常量，模块加载时算好；渲染处 t(descKey, descArgs)） */
+  descArgs?: TranslateParams
   /** 建筑类别：civil 显示于建造面板，military 显示于军事面板，interstellar 显示于星域页「星际工程」分组 */
   category?: 'civil' | 'military' | 'interstellar'
   /** 首个成本（含各资源） */
@@ -58,32 +75,32 @@ export interface BuildingDef {
 export const BUILDINGS: Record<string, BuildingDef> = {
   miner: {
     id: 'miner',
-    name: '采矿机',
-    desc: '在荒芜地表钻探矿脉，持续产出矿物。',
+    nameKey: 'building.miner.name',
+    descKey: 'building.miner.desc',
     baseCost: { mineral: 10 },
     costExponent: 0.46,
     produces: { mineral: 1 },
   },
   solar: {
     id: 'solar',
-    name: '太阳能板',
-    desc: '展开光伏阵列吸收恒星辐射，产出能源。',
+    nameKey: 'building.solar.name',
+    descKey: 'building.solar.desc',
     baseCost: { mineral: 25 },
     costExponent: 0.555,
     produces: { energy: 1 },
   },
   lab: {
     id: 'lab',
-    name: '实验室',
-    desc: '分析地壳样本与星图数据，产出科技点。',
+    nameKey: 'building.lab.name',
+    descKey: 'building.lab.desc',
     baseCost: { mineral: 60, energy: 10 },
     costExponent: 0.615,
     produces: { tech: 0.5 },
   },
   refinery: {
     id: 'refinery',
-    name: '精炼厂',
-    desc: '以能源驱动高压冶炼，提升矿物产出；能源不足时产能按比例打折。',
+    nameKey: 'building.refinery.name',
+    descKey: 'building.refinery.desc',
     baseCost: { mineral: 150, energy: 25 },
     costExponent: 0.69,
     produces: { mineral: 3 },
@@ -92,8 +109,8 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   deepDrill: {
     id: 'deepDrill',
-    name: '深层钻机',
-    desc: '直达地幔热矿层，产出大量矿物。需要「深层钻探」科技解锁。',
+    nameKey: 'building.deepDrill.name',
+    descKey: 'building.deepDrill.desc',
     baseCost: { mineral: 2500, energy: 120 },
     costExponent: 0.81,
     produces: { mineral: 8 },
@@ -101,8 +118,8 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   barracks: {
     id: 'barracks',
-    name: '兵营',
-    desc: '招募并训练殖民者卫队，持续产出军力（⚔）。军力有容量上限，满员时产出停止。',
+    nameKey: 'building.barracks.name',
+    descKey: 'building.barracks.desc',
     category: 'military',
     baseCost: { mineral: 8_000, energy: 200 },
     costExponent: 0.69,
@@ -111,8 +128,8 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   militaryPort: {
     id: 'militaryPort',
-    name: '军港',
-    desc: '泊满护卫舰的轨道船坞，每座提升军力容量上限。',
+    nameKey: 'building.militaryPort.name',
+    descKey: 'building.militaryPort.desc',
     category: 'military',
     baseCost: { mineral: 20_000, tech: 500 },
     costExponent: 0.81,
@@ -123,8 +140,9 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   // ---- 星系间工程（interstellar-buildings spec：唯一大件 + 终局工程）----
   starportMine: {
     id: 'starportMine',
-    name: '星港矿场',
-    desc: `横跨小行星带的巨型输送港，整颗星体被剥开、熔炼、装船。唯一大件，升级产出 ${formatMultiplier(2)}/级（终局冲刺加速器）。`,
+    nameKey: 'building.starportMine.name',
+    descKey: 'building.starportMine.desc',
+    descArgs: { mult: formatMultiplier(2) },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -136,8 +154,9 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   stellarArray: {
     id: 'stellarArray',
-    name: '聚变恒星阵列',
-    desc: `捕获整颗恒星辐射的戴森阵列骨架，能源产出跃迁；以矿物维持聚变反应（维护费随等级 ${formatMultiplier(2)}/级，硬扣不因能源不足打折）。`,
+    nameKey: 'building.stellarArray.name',
+    descKey: 'building.stellarArray.desc',
+    descArgs: { mult: formatMultiplier(2) },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -150,8 +169,9 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   thinkTank: {
     id: 'thinkTank',
-    name: '星海智库',
-    desc: `汇聚全星系数千文明遗产的思维星云，科技产出跃迁。唯一大件，升级产出 ${formatMultiplier(2)}/级。`,
+    nameKey: 'building.thinkTank.name',
+    descKey: 'building.thinkTank.desc',
+    descArgs: { mult: formatMultiplier(2) },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -163,8 +183,9 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   ringSmelter: {
     id: 'ringSmelter',
-    name: '星环冶炼场',
-    desc: `环绕母星赤道的巨型冶炼环：全局产出 ${formatMultiplier(2)}^等级（矿/能源/科技全吃）。高耗能 ${formatRate(100, false)} ×等级，能源不足时产能按现有结算打折。终局工程「建设」线。`,
+    nameKey: 'building.ringSmelter.name',
+    descKey: 'building.ringSmelter.desc',
+    descArgs: { mult: formatMultiplier(2), rate: formatRate(100, false) },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -177,8 +198,16 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   jumpgate: {
     id: 'jumpgate',
-    name: '跃迁枢纽',
-    desc: `贯通星海航道的跃迁门：等级决定探索成长（Lv${formatNumber(1)} 解锁第 ${formatNumber(6)} 探索信道，此后随等级扩槽，Lv${formatNumber(10)} 达 ${formatNumber(10)} 槽；收获倍率每级 +${formatPercent(JUMPGATE_HARVEST_PCT_PER_LEVEL)}，Lv${formatNumber(10)} 达 ${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10)}）。离线结算封顶放宽至 12 小时。不产出资源——纯机制流。终局工程「探索」线。`,
+    nameKey: 'building.jumpgate.name',
+    descKey: 'building.jumpgate.desc',
+    descArgs: {
+      n: formatNumber(1),
+      n2: formatNumber(6),
+      n3: formatNumber(10),
+      n4: formatNumber(10),
+      pct: formatPercent(JUMPGATE_HARVEST_PCT_PER_LEVEL),
+      mult: formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10),
+    },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -190,8 +219,15 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   wormhole: {
     id: 'wormhole',
-    name: '虫洞',
-    desc: `贯通时空的捷径：等级决定探索扩张（每级 +1 探索信道至 Lv${formatNumber(10)} 满 ${formatNumber(20)} 槽；能源消耗每级 −${formatPercent(5)} 封顶 −${formatPercent(50)}；发现新目标权重每级 +${formatPercent(10)}；程序生成目标上限每级 +1）。终局工程「探索」线延伸。`,
+    nameKey: 'building.wormhole.name',
+    descKey: 'building.wormhole.desc',
+    descArgs: {
+      n: formatNumber(10),
+      n2: formatNumber(20),
+      pct: formatPercent(5),
+      pct2: formatPercent(50),
+      pct3: formatPercent(10),
+    },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -203,8 +239,9 @@ export const BUILDINGS: Record<string, BuildingDef> = {
   },
   dock: {
     id: 'dock',
-    name: '船坞',
-    desc: `泊满护卫舰的轨道船坞。等级决定舰队规模上限（Lv${formatNumber(1)} 解锁 ${formatNumber(3)} 艘，此后每级 +${formatNumber(2)} 艘，Lv${formatNumber(10)} 达 ${formatNumber(24)} 艘）；护卫舰的持续能源维护费是能源支出的可调开关——生产与军备的真实取舍。`,
+    nameKey: 'building.dock.name',
+    descKey: 'building.dock.desc',
+    descArgs: { n: formatNumber(1), n2: formatNumber(3), n3: formatNumber(2), n4: formatNumber(10), n5: formatNumber(24) },
     category: 'interstellar',
     unique: true,
     maxLevel: 10,
@@ -251,20 +288,24 @@ export interface TechEffectUnlock {
   buildingId: string
 }
 
-/** 科技效果：探索（ADR-0038 后仅剩带 label 的星舰科技线——纯 UI 文案，不触发信道/倍率逻辑；
+/** 科技效果：探索（ADR-0038 后仅剩带 labelKey 的星舰科技线——纯 UI 文案，不触发信道/倍率逻辑；
  * 探索队列成长已整体迁入跃迁枢纽等级，无科技门控） */
 export interface TechEffectExploration {
   kind: 'exploration'
-  /** UI 效果文案 */
-  label?: string
+  /** UI 效果文案（i18n key） */
+  labelKey?: DeepKey<Zh>
 }
 
 export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration
 
 export interface TechDef {
   id: string
-  name: string
-  desc: string
+  /** i18n key：科技名 */
+  nameKey: DeepKey<Zh>
+  /** i18n key：科技描述（占位符参数见 descArgs） */
+  descKey: DeepKey<Zh>
+  /** desc 占位符参数（设计常量，模块加载时算好） */
+  descArgs?: TranslateParams
   cost: Partial<Record<ResourceKey, number>>
   effect: TechEffect
   /** 卡片图标资产 id（icons.ts；缺省由 iconUse 按 id 兜底 unknown） */
@@ -293,9 +334,15 @@ export interface PlanetUnlock {
 
 export interface PlanetDef {
   id: string
-  name: string
-  /** 星域总览短描述 */
-  desc: string
+  /** i18n key：星球名（静态目标；程序生成目标用 nameText 快照） */
+  nameKey?: DeepKey<Zh>
+  /** i18n key：星域总览短描述（占位符参数见 descArgs） */
+  descKey?: DeepKey<Zh>
+  /** desc 占位符参数 */
+  descArgs?: TranslateParams
+  /** 动态文本快照（程序生成目标；渲染处优先于 nameKey/descKey） */
+  nameText?: string
+  descText?: string
   unlock: PlanetUnlock
   /** 机制挂点：'none' 表示无机制；其余对应各星机制 id（08 落地） */
   mechanicId: MechanicId
@@ -311,36 +358,36 @@ export interface PlanetDef {
 export const PLANETS: Record<string, PlanetDef> = {
   barren: {
     id: 'barren',
-    name: '荒芜星 P-01',
-    desc: '你的起点。灰褐色的地表埋着浅层矿脉。',
+    nameKey: 'planet.barren.name',
+    descKey: 'planet.barren.desc',
     unlock: { resources: {} },
     mechanicId: 'none',
   },
   orbital: {
     id: 'orbital',
-    name: '轨道工厂站·奥伯斯',
-    desc: '废弃的空间工厂站，可将矿物产能转化为稀有合金（科技点）。',
+    nameKey: 'planet.orbital.name',
+    descKey: 'planet.orbital.desc',
     unlock: { resources: { mineral: 50_000 } },
     mechanicId: 'orbitalForge',
   },
   ice: {
     id: 'ice',
-    name: '冰封星·霜落',
-    desc: '永夜冰层下封存着远古科技残骸。',
+    nameKey: 'planet.ice.name',
+    descKey: 'planet.ice.desc',
     unlock: { resources: { mineral: 200_000, tech: 2_000 } },
     mechanicId: 'gravityWell',
   },
   gas: {
     id: 'gas',
-    name: '气态巨星·风暴之喉',
-    desc: '风暴云层中漂浮着能量采集平台。',
+    nameKey: 'planet.gas.name',
+    descKey: 'planet.gas.desc',
     unlock: { resources: { mineral: 1_000_000, tech: 10_000 } },
     mechanicId: 'massProduction',
   },
   dawn: {
     id: 'dawn',
-    name: '母星·曙光',
-    desc: '传说中旧联邦的首都星，终局的前夜。',
+    nameKey: 'planet.dawn.name',
+    descKey: 'planet.dawn.desc',
     unlock: { resources: { mineral: 10_000_000, tech: 50_000 } },
     mechanicId: 'warpCore',
   },
@@ -349,8 +396,15 @@ export const PLANETS: Record<string, PlanetDef> = {
 /** 派系定义 */
 export interface FactionDef {
   id: string
-  name: string
-  desc: string
+  /** i18n key：派系名（静态；程序生成目标用 nameText 快照） */
+  nameKey?: DeepKey<Zh>
+  /** i18n key：派系描述 */
+  descKey?: DeepKey<Zh>
+  /** desc 占位符参数 */
+  descArgs?: TranslateParams
+  /** 动态文本快照（程序生成目标） */
+  nameText?: string
+  descText?: string
   /** 初始好感 0-100 */
   initialFavor: number
   /** 初始军力威胁度 0-100 */
@@ -367,29 +421,29 @@ export interface FactionDef {
 export const FACTIONS: Record<string, FactionDef> = {
   ferro: {
     id: 'ferro',
-    name: '铁卫同盟',
-    desc: '控制着轨道防御网络的老牌军事集团。',
+    nameKey: 'faction.ferro.name',
+    descKey: 'faction.ferro.desc',
     initialFavor: 20,
     initialThreat: 70,
   },
   lumen: {
     id: 'lumen',
-    name: '圣光议会',
-    desc: '信奉星火教义的神秘政治实体。',
+    nameKey: 'faction.lumen.name',
+    descKey: 'faction.lumen.desc',
     initialFavor: 25,
     initialThreat: 40,
   },
   cygnus: {
     id: 'cygnus',
-    name: '天鹅贸易联盟',
-    desc: '垄断跨星系航线的商业寡头。',
+    nameKey: 'faction.cygnus.name',
+    descKey: 'faction.cygnus.desc',
     initialFavor: 30,
     initialThreat: 50,
   },
   vox: {
     id: 'vox',
-    name: '沃克斯矿业集团',
-    desc: '贪婪的矿业巨头，掌控稀有金属定价。',
+    nameKey: 'faction.vox.name',
+    descKey: 'faction.vox.desc',
     initialFavor: 15,
     initialThreat: 60,
   },
@@ -399,40 +453,44 @@ export const FACTIONS: Record<string, FactionDef> = {
 export const TECHS: Record<string, TechDef> = {
   planetDrill: {
     id: 'planetDrill',
-    name: '行星钻探',
-    desc: `深入行星地壳，矿物产出 ${formatMultiplier(1.5)}。`,
+    nameKey: 'tech.planetDrill.name',
+    descKey: 'tech.planetDrill.desc',
+    descArgs: { mult: formatMultiplier(1.5) },
     cost: { mineral: 500, tech: 10 },
     effect: { kind: 'production', resource: 'mineral', mult: 1.5 },
     icon: 'drillCore',
   },
   solarEfficiency: {
     id: 'solarEfficiency',
-    name: '太阳能效率',
-    desc: `优化光伏材料，能源产出 ${formatMultiplier(1.5)}。`,
+    nameKey: 'tech.solarEfficiency.name',
+    descKey: 'tech.solarEfficiency.desc',
+    descArgs: { mult: formatMultiplier(1.5) },
     cost: { mineral: 900, tech: 25 },
     effect: { kind: 'production', resource: 'energy', mult: 1.5 },
     icon: 'solar',
   },
   computingBoost: {
     id: 'computingBoost',
-    name: '计算加速',
-    desc: `升级量子计算核心，科技点产出 ${formatMultiplier(1.5)}。`,
+    nameKey: 'tech.computingBoost.name',
+    descKey: 'tech.computingBoost.desc',
+    descArgs: { mult: formatMultiplier(1.5) },
     cost: { mineral: 1400, tech: 60 },
     effect: { kind: 'production', resource: 'tech', mult: 1.5 },
     icon: 'quantumCore',
   },
   deepDrill: {
     id: 'deepDrill',
-    name: '深层钻探',
-    desc: '解锁「深层钻机」建筑。',
+    nameKey: 'tech.deepDrill.name',
+    descKey: 'tech.deepDrill.desc',
     cost: { mineral: 3200, tech: 150 },
     effect: { kind: 'unlockBuilding', buildingId: 'deepDrill' },
     icon: 'deepDrill',
   },
   fusionCell: {
     id: 'fusionCell',
-    name: '聚变电池',
-    desc: `核聚变储能技术，能源产出 ${formatMultiplier(2.5)}。`,
+    nameKey: 'tech.fusionCell.name',
+    descKey: 'tech.fusionCell.desc',
+    descArgs: { mult: formatMultiplier(2.5) },
     cost: { mineral: 6000, tech: 400 },
     effect: { kind: 'production', resource: 'energy', mult: 2.5 },
     requires: ['solarEfficiency'],
@@ -440,8 +498,9 @@ export const TECHS: Record<string, TechDef> = {
   },
   nanoFab: {
     id: 'nanoFab',
-    name: '纳米制造',
-    desc: `纳米级矿物重组，矿物产出 ${formatMultiplier(2)}。`,
+    nameKey: 'tech.nanoFab.name',
+    descKey: 'tech.nanoFab.desc',
+    descArgs: { mult: formatMultiplier(2) },
     cost: { mineral: 12000, tech: 1000 },
     effect: { kind: 'production', resource: 'mineral', mult: 2 },
     requires: ['planetDrill'],
@@ -449,8 +508,9 @@ export const TECHS: Record<string, TechDef> = {
   },
   militaryTech: {
     id: 'militaryTech',
-    name: '军械科技',
-    desc: `改进护卫舰武器与装甲，军力产出提升（Lv${formatNumber(1)} ${formatMultiplier(1)}，每级 +${formatNumber(0.5)}），军力容量每级 +${formatPercent(10)}。攻占「虫群前哨」后解锁。`,
+    nameKey: 'tech.militaryTech.name',
+    descKey: 'tech.militaryTech.desc',
+    descArgs: { n: formatNumber(1), mult: formatMultiplier(1), n2: formatNumber(0.5), pct: formatPercent(10) },
     cost: { mineral: 20_000, tech: 2_000 },
     effect: { kind: 'production', resource: 'military', mult: 1 },
     maxLevel: 5,
@@ -459,18 +519,20 @@ export const TECHS: Record<string, TechDef> = {
   },
   warpDrive: {
     id: 'warpDrive',
-    name: '星舰推进',
-    desc: `重构护卫舰的曲速引擎与舰体装甲：舰队战力每级 +${formatPercent(10)}，与军械科技叠加。Lv${formatNumber(10)} 起派遣军力 −${formatPercent(10)}、Lv${formatNumber(20)} 起护航费 −${formatPercent(10)}。通关后解锁。`,
+    nameKey: 'tech.warpDrive.name',
+    descKey: 'tech.warpDrive.desc',
+    descArgs: { pct: formatPercent(10), n: formatNumber(10), pct2: formatPercent(10), n2: formatNumber(20), pct3: formatPercent(10) },
     cost: { mineral: 100_000, tech: 20_000 },
-    effect: { kind: 'exploration', label: '舰队战力 +10%/级' },
+    effect: { kind: 'exploration', labelKey: 'tech.warpDrive.label' },
     maxLevel: 20,
     afterEnding: true,
     icon: 'ship',
   },
   wormholeTheory: {
     id: 'wormholeTheory',
-    name: '虫洞理论',
-    desc: `解析深空虫洞的时空拓扑，解锁「虫洞」建造——星际探索的第二条捷径。需与 ${formatNumber(10)} 个派系结盟。`,
+    nameKey: 'tech.wormholeTheory.name',
+    descKey: 'tech.wormholeTheory.desc',
+    descArgs: { n: formatNumber(10) },
     cost: { mineral: 1_000_000_000_000, tech: 50_000_000_000 },
     effect: { kind: 'unlockBuilding', buildingId: 'wormhole' },
     requiresAllies: 10,
@@ -482,8 +544,15 @@ export const TECHS: Record<string, TechDef> = {
 /** 攻占区域定义 */
 export interface ConquestDef {
   id: string
-  name: string
-  desc: string
+  /** i18n key：区域名（静态；程序生成目标用 nameText 快照） */
+  nameKey?: DeepKey<Zh>
+  /** i18n key：区域描述 */
+  descKey?: DeepKey<Zh>
+  /** desc 占位符参数 */
+  descArgs?: TranslateParams
+  /** 动态文本快照（程序生成目标） */
+  nameText?: string
+  descText?: string
   /** 卡片图标资产 id（icons.ts；缺省由 iconUse 按 id 兜底 unknown） */
   icon?: string
   /** 守卫强度（军力）：成功率 = min(100%, 投入军力/守卫强度)，足额投入必成 */
@@ -507,8 +576,8 @@ export interface ConquestDef {
 export const CONQUESTS: Record<string, ConquestDef> = {
   outpost: {
     id: 'outpost',
-    name: '虫群前哨',
-    desc: '冰封星轨道上的虫群前哨站。攻占后解锁「军械科技」线。',
+    nameKey: 'conquest.outpost.name',
+    descKey: 'conquest.outpost.desc',
     guard: 500,
     unlockPlanet: 'ice',
     rewardMineral: 50_000,
@@ -518,8 +587,8 @@ export const CONQUESTS: Record<string, ConquestDef> = {
   },
   shipyard: {
     id: 'shipyard',
-    name: '废弃船坞',
-    desc: '漂荡在气态巨星外围的旧联邦船坞残骸，藏着舰队扩编的技术。',
+    nameKey: 'conquest.shipyard.name',
+    descKey: 'conquest.shipyard.desc',
     guard: 2_000,
     unlockPlanet: 'gas',
     rewardMineral: 200_000,
@@ -528,8 +597,8 @@ export const CONQUESTS: Record<string, ConquestDef> = {
   },
   wreckage: {
     id: 'wreckage',
-    name: '星际残骸带',
-    desc: '母星战役留下的舰队坟场，回收残余产能结构可提升全局产出。',
+    nameKey: 'conquest.wreckage.name',
+    descKey: 'conquest.wreckage.desc',
     guard: 3_000,
     unlockPlanet: 'dawn',
     rewardMineral: 1_000_000,
@@ -538,8 +607,8 @@ export const CONQUESTS: Record<string, ConquestDef> = {
   },
   nest: {
     id: 'nest',
-    name: '虫群母巢',
-    desc: '星系黑暗深处的主巢穴。肃清它，虫灾将永远终结。',
+    nameKey: 'conquest.nest.name',
+    descKey: 'conquest.nest.desc',
     guard: 3_000,
     unlockPlanet: 'dawn',
     afterEnding: true,
@@ -556,32 +625,32 @@ export const CONQUESTS: Record<string, ConquestDef> = {
 export const EXPLORE_FACTIONS: Record<string, FactionDef> = {
   ashCommune: {
     id: 'ashCommune',
-    name: '灰潮共同体',
-    desc: '在燃烧殆尽的星环残骸上重建文明的拾荒者联盟，交易价格格外灵活。',
+    nameKey: 'faction.ashCommune.name',
+    descKey: 'faction.ashCommune.desc',
     initialFavor: 10,
     initialThreat: 35,
     tradeDiscount: 0.05,
   },
   ringOrder: {
     id: 'ringOrder',
-    name: '星环修道会',
-    desc: '隐居于巨行星环带中的苦修者教团，不问世事，只观测星海。',
+    nameKey: 'faction.ringOrder.name',
+    descKey: 'faction.ringOrder.desc',
     initialFavor: 15,
     initialThreat: 25,
     tradeDiscount: 0.08,
   },
   obsidianPact: {
     id: 'obsidianPact',
-    name: '黑曜协议',
-    desc: '崇拜力量与掠夺的军事同盟，领地边缘永远徘徊着巡洋舰的阴影。',
+    nameKey: 'faction.obsidianPact.name',
+    descKey: 'faction.obsidianPact.desc',
     initialFavor: 5,
     initialThreat: 55,
     intimidateCostMult: 0.75,
   },
   nodeIntellect: {
     id: 'nodeIntellect',
-    name: '节点智械',
-    desc: '由废弃旧联邦服务器群觉醒的集体智能，愿意用知识换取友谊。',
+    nameKey: 'faction.nodeIntellect.name',
+    descKey: 'faction.nodeIntellect.desc',
     initialFavor: 10,
     initialThreat: 40,
     techShareCostMult: 0.5,
@@ -592,24 +661,26 @@ export const EXPLORE_FACTIONS: Record<string, FactionDef> = {
 export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   logistics: {
     id: 'logistics',
-    name: '星际物流港·枢纽',
-    desc: '横跨多条航道的自动化物流枢纽：科技点可折算能源，精炼厂能源缺口被科技盈余填平。',
+    nameKey: 'planet.logistics.name',
+    descKey: 'planet.logistics.desc',
     unlock: { resources: {} },
     mechanicId: 'logisticsHub',
     discoverOnly: true,
   },
   outpost: {
     id: 'outpost',
-    name: '殖民前哨·拓荒',
-    desc: `资源丰饶的前哨星球：矿物产出 +${formatPercent(25)}，但重型冶炼更耗能源。`,
+    nameKey: 'planet.outpost.name',
+    descKey: 'planet.outpost.desc',
+    descArgs: { pct: formatPercent(25) },
     unlock: { resources: {} },
     mechanicId: 'outpost',
     discoverOnly: true,
   },
   rubbleBelt: {
     id: 'rubbleBelt',
-    name: '碎星矿带',
-    desc: `撞击碎屑环绕的矿脉带：基础矿物产出 ${formatRate(2)}，且随主基地矿物产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
+    nameKey: 'planet.rubbleBelt.name',
+    descKey: 'planet.rubbleBelt.desc',
+    descArgs: { rate: formatRate(2) },
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,
@@ -618,8 +689,9 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   },
   heliumNebula: {
     id: 'heliumNebula',
-    name: '氦闪气云',
-    desc: `濒临氦闪的恒星残云：基础能源产出 ${formatRate(1.5)}，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
+    nameKey: 'planet.heliumNebula.name',
+    descKey: 'planet.heliumNebula.desc',
+    descArgs: { rate: formatRate(1.5) },
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,
@@ -628,8 +700,9 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
   },
   riftChasm: {
     id: 'riftChasm',
-    name: '深空裂谷',
-    desc: `横贯黑暗星区的巨大裂谷：基础矿物 ${formatRate(1)}、科技 ${formatRate(0.4)}，且随主基地矿物/科技产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
+    nameKey: 'planet.riftChasm.name',
+    descKey: 'planet.riftChasm.desc',
+    descArgs: { rate: formatRate(1), rate2: formatRate(0.4) },
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,
@@ -663,8 +736,8 @@ export interface EndlessPlanetDef extends PlanetDef {
 export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
   warband: {
     id: 'warband',
-    name: '掠夺者舰队',
-    desc: '游荡在黑暗航道的拾荒舰队，靠劫掠补给站为生。肃清它可回收大量矿藏。',
+    nameKey: 'conquest.warband.name',
+    descKey: 'conquest.warband.desc',
     guard: 800,
     unlockPlanet: 'dawn',
     afterEnding: true,
@@ -673,8 +746,8 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
   },
   iceFortress: {
     id: 'iceFortress',
-    name: '冰封要塞',
-    desc: '建在冻云冰壳内的军事要塞，封存着旧联邦的武器蓝图。',
+    nameKey: 'conquest.iceFortress.name',
+    descKey: 'conquest.iceFortress.desc',
     guard: 1_500,
     unlockPlanet: 'dawn',
     afterEnding: true,
@@ -683,8 +756,8 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
   },
   devourer: {
     id: 'devourer',
-    name: '吞噬者母巢',
-    desc: '缓慢漂移的巨型生物巢穴，吞噬一切靠近的舰船。肃清它，航道将恢复平静。',
+    nameKey: 'conquest.devourer.name',
+    descKey: 'conquest.devourer.desc',
     guard: 3_000,
     unlockPlanet: 'dawn',
     afterEnding: true,
@@ -699,8 +772,8 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
 export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
   starlightLeague: {
     id: 'starlightLeague',
-    name: '星光商会',
-    desc: '驾驭光帆商船的星际商队，消息灵通且讲究实惠。',
+    nameKey: 'faction.starlightLeague.name',
+    descKey: 'faction.starlightLeague.desc',
     initialFavor: 25,
     initialThreat: 40,
     tradeDiscount: 0.06,
@@ -708,8 +781,8 @@ export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
   },
   deepObservatory: {
     id: 'deepObservatory',
-    name: '深空观测会',
-    desc: '驻守在最暗星区的学者组织，用观测数据交换科研支持。',
+    nameKey: 'faction.deepObservatory.name',
+    descKey: 'faction.deepObservatory.desc',
     initialFavor: 20,
     initialThreat: 20,
     techShareCostMult: 0.6,
@@ -717,8 +790,8 @@ export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
   },
   mechSwarm: {
     id: 'mechSwarm',
-    name: '机械蜂群',
-    desc: '由纳米机械聚合成的集体意识，对威慑信号异常敏感。',
+    nameKey: 'faction.mechSwarm.name',
+    descKey: 'faction.mechSwarm.desc',
     initialFavor: 10,
     initialThreat: 50,
     intimidateCostMult: 0.7,
@@ -730,8 +803,8 @@ export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
 export const ENDLESS_PLANETS: Record<string, EndlessPlanetDef> = {
   blackHoleObservatory: {
     id: 'blackHoleObservatory',
-    name: '黑洞视界观测站',
-    desc: `建在黑洞吸积盘外侧的观测站：科技盈余可折算能源（与星际物流港同构）。`,
+    nameKey: 'planet.blackHoleObservatory.name',
+    descKey: 'planet.blackHoleObservatory.desc',
     unlock: { resources: {} },
     mechanicId: 'logisticsHub',
     discoverOnly: true,
@@ -739,8 +812,9 @@ export const ENDLESS_PLANETS: Record<string, EndlessPlanetDef> = {
   },
   magnetarField: {
     id: 'magnetarField',
-    name: '磁星脉冲场',
-    desc: `濒临磁星的脉冲辐射区：基础能源产出 ${formatRate(1.8)}，且随主基地能源产能等比增长（产出型天体，恒定挂载不随星球切换）。`,
+    nameKey: 'planet.magnetarField.name',
+    descKey: 'planet.magnetarField.desc',
+    descArgs: { rate: formatRate(1.8) },
     unlock: { resources: {} },
     mechanicId: 'none',
     discoverOnly: true,

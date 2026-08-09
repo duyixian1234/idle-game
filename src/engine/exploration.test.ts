@@ -354,7 +354,7 @@ describe('engine: 派遣结算（自动入账）', () => {
 
   it('重复发现已收录派系：好感 +5（封顶 100），不重复创建', () => {
     const s = endedState()
-    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35 })
+    s.factions.ashCommune = createFactionState({ id: '灰潮共同体', descText: '', initialFavor: 10, initialThreat: 35 })
     s.exploredFactions = ['ashCommune']
     s.expeditions.push(fakeExpedition({ result: { kind: 'faction', factionId: 'ashCommune' } }))
     const logs = settleExpeditions(s, CYCLE)
@@ -623,7 +623,7 @@ describe('engine: 探索发现物（势力/天体）接入体系', () => {
     expect(isFederationUnified(s)).toBe(true)
     expect(s.factions.ashCommune).toBeUndefined()
     // 发现黑曜协议（favor 5）→ 联邦重新未统一（total 4→5）
-    s.factions.obsidianPact = createFactionState({ id: 'obsidianPact', name: '黑曜协议', desc: '', initialFavor: 5, initialThreat: 55 })
+    s.factions.obsidianPact = createFactionState({ id: '黑曜协议', descText: '', initialFavor: 5, initialThreat: 55 })
     expect(isFederationUnified(s)).toBe(false)
     // 全部纳入（favor 100）→ 恢复统一
     s.factions.obsidianPact.favor = 100
@@ -632,19 +632,19 @@ describe('engine: 探索发现物（势力/天体）接入体系', () => {
 
   it('外交差异：灰潮共同体贸易再 -5%、星环修道会再 -8%（与声望折扣乘法叠加）；其余势力不受影响', () => {
     const s = endedState()
-    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35, tradeDiscount: 0.05 })
+    s.factions.ashCommune = createFactionState({ id: '灰潮共同体', descText: '', initialFavor: 10, initialThreat: 35, tradeDiscount: 0.05 })
     const base = tradeCost(s, 'ferro').mineral
     const commune = tradeCost(s, 'ashCommune').mineral
     expect(commune).toBe(Math.floor(base * (1 - 0.05)))
     // 星环修道会 tradeDiscount 0.08
-    s.factions.ringOrder = createFactionState({ id: 'ringOrder', name: '星环修道会', desc: '', initialFavor: 15, initialThreat: 25, tradeDiscount: 0.08 })
+    s.factions.ringOrder = createFactionState({ id: '星环修道会', descText: '', initialFavor: 15, initialThreat: 25, tradeDiscount: 0.08 })
     expect(tradeCost(s, 'ringOrder').mineral).toBe(Math.floor(base * (1 - 0.08)))
   })
 
   it('外交差异：节点智械技术共享半价；其余势力全价', () => {
     const s = endedState()
     s.resources.tech = 100_000
-    s.factions.nodeIntellect = createFactionState({ id: 'nodeIntellect', name: '节点智械', desc: '', initialFavor: 10, initialThreat: 40, techShareCostMult: 0.5 })
+    s.factions.nodeIntellect = createFactionState({ id: '节点智械', descText: '', initialFavor: 10, initialThreat: 40, techShareCostMult: 0.5 })
     expect(techShareCost(s, 'nodeIntellect').tech).toBe(10_000)
     expect(techShareCost(s, 'ferro').tech).toBe(20_000)
     const before = s.factions.nodeIntellect.favor
@@ -751,7 +751,7 @@ describe('engine: 探索与 NG+ 交互（决策 Q18）', () => {
 
   it('NG+ 保留 fixed-rng 字段与 factionCodex（新势力结盟历史继承）', () => {
     const s = endedState()
-    s.factions.ashCommune = createFactionState({ id: 'ashCommune', name: '灰潮共同体', desc: '', initialFavor: 10, initialThreat: 35 })
+    s.factions.ashCommune = createFactionState({ id: '灰潮共同体', descText: '', initialFavor: 10, initialThreat: 35 })
     s.factions.ashCommune.allied = true
     s.factionCodex.push('ferro')
     const seedBefore = s.seed

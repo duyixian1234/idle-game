@@ -3,17 +3,18 @@
 // 范围：renderInterstellarPanel + 内部 helpers（renderFleetSection / renderMegastructureSection）。
 // 跨域依赖：renderBuildPanel（./build）、JUMPGATE_EFFECT_TEXT（./shared）。
 
+import {} from '../../i18n'
 import type { GameState, ResourceKey } from '../../engine/types'
-import { INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS } from '../../engine/data'
-import { buildingCost, buildingLockReason, isBuildingUnlocked, megastructurePrereqsMet } from '../../engine/buildings'
-import { dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap } from '../../engine/fleet'
-import { equivalentFleet, escortHarvestMult } from '../../engine/exploration'
-import { FLEET_HARVEST_PCT_PER_SHIP } from '../../engine/balance'
-import { formatMultiplier, formatNumber, formatRate } from '../../engine/format'
-import { iconUse } from '../icons'
-import { escapeHtml } from '../helpers'
-import { type BuildPanelRenderOptions, formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT } from './shared'
-import { renderBuildPanel } from './build'
+import {INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, defName} from '../../engine/data'
+import {buildingCost, buildingLockReason, isBuildingUnlocked, megastructurePrereqsMet} from '../../engine/buildings'
+import {dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap} from '../../engine/fleet'
+import {equivalentFleet, escortHarvestMult} from '../../engine/exploration'
+import {FLEET_HARVEST_PCT_PER_SHIP} from '../../engine/balance'
+import {formatMultiplier, formatNumber, formatRate} from '../../engine/format'
+import {iconUse} from '../icons'
+import {escapeHtml} from '../helpers'
+import {type BuildPanelRenderOptions, formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT} from './shared'
+import {renderBuildPanel} from './build'
 
 /** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局工程区块。 */
 export function renderInterstellarPanel(el: HTMLElement, state: GameState, opts: BuildPanelRenderOptions = {}): void {
@@ -169,7 +170,7 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
         ? `建造 ${formatCost(buildingCost(state, id))}`
         : `🔒 ${buildingLockReason(state, id) ?? '未解锁'}`
     card.innerHTML = `
-      <div class="megastructure-name">${escapeHtml(def.name)}</div>
+      <div class="megastructure-name">${escapeHtml(defName(def))}</div>
       <div class="megastructure-effect">${escapeHtml(effectText)}</div>
       <div class="megastructure-status">${escapeHtml(statusText)}</div>`
     cards.appendChild(card)

@@ -18,6 +18,7 @@ import { settleOffline } from './offline'
 import { productionReport } from './production'
 import { dockLevel } from './fleet'
 import { ESCORT_COMPENSATE_RATIO, ESCORT_ENERGY_SECONDS, FLEET_HARVEST_PCT_PER_SHIP } from './balance'
+import { t } from '../i18n'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
@@ -572,7 +573,7 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     expect(s.resources.mineral - beforeMineral).toBeGreaterThanOrEqual(ACHIEVEMENTS.dockLord.rewardMineral ?? 0)
     // 同源校验：谓词阈值 = DOCK_SHIP_CAP 表可达的 maxLevel（防数值漂移）
     expect(s.upgrades.dock).toBe(10)
-    expect(ACHIEVEMENTS.dockLord.desc).toContain('Lv.10')
+    expect(t(ACHIEVEMENTS.dockLord.descKey)).toContain('Lv.10')
   })
 
   it('两成就谓词不因护航/船坞无关状态误触发', () => {

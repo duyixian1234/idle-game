@@ -1,13 +1,14 @@
+import {t} from '../i18n'
 import type { GameState, ResourceKey } from '../engine/types'
-import { PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS } from '../engine/data'
+import {PLANETS, RESOURCE_META, RESOURCE_KEYS, TECHS, defName} from '../engine/data'
 import type { PlanetDef } from '../engine/data'
-import { PLANET_MECHANICS } from '../engine/mechanics'
-import { formatMultiplier, formatNumber, formatRate } from '../engine/format'
-import { isPlanetUnlocked } from '../engine/planets'
-import { militaryCap, productionBreakdown } from '../engine/production'
+import {PLANET_MECHANICS} from '../engine/mechanics'
+import {formatMultiplier, formatNumber, formatRate} from '../engine/format'
+import {isPlanetUnlocked} from '../engine/planets'
+import {militaryCap, productionBreakdown} from '../engine/production'
 import type { BreakdownRow } from '../engine/production'
-import { iconUse } from './icons'
-import { escapeHtml } from './helpers'
+import {iconUse} from './icons'
+import {escapeHtml} from './helpers'
 
 /** 渲染星域总览条（锁定/已解锁/当前选中态）；仅主线 5 行星——探索天体不进入顶部条（产出型信息集中于探索页，ADR-0040 C1）；
  * hiddenPlanets 不再过滤主线行星（C2：隐藏控件已收窄为探索产出天体，主线始终可见可点） */
@@ -31,10 +32,10 @@ function renderPlanetChip(def: PlanetDef, state: GameState): HTMLElement {
     // 未解锁星球可点击：显示解锁条件（悬停 title + 点击日志）
     btn.classList.add('locked')
     btn.title = unlockRequirementText(def, state)
-    btn.textContent = `🔒 ${def.name}`
+    btn.textContent = `🔒 ${defName(def)}`
   } else {
-    btn.title = active ? '当前星球' : `切换到 ${def.name}`
-    btn.textContent = `● ${def.name}`
+    btn.title = active ? '当前星球' : `切换到 ${defName(def)}`
+    btn.textContent = `● ${defName(def)}`
   }
   return btn
 }
@@ -46,11 +47,11 @@ export function unlockRequirementText(def: PlanetDef, state: GameState): string 
     const need = def.unlock.resources[k] ?? 0
     if (need > 0) {
       const have = state.resources[k]
-      parts.push(`${RESOURCE_META[k].name} ${formatNumber(have)}/${formatNumber(need)}`)
+      parts.push(`${t(RESOURCE_META[k].nameKey)} ${formatNumber(have)}/${formatNumber(need)}`)
     }
   }
   if (def.unlock.techs && def.unlock.techs.length > 0) {
-    parts.push(`科技：${def.unlock.techs.map((t) => TECHS[t]?.name ?? t).join('、')}`)
+    parts.push(`科技：${def.unlock.techs.map((t) => (TECHS[t] ? defName(TECHS[t]) : t)).join('、')}`)
   }
   return `解锁条件：${parts.length > 0 ? parts.join('，') : '已可解锁'}`
 }
@@ -64,7 +65,7 @@ export function renderPlanetMechanic(el: HTMLElement, state: GameState): void {
   }
   const mech = PLANET_MECHANICS[def.mechanicId] ?? PLANET_MECHANICS.none
   const status = mech.describe(state)
-  el.innerHTML = `<span class="mech-name">${escapeHtml(mech.name)}</span><span class="mech-desc">${escapeHtml(mech.desc)}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
+  el.innerHTML = `<span class="mech-name">${escapeHtml(t(mech.nameKey))}</span><span class="mech-desc">${escapeHtml(t(mech.descKey, mech.descArgs))}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
 }
 
 /** 渲染顶部资源条（带正/负速率标记；军力显示「当前/上限」） */
@@ -82,10 +83,10 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
       ? `${formatNumber(value)}${meta.symbol}/${formatNumber(militaryCap(state))}${meta.symbol}`
       : formatNumber(value)
     item.innerHTML = `<span class="res-symbol">${iconUse(meta.icon, 'res-symbol')}</span>
-      <span class="res-name">${meta.name}</span>
+      <span class="res-name">${t(meta.nameKey)}</span>
       <span class="res-value" data-res-value>${valueText}</span>
       <span class="res-rate">${rateText}</span>
-      <button type="button" class="res-breakdown" data-breakdown-trigger data-breakdown-resource="${key}" aria-label="${meta.name}来源分解" title="查看来源分解">?</button>`
+      <button type="button" class="res-breakdown" data-breakdown-trigger data-breakdown-resource="${key}" aria-label="${t(meta.nameKey)}来源分解" title="${t(meta.nameKey)}来源分解">?</button>`
     el.appendChild(item)
   }
 }
@@ -113,5 +114,5 @@ export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource
       ? `<details class="breakdown-consumption" data-breakdown-consumption><summary>消耗明细</summary>${rows(bd.consumption.rows)}</details>`
       : ''
   const notes = [bd.capNote, bd.energyNote].filter(Boolean).map((n) => `<div class="breakdown-note" data-breakdown-note>${escapeHtml(n as string)}</div>`).join('')
-  el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(meta.name)} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
+  el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(t(meta.nameKey))} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
 }
