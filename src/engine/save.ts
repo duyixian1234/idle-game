@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { SCHEMA_VERSION } from './types'
 import type { GameState, ResourceKey } from './types'
 import { ACHIEVEMENTS, achievementUnlocked } from './achievements'
@@ -534,7 +535,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
     const log = Array.isArray(next.log) ? (next.log as Array<Record<string, unknown>>) : []
     const nextLogId = typeof next.nextLogId === 'number' ? next.nextLogId : 1
     const time = typeof next.lastTick === 'number' ? next.lastTick : 0
-    log.unshift({ id: nextLogId, type: 'system', text: `【存档迁移】${summary.notes.join('；')}。`, time })
+    log.unshift({ id: nextLogId, type: 'system', text: t('log.save.0', { a0: summary.notes.join('；') }), time })
     next.log = log.slice(0, 200)
     next.nextLogId = nextLogId + 1
   }

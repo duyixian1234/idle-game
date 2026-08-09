@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { ALL_FACTIONS, FACTIONS, RESOURCE_KEYS } from './data'
 import type { FactionDef } from './data'
 import { isEndlessTargetId } from './generate'
@@ -204,11 +205,11 @@ export function canFactionTechShare(state: GameState, id: string): boolean {
 /** 贸易：花费矿物提升好感（赎罪期内好感增益 ×ATONE_TRADE_FAVOR_MULT；nowMs 可注入便于测试） */
 export function factionTrade(state: GameState, id: string, nowMs = Date.now()): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.0') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '已结盟，无需贸易' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.1') }
   const cost = tradeCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.2') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   const atoning = f.atoningUntil !== undefined && nowMs < f.atoningUntil
   f.favor = clampFavor(f.favor + Math.floor(TRADE_FAVOR_GAIN * (atoning ? ATONE_TRADE_FAVOR_MULT : 1)))
@@ -221,12 +222,12 @@ export function factionTrade(state: GameState, id: string, nowMs = Date.now()): 
 /** 结盟：好感达标后消耗大量资源正式结盟 */
 export function factionAlliance(state: GameState, id: string): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.3') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '已结盟' }
-  if (f.subjugated) return { ok: false, reason: '臣服中不可结盟' }
-  if (f.favor < ALLIANCE_FAVOR_THRESHOLD) return { ok: false, reason: '好感度不足' }
-  if (!canAfford(state.resources, ALLIANCE_COST)) return { ok: false, reason: '资源不足' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.4') }
+  if (f.subjugated) return { ok: false, reason: t('log.diplomacy.5') }
+  if (f.favor < ALLIANCE_FAVOR_THRESHOLD) return { ok: false, reason: t('log.diplomacy.6') }
+  if (!canAfford(state.resources, ALLIANCE_COST)) return { ok: false, reason: t('log.diplomacy.7') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (ALLIANCE_COST[k] ?? 0)
   f.allied = true
   f.favor = FAVOR_CAP
@@ -242,11 +243,11 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
 /** 威慑：消耗资源降低对方军力（威胁度），代价是好感下降 */
 export function factionIntimidate(state: GameState, id: string): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.8') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '盟友不可威慑' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.9') }
   const cost = intimidateCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.10') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.favor = clampFavor(f.favor - INTIMIDATE_FAVOR_LOSS)
   f.threat = Math.max(0, f.threat - INTIMIDATE_THREAT_LOSS)
@@ -259,11 +260,11 @@ export function factionIntimidate(state: GameState, id: string): ActionResult {
 /** 技术共享：花费科技点直接提升派系好感（成本按 techShareCost 含探索势力折扣） */
 export function factionTechShare(state: GameState, id: string): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.11') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '盟友不可技术共享' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.12') }
   const cost = techShareCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.13') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.favor = clampFavor(f.favor + TECH_SHARE_FAVOR_GAIN)
   return { ok: true }
@@ -334,15 +335,15 @@ export function canFactionExtort(state: GameState, id: string): boolean {
 /** 勒索：以军事力量敲诈派系资源——高收益，代价是好感暴跌 + 威胁飙升（raid 风险） */
 export function factionExtort(state: GameState, id: string): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.14') }
   const f = state.factions[id]
-  if (!coercionUnlocked(state)) return { ok: false, reason: '未解锁' }
-  if (f.allied) return { ok: false, reason: '盟友不可勒索' }
-  if (f.subjugated) return { ok: false, reason: '臣服中无需勒索' }
-  if (f.atoned) return { ok: false, reason: '已赎罪' }
-  if (state.resources.military < Math.floor(militaryCap(state) * EXTORT_MILITARY_PCT)) return { ok: false, reason: '军力不足' }
+  if (!coercionUnlocked(state)) return { ok: false, reason: t('log.diplomacy.15') }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.16') }
+  if (f.subjugated) return { ok: false, reason: t('log.diplomacy.17') }
+  if (f.atoned) return { ok: false, reason: t('log.diplomacy.18') }
+  if (state.resources.military < Math.floor(militaryCap(state) * EXTORT_MILITARY_PCT)) return { ok: false, reason: t('log.diplomacy.19') }
   const cost = extortCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.20') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   state.resources.mineral += extortReward(state)
   f.favor = clampFavor(f.favor - EXTORT_FAVOR_LOSS)
@@ -372,15 +373,15 @@ export function canFactionTreaty(state: GameState, id: string, nowMs = Date.now(
 /** 进贡条约：派系被威慑后定期进贡——12h 固定时长矿物税流，到期 threat 反弹，续签成本递增 */
 export function factionTreaty(state: GameState, id: string, nowMs = Date.now()): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.21') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '盟友不可签条约' }
-  if (f.subjugated) return { ok: false, reason: '臣服中无需条约' }
-  if (f.atoned) return { ok: false, reason: '已赎罪' }
-  if ((f.extortCount ?? 0) < 1) return { ok: false, reason: '需要先勒索' }
-  if (f.treatyUntil !== undefined && nowMs < f.treatyUntil) return { ok: false, reason: '条约进行中' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.22') }
+  if (f.subjugated) return { ok: false, reason: t('log.diplomacy.23') }
+  if (f.atoned) return { ok: false, reason: t('log.diplomacy.24') }
+  if ((f.extortCount ?? 0) < 1) return { ok: false, reason: t('log.diplomacy.25') }
+  if (f.treatyUntil !== undefined && nowMs < f.treatyUntil) return { ok: false, reason: t('log.diplomacy.26') }
   const cost = treatyCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.27') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   f.treatyUntil = nowMs + TREATY_DURATION_MS
   f.treatyCount = (f.treatyCount ?? 0) + 1
@@ -437,14 +438,14 @@ export function canFactionSubjugate(state: GameState, id: string): boolean {
 /** 臣服：武力压服派系——锁定军力防叛变，双倍贡税；军力不足即叛变（好感清零 + threat 爆炸） */
 export function factionSubjugate(state: GameState, id: string): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.28') }
   const f = state.factions[id]
-  if (f.allied) return { ok: false, reason: '盟友不可臣服' }
-  if (f.subjugated) return { ok: false, reason: '已臣服' }
-  if (f.atoned) return { ok: false, reason: '已赎罪' }
-  if (f.favor > SUBJUGATE_FAVOR_MAX) return { ok: false, reason: '好感过高' }
-  if (f.threat < SUBJUGATE_THREAT_MIN) return { ok: false, reason: '威胁不足' }
-  if (state.resources.military < Math.floor(militaryCap(state) * SUBJUGATE_MILITARY_PCT)) return { ok: false, reason: '军力不足' }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.29') }
+  if (f.subjugated) return { ok: false, reason: t('log.diplomacy.30') }
+  if (f.atoned) return { ok: false, reason: t('log.diplomacy.31') }
+  if (f.favor > SUBJUGATE_FAVOR_MAX) return { ok: false, reason: t('log.diplomacy.32') }
+  if (f.threat < SUBJUGATE_THREAT_MIN) return { ok: false, reason: t('log.diplomacy.33') }
+  if (state.resources.military < Math.floor(militaryCap(state) * SUBJUGATE_MILITARY_PCT)) return { ok: false, reason: t('log.diplomacy.34') }
   const locked = subjugateLockedMilitary(state)
   state.resources.military -= locked
   f.subjugated = true
@@ -473,14 +474,14 @@ export function canFactionAtone(state: GameState, id: string): boolean {
 /** 三重赎罪：赔偿金解除臣服/条约并进入赎罪期（贸易加成窗口）；赎罪后该派系永久不可再胁迫 */
 export function factionAtone(state: GameState, id: string, nowMs = Date.now()): ActionResult {
   const def = factionDef(state, id)
-  if (!def) return { ok: false, reason: '未知派系' }
+  if (!def) return { ok: false, reason: t('log.diplomacy.35') }
   const f = state.factions[id]
-  if (f.atoned) return { ok: false, reason: '已赎罪' }
-  if (f.allied) return { ok: false, reason: '盟友无需赎罪' }
+  if (f.atoned) return { ok: false, reason: t('log.diplomacy.36') }
+  if (f.allied) return { ok: false, reason: t('log.diplomacy.37') }
   const coerced = f.subjugated || f.treatyUntil !== undefined || (f.extortCount ?? 0) >= 1
-  if (!coerced) return { ok: false, reason: '无需赎罪' }
+  if (!coerced) return { ok: false, reason: t('log.diplomacy.38') }
   const cost = atoneCost(state, id)
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.diplomacy.39') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= (cost[k] ?? 0)
   if (f.subjugated) {
     state.resources.military += subjugateLockedMilitary(state) // 返还锁定军力

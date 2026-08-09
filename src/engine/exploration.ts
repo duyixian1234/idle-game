@@ -394,22 +394,22 @@ function rollFromPool(
  *   停摆时护航请求被拒绝（reason 明确，可改无护航派遣）——护航条件校验先于资源扣减
  */
 export function startExpedition(state: GameState, nowMs: number, rng?: () => number, slotIndex: number = 0, escort: boolean = false): ExpeditionActionResult {
-  if (!isExploreAvailable(state)) return { ok: false, reason: '通关后开放探索' }
+  if (!isExploreAvailable(state)) return { ok: false, reason: t('log.exploration.0') }
   if (state.expeditions.filter((e) => !e.resolved).length >= explorationSlots(state)) {
-    return { ok: false, reason: '全部探索信道已占用，需等待返航' }
+    return { ok: false, reason: t('log.exploration.1') }
   }
   const cost = expeditionCost(state, slotIndex)
-  if (state.resources.mineral < cost.mineral) return { ok: false, reason: '矿物不足' }
-  if (state.resources.energy < cost.energy) return { ok: false, reason: '能源不足' }
-  if (state.resources.military < cost.military) return { ok: false, reason: '军力不足' }
+  if (state.resources.mineral < cost.mineral) return { ok: false, reason: t('log.exploration.2') }
+  if (state.resources.energy < cost.energy) return { ok: false, reason: t('log.exploration.3') }
+  if (state.resources.military < cost.military) return { ok: false, reason: t('log.exploration.4') }
   const escortOn = escort && canEscort(state)
-  if (escort && !escortOn) return { ok: false, reason: '舰队能源不足，护航不可用' }
+  if (escort && !escortOn) return { ok: false, reason: t('log.exploration.5') }
   const fee = escortOn ? escortFee(state) : 0
-  if (escortOn && state.resources.energy < cost.energy + fee) return { ok: false, reason: '能源不足' }
+  if (escortOn && state.resources.energy < cost.energy + fee) return { ok: false, reason: t('log.exploration.6') }
   // 护航费余额兜底（ADR-0044）：单次护航费不得超过当前能源储备的 50%——付得起但会一次抽干
   // 过半储备时暂缓派遣（AUTO_PAUSE_REASONS 含此 reason，能源恢复后冷却自动重试），防生产停滞
   if (escortOn && fee > state.resources.energy * ESCORT_FEE_ENERGY_CAP_PCT) {
-    return { ok: false, reason: '护航费超出能源储备，暂缓' }
+    return { ok: false, reason: t('log.exploration.7') }
   }
   state.resources.mineral -= cost.mineral
   state.resources.energy -= cost.energy + fee
@@ -478,34 +478,34 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
     if (def && !state.factions[r.factionId]) {
       state.factions[r.factionId] = createFactionState(def)
       if (!state.exploredFactions.includes(r.factionId)) state.exploredFactions.push(r.factionId)
-      return { type: 'story', text: `探索队返航：在偏远星区发现「${defName(def)}」的聚居舰队。外交频道已建立。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.8', { a0: defName(def), a1: escortNote }) }
     }
     const cur = state.factions[r.factionId]
     if (cur) {
       cur.favor = Math.min(FAVOR_CAP, cur.favor + EXPEDITION_REPEAT_FAVOR_GAIN)
-      return { type: 'story', text: `探索队返航：重新建立与「${(def ? defName(def) : r.factionId)}」的联系，好感 +${formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN)}。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.9', { a0: (def ? defName(def) : r.factionId), a1: formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN), a2: escortNote }) }
     }
     // 无尽外交对象（endless-expansion）：手写保底（endless:）或程序生成（gen:faction）
     const endless = settleEndlessFaction(state, r.factionId, escortNote)
     if (endless) return endless
-    return { type: 'story', text: `探索队返航：重新建立与「${(def ? defName(def) : r.factionId)}」的联系。${escortNote}` }
+    return { type: 'story', text: t('log.exploration.10', { a0: (def ? defName(def) : r.factionId), a1: escortNote }) }
   }
   if (r.kind === 'planet') {
     const def = EXPLORE_PLANETS[r.planetId]
     if (def && !state.planets[r.planetId]?.unlocked) {
       state.planets[r.planetId] = { unlocked: true, unlockedAt: nowMs }
       if (!state.exploredPlanets.includes(r.planetId)) state.exploredPlanets.push(r.planetId)
-      return { type: 'story', text: `探索队返航：发现更佳的发展天体「${defName(def)}」，已进入可殖民范围。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.11', { a0: defName(def), a1: escortNote }) }
     }
     const ps = state.planets[r.planetId]
     if (ps?.unlocked) {
       ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
-      return { type: 'story', text: `探索队返航：确认「${(def ? defName(def) : r.planetId)}」殖民地运行正常，产出增益 +${formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100)}。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.12', { a0: (def ? defName(def) : r.planetId), a1: formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100), a2: escortNote }) }
     }
     // 无尽天体（endless-expansion）：手写保底（endless:）或程序生成（gen:planet）
     const endless = settleEndlessPlanet(state, r.planetId, nowMs, escortNote)
     if (endless) return endless
-    return { type: 'story', text: `探索队返航：确认「${(def ? defName(def) : r.planetId)}」殖民地运行正常。${escortNote}` }
+    return { type: 'story', text: t('log.exploration.13', { a0: (def ? defName(def) : r.planetId), a1: escortNote }) }
   }
   state.resources.mineral += r.mineral
   state.resources.energy += r.energy
@@ -550,14 +550,14 @@ function settleConquestResult(state: GameState, targetId: string, nowMs: number,
         bonus: def.bonus,
       })
       state.conquest[targetId] = { status: 'available' }
-      return { type: 'story', text: `探索队返航：发现军事目标「${defName(def)}」，已标记可攻占。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.14', { a0: defName(def), a1: escortNote }) }
     }
-    return { type: 'story', text: `探索队返航：确认「${(def ? defName(def) : targetId)}」仍在威胁区内。${escortNote}` }
+    return { type: 'story', text: t('log.exploration.15', { a0: (def ? defName(def) : targetId), a1: escortNote }) }
   }
   const target = generateConquestTarget(state, rollDomain(state, 'generate'))
   state.generatedTargets.push(target)
   state.conquest[target.id] = { status: 'available' }
-  return { type: 'story', text: `探索队返航：发现军事目标「${target.name}」，已标记可攻占。${escortNote}` }
+  return { type: 'story', text: t('log.exploration.16', { a0: target.name, a1: escortNote }) }
 }
 
 /** 外交发现礼包（ADR-0028）：产能挂钩资源（矿+科技双发）+ 好感 +10（初始 0–29 → 最高 39 < 40 自动外交阈值，零钳制逻辑）。
@@ -591,21 +591,21 @@ function settleEndlessFaction(state: GameState, factionId: string, escortNote: s
       })
       if (!state.exploredFactions.includes(factionId)) state.exploredFactions.push(factionId)
       grantFactionGift(state, factionId)
-      return { type: 'story', text: `探索队返航：在偏远星区发现「${defName(def)}」的聚居舰队。外交频道已建立。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.17', { a0: defName(def), a1: escortNote }) }
     }
     const cur = state.factions[factionId]
     if (cur) {
       cur.favor = Math.min(FAVOR_CAP, cur.favor + EXPEDITION_REPEAT_FAVOR_GAIN)
-      return { type: 'story', text: `探索队返航：重新建立与「${(def ? defName(def) : factionId)}」的联系，好感 +${formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN)}。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.18', { a0: (def ? defName(def) : factionId), a1: formatNumber(EXPEDITION_REPEAT_FAVOR_GAIN), a2: escortNote }) }
     }
-    return { type: 'story', text: `探索队返航：重新建立与「${(def ? defName(def) : factionId)}」的联系。${escortNote}` }
+    return { type: 'story', text: t('log.exploration.19', { a0: (def ? defName(def) : factionId), a1: escortNote }) }
   }
   const target = generateFactionTarget(state, rollDomain(state, 'generate'))
   state.generatedTargets.push(target)
   state.factions[target.id] = createFactionState(factionDefFromTarget(target))
   if (!state.exploredFactions.includes(target.id)) state.exploredFactions.push(target.id)
   grantFactionGift(state, target.id)
-  return { type: 'story', text: `探索队返航：在偏远星区发现「${target.name}」的聚居舰队。外交频道已建立。${escortNote}` }
+  return { type: 'story', text: t('log.exploration.20', { a0: target.name, a1: escortNote }) }
 }
 
 /** 天体结算：手写保底直接创建；程序生成实时生成；一次性（机制型，无 output）天体发现即归档（不可再交互 → 折叠区）；产出型保留列表 */
@@ -627,20 +627,20 @@ function settleEndlessPlanet(state: GameState, planetId: string, nowMs: number, 
       })
       if (!state.exploredPlanets.includes(planetId)) state.exploredPlanets.push(planetId)
       if (!def.output) state.archivedRounds[planetId] = state.ngPlusLevel ?? 0
-      return { type: 'story', text: `探索队返航：发现更佳的发展天体「${defName(def)}」，已进入可殖民范围。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.21', { a0: defName(def), a1: escortNote }) }
     }
     const ps = state.planets[planetId]
     if (ps?.unlocked) {
       ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
-      return { type: 'story', text: `探索队返航：确认「${(def ? defName(def) : planetId)}」殖民地运行正常，产出增益 +${formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100)}。${escortNote}` }
+      return { type: 'story', text: t('log.exploration.22', { a0: (def ? defName(def) : planetId), a1: formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100), a2: escortNote }) }
     }
-    return { type: 'story', text: `探索队返航：确认「${(def ? defName(def) : planetId)}」殖民地运行正常。${escortNote}` }
+    return { type: 'story', text: t('log.exploration.23', { a0: (def ? defName(def) : planetId), a1: escortNote }) }
   }
   const target = generatePlanetTarget(state, rollDomain(state, 'generate'))
   state.generatedTargets.push(target)
   state.planets[target.id] = { unlocked: true, unlockedAt: nowMs }
   if (!state.exploredPlanets.includes(target.id)) state.exploredPlanets.push(target.id)
-  return { type: 'story', text: `探索队返航：发现更佳的发展天体「${target.name}」，已进入可殖民范围。${escortNote}` }
+  return { type: 'story', text: t('log.exploration.24', { a0: target.name, a1: escortNote }) }
 }
 
 // ---- 自动探索（fleet-dock-10：每 60min 自动续派，离线同样续派）----
@@ -666,15 +666,15 @@ export function autoExploreDispatch(state: GameState, nowMs: number): Expedition
     const r = startExpedition(state, nowMs, undefined, i, escort)
     if (r.ok) {
       state.autoExplore.pausedAt = undefined
-      logs.push({ type: 'story', text: `自动探索：派遣编队驶向深空信道 ${i + 1}${r.value?.escort ? '（护航）' : ''}。` })
+      logs.push({ type: 'story', text: t('log.exploration.25', { a0: i + 1, a1: r.value?.escort ? '（护航）' : '' }) })
       continue
     }
     if (AUTO_PAUSE_REASONS.has(r.reason ?? '')) {
       state.autoExplore.pausedAt = nowMs
-      logs.push({ type: 'warning', text: `资源不足，自动探索暂停：${r.reason}。资源恢复后自动继续。` })
+      logs.push({ type: 'warning', text: t('log.exploration.26', { a0: r.reason ?? '' }) })
       break
     }
-    logs.push({ type: 'warning', text: `自动探索：${r.reason}。` })
+    logs.push({ type: 'warning', text: t('log.exploration.27', { a0: r.reason ?? '' }) })
   }
   return logs
 }
@@ -694,30 +694,30 @@ export function settleOfflineAutoExplore(state: GameState, nowMs: number, durati
   const slots = explorationSlots(state)
   const escort = state.autoExplore.escort
   const startMs = nowMs - durationSeconds * 1000
-  let t = startMs
+  let tm = startMs
   while (true) {
     // 每轮步长 = 该轮派遣时长（原固定 60min → 随机 10~30min，与派遣冻结语义同源）
-    t += rollExpeditionDuration(state)
-    if (t > nowMs) break
+    tm += rollExpeditionDuration(state)
+    if (tm > nowMs) break
     // 到点：结算该轮到期派遣（含上一轮续派出发的；resolved 幂等）
-    for (const log of settleExpeditions(state, t)) logs.push(log)
+    for (const log of settleExpeditions(state, tm)) logs.push(log)
     // 暂停冷却：距暂停不足冷却时长则跳过本轮（离线节流，防每轮日志刷屏；步长最短 10min > 60s 冷却，实际不触发）
-    if (state.autoExplore.pausedAt != null && t - state.autoExplore.pausedAt < AUTO_EXPLORE_RETRY_MS) continue
+    if (state.autoExplore.pausedAt != null && tm - state.autoExplore.pausedAt < AUTO_EXPLORE_RETRY_MS) continue
     let paused = false
     for (let i = state.expeditions.length; i < slots; i++) {
-      const r = startExpedition(state, t, undefined, i, escort)
+      const r = startExpedition(state, tm, undefined, i, escort)
       if (r.ok) {
         state.autoExplore.pausedAt = undefined
-        logs.push({ type: 'story', text: `自动探索（离线）：派遣编队驶向深空信道 ${i + 1}${r.value?.escort ? '（护航）' : ''}。` })
+        logs.push({ type: 'story', text: t('log.exploration.28', { a0: i + 1, a1: r.value?.escort ? '（护航）' : '' }) })
         continue
       }
       if (AUTO_PAUSE_REASONS.has(r.reason ?? '')) {
-        state.autoExplore.pausedAt = t
-        logs.push({ type: 'warning', text: `资源不足，自动探索暂停：${r.reason}。` })
+        state.autoExplore.pausedAt = tm
+        logs.push({ type: 'warning', text: t('log.exploration.29', { a0: r.reason ?? '' }) })
         paused = true
         break
       }
-      logs.push({ type: 'warning', text: `自动探索（离线）：${r.reason}。` })
+      logs.push({ type: 'warning', text: t('log.exploration.30', { a0: r.reason ?? '' }) })
     }
     if (paused) break
   }

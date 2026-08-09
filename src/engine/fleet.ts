@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { FLEET_POWER_TECH_PER_LEVEL, SHIP_BUY_COST_BASE, SHIP_BUY_ENERGY, SHIP_GROWTH, SHIP_MAINT_BASE, SHIP_POWER_BASE } from './balance'
 import { RESOURCE_KEYS } from './data'
 import { canAfford, zeroResources } from './core'
@@ -92,14 +93,14 @@ export function applyFleetMaintenance(state: GameState, dtSeconds: number, hard 
  * 船坞等级决定上限（DOCK_SHIP_CAP 显式表），满编后不可购买 */
 export function buyShip(state: GameState): ActionResult {
   const cap = shipCap(state)
-  if (cap <= 0) return { ok: false, reason: '需先建造并升级船坞（Lv1 解锁 3 艘）' }
-  if (state.fleet.count >= cap) return { ok: false, reason: `已达船坞舰数上限（${formatNumber(cap)} 艘）` }
+  if (cap <= 0) return { ok: false, reason: t('log.fleet.0') }
+  if (state.fleet.count >= cap) return { ok: false, reason: t('log.fleet.1', { a0: formatNumber(cap) }) }
   const next = nextShipCost(state)
-  if (!next) return { ok: false, reason: '已达船坞舰数上限' }
+  if (!next) return { ok: false, reason: t('log.fleet.2') }
   const cost = zeroResources()
   cost.mineral = next.mineral
   cost.energy = next.energy
-  if (!canAfford(state.resources, cost)) return { ok: false, reason: '资源不足' }
+  if (!canAfford(state.resources, cost)) return { ok: false, reason: t('log.fleet.3') }
   for (const k of RESOURCE_KEYS) state.resources[k] -= cost[k]
   state.fleet.count += 1
   return { ok: true }

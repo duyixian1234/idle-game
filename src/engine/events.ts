@@ -358,7 +358,7 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     return {
       ...base,
       title: defName(def),
-      desc: '监督者封锁了航道。击败它可完成本阶段，并开启下一段无尽链。',
+      desc: t('log.events.0'),
       payload: { cost, reward: Math.floor(cost * 1.4), curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
@@ -374,8 +374,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     const story = eventStory('trade', rng)
     return {
       ...base,
-      title: '贸易商抵达',
-      desc: story || `一艘挂着陌生旗帜的货船停靠在你的轨道港。`,
+      title: t('log.events.1'),
+      desc: story || t('log.events.2'),
       payload: { cost, gain, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: terms.breakdown },
       options: [
@@ -397,8 +397,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
     const story = eventStory('meteor', rng)
     return {
       ...base,
-      title: '陨石雨',
-      desc: story || `流星碎片坠入矿区，部分可采集；启动防护罩可减缓冲击、回收更多。`,
+      title: t('log.events.3'),
+      desc: story || t('log.events.4'),
       payload: { gain, shieldCost, curveVersion: EVENT_CONTRACT_VERSION },
       settlement: { deltas: {}, breakdown: curve.breakdown },
       options: [
@@ -421,8 +421,8 @@ export function createEventInstance(state: GameState, defId: string, rng: () => 
   const story = eventStory('bug', rng)
   return {
     ...base,
-    title: '虫族警报',
-    desc: story || `殖民地下层监测到虫群啃食矿脉的迹象。`,
+    title: t('log.events.5'),
+    desc: story || t('log.events.6'),
     payload: { cost, jamCost, strength: terms.strength, repelCost: terms.repelCost, curveVersion: EVENT_CONTRACT_VERSION },
     settlement: { deltas: {}, breakdown: curve.breakdown },
     options: [
@@ -483,8 +483,8 @@ function createRaidInstance(state: GameState, base: EventInstance, rng: () => nu
   const story = eventStory('raid', rng)
   return {
     ...base,
-    title: `${raider?.name ?? '未知势力'}军事骚扰`,
-    desc: story || `${raider?.name ?? '未知势力'}的舰队列阵于你的领空边缘，索要「通行税」。`,
+    title: t('log.events.7', { a0: raider?.name ?? '未知势力' }),
+    desc: story || t('log.events.8', { a0: raider?.name ?? '未知势力' }),
     payload: { factionId, ...terms, repelCost },
     options: [
       { id: 'repel', label: '军力击退', hint: `-${formatNumber(repelCost)} 军力（威胁 −${formatNumber(RAID_THREAT_LOSS)}）` },
@@ -502,7 +502,7 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
   if (instance.isBoss || defId === 'endless-overseer') {
     const cost = Number(instance.payload?.cost ?? 0)
     if (optionId === 'confront') {
-      if (state.resources.military < cost) return { logType: 'warning', logText: `军力不足以迎战监督者（需 ${formatNumber(cost)} 军力）。`, changed: false }
+      if (state.resources.military < cost) return { logType: 'warning', logText: t('log.events.9', { a0: formatNumber(cost) }), changed: false }
       state.resources.military -= cost
       const reward = Number(instance.payload?.reward ?? Math.floor(cost * 1.4))
       state.resources.mineral += reward
@@ -517,9 +517,9 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
         result: 'victory',
       }
       const settlement = eventSettlement({ military: -cost, mineral: reward }, cost)
-      return { logType: 'reward', logText: `监督者被击败，阶段链推进（-${formatNumber(cost)} 军力，+${formatNumber(reward)} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'reward', logText: t('log.events.10', { a0: formatNumber(cost), a1: formatNumber(reward) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
-    return { logType: 'warning', logText: '你撤离了监督者封锁区，阶段目标暂未完成。', changed: false }
+    return { logType: 'warning', logText: t('log.events.11'), changed: false }
   }
 
   if (defId === 'trade' || defId === 'trade-frontier') {
@@ -529,14 +529,14 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
     const gain = Number(instance.payload?.gain ?? terms.gain)
     if (optionId === 'accept') {
       if (state.resources.mineral < cost) {
-        return { logType: 'warning', logText: '贸易商摇摇头——你的矿物不够支付这笔交易。', changed: false }
+        return { logType: 'warning', logText: t('log.events.12'), changed: false }
       }
 
       state.resources.mineral -= cost
       state.resources.tech += gain
-      return { logType: 'reward', logText: `贸易达成：-${formatNumber(cost)} 矿物，+${formatNumber(gain)} 科技点。`, changed: true, deltas: { mineral: -cost, tech: gain }, breakdown: instance.settlement?.breakdown ?? terms.breakdown }
+      return { logType: 'reward', logText: t('log.events.13', { a0: formatNumber(cost), a1: formatNumber(gain) }), changed: true, deltas: { mineral: -cost, tech: gain }, breakdown: instance.settlement?.breakdown ?? terms.breakdown }
     }
-    return { logType: 'system', logText: '你婉拒了贸易商的报价，货船驶离轨道港。', changed: false }
+    return { logType: 'system', logText: t('log.events.14'), changed: false }
   }
 
   if (defId === 'meteor' || defId === 'storm-surge') {
@@ -544,17 +544,17 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
     const shieldCost = Number(instance.payload?.shieldCost ?? scaledBy(prod.tech, 200, 60))
     if (optionId === 'shield') {
       if (state.resources.tech < shieldCost) {
-        return { logType: 'warning', logText: '科技点不足以维持防护罩，陨石雨自然坠落。', changed: false }
+        return { logType: 'warning', logText: t('log.events.15'), changed: false }
       }
       state.resources.tech -= shieldCost
       state.resources.mineral += gain * 2
       const settlement = eventSettlement({ tech: -shieldCost, mineral: gain * 2 }, gain * 2, 2)
-      return { logType: 'reward', logText: `防护罩展开，陨石完整回收：-${formatNumber(shieldCost)} 科技点，+${formatNumber(gain * 2)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'reward', logText: t('log.events.16', { a0: formatNumber(shieldCost), a1: formatNumber(gain * 2) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     // collect（默认）
     state.resources.mineral += gain
     const settlement = eventSettlement({ mineral: gain }, gain)
-    return { logType: 'reward', logText: `陨石雨结束，采集到 ${formatNumber(gain)} 矿物。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'reward', logText: t('log.events.17', { a0: formatNumber(gain) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
 
   if (defId === 'bug' || defId === 'void-swarm') {
@@ -562,43 +562,43 @@ export function applyEvent(state: GameState, instance: EventInstance, optionId: 
     const def = [...EVENT_DEFS, ...ENDLESS_EVENT_POOL].find((candidate) => candidate.id === defId)
     if (optionId === 'repel') {
       const cost = Number(instance.payload?.repelCost ?? (def ? bugTerms(state, def).repelCost : BUG_REPEL_MIN))
-      if (state.resources.military < cost) return { logType: 'warning', logText: `军力不足以击退虫群（需 ${formatNumber(cost)} 军力）。`, changed: false }
+      if (state.resources.military < cost) return { logType: 'warning', logText: t('log.events.18', { a0: formatNumber(cost) }), changed: false }
       state.resources.military -= cost
       state.bugEscalation = 1
       const settlement = eventSettlement({ military: -cost }, cost)
-      return { logType: 'system', logText: `军力击退虫群，巢穴暂时平息（-${formatNumber(cost)} 军力，强度回落至基线）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'system', logText: t('log.events.19', { a0: formatNumber(cost) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     if (optionId === 'dispatch') {
       const cost = Number(instance.payload?.cost ?? scaledBy(prod.mineral, 800, 200))
       if (state.resources.mineral < cost) {
-        return { logType: 'warning', logText: '你的矿物不足以组织清剿队。', changed: false }
+        return { logType: 'warning', logText: t('log.events.20'), changed: false }
       }
       state.resources.mineral -= cost
       state.bugEscalation = 1
       const settlement = eventSettlement({ mineral: -cost }, cost)
-      return { logType: 'system', logText: `清剿队出动，虫群被驱逐出矿区（-${formatNumber(cost)} 矿物）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'system', logText: t('log.events.21', { a0: formatNumber(cost) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     if (optionId === 'jam') {
       const jamCost = Number(instance.payload?.jamCost ?? scaledBy(prod.tech, 150, 50))
       if (state.resources.tech < jamCost) {
-        return { logType: 'warning', logText: '科技点不足以发动神经干扰。', changed: false }
+        return { logType: 'warning', logText: t('log.events.22'), changed: false }
       }
       state.resources.tech -= jamCost
       state.bugEscalation = 1
       const settlement = eventSettlement({ tech: -jamCost }, jamCost)
-      return { logType: 'system', logText: `神经干扰波覆盖矿层，虫群失去方向溃散（-${formatNumber(jamCost)} 科技点）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+      return { logType: 'system', logText: t('log.events.23', { a0: formatNumber(jamCost) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
     }
     // ignore：扣减当前矿物 10%
     const loss = Math.floor(state.resources.mineral * 0.1)
     state.resources.mineral -= loss
     state.bugEscalation = Math.min(BUG_ESCALATION_CAP, Math.round(escalation * BUG_ESCALATION_STEP * 10) / 10)
     const settlement = eventSettlement({ mineral: -loss }, loss)
-    return { logType: 'warning', logText: `虫群啃食矿脉，损失了 ${formatNumber(loss)} 矿物，虫群强度升至 ×${state.bugEscalation}。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'warning', logText: t('log.events.24', { a0: formatNumber(loss), a1: state.bugEscalation }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
 
   if (defId === 'raid') return applyRaid(state, instance, optionId)
 
-  return { logType: 'system', logText: '未知事件。', changed: false }
+  return { logType: 'system', logText: t('log.events.25'), changed: false }
 }
 
 function optionCost(instance: EventInstance, optionId: string): Partial<Record<ResourceKey, number>> {
@@ -648,24 +648,24 @@ export function fallbackGate(
   nowMs = state.lastTick,
 ): FallbackGateResult {
   if (!instance.options.some((option) => option.id === optionId)) {
-    return { allowed: false, reason: `处理方式 ${optionId} 对当前事件不可用` }
+    return { allowed: false, reason: t('log.events.26', { a0: optionId }) }
   }
   const risk = instance.riskLevel ?? 'low'
   if (policy.maxRiskLevel && RISK_RANK[risk] > RISK_RANK[policy.maxRiskLevel]) {
-    return { allowed: false, reason: `风险 ${risk} 超过类别上限 ${policy.maxRiskLevel}` }
+    return { allowed: false, reason: t('log.events.27', { a0: risk, a1: policy.maxRiskLevel }) }
   }
   const costs = optionCost(instance, optionId)
   for (const [key, amount] of Object.entries(costs) as [ResourceKey, number][]) {
-    if ((state.resources[key] ?? 0) < amount) return { allowed: false, reason: `花费超过当前${key}余额` }
+    if ((state.resources[key] ?? 0) < amount) return { allowed: false, reason: t('log.events.28', { a0: key }) }
     if (policy.resourceBudget?.[key] != null && amount > policy.resourceBudget[key]!) {
-      return { allowed: false, reason: '花费超过类别预算' }
+      return { allowed: false, reason: t('log.events.29') }
     }
   }
   const category = instance.theme ?? instance.defId
   const last = [...state.automationHistory].reverse().find((audit) =>
     audit.category === category && audit.source === 'automation' && audit.status === 'resolved')
   if (last && policy.cooldownMs != null && nowMs - last.time < policy.cooldownMs) {
-    return { allowed: false, reason: '类别冷却中' }
+    return { allowed: false, reason: t('log.events.30') }
   }
   return { allowed: true }
 }
@@ -776,21 +776,21 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   if (optionId === 'repel') {
     const repelCost = Number(instance.payload?.repelCost ?? Math.max(50, strength - fleetPower(state)))
     if (state.resources.military < repelCost) {
-      return { logType: 'warning', logText: `军力不足以击退${factionName}的舰队（需 ${formatNumber(repelCost)}⚔，当前 ${formatNumber(state.resources.military)}⚔）。`, changed: false }
+      return { logType: 'warning', logText: t('log.events.31', { a0: factionName, a1: formatNumber(repelCost), a2: formatNumber(state.resources.military) }), changed: false }
     }
     state.resources.military -= repelCost
     if (f) f.threat = Math.max(0, f.threat - RAID_THREAT_LOSS)
     const settlement = eventSettlement({ military: -repelCost, threat: -RAID_THREAT_LOSS }, repelCost)
-    return { logType: 'system', logText: `你的舰队倾巢而出，${factionName}的骚扰舰队被击退（-${formatNumber(repelCost)}⚔，威胁 −${formatNumber(RAID_THREAT_LOSS)}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'system', logText: t('log.events.32', { a0: factionName, a1: formatNumber(repelCost), a2: formatNumber(RAID_THREAT_LOSS) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
   if (optionId === 'buyoff') {
     if (state.resources.mineral < buyoff) {
-      return { logType: 'warning', logText: `矿物不足以支付${factionName}索要的通行税。`, changed: false }
+      return { logType: 'warning', logText: t('log.events.33', { a0: factionName }), changed: false }
     }
     state.resources.mineral -= buyoff
     if (f) f.favor = Math.min(100, f.favor + RAID_BUYOFF_FAVOR_GAIN)
     const settlement = eventSettlement({ mineral: -buyoff, favor: RAID_BUYOFF_FAVOR_GAIN }, buyoff)
-    return { logType: 'system', logText: `你向${factionName}缴纳了通行税，舰队退去（-${formatNumber(buyoff)}矿物，好感 +${formatNumber(RAID_BUYOFF_FAVOR_GAIN)}）。`, changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
+    return { logType: 'system', logText: t('log.events.34', { a0: factionName, a1: formatNumber(buyoff), a2: formatNumber(RAID_BUYOFF_FAVOR_GAIN) }), changed: true, deltas: settlement.deltas, breakdown: settlement.breakdown, settlement }
   }
   // ignore：矿/能各 -5%
   const lossMineral = Math.floor(state.resources.mineral * RAID_IGNORE_LOSS_PCT)
@@ -800,7 +800,7 @@ function applyRaid(state: GameState, instance: EventInstance, optionId: string):
   const settlement = eventSettlement({ mineral: -lossMineral, energy: -lossEnergy }, lossMineral + lossEnergy)
   return {
     logType: 'warning',
-    logText: `${factionName}的舰队洗劫了外围仓库，损失 ${formatNumber(lossMineral)} 矿物与 ${formatNumber(lossEnergy)} 能源。`,
+    logText: t('log.events.35', { a0: factionName, a1: formatNumber(lossMineral), a2: formatNumber(lossEnergy) }),
     changed: true,
     deltas: settlement.deltas,
     breakdown: settlement.breakdown,
@@ -928,7 +928,7 @@ function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null
     state.bugEscalation = 1
     return {
       logType: 'system',
-      logText: '你的护卫舰队清扫了虫群巢穴，虫群强度回落至基线。',
+      logText: t('log.events.36'),
       changed: true,
       deltas: {},
       priority: 'urgent',
@@ -948,7 +948,7 @@ function tryAutoIntercept(state: GameState, defId = 'raid'): EventOutcome | null
   const settlement = eventSettlement({ threat: -RAID_THREAT_LOSS }, terms.strength)
   return {
     logType: 'system',
-    logText: `你的护卫舰队迎击了${raider.name}的骚扰舰群（威胁 −${formatNumber(RAID_THREAT_LOSS)}）。`,
+    logText: t('log.events.37', { a0: raider.name, a1: formatNumber(RAID_THREAT_LOSS) }),
     changed: true,
     deltas: settlement.deltas,
     breakdown: settlement.breakdown,
@@ -1003,7 +1003,7 @@ export function resolveEvent(
   context?: { source: 'manual' | 'automation'; ruleId?: string; reason: string; nowMs?: number },
 ): EventOutcome {
   const instance = state.pendingEvents.find((e) => e.uid === uid && !e.resolved)
-  if (!instance) return { logType: 'system', logText: '该事件已失效。', changed: false }
+  if (!instance) return { logType: 'system', logText: t('log.events.38'), changed: false }
   const outcome = applyEvent(state, instance, optionId)
   const keepForRetry = context?.source === 'automation' && context.ruleId != null && !outcome.changed
   if (!keepForRetry) {
