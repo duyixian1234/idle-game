@@ -26,6 +26,7 @@ export const en: Zh = {
   'Consumption details',
   'Capped at military limit (current {a0} / cap {a1})',
   'Energy supply rate {a0}%: energy-consuming building output reduced by shortfall',
+  'Military cap source: Wormhole Lv.{a0} (+{a1} per level)',
   ],
   mechlog: [
   'Next storm harvest in {a0}s',
@@ -292,7 +293,7 @@ export const en: Zh = {
     ],
     shared: [
     'Dispatch slots +{a0}~+{a1} (scales with level) · body harvest multiplier {a2}→{a3} · offline cap {a4}h',
-    'Dispatch slots +{a0}/level (Lv{a1} max {a2} slots) · exploration energy −{a3}/level (cap −{a4}) · discovery weight +{a5}/level · generated cap +{a6}/level',
+    'Dispatch slots +{a0}/level (Lv{a1} max {a2} slots) · exploration energy −{a3}/level (cap −{a4}) · discovery weight +{a5}/level · generated cap +{a6}/level · military cap +{a7}/level (×{a8} at max)',
     ],
     main: [
     '(capped at {a0})',
@@ -400,7 +401,7 @@ export const en: Zh = {
     build: [
     'Global output {a0} → {a1}',
     'Lv.{a0}: {a1} dispatch slots · harvest multiplier {a2} → {a3}',
-    'Lv.{a0}: +1 dispatch slot · exploration energy −{a1} · discovery weight +{a2} · generated cap +{a3}',
+    'Lv.{a0}: +1 dispatch slot · exploration energy −{a1} · discovery weight +{a2} · generated cap +{a3} · military cap +{a4}',
     'Upgrade output {a0} ({a1})',
     'Output {a0}',
     'Buy {a0} unit(s): {a1}{a2}',
@@ -652,7 +653,7 @@ export const en: Zh = {
     thinkTank: { name: 'Galactic Think Tank', desc: 'A mind nebula pooling the heritage of thousands of civilizations; tech output leaps. Unique megastructure, {mult} output per level.' },
     ringSmelter: { name: 'Ring Smelter', desc: 'A colossal smelting ring around the homeworld: {mult}^level global output (mineral/energy/tech all included). Power-hungry at {rate} × level; output is scaled down per current settlement when energy is short. The "Construction" endgame line.' },
     jumpgate: { name: 'Jumpgate', desc: 'A jumpgate bridging the star lanes: level drives exploration growth (Lv{n} unlocks the {n2}th exploration slot, with 1 extra slot at Lv4/6/8/10 up to {n4} slots at Lv{n3}; harvest multiplier +{pct} per level, reaching {mult} at Lv{n3}). Offline settlement cap relaxed to 12 hours. Produces no resources — a pure mechanic line. The "Exploration" endgame line.' },
-    wormhole: { name: 'Wormhole', desc: 'A shortcut through spacetime: level drives exploration expansion (+1 exploration slot per level up to {n2} slots at Lv{n}; energy cost −{pct} per level, capped at −{pct2}; discovery weight +{pct3} per level; generated-target cap +1 per level). Extension of the "Exploration" endgame line.' },
+    wormhole: { name: 'Wormhole', desc: 'A shortcut through spacetime: level drives exploration expansion (+1 exploration slot per level up to {n2} slots at Lv{n}; energy cost −{pct} per level, capped at −{pct2}; discovery weight +{pct3} per level; generated-target cap +1 per level). Military cap +{capPct} per level (×2 at max Lv.10). Extension of the "Exploration" endgame line, also a military line.' },
     dock: { name: 'Shipyard', desc: 'An orbital dock full of escort frigates. Level sets the fleet size cap (Lv{n} unlocks {n2} ships, Lv2/3 add 3/4 each, then +{n3} per level up to {n5} at Lv{n4} — non-linear slot table); the continuous energy maintenance of frigates is an adjustable energy sink — a real trade-off between production and arms.' },
   },
   tech: {

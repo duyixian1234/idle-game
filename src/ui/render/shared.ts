@@ -11,7 +11,7 @@ import { RESOURCE_META } from '../../engine/data'
 import { formatMultiplier, formatNumber, formatPercent } from '../../engine/format'
 import { BUILDINGS, MEGASTRUCTURE_BUILDINGS } from '../../engine/data'
 import { canAffordBuilding, canAffordUpgrade, isBuildingUnlocked } from '../../engine/buildings'
-import { JUMPGATE_HARVEST_PCT_PER_LEVEL, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS } from '../../engine/balance'
+import { JUMPGATE_HARVEST_PCT_PER_LEVEL, JUMPGATE_OFFLINE_EXTRA_SECONDS, OFFLINE_CAP_SECONDS, WORMHOLE_CAP_PER_LEVEL } from '../../engine/balance'
 import { JUMPGATE_SLOT_TABLE } from '../../engine/exploration'
 
 // ============================================================================
@@ -106,7 +106,7 @@ export function jumpgateEffectText(): string {
   })
 }
 
-/** 虫洞效果文案单一真源（wormhole-empire：槽位/能源/权重/上限随等级；从 balance/exploration 常量拼装） */
+/** 虫洞效果文案单一真源（wormhole-empire：槽位/能源/权重/上限随等级 + ADR-0047 军力容量；从 balance/exploration 常量拼装） */
 /** 虫洞效果文案（wormhole-empire；t() 渲染时求值） */
 export function wormholeEffectText(): string {
   return t('ui.shared.1', {
@@ -117,5 +117,7 @@ export function wormholeEffectText(): string {
     a4: formatPercent(50),
     a5: formatPercent(10),
     a6: formatNumber(1),
+    a7: formatPercent(WORMHOLE_CAP_PER_LEVEL * 100),
+    a8: formatNumber(2),
   })
 }

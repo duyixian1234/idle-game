@@ -10,7 +10,7 @@ import type { BuildingDef } from '../../engine/data'
 import {buildingCost, buildingLockReason, canAffordBuilding, canAffordUpgrade, isBuildingUnlocked, upgradeCost} from '../../engine/buildings'
 import {formatMultiplier, formatNumber, formatPercent, formatRate, formatTimeToSave, timeToSave} from '../../engine/format'
 import {netProduction, simulateProductionDelta, smelterGlobalMult} from '../../engine/production'
-import {JUMPGATE_HARVEST_PCT_PER_LEVEL} from '../../engine/balance'
+import {JUMPGATE_HARVEST_PCT_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL} from '../../engine/balance'
 import {JUMPGATE_SLOT_TABLE} from '../../engine/exploration'
 import {iconUse} from '../icons'
 import {escapeHtml} from '../helpers'
@@ -38,7 +38,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
       // wormhole-empire：虫洞机制流 → 升级预览显示下一级新增效果（槽位/能源/权重/上限），满级回退能力描述
       const lv = state.upgrades.wormhole ?? 0
       if (lv <= 0 || lv >= 10) return wormholeEffectText()
-      return t('ui.build.2', { a0: formatNumber(lv + 1), a1: formatPercent(5), a2: formatPercent(10), a3: formatNumber(1) })
+      return t('ui.build.2', { a0: formatNumber(lv + 1), a1: formatPercent(5), a2: formatPercent(10), a3: formatNumber(1), a4: formatPercent(WORMHOLE_CAP_PER_LEVEL * 100) })
     }
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
     const parts: string[] = []

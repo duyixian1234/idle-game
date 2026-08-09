@@ -173,6 +173,19 @@ describe('engine: productionBreakdown 资源速率来源分解', () => {
     assertConservation(s2)
   })
 
+  it('军力：虫洞等级 >0 时 capSource 含来源（ADR-0047 展示 seam）', () => {
+    const s = prodState()
+    s.buildings.barracks = 2
+    s.upgrades.wormhole = 5
+    const bd = productionBreakdown(s)
+    expect(bd.military.capSource).toContain('虫洞 Lv.5')
+    expect(bd.military.capSource).toContain('+10.00%')
+    const s2 = prodState()
+    s2.buildings.barracks = 2
+    const bd2 = productionBreakdown(s2)
+    expect(bd2.military.capSource).toBeUndefined()
+  })
+
   it('消耗组：精炼厂/冶炼场能源需求 + 舰队维护 + 恒星阵列矿物维护', () => {
     const s = prodState()
     s.buildings.refinery = 4 // 需求 2/s

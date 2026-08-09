@@ -1,5 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
-import { JUMPGATE_HARVEST_PCT_PER_LEVEL } from './balance'
+import { JUMPGATE_HARVEST_PCT_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 import { t } from '../i18n'
 import type { DeepKey, TranslateParams, Zh } from '../i18n'
@@ -227,6 +227,7 @@ export const BUILDINGS: Record<string, BuildingDef> = {
       pct: formatPercent(5),
       pct2: formatPercent(50),
       pct3: formatPercent(10),
+      capPct: formatPercent(WORMHOLE_CAP_PER_LEVEL * 100),
     },
     category: 'interstellar',
     unique: true,

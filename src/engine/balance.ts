@@ -199,6 +199,8 @@ export const MILITARY_BASE_CAP = 100
 export const MILITARY_PORT_CAP = 200
 /** 军械科技每级军力容量加成（整体乘法，Lv5 满级 = ×1.5；ADR-0027，2026-08-08） */
 export const MILITARY_CAP_TECH_PER_LEVEL = 0.1
+/** 虫洞每级军力容量加成（整体乘法，Lv10 满级 = ×2，与军械科技并列第二等级放大轴；ADR-0047，2026-08-10） */
+export const WORMHOLE_CAP_PER_LEVEL = 0.1
 
 // ---- 星球机制 ----
 

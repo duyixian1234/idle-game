@@ -167,11 +167,12 @@ describe('ui: 虫洞终局工程区块（wormhole-empire ticket 02）', () => {
     expect(card.classList.contains('locked')).toBe(true)
     expect(card.textContent).toContain('需先研发')
     expect(card.textContent).toContain('虫洞理论')
-    // 效果文案（WORMHOLE_EFFECT_TEXT）：槽位/能源/权重/上限
+    // 效果文案（WORMHOLE_EFFECT_TEXT）：槽位/能源/权重/上限 + 军力容量（ADR-0047）
     expect(card.textContent).toContain('派遣槽')
     expect(card.textContent).toContain('探索能源')
     expect(card.textContent).toContain('发现权重')
     expect(card.textContent).toContain('生成上限')
+    expect(card.textContent).toContain('军力容量')
   })
 
   it('研发虫洞理论后可建造：虫洞卡可建态（无锁定）、冶炼场/枢纽不受影响', () => {

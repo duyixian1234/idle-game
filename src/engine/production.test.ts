@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { explorePlanetOutputs, militaryCap, productionReport } from './production'
+import { explorePlanetOutputs, militaryCap, nominalMilitaryProduction, productionReport } from './production'
 import type { GameState } from './types'
 
 /** 通关后生产档：足量资源（探索天体机制测试统一基线） */
@@ -19,6 +19,51 @@ describe('engine: 军力容量 portLevel 恒 0（ADR-0036：普通建筑无升�
     s.planets.orbital = { unlocked: true }
     s.buildings.militaryPort = 25
     expect(militaryCap(s)).toBe(5100) // (100 + 200×25) × 1
+  })
+})
+
+describe('engine: 军力容量随虫洞等级放大（ADR-0047：第二等级放大轴）', () => {
+  it('无虫洞（upgrades.wormhole 未定义/0）时容量与现状逐字节一致（回归保护）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.militaryTech = 5
+    expect(militaryCap(s)).toBe(7650) // (100 + 200×25) × 1.5 × 1
+    s.upgrades.wormhole = 0
+    expect(militaryCap(s)).toBe(7650) // Lv0 = ×1
+  })
+
+  it('虫洞 Lv1 / Lv5 / Lv10 容量分别 ×1.1 / ×1.5 / ×2（无军械科技）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    // 基线 5100
+    s.upgrades.wormhole = 1
+    expect(militaryCap(s)).toBe(5610) // 5100 × 1.1
+    s.upgrades.wormhole = 5
+    expect(militaryCap(s)).toBe(7650) // 5100 × 1.5
+    s.upgrades.wormhole = 10
+    expect(militaryCap(s)).toBe(10_200) // 5100 × 2
+  })
+
+  it('与军械科技互为独立乘法因子（军械 Lv5 ×1.5 + 虫洞 Lv10 ×2 → 总 ×3）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.militaryTech = 5
+    s.upgrades.wormhole = 10
+    expect(militaryCap(s)).toBe(15_300) // (100 + 200×25) × 1.5 × 2
+  })
+
+  it('不放大军力产出——虫洞只放大容量，不影响兵营产出（ADR-0047 范围）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.buildings.barracks = 10
+    const prodBefore = nominalMilitaryProduction(s)
+    s.upgrades.wormhole = 10
+    expect(militaryCap(s)).toBe(10_200) // (100 + 200×25) × 2 —— 容量被放大
+    expect(nominalMilitaryProduction(s)).toBe(prodBefore) // 名义产出不受虫洞影响
   })
 })
 

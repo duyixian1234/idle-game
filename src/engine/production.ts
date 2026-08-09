@@ -2,12 +2,12 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
 import {fleetMaintenance} from './fleet'
-import {formatNumber} from './format'
+import {formatNumber, formatPercent} from './format'
 import type { GameState, ResourceKey } from './types'
 
 /**
@@ -26,7 +26,7 @@ export function levelMultiplier(level: number): number {
 
 /**
  * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计，
- * 再乘军械科技容量加成（每级 +10%，ADR-0027）。
+ * 再乘军械科技容量加成（每级 +10%，ADR-0027），再乘虫洞容量加成（每级 +10%，ADR-0047）。
  * 军力是唯一有上限的资源：满上限时兵营产出截断（浪费语义，逼玩家消费/扩容）。
  */
 export function militaryCap(state: GameState): number {
@@ -35,7 +35,9 @@ export function militaryCap(state: GameState): number {
   const bonus = state.permanentBonuses['militaryCap'] ?? 0
   const repBonus = reputationBonuses(state).militaryCapBonus
   const techBonus = (state.techLevels.militaryTech ?? 0) * MILITARY_CAP_TECH_PER_LEVEL
-  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus) * (1 + techBonus))
+  // 虫洞等级钳制 maxLevel=10（与 exploration.ts 读取方式一致，防御性防越级）
+  const wormholeBonus = Math.min(state.upgrades.wormhole ?? 0, 10) * WORMHOLE_CAP_PER_LEVEL
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus) * (1 + techBonus) * (1 + wormholeBonus))
 }
 
 export interface ProductionReport {
@@ -388,6 +390,8 @@ export interface ResourceBreakdown {
   consumption?: BreakdownGroup
   /** 军力容量截断说明（截断发生时） */
   capNote?: string
+  /** 军力容量来源提示（虫洞等级 >0 时显示容量加成来源） */
+  capSource?: string
   /** 能源供给率不足说明（ratio<1 时） */
   energyNote?: string
 }
@@ -562,6 +566,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
       ...(key === 'energy' && energyConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: energyConsumption } } : {}),
       ...(key === 'mineral' && mineralConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: mineralConsumption } } : {}),
       ...(key === 'military' && preMilitary > room ? { capNote: t('prod.13', { a0: formatNumber(state.resources.military), a1: formatNumber(militaryCap(state)) }) } : {}),
+      ...(key === 'military' && (state.upgrades.wormhole ?? 0) > 0 ? { capSource: t('prod.15', { a0: formatNumber(state.upgrades.wormhole), a1: formatPercent(WORMHOLE_CAP_PER_LEVEL * 100) }) } : {}),
       ...(key === 'energy' && energyRatio < 1 ? { energyNote: t('prod.14', { a0: (energyRatio * 100).toFixed(0) }) } : {}),
     }
     out[key] = b
