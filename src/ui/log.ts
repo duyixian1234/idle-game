@@ -1,4 +1,4 @@
-import { t } from '../i18n'
+import { getLanguage, t } from '../i18n'
 import type { DeepKey, Zh } from '../i18n'
 import type { EventFormulaPart, EventTheme, GameState, LogEntry, LogType, ResourceKey } from '../engine/types'
 import { RESOURCE_META } from '../engine/data'
@@ -48,7 +48,7 @@ export function appendLog(el: HTMLElement, entry: LogEntry, dir: LogDirection): 
   // log-filter：行类型属性（CSS 属性选择器过滤，data-log-filter 容器 + data-log-type 行）
   div.setAttribute('data-log-type', entry.type)
   if (entry.autoHandled) div.setAttribute('data-auto-handled', '')
-  div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>${entry.autoHandled ? '<span class="auto-handled-tag">已自动处理</span>' : ''}`
+  div.innerHTML = `<span class="log-time">${formatTime(entry.time)}</span><span class="log-text">${escapeHtml(entry.text)}</span>${entry.autoHandled ? `<span class="auto-handled-tag">${t('ui.logPanel.0')}</span>` : ''}`
   if (dir === 'newest-bottom') {
     el.appendChild(div)
   } else {
@@ -132,12 +132,12 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
     const category = ev.theme ?? ev.defId
     card.innerHTML = `
       <div class="event-title">${escapeHtml(ev.title)}</div>
-      <div data-event-meta>主题：${escapeHtml(ev.theme ?? ev.defId)} · 类别：${escapeHtml(ev.decisionType ?? 'exchange')} · 风险：${escapeHtml(ev.riskLevel ?? 'low')}</div>
-      ${ev.handlingMode === 'blocking' ? '<div data-event-pause>高风险事件已暂停自动处理，请选择一个选项。</div>' : ''}
+      <div data-event-meta>${t('ui.logPanel.1', { a0: escapeHtml(ev.theme ?? ev.defId), a1: escapeHtml(ev.decisionType ?? 'exchange'), a2: escapeHtml(ev.riskLevel ?? 'low') })}</div>
+      ${ev.handlingMode === 'blocking' ? `<div data-event-pause>${t('ui.logPanel.2')}</div>` : ''}
       ${descHtml}
       ${renderSettlementDetails(ev.settlement)}
       <div class="event-options">${options}</div>
-      <label class="event-auto-toggle"><input type="checkbox" data-auto-quick-toggle="${escapeHtml(category)}" ${state.automationPolicies[category]?.enabled ? 'checked' : ''}>以后此类自动处理</label>`
+      <label class="event-auto-toggle"><input type="checkbox" data-auto-quick-toggle="${escapeHtml(category)}" ${state.automationPolicies[category]?.enabled ? 'checked' : ''}>${t('ui.logPanel.3')}</label>`
     if (typedFrom >= 0) {
       typewriters.push({ descEl: card.querySelector('[data-event-desc]') as HTMLElement, text: ev.desc, key: ev.uid, from: typedFrom })
     }
@@ -154,23 +154,26 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
 
 function renderSettlementDetails(settlement?: { deltas: Record<string, number>; breakdown: EventFormulaPart[] }): string {
   if (!settlement) return ''
-  const names: Record<EventFormulaPart['name'], string> = { base: '基础值', stageLayer: '阶段/层数倍率', risk: '风险倍率', capability: '能力修正', softCap: '软上限' }
+  const names: Record<EventFormulaPart['name'], string> = { base: t('ui.logPanel.12'), stageLayer: t('ui.logPanel.13'), risk: t('ui.logPanel.14'), capability: t('ui.logPanel.15'), softCap: t('ui.logPanel.16') }
   const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ${formatMultiplier(part.multiplier)}` : ''}</li>`).join('')
   const deltas = Object.entries(settlement.deltas).map(([key, value]) => {
     const resource = RESOURCE_META[key as ResourceKey]
     const label = resource ? t(resource.nameKey) : key
     const unit = resource?.symbol ?? ''
     return `${label} ${value > 0 ? '+' : ''}${formatNumber(value)}${unit}`
-  }).join('、') || '待选择选项'
-  return `<details data-event-settlement><summary>查看结算明细</summary><div data-settlement-deltas>最终值：${escapeHtml(deltas)}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
+  }).join(t('ui.logPanel.18')) || t('ui.logPanel.17')
+  return `<details data-event-settlement><summary>${t('ui.logPanel.4')}</summary><div data-settlement-deltas>${t('ui.logPanel.19', { a0: escapeHtml(deltas) })}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
 }
 
 /** 格式化旧存档中已持久化的事件选项提示，避免绕过事件生成器的 formatter。 */
 function formatEventHint(hint: string): string {
-  return hint.replace(/([+-]?)(\d+(?:\.\d+)?)(矿物|能源|科技点|科技|军力|好感|威胁|⚔|%|\/s|\/秒)/g, (_match, sign: string, digits: string, unit: string) => {
+  const zhUnits = '矿物|能源|科技点|科技|军力|好感|威胁|⚔|%|\\/s|\\/秒'
+  const enUnits = 'mineral|energy|tech points?|military|favor|threat|⚔|%|\\/s|\\/sec'
+  const unitPat = getLanguage() === 'en' ? enUnits : zhUnits
+  return hint.replace(new RegExp(`([+-]?)(\\d+(?:\\.\\d+)?)(${unitPat})`, 'g'), (_match, sign: string, digits: string, unit: string) => {
     const value = Number(`${sign}${digits}`)
     if (unit === '%') return formatPercent(value)
-    if (unit === '/s' || unit === '/秒') return formatRate(value, sign === '+')
+    if (unit === '/s' || unit === '/秒' || unit === '/sec') return formatRate(value, sign === '+')
     return `${formatNumber(value)}${unit}`
   })
 }
@@ -192,18 +195,18 @@ const RISK_LABELS: Array<{ id: string; label: DeepKey<Zh> }> = [
 ]
 
 function policySummary(category: typeof AUTO_CATEGORIES[number], policy: GameState['automationPolicies'][string] | undefined): string {
-  if (!policy?.enabled) return '已关闭'
+  if (!policy?.enabled) return t('ui.logPanel.20')
   const risk = policy.maxRiskLevel ? ` · 风险≤${t(RISK_LABELS.find((item) => item.id === policy.maxRiskLevel)!.label)}` : ''
   const option = policy.fallbackOptionId ? ` · ${t(category.options.find((item) => item.id === policy.fallbackOptionId)!.label)}` : ''
-  return `已启用${risk}${option}`
+  return t('ui.logPanel.21', { a0: risk, a1: option })
 }
 
 /** 渲染日志页自动处理配置；展开类别由调用方持有的 UI 会话状态决定。 */
 export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expandedCategory?: string): void {
   el.innerHTML = `
     <div class="auto-config-card" data-auto-config-panel>
-      <div class="auto-config-header"><h2>自动处理</h2><button type="button" data-auto-config-close aria-label="关闭自动处理配置">×</button></div>
-      <p class="auto-config-hint">改动即时生效。自动处理仅在事件提供所选处理方式时执行，否则暂停等待人工处理。</p>
+      <div class="auto-config-header"><h2>${t('ui.logPanel.5')}</h2><button type="button" data-auto-config-close aria-label="${t('ui.logPanel.22')}">×</button></div>
+      <p class="auto-config-hint">${t('ui.logPanel.6')}</p>
       <div data-auto-categories>
         ${AUTO_CATEGORIES.map((category) => {
           const policy = state.automationPolicies[category.id]
@@ -213,11 +216,11 @@ export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expande
           return `<article data-auto-cat="${category.id}" class="auto-category${expanded ? ' expanded' : ''}">
             <div data-auto-cat-row="${category.id}" class="auto-category-row"><span><strong>${t(category.name)}</strong><small data-auto-summary>${policySummary(category, policy)}</small></span><input type="checkbox" data-auto-enabled="${category.id}" ${policy?.enabled ? 'checked' : ''} aria-label="${t(category.name)}自动处理"></div>
             ${expanded ? `<div class="auto-category-details" data-auto-details="${category.id}">
-              <div class="option-field"><span>风险上限</span><div class="option-pills" role="radiogroup">${riskOptions}</div></div>
-              <label>冷却（分钟，0=不限）<input type="number" min="0" data-auto-cooldown="${category.id}" value="${policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0}"></label>
-              <label>矿物预算（空=无限制）<input type="number" min="0" data-auto-budget="${category.id}:mineral" value="${policy?.resourceBudget?.mineral ?? ''}"></label>
-              <label>科技预算（空=无限制）<input type="number" min="0" data-auto-budget="${category.id}:tech" value="${policy?.resourceBudget?.tech ?? ''}"></label>
-              <div class="option-field"><span>处理方式</span><div class="option-pills" role="radiogroup">${optionOptions || '<span class="settings-empty">暂无事件</span>'}</div></div>
+              <div class="option-field"><span>${t('ui.logPanel.7')}</span><div class="option-pills" role="radiogroup">${riskOptions}</div></div>
+              <label>${t('ui.logPanel.8')}<input type="number" min="0" data-auto-cooldown="${category.id}" value="${policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0}"></label>
+              <label>${t('ui.logPanel.9')}<input type="number" min="0" data-auto-budget="${category.id}:mineral" value="${policy?.resourceBudget?.mineral ?? ''}"></label>
+              <label>${t('ui.logPanel.10')}<input type="number" min="0" data-auto-budget="${category.id}:tech" value="${policy?.resourceBudget?.tech ?? ''}"></label>
+              <div class="option-field"><span>${t('ui.logPanel.11')}</span><div class="option-pills" role="radiogroup">${optionOptions || `<span class="settings-empty">${t('ui.logPanel.23')}</span>`}</div></div>
             </div>` : ''}
           </article>`
         }).join('')}
