@@ -215,9 +215,9 @@ export const ACTIONS: { [K in ActionId]: GameAction<K> } = {
     run: (state, payload) => startExpedition(state, Date.now(), undefined, Math.max(0, payload.slot - 1), payload.escort),
     feedback: (_state, result) => {
       const v = result as { ok: true; value?: { escort?: boolean; startedAt?: number; finishAt?: number } }
-      const escortText = v.value?.escort ? '（护航编队）' : ''
+      const escortText = v.value?.escort ? t('ui.actions.0') : ''
       const minutes = v.value?.startedAt != null && v.value.finishAt != null ? Math.round((v.value.finishAt - v.value.startedAt) / 60_000) : null
-      const eta = minutes != null ? `${minutes} 分钟` : '10~30 分钟'
+      const eta = minutes != null ? t('ui.actions.1', { a0: minutes }) : t('ui.actions.2')
       return { logs: [{ type: 'story', text: t('log.actions.18', { a0: escortText, a1: eta }) }], sound: 'upgrade' }
     },
     onFailure: (_state, _payload, reason) => ({ logs: [{ type: 'warning', text: t('log.actions.19', { a0: reason }) }] }),

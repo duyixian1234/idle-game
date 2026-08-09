@@ -1,7 +1,7 @@
 // ui/render/build.ts — 建造面板域（panels.ts 拆分专用；2026-08-08）
 //
 // 范围：renderBuildPanel + 内部 helper（升级预览/购买预览/已解锁卡/锁定卡）。
-// 跨域共享项（formatCost/BuildPanelRenderOptions/JUMPGATE_EFFECT_TEXT）从 shared 引入。
+// 跨域共享项（formatCost/BuildPanelRenderOptions/jumpgateEffectText()）从 shared 引入。
 
 import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
@@ -14,7 +14,7 @@ import {JUMPGATE_HARVEST_PCT_PER_LEVEL} from '../../engine/balance'
 import {JUMPGATE_SLOT_TABLE} from '../../engine/exploration'
 import {iconUse} from '../icons'
 import {escapeHtml} from '../helpers'
-import {formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT, type BuildPanelRenderOptions} from './shared'
+import {formatCost, jumpgateEffectText, wormholeEffectText, type BuildPanelRenderOptions} from './shared'
 
 /** 升级预览（仅 unique 大件）：含全部加成（科技/星球机制/NG+/能源折减）的真实产出提升。
  * 普通建筑无升级（ADR-0036 机制二分），不渲染升级预览。 */
@@ -29,7 +29,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
     if (def.id === 'jumpgate') {
       // ADR-0038：枢纽 10 级化 → 升级预览显示当前→下一级（槽位/收获倍率），满级回退能力描述
       const lv = state.upgrades.jumpgate ?? 0
-      if (lv <= 0 || lv >= 10) return JUMPGATE_EFFECT_TEXT
+      if (lv <= 0 || lv >= 10) return jumpgateEffectText()
       const cur = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * lv
       const next = 1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * (lv + 1)
       return t('ui.build.1', { a0: formatNumber(lv + 1), a1: formatNumber(5 + JUMPGATE_SLOT_TABLE[lv + 1]), a2: formatMultiplier(cur), a3: formatMultiplier(next) })
@@ -37,7 +37,7 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
     if (def.id === 'wormhole') {
       // wormhole-empire：虫洞机制流 → 升级预览显示下一级新增效果（槽位/能源/权重/上限），满级回退能力描述
       const lv = state.upgrades.wormhole ?? 0
-      if (lv <= 0 || lv >= 10) return WORMHOLE_EFFECT_TEXT
+      if (lv <= 0 || lv >= 10) return wormholeEffectText()
       return t('ui.build.2', { a0: formatNumber(lv + 1), a1: formatPercent(5), a2: formatPercent(10), a3: formatNumber(1) })
     }
     const up = simulateProductionDelta(state, { buildingId: def.id, levelDelta: 1 })
@@ -56,9 +56,9 @@ function upgradePreviewText(state: GameState, def: BuildingDef): string {
  * 唯一大件：建造预览（机制建筑用效果文案；产出建筑用 delta，count 0→1 有效） */
 function buyPreviewText(state: GameState, def: BuildingDef): string {
   if (def.unique) {
-    if (def.id === 'ringSmelter') return `建造：解锁全局产出乘数 ${formatMultiplier(2)}^等级（需升级激活）`
-    if (def.id === 'jumpgate') return JUMPGATE_EFFECT_TEXT
-    if (def.id === 'wormhole') return WORMHOLE_EFFECT_TEXT
+    if (def.id === 'ringSmelter') return t('ui.build.14', { a0: formatMultiplier(2) })
+    if (def.id === 'jumpgate') return jumpgateEffectText()
+    if (def.id === 'wormhole') return wormholeEffectText()
     const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
     const parts: string[] = []
     for (const k of RESOURCE_KEYS) {
@@ -66,7 +66,7 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
       if (d === 0) continue
       parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
     }
-    return t('ui.build.4', { a0: parts.join('，') || '无产出' })
+    return t('ui.build.4', { a0: parts.join('，') || t('ui.build.12') })
   }
   const buy = simulateProductionDelta(state, { buildingId: def.id, countDelta: 1 })
   const parts: string[] = []
@@ -76,9 +76,9 @@ function buyPreviewText(state: GameState, def: BuildingDef): string {
     parts.push(`${RESOURCE_META[k].symbol} ${formatRate(d)}`)
   }
   const consumes = (def.consumes && RESOURCE_KEYS.some((k) => (def.consumes![k] ?? 0) > 0))
-    ? ` · 耗 ${RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${formatRate(def.consumes![k] ?? 0, false)}`).join(' ')}`
+    ? t('ui.build.15', { a0: RESOURCE_KEYS.filter((k) => (def.consumes![k] ?? 0) > 0).map((k) => `${RESOURCE_META[k].symbol}${formatRate(def.consumes![k] ?? 0, false)}`).join(' ') })
     : ''
-  return t('ui.build.5', { a0: formatNumber(1), a1: parts.join('，') || '无产出', a2: consumes })
+  return t('ui.build.5', { a0: formatNumber(1), a1: parts.join('，') || t('ui.build.12'), a2: consumes })
 }
 
 /** 已解锁建造项卡片（图标 + 信息 + 预览 + 按钮组） */
@@ -96,7 +96,7 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
     <div class="build-info">
       <div class="build-name">
         ${escapeHtml(defName(def))}
-        ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : `<span class="build-count">×${formatNumber(count)}</span>`}
+        ${unique ? `<span class="build-count unique-badge">${t('ui.build.8')}</span>` : `<span class="build-count">×${formatNumber(count)}</span>`}
         ${level > 0 ? `<span class="build-level">Lv.${formatNumber(level)}</span>` : ''}
       </div>
       <div class="build-desc">${escapeHtml(defDesc(def))}</div>
@@ -115,23 +115,23 @@ function renderBuildingCard(state: GameState, def: BuildingDef, flashId: string 
     ? timeToSave(buyCost, netProduction(state))
     : null
   const costTimeRow = costTime != null && !unique
-    ? `<div class="build-cost-time" data-cost-time="${def.id}">买入 ${formatTimeToSave(costTime)}</div>`
+    ? `<div class="build-cost-time" data-cost-time="${def.id}">${t('ui.build.22', { a0: formatTimeToSave(costTime) })}</div>`
     : ''
   const buyBtn = showBuy
-    ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? `建造（唯一大件，升级产出 ${formatMultiplier(2)}/级）` : '建造'}">
-        ${unique ? '建造 ' : ''}${formatCost(buyCost)}
+    ? `<button type="button" class="build-btn" data-build="${def.id}" ${canBuy ? '' : 'disabled'} title="${unique ? t('ui.build.20', { a0: formatMultiplier(2) }) : t('ui.build.21')}">
+        ${unique ? `${t('ui.build.21')} ` : ''}${formatCost(buyCost)}
       </button>`
     : ''
   // 升级按钮组（仅 unique 大件；跃迁枢纽 10 级化 ADR-0038 后纳入升级；maxLevel 满级后替换为「已满级」提示）
   const upgradeBtns = unique && count > 0
     ? maxed
-      ? `        <div class="build-lock"><span class="lock-hint researched-hint">✓ 已满级（Lv.${formatNumber(def.maxLevel ?? 0)}）</span></div>`
+      ? `        <div class="build-lock"><span class="lock-hint researched-hint">${t('ui.build.10', { a0: formatNumber(def.maxLevel ?? 0) })}</span></div>`
       : `        <button type="button" class="build-btn upgrade-btn" data-upgrade="${def.id}" ${canUp ? '' : 'disabled'} title="升级：产出 ${formatMultiplier(2)}（${formatCost(upCost)}）">
           升级 ${formatCost(upCost)}
         </button>`
     : ''
   // 隐藏入口（hidden-buildings）：从面板隐藏此建造物（恢复走头部「已隐藏」抽屉）
-  const hideBtn = `<button type="button" class="build-btn build-hide-btn" data-hide-building="${def.id}" title="从建造面板隐藏此建筑（可在「已隐藏」抽屉恢复）">✕ 隐藏</button>`
+  const hideBtn = `<button type="button" class="build-btn build-hide-btn" data-hide-building="${def.id}" title="从建造面板隐藏此建筑（可在「已隐藏」抽屉恢复）">${t('ui.build.11')}</button>`
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.id)}</div>
     <div class="build-card-body">
@@ -160,8 +160,8 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
   const reqParts = lockReason
     ? [lockReason]
     : [
-        ...(def.requires ?? []).map((r) => `建筑·${(BUILDINGS[r] ? defName(BUILDINGS[r]) : r)}`),
-        ...(def.requiresTech ?? []).map((t) => `科技·${(TECHS[t] ? defName(TECHS[t]) : t)}`),
+        ...(def.requires ?? []).map((r) => t('ui.build.16', { a0: BUILDINGS[r] ? defName(BUILDINGS[r]) : r })),
+        ...(def.requiresTech ?? []).map((tid) => t('ui.build.17', { a0: TECHS[tid] ? defName(TECHS[tid]) : tid })),
       ]
   card.innerHTML = `
     <div class="build-card-icon">${iconUse(def.id)}</div>
@@ -169,7 +169,7 @@ function renderLockedCard(state: GameState, def: BuildingDef): HTMLElement {
       <div class="build-info">
         <div class="build-name">
           ${escapeHtml(defName(def))}
-          ${unique ? '<span class="build-count unique-badge">唯一大件</span>' : ''}
+          ${unique ? `<span class="build-count unique-badge">${t('ui.build.8')}</span>` : ''}
         </div>
         <div class="build-desc">${escapeHtml(defDesc(def))}</div>
       </div>
@@ -260,7 +260,7 @@ export function renderBuildPanel(el: HTMLElement, state: GameState, defs: Record
     collapse.className = 'locked-collapse'
     collapse.setAttribute('data-locked-collapse', collapseZone)
     collapse.setAttribute('data-expanded', expanded ? 'true' : 'false')
-    collapse.textContent = expanded ? '收起锁定项 ▴' : `还有 ${lockedDefs.length - 3} 项未解锁 ▾`
+    collapse.textContent = expanded ? t('ui.build.18') : t('ui.build.19', { a0: lockedDefs.length - 3 })
     el.appendChild(collapse)
   }
 }

@@ -176,7 +176,7 @@ export function createSession(args: CreateSessionArgs): Session {
       ui,
       nowMs,
       netProduction: getNetProduction,
-      settingsStatusText: `${activePlanet} · ${prodText || '无产出'} · 存档自动保存中`,
+      settingsStatusText: `${activePlanet} · ${prodText || t('ui.session.3')} · ${t('ui.session.4')}`,
       flashId,
       justUnlocked,
       seenAchievementMaxAt: ui.seenAchievementMaxAt,
@@ -186,7 +186,7 @@ export function createSession(args: CreateSessionArgs): Session {
     // ---- 会话态同步（ADR-0035 状态副作用留主函数，不节点化）----
     // 日志页头部排序按钮文案随方向同步（.log-head 静态构建，不随 250ms 重建 → 每次 render 对齐）
     const logdirBtn = els.panel.querySelector<HTMLElement>('[data-tool="logdir"]')
-    if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? '📜 最新在底' : '📜 最新在顶'
+if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? t('ui.session.1') : t('ui.session.2')
     // 日志筛选：chip 组重建（250ms 全量重建，委托监听稳定）+ 容器 data-log-filter 属性同步
     // （CSS 属性选择器 [data-log-filter=...] [data-log-line]:not(...) 隐藏不匹配行，零 JS 遍历）
     const filterBar = els.panel.querySelector<HTMLElement>('[data-log-filter-bar]')

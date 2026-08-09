@@ -10,12 +10,74 @@
 import type { Zh } from './zh'
 
 export const en: Zh = {
+  prod: [
+  'Tech bonus',
+  'Permanent bonus',
+  '{a0} (energy shortfall)',
+  'Smelter',
+  'Fleet maintenance',
+  'Building output',
+  'Tech bonus',
+  'Planet mechanic',
+  'Exploration bodies',
+  'Permanent bonus',
+  'Energy settlement',
+  'Smelter',
+  'Consumption details',
+  'Capped at military limit (current {a0} / cap {a1})',
+  'Energy supply rate {a0}%: energy-consuming building output reduced by shortfall',
+  ],
+  mechlog: [
+  'Next storm harvest in {a0}s',
+  "The energy vortex of the Storm's Throat condenses storm crystals, refining {a0} tech points.",
+  'Time flow {a0}',
+  'Tech → Energy 1:{a0}',
+  'Mineral {a0} · energy cost {a1}',
+  ],
+  engine: [
+  '【Military Victory】',
+  '【Run Stats】Elapsed {a0}; total minerals collected {a1}; NG+ run: {a2}.',
+  'The Federation banner unfurls across the star sea. A journey without end is itself the answer. Infinite mode begins — the colony log continues to be written.',
+  '【NG+ Run {a0}】Memories of the old world come with you: the trust of {a1} factions, {a2} tech points, and a {a3} permanent output bonus. The colony pod lands again, but this time, you bring answers.',
+  ],
   ui: {
+    overlaysX: [
+    'Endgame Project: {a0}',
+    'Round {a0} → Round {a1}. This cannot be undone.',
+    'Global output {a0}^level (mineral/energy/tech all included); energy cost {a1} × level (reduced by shortfall settlement when energy is low)',
+    'None',
+    ',',
+    'All output',
+    'Military cap',
+    ],
+    actions: [
+    '(with escort fleet)',
+    '{a0} min',
+    '10~30 min',
+    ],
+    shared: [
+    'Dispatch slots +{a0}~+{a1} (scales with level) · body harvest multiplier {a2}→{a3} · offline cap {a4}h',
+    'Dispatch slots +{a0}/level (Lv{a1} max {a2} slots) · exploration energy −{a3}/level (cap −{a4}) · discovery weight +{a5}/level · generated cap +{a6}/level',
+    ],
+    main: [
+    '(capped at {a0})',
+    'Offline gains: away {a0}{a1}, gained {a2}.',
+    'No output',
+    'Archive erased. A new colony pod is landing…',
+    ],
     settings: {
       langLabel: 'Language',
       zh: '中文',
       en: 'English',
     },
+    session: [
+    '—',
+    '📜 Newest at bottom',
+    '📜 Newest at top',
+    'No output',
+    'Auto-saving',
+    ],
+
     log: [
 
 'All',
@@ -101,14 +163,30 @@ export const en: Zh = {
     'Finale Legends',
     ],
     build: [
-'Global output {a0} → {a1}',
+    'Global output {a0} → {a1}',
     'Lv.{a0}: {a1} dispatch slots · harvest multiplier {a2} → {a3}',
     'Lv.{a0}: +1 dispatch slot · exploration energy −{a1} · discovery weight +{a2} · generated cap +{a3}',
-    'Output {a0} ({a1})',
-    'Build: {a0}',
+    'Upgrade output {a0} ({a1})',
+    'Output {a0}',
     'Buy {a0} unit(s): {a1}{a2}',
     'Hidden ({a0})',
     'Restore',
+    'Unique',
+    '—',
+    '✓ Maxed (Lv.{a0})',
+    '✕ Hide',
+    'No output',
+    'Output {a0}{a1}',
+    'Build: unlocks global output multiplier {a0}^level (needs upgrade to activate)',
+    ' · costs {a0}',
+    'Building·{a0}',
+    'Tech·{a0}',
+    'Collapse locked items ▴',
+    '{a0} more locked items ▾',
+    'Build (unique, upgrade output {a0}/level)',
+    'Build',
+    'Buy: {a0}',
+    ,
     ],
     interstellar: [
     'Escort Fleet',
@@ -283,11 +361,12 @@ export const en: Zh = {
     'Achievement Codex',
     "⚠ Cannot be undone after confirmation: this run's resources, buildings, tech, faction favor, conquest progress and reputation will all be reset.",
     'Start New Run',
-    'Cancel',
+    'Cancel'
     ],
     tech: [
     '🔒 Unlocks after the ending',
     '✓ Active',
+    'Click to upgrade: output coefficient +{a0} (Lv.{a1} → Lv.{a2})',
     ],
   },
   fmt: {
@@ -301,6 +380,12 @@ export const en: Zh = {
       minute: '≈{n} min of production',
       hour: '≈{n} h of production',
     },
+
+    /** offline 结算时长 */
+    seconds: '{a0}s',
+    minutes: '{a0}min',
+    hours: '{a0}h',
+    hoursMin: '{a0}h {a1}min',
   },
   res: {
     mineral: 'Mineral',

@@ -5,6 +5,7 @@
 //
 // 重要：仅放「跨域共享」项；单域 helper 留在对应 render 文件内（Q4/A 决策）。
 
+import { t } from '../../i18n'
 import type { GameState, ResourceKey } from '../../engine/types'
 import { RESOURCE_META } from '../../engine/data'
 import { formatMultiplier, formatNumber, formatPercent } from '../../engine/format'
@@ -92,7 +93,27 @@ export function buildCardAction(state: GameState, id: string): BuildCardAction |
 // ============================================================================
 
 /** 跃迁枢纽效果文案单一真源（ADR-0038 枢纽 10 级化：槽位/倍率随等级；从 balance/exploration 常量拼装，改平衡只动常量） */
-export const JUMPGATE_EFFECT_TEXT = `派遣槽 +${formatNumber(JUMPGATE_SLOT_TABLE[1])}~+${formatNumber(JUMPGATE_SLOT_TABLE[10])}（随等级） · 天体收获倍率 ${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL)}→${formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10)} · 离线封顶 ${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}h`
+/** 跃迁枢纽效果文案（ADR-0038 枢纽 10 级化；t() 渲染时求值，语言切换即时生效） */
+export function jumpgateEffectText(): string {
+  return t('ui.shared.0', {
+    a0: formatNumber(JUMPGATE_SLOT_TABLE[1]),
+    a1: formatNumber(JUMPGATE_SLOT_TABLE[10]),
+    a2: formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL),
+    a3: formatMultiplier(1 + JUMPGATE_HARVEST_PCT_PER_LEVEL * 10),
+    a4: `${(OFFLINE_CAP_SECONDS + JUMPGATE_OFFLINE_EXTRA_SECONDS) / 3600}`,
+  })
+}
 
 /** 虫洞效果文案单一真源（wormhole-empire：槽位/能源/权重/上限随等级；从 balance/exploration 常量拼装） */
-export const WORMHOLE_EFFECT_TEXT = `派遣槽 +${formatNumber(1)}/级（Lv${formatNumber(10)} 满 ${formatNumber(20)} 槽） · 探索能源 −${formatPercent(5)}/级（封顶 −${formatPercent(50)}） · 发现权重 +${formatPercent(10)}/级 · 生成上限 +${formatNumber(1)}/级`
+/** 虫洞效果文案（wormhole-empire；t() 渲染时求值） */
+export function wormholeEffectText(): string {
+  return t('ui.shared.1', {
+    a0: formatNumber(1),
+    a1: formatNumber(10),
+    a2: formatNumber(20),
+    a3: formatPercent(5),
+    a4: formatPercent(50),
+    a5: formatPercent(10),
+    a6: formatNumber(1),
+  })
+}

@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { applyMaintenance, militaryCap, productionReport } from './production'
 import { applyFleetMaintenance } from './fleet'
 import { autoConquestTick, settleConquests } from './conquest'
@@ -134,10 +135,10 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
 /** 秒数格式化为人类可读时长（如 "3小时12分" / "45秒"） */
 export function formatDuration(seconds: number): string {
   const s = Math.floor(seconds)
-  if (s < 60) return `${s}秒`
+  if (s < 60) return t('fmt.seconds', { a0: s })
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
-  if (h <= 0) return `${m}分钟`
-  if (m <= 0) return `${h}小时`
-  return `${h}小时${m}分`
+  if (h <= 0) return t('fmt.minutes', { a0: m })
+  if (m <= 0) return t('fmt.hours', { a0: h })
+  return t('fmt.hoursMin', { a0: h, a1: m })
 }

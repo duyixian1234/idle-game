@@ -39,7 +39,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁；带 label 的探索类（星舰线）显示自定义文案
     let effectText: string
     if (def.effect.kind === 'unlockBuilding') {
-      effectText = `解锁建筑：${(BUILDINGS[def.effect.buildingId] ? defName(BUILDINGS[def.effect.buildingId]) : def.effect.buildingId)}`
+effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BUILDINGS[def.effect.buildingId]) : def.effect.buildingId) })
     } else if (def.effect.kind === 'exploration') {
       // ADR-0038：探索类科技仅剩带 labelKey 的星舰线（纯 UI 文案，无信道/倍率逻辑）
       effectText = def.effect.labelKey
@@ -85,7 +85,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
         card.innerHTML = `${icon}
           <div class="build-card-body">
             ${info}
-            <div class="build-lock"><span class="lock-hint">🔒 需结盟 ${formatNumber(def.requiresAllies)} 个派系</span></div>
+            <div class="build-lock"><span class="lock-hint">${t('ui.tech.1', { a0: formatNumber(def.requiresAllies) })}</span></div>
           </div>`
         grid.appendChild(card)
         continue
@@ -97,7 +97,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
         card.innerHTML = `${icon}
           <div class="build-card-body">
             ${info}
-            <div class="build-lock"><span class="lock-hint">需先研发：${names}</span></div>
+            <div class="build-lock"><span class="lock-hint">${t('ui.tech.2', { a0: names })}</span></div>
           </div>`
         grid.appendChild(card)
         continue
@@ -127,7 +127,7 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     card.innerHTML = `${icon}
       <div class="build-card-body">${info}</div>
       <div class="build-actions">
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="单击升级：产出系数 +${formatNumber(0.5)}（Lv.${formatNumber(level)} → Lv.${formatNumber(level + 1)}）">
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="${t('ui.tech.3', { a0: formatNumber(0.5), a1: formatNumber(level), a2: formatNumber(level + 1) })}">
           升级 ▶ ${formatCost(cost)}
         </button>
       </div>`

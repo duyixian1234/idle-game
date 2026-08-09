@@ -180,7 +180,8 @@ function eventsTick(state: GameState, nowMs: number, rng?: () => number): void {
 function settlementTick(state: GameState, nowMs: number, rng?: () => number): void {
   // 攻占结算（倒计时到期 → 成功/失败；rng undefined → 走 conquest 域持久化计数器）
   for (const conquestLog of settleConquests(state, nowMs, rng)) {
-    pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+    // 快照文本前缀判断（兼容 zh 历史存档 + 当前语言）：捷报归 reward，其余 warning
+  pushLog(state, conquestLog.startsWith('【军事捷报】') || conquestLog.startsWith(t('engine.0')) ? 'reward' : 'warning', conquestLog)
   }
   // 探索派遣结算（倒计时到期 → 自动入账：新势力/新天体/资源补偿；离线由 settleOffline 调用同函数）
   for (const expLog of settleExpeditions(state, nowMs)) {
@@ -251,7 +252,7 @@ export function checkEnding(state: GameState): boolean {
   pushLog(
     state,
     'system',
-    `【通关统计】统一历时 ${formatPlayTime(state.playSeconds)}；累计采集矿物 ${formatNumber(state.stats.totalMineralEarned)}；NG+ 周目：${formatNumber(state.ngPlusLevel)}。`,
+    t('engine.1', { a0: formatPlayTime(state.playSeconds), a1: formatNumber(state.stats.totalMineralEarned), a2: formatNumber(state.ngPlusLevel) }),
   )
   applyInfiniteMode(state)
   return true
@@ -279,7 +280,7 @@ export function enterInfiniteMode(state: GameState): void {
 function applyInfiniteMode(state: GameState): void {
   state.phase = 'infinite'
   state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
-  pushLog(state, 'story', '联邦的旗帜在星海间展开。没有终点的旅程，本身就是答案。无限模式开启——殖民地日志将继续书写。')
+  pushLog(state, 'story', t('engine.2'))
   playMilestone(state, 'endless')
 }
 
@@ -385,6 +386,6 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   pushLog(
     state,
     'story',
-    `【NG+ 第 ${formatNumber(state.ngPlusLevel)} 周目】旧世界的记忆随你而来：${formatNumber(state.factionCodex.length)} 个派系的信任、${formatNumber(carryTech)} 科技点、以及 ${formatMultiplier(state.permanentMult)} 的永久产出加成。殖民舱再次降落，但这一次，你带着答案回来。`,
+    t('engine.3', { a0: formatNumber(state.ngPlusLevel), a1: formatNumber(state.factionCodex.length), a2: formatNumber(carryTech), a3: formatMultiplier(state.permanentMult) }),
   )
 }

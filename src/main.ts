@@ -69,11 +69,12 @@ async function main(): Promise<void> {
       .filter((k) => offline.gains[k] > 0)
       .map((k) => `${t(RESOURCE_META[k].nameKey)} +${formatNumber(offline.gains[k])}`)
       .join('、')
-    const capText = offline.capped ? `（已达 ${formatDuration(offlineCapSeconds(state))} 封顶）` : ''
-    pushLog(state, 'reward', `离线收益：离开 ${formatDuration(offline.rawDurationSeconds)}${capText}，获得 ${gainsText || '无产出'}。`)
+    const capText = offline.capped ? t('ui.main.0', { a0: formatDuration(offlineCapSeconds(state)) }) : ''
+    pushLog(state, 'reward', t('ui.main.1', { a0: formatDuration(offline.rawDurationSeconds), a1: capText, a2: gainsText || t('ui.main.2') }))
     for (const raidLog of offline.raidLogs) pushLog(state, 'warning', raidLog)
     for (const conquestLog of offline.conquestLogs) {
-      pushLog(state, conquestLog.startsWith('【军事捷报】') ? 'reward' : 'warning', conquestLog)
+      // 快照文本前缀判断（兼容 zh 历史存档 + 当前语言）
+  pushLog(state, conquestLog.startsWith('【军事捷报】') || conquestLog.startsWith(t('engine.0')) ? 'reward' : 'warning', conquestLog)
     }
     // 探索派遣离线到期：回归自动入账（结果日志播报，防静默）
     for (const expLog of offline.expeditionLogs) pushLog(state, expLog.type, expLog.text)
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
   ;(window as unknown as { __resetGame?: () => Promise<void> }).__resetGame = async () => {
     await deleteSave()
     const fresh = createInitialState(Date.now())
-    pushLog(fresh, 'story', '档案已抹除。新的殖民舱正在降落……')
+    pushLog(fresh, 'story', t('ui.main.3'))
     session.setState(fresh)
     session.render()
   }

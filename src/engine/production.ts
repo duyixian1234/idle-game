@@ -413,7 +413,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   for (const key of RESOURCE_KEYS) {
     if (techMult[key] !== 1) {
       const contrib = buildingSum[key] * (techMult[key] - 1)
-      if (contrib !== 0) techRows[key].push({ name: '科技加成', mult: techMult[key], value: contrib, kind: 'mult' })
+      if (contrib !== 0) techRows[key].push({ name: t('prod.0'), mult: techMult[key], value: contrib, kind: 'mult' })
     }
   }
 
@@ -458,7 +458,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   if (permMult !== 1) {
     for (const key of RESOURCE_KEYS) {
       const contrib = (mechView[key] + exploreSum[key]) * (permMult - 1)
-      if (contrib !== 0) permRows[key].push({ name: '永久加成', mult: permMult, value: contrib, kind: 'mult' })
+      if (contrib !== 0) permRows[key].push({ name: t('prod.1'), mult: permMult, value: contrib, kind: 'mult' })
     }
   }
 
@@ -476,7 +476,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
         const prod = (def.produces[key] ?? 0) * count
         if (prod === 0) continue
         const loss = prod * techMult[key] * permMult * (1 - energyRatio)
-        if (loss !== 0) ratioRows[key].push({ name: `${defName(def) ?? id}（能源不足）`, value: -loss, kind: 'sub' })
+        if (loss !== 0) ratioRows[key].push({ name: t('prod.2', { a0: defName(def) ?? id }), value: -loss, kind: 'sub' })
       }
     }
   }
@@ -490,7 +490,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
       if (key === 'military') continue
       const contrib = (afterPerm[key] + sumRows(ratioRows[key])) * (smelterMult - 1)
       if (contrib !== 0) {
-        smelterRows[key].push({ name: '冶炼场', mult: smelterMult, value: contrib, kind: 'mult' })
+        smelterRows[key].push({ name: t('prod.3'), mult: smelterMult, value: contrib, kind: 'mult' })
         smelterSum[key] = contrib
       }
     }
@@ -518,7 +518,7 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     }
   }
   if (state.fleet.count > 0) {
-    energyConsumption.push({ name: '舰队维护', count: state.fleet.count, value: -fleetMaintenance(state), kind: 'sub' })
+    energyConsumption.push({ name: t('prod.4'), count: state.fleet.count, value: -fleetMaintenance(state), kind: 'sub' })
   }
   const mineralConsumption: BreakdownRow[] = []
   for (const [id, count] of Object.entries(state.buildings)) {
@@ -536,22 +536,22 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   const out = {} as Record<ResourceKey, ResourceBreakdown>
   for (const key of RESOURCE_KEYS) {
     const groups: BreakdownGroup[] = []
-    if (buildingRows[key].length > 0) groups.push({ id: 'building', label: '建筑产出', rows: buildingRows[key] })
-    if (techRows[key].length > 0) groups.push({ id: 'tech', label: '科技加成', rows: techRows[key] })
-    if (mechRows[key].length > 0) groups.push({ id: 'mechanics', label: '星球机制', rows: mechRows[key] })
-    if (exploreRows[key].length > 0) groups.push({ id: 'explore', label: '探索天体', rows: exploreRows[key] })
-    if (permRows[key].length > 0) groups.push({ id: 'permanent', label: '永久加成', rows: permRows[key] })
-    if (ratioRows[key].length > 0) groups.push({ id: 'energy-ratio', label: '能源结算', rows: ratioRows[key] })
-    if (smelterRows[key].length > 0) groups.push({ id: 'smelter', label: '冶炼场', rows: smelterRows[key] })
+    if (buildingRows[key].length > 0) groups.push({ id: 'building', label: t('prod.5'), rows: buildingRows[key] })
+    if (techRows[key].length > 0) groups.push({ id: 'tech', label: t('prod.6'), rows: techRows[key] })
+    if (mechRows[key].length > 0) groups.push({ id: 'mechanics', label: t('prod.7'), rows: mechRows[key] })
+    if (exploreRows[key].length > 0) groups.push({ id: 'explore', label: t('prod.8'), rows: exploreRows[key] })
+    if (permRows[key].length > 0) groups.push({ id: 'permanent', label: t('prod.9'), rows: permRows[key] })
+    if (ratioRows[key].length > 0) groups.push({ id: 'energy-ratio', label: t('prod.10'), rows: ratioRows[key] })
+    if (smelterRows[key].length > 0) groups.push({ id: 'smelter', label: t('prod.11'), rows: smelterRows[key] })
     const total = key === 'military' ? cappedMilitary : afterPerm[key] + sumRows(ratioRows[key]) + smelterSum[key]
     const b: ResourceBreakdown = {
       resource: key,
       total,
       groups,
-      ...(key === 'energy' && energyConsumption.length > 0 ? { consumption: { id: 'consumption', label: '消耗明细', rows: energyConsumption } } : {}),
-      ...(key === 'mineral' && mineralConsumption.length > 0 ? { consumption: { id: 'consumption', label: '消耗明细', rows: mineralConsumption } } : {}),
-      ...(key === 'military' && preMilitary > room ? { capNote: `已按军力上限截断（当前 ${formatNumber(state.resources.military)} / 上限 ${formatNumber(militaryCap(state))}）` } : {}),
-      ...(key === 'energy' && energyRatio < 1 ? { energyNote: `能源供给率 ${(energyRatio * 100).toFixed(0)}%：消耗能源建筑产出按缺口折减` } : {}),
+      ...(key === 'energy' && energyConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: energyConsumption } } : {}),
+      ...(key === 'mineral' && mineralConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: mineralConsumption } } : {}),
+      ...(key === 'military' && preMilitary > room ? { capNote: t('prod.13', { a0: formatNumber(state.resources.military), a1: formatNumber(militaryCap(state)) }) } : {}),
+      ...(key === 'energy' && energyRatio < 1 ? { energyNote: t('prod.14', { a0: (energyRatio * 100).toFixed(0) }) } : {}),
     }
     out[key] = b
   }

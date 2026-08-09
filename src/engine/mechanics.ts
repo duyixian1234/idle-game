@@ -1,6 +1,7 @@
 import { RESOURCE_KEYS } from './data'
 import { ORBITAL_FORGE_CONVERT_RATIO, STORM_HARVEST_INTERVAL_MS, LOGISTICS_TECH_ENERGY_RATIO, OUTPOST_MINERAL_MULT, OUTPOST_ENERGY_MULT } from './balance'
 import type { GameState, MechanicId, ResourceKey } from './types'
+import { t } from '../i18n'
 import type { DeepKey, TranslateParams, Zh } from '../i18n'
 import { formatMultiplier, formatNumber, formatPercent } from './format'
 
@@ -104,14 +105,14 @@ const massProduction: PlanetMechanic = {
   },
   describe(state, nowMs = Date.now()) {
     const remain = Math.max(0, STORM_HARVEST_INTERVAL_MS - (nowMs - state.lastStormHarvestAt))
-    return `下次风暴收获 ${Math.ceil(remain / 1000)} 秒后`
+    return t('mechlog.0', { a0: Math.ceil(remain / 1000) })
   },
   harvest(state, nowMs, techProd) {
     if (nowMs - state.lastStormHarvestAt < STORM_HARVEST_INTERVAL_MS) return null
     const gain = Math.max(STORM_HARVEST_MIN_GAIN, Math.floor(techProd * STORM_HARVEST_TECH_MULT))
     state.resources.tech += gain
     state.lastStormHarvestAt = nowMs
-    return `风暴之喉的能量漩涡凝聚出风暴结晶，提炼出 ${formatNumber(gain)} 科技点。`
+    return t('mechlog.1', { a0: formatNumber(gain) })
   },
 }
 
@@ -127,7 +128,7 @@ const warpCore: PlanetMechanic = {
     for (const k of RESOURCE_KEYS) nominal[k] *= WARP_CORE_MULT
   },
   describe() {
-    return `时间流速 ${formatMultiplier(WARP_CORE_MULT)}`
+    return t('mechlog.2', { a0: formatMultiplier(WARP_CORE_MULT) })
   },
 }
 
@@ -139,7 +140,7 @@ const logisticsHub: PlanetMechanic = {
     /* 产出无直接修正（折算作用于能源结算，见 energyAdjust） */
   },
   describe() {
-    return `科技点 → 能源 1:${formatNumber(1 / LOGISTICS_TECH_ENERGY_RATIO)}`
+    return t('mechlog.3', { a0: formatNumber(1 / LOGISTICS_TECH_ENERGY_RATIO) })
   },
   energyAdjust(state) {
     return { poolBonus: Math.max(0, state.resources.tech) * LOGISTICS_TECH_ENERGY_RATIO, demandMult: 1 }
@@ -155,7 +156,7 @@ const outpost: PlanetMechanic = {
     nominal.mineral *= OUTPOST_MINERAL_MULT
   },
   describe() {
-    return `矿物 ${formatMultiplier(OUTPOST_MINERAL_MULT)} · 能耗 ${formatMultiplier(OUTPOST_ENERGY_MULT)}`
+    return t('mechlog.4', { a0: formatMultiplier(OUTPOST_MINERAL_MULT), a1: formatMultiplier(OUTPOST_ENERGY_MULT) })
   },
   energyAdjust() {
     return { poolBonus: 0, demandMult: OUTPOST_ENERGY_MULT }

@@ -1,7 +1,7 @@
 // ui/render/interstellar.ts — 星际工程面板域（panels.ts 拆分专用；2026-08-08）
 //
 // 范围：renderInterstellarPanel + 内部 helpers（renderFleetSection / renderMegastructureSection）。
-// 跨域依赖：renderBuildPanel（./build）、JUMPGATE_EFFECT_TEXT（./shared）。
+// 跨域依赖：renderBuildPanel（./build）、jumpgateEffectText()（./shared）。
 
 import { t } from '../../i18n'
 import type { GameState, ResourceKey } from '../../engine/types'
@@ -13,7 +13,7 @@ import {FLEET_HARVEST_PCT_PER_SHIP} from '../../engine/balance'
 import {formatMultiplier, formatNumber, formatRate} from '../../engine/format'
 import {iconUse} from '../icons'
 import {escapeHtml} from '../helpers'
-import {type BuildPanelRenderOptions, formatCost, JUMPGATE_EFFECT_TEXT, WORMHOLE_EFFECT_TEXT} from './shared'
+import {type BuildPanelRenderOptions, formatCost, jumpgateEffectText, wormholeEffectText} from './shared'
 import {renderBuildPanel} from './build'
 
 /** 建造页「星际工程」分组：唯一大件建筑列表（锁定卡片显示引擎判定原因）+ 终局工程区块。 */
@@ -161,8 +161,8 @@ export function renderMegastructureSection(el: HTMLElement, state: GameState): v
       id === 'ringSmelter'
         ? t('ui.interstellar.19', { a0: formatMultiplier(2), a1: formatRate(100, false) })
         : id === 'wormhole'
-          ? WORMHOLE_EFFECT_TEXT
-          : JUMPGATE_EFFECT_TEXT
+          ? wormholeEffectText()
+          : jumpgateEffectText()
     // 虫洞特殊解锁链（requiresTech → 虫洞理论）：未通关 / 未研发时显示锁定原因（复用引擎判定）
     const statusText = built
       ? t('ui.interstellar.20')
