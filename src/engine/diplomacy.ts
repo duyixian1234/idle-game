@@ -1,5 +1,5 @@
 import { t } from '../i18n'
-import { ALL_FACTIONS, FACTIONS, RESOURCE_KEYS } from './data'
+import { ALL_FACTIONS, EXPLORE_FACTIONS, FACTIONS, RESOURCE_KEYS } from './data'
 import type { FactionDef } from './data'
 import { isEndlessTargetId } from './generate'
 import {
@@ -507,6 +507,19 @@ export function federationProgress(state: GameState): { total: number; satisfied
   }).length
   if (state.phase === 'infinite') return { total: satisfied, satisfied }
   return { total: ids.length, satisfied }
+}
+
+/** 已结盟的有名派系数（alliance-perpetual-output）：静态 4 家 + 探索势力 4 家 = 封顶 8。
+ * 程序生成派系（gen:/endless:）不计入——ADR-0012 红线（infinite 生成目标零永久加成，防无限叠加）。
+ * 纯派生自周目内 state.factions[].allied，零写入、零 schema；NG+ 派系重置 → 自然归零（周目内语义）。
+ * 驱动结盟全局产出加成（production.ts allianceMult，+5%/派系）。 */
+export function alliedNamedFactionCount(state: GameState): number {
+  let n = 0
+  for (const id of Object.keys(state.factions)) {
+    if (!state.factions[id]?.allied) continue
+    if (id in FACTIONS || id in EXPLORE_FACTIONS) n++
+  }
+  return n
 }
 
 /** 外交面板总览（diplomacy-overview）：联邦统一进度 + 威胁安宁 + 盟约图鉴，全派生纯查询。

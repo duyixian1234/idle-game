@@ -143,6 +143,20 @@ describe('engine: endless-expansion 程序生成器', () => {
     }
   })
 
+  it('生成目标名称：词库 key 真实解析（不以 gen. 坏前缀开头，i18n 修复防回归）', () => {
+    const s = infiniteState()
+    const r = fixedRolls([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+    const names = [
+      generateConquestTarget(s, r).name,
+      generateFactionTarget(s, r).name,
+      generatePlanetTarget(s, r).name,
+    ]
+    for (const name of names) {
+      expect(name).not.toMatch(/^gen\./)
+      expect(name.length).toBeGreaterThan(0)
+    }
+  })
+
   it('数量上限：max(2 + floor(探索次数/10), 2 + 周目数)，不封顶', () => {
     const s = infiniteState()
     expect(generatedCap(s, 'conquest')).toBe(2)

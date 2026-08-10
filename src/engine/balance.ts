@@ -74,6 +74,10 @@ export const INTIMIDATE_COST_GROWTH = 1.8
 /** 结盟成本 */
 export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, energy: 50_000, tech: 20_000, military: 0 }
 
+/** 结盟长期产出加成（alliance-perpetual-output）：每结盟一个有名派系 → 全局产出 +5%（矿/能源/科技，军力不吃）。
+ * 有名派系封顶 8（4 静态 + 4 探索）→ 满配 +40%；程序生成派系不计入（ADR-0012 红线）；周目内生效、NG+ 归零。 */
+export const ALLIANCE_PRODUCTION_PCT_PER_FACTION = 0.05
+
 /** 技术共享：花费科技点直接提升好感（纯科技点出口，与结盟成本同量级） */
 export const TECH_SHARE_FAVOR_GAIN = 15
 export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000, military: 0 }

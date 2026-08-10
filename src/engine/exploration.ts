@@ -500,12 +500,12 @@ function settleOne(state: GameState, exp: ExpeditionState, nowMs: number): Exped
     const ps = state.planets[r.planetId]
     if (ps?.unlocked) {
       ps.outputBonus = Math.min(EXPEDITION_OUTPUT_BONUS_CAP, (ps.outputBonus ?? 0) + EXPEDITION_OUTPUT_BONUS_STEP)
-      return { type: 'story', text: t('log.exploration.12', { a0: (def ? defName(def) : r.planetId), a1: formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100), a2: escortNote }) }
+      return { type: 'story', text: t('log.exploration.12', { a0: (def ? defName(def) : t('misc.unknownPlanet')), a1: formatPercent(EXPEDITION_OUTPUT_BONUS_STEP * 100), a2: escortNote }) }
     }
     // 无尽天体（endless-expansion）：手写保底（endless:）或程序生成（gen:planet）
     const endless = settleEndlessPlanet(state, r.planetId, nowMs, escortNote)
     if (endless) return endless
-    return { type: 'story', text: t('log.exploration.13', { a0: (def ? defName(def) : r.planetId), a1: escortNote }) }
+    return { type: 'story', text: t('log.exploration.13', { a0: (def ? defName(def) : t('misc.unknownPlanet')), a1: escortNote }) }
   }
   state.resources.mineral += r.mineral
   state.resources.energy += r.energy

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { checkEnding, createInitialState, tick } from './engine'
 import {
+  alliedNamedFactionCount,
   canFactionAlliance,
   canFactionExtort,
   canFactionTechShare,
@@ -10,6 +11,7 @@ import {
   canFactionAtone,
   coercionTick,
   coercionUnlocked,
+  createFactionState,
   createFactions,
   diplomacyOverview,
   ensureCoercionUnlocked,
@@ -59,7 +61,9 @@ import {
   ATONE_DURATION_MS,
   ATONE_TRADE_FAVOR_MULT,
   COERCION_UNLOCK_MILITARY_CAP,
+  ALLIANCE_PRODUCTION_PCT_PER_FACTION,
 } from './balance'
+import { EXPLORE_FACTIONS } from './data'
 import type { GameState } from './types'
 
 describe('engine: 派系初始状态', () => {
@@ -702,5 +706,78 @@ describe('engine: 胁迫外交 - 结局双文本', () => {
     expect(checkEnding(s)).toBe(true)
     const endingLogs = s.log.filter((l) => l.text.includes('征服者'))
     expect(endingLogs.length).toBeGreaterThan(0)
+  })
+})
+
+describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () => {
+  /** 结盟指定有名派系；extraGenIds 追加已结盟的程序生成派系（不计入） */
+  function alliedState(alliedIds: string[], extraGenIds: string[] = []): GameState {
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    for (const id of alliedIds) {
+      s.factions[id].favor = 85
+      expect(factionAlliance(s, id)).toEqual({ ok: true })
+    }
+    for (const id of extraGenIds) {
+      s.factions[id] = createFactionState({ id, initialFavor: 10, initialThreat: 30 })
+      s.factions[id].allied = true
+    }
+    return s
+  }
+
+  it('alliedNamedFactionCount：0 / 1 / 4 静态派系', () => {
+    expect(alliedNamedFactionCount(alliedState([]))).toBe(0)
+    expect(alliedNamedFactionCount(alliedState(['ferro']))).toBe(1)
+    expect(alliedNamedFactionCount(alliedState(['ferro', 'lumen', 'cygnus', 'vox']))).toBe(4)
+  })
+
+  it('alliedNamedFactionCount：探索势力结盟计入（8 家封顶 = 4 静态 + 4 探索）', () => {
+    const s = alliedState(['ferro', 'lumen', 'cygnus', 'vox'])
+    for (const id of Object.keys(EXPLORE_FACTIONS)) {
+      s.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
+      s.factions[id].allied = true
+    }
+    expect(alliedNamedFactionCount(s)).toBe(8)
+  })
+
+  it('alliedNamedFactionCount：程序生成派系结盟不计入（ADR-0012 红线）', () => {
+    const s = alliedState(['ferro'], ['gen:faction:0', 'endless:faction:1'])
+    expect(alliedNamedFactionCount(s)).toBe(1)
+  })
+
+  it('alliedNamedFactionCount：纯函数不改 state', () => {
+    const s = alliedState(['ferro'])
+    const before = JSON.stringify(s)
+    alliedNamedFactionCount(s)
+    expect(JSON.stringify(s)).toBe(before)
+  })
+
+  it('生产报告：结盟 1/4 派系 → mineral/energy/tech 产出 ×1.05/×1.20', () => {
+    const base = productionReport(createInitialState(0)).nominal
+    const one = productionReport(alliedState(['ferro'])).nominal
+    const four = productionReport(alliedState(['ferro', 'lumen', 'cygnus', 'vox'])).nominal
+    expect(one.mineral).toBeCloseTo(base.mineral * (1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION), 6)
+    expect(one.energy).toBeCloseTo(base.energy * (1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION), 6)
+    expect(one.tech).toBeCloseTo(base.tech * (1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION), 6)
+    expect(four.mineral).toBeCloseTo(base.mineral * (1 + 4 * ALLIANCE_PRODUCTION_PCT_PER_FACTION), 6)
+    expect(four.energy).toBeCloseTo(base.energy * (1 + 4 * ALLIANCE_PRODUCTION_PCT_PER_FACTION), 6)
+  })
+
+  it('生产报告：military 不吃结盟加成（军力是军事线）', () => {
+    const base = createInitialState(0)
+    base.buildings.barracks = 1
+    const four = alliedState(['ferro', 'lumen', 'cygnus', 'vox'])
+    four.buildings.barracks = 1
+    expect(productionReport(four).nominal.military).toBe(productionReport(base).nominal.military)
+  })
+
+  it('周目内语义：NG+ 派系重置后加成归零', () => {
+    const s = alliedState(['ferro', 'lumen'])
+    expect(alliedNamedFactionCount(s)).toBe(2)
+    // startNewGamePlus 重置派系 → allied 清空 → 归零（模拟：清空 allied 标志）
+    for (const f of Object.values(s.factions)) f.allied = false
+    expect(alliedNamedFactionCount(s)).toBe(0)
   })
 })

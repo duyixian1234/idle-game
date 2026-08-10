@@ -2,11 +2,12 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
 import {fleetMaintenance} from './fleet'
+import {alliedNamedFactionCount} from './diplomacy'
 import {formatNumber, formatPercent} from './format'
 import type { GameState, ResourceKey } from './types'
 
@@ -106,6 +107,12 @@ function pipelineNominal(state: GameState): PipelineNominal {
   return { techMult, nominal, energyDemand }
 }
 
+/** 结盟全局产出加成（alliance-perpetual-output）：1 + 5% × 已结盟有名派系数（静态 4 + 探索 4，封顶 8 = +40%）。
+ * 与 NG+/攻占永久加成（permMult）乘法叠加；军力不吃（对齐 smelterMult 口径——结盟是资源线，军力是军事线）。 */
+export function allianceProductionMult(state: GameState): number {
+  return 1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION * alliedNamedFactionCount(state)
+}
+
 /**
  * 完整生产报告：
  * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
@@ -124,6 +131,15 @@ export function productionReport(state: GameState): ProductionReport {
   const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
   if (permMult !== 1) {
     for (const key of RESOURCE_KEYS) nominal[key] *= permMult
+  }
+
+  // 结盟全局产出加成（alliance-perpetual-output）：每结盟有名派系 +5%（矿/能源/科技，军力不吃）。
+  // 与 permMult 同层（能源结算前）：结盟加成可为自己供能（类比 NG+ 遗产口径）；对生成派系结盟无效（ADR-0012）。
+  const allianceMult = allianceProductionMult(state)
+  if (allianceMult !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      if (key !== 'military') nominal[key] *= allianceMult
+    }
   }
 
   const energyRatio = settleEnergyRatio(state, nominal.energy, energyDemand)
@@ -193,9 +209,10 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
     if (!def?.output) continue
     const bonus = 1 + (ps.outputBonus ?? 0)
     const values = zeroResources()
+    const allianceMult = allianceProductionMult(state)
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
-      if (base !== 0) values[key] = base * bonus * permMult * smelterMult
+      if (base !== 0) values[key] = base * bonus * permMult * allianceMult * smelterMult
     }
     out.push({ planetId: id, name: defName(def), values })
   }

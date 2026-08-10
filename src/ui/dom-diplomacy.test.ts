@@ -173,6 +173,43 @@ describe('ui: 外交面板', () => {
     expect(container.querySelector('[data-panel="diplomacy"]')!.textContent).toContain('尚未探测到其他文明信号')
   })
 
+  it('总览卡：无结盟时盟约加成行不渲染（alliance-perpetual-output）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    expect(container.querySelector('[data-diplo-alliance-bonus]')).toBeNull()
+  })
+
+  it('总览卡：结盟 1 家渲染盟约加成 +5.00%（alliance-perpetual-output）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.factions.ferro.allied = true
+    s.factions.ferro.favor = 100
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const row = container.querySelector('[data-diplo-alliance-bonus]') as HTMLElement
+    expect(row).toBeTruthy()
+    expect(row.textContent).toContain('+5.00%')
+  })
+
+  it('总览卡：结盟 4 家渲染盟约加成 +20.00%（alliance-perpetual-output）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    for (const id of Object.keys(s.factions)) {
+      s.factions[id].allied = true
+      s.factions[id].favor = 100
+    }
+    renderDiplomacyPanel(container.querySelector('[data-panel="diplomacy"]') as HTMLElement, s)
+    const row = container.querySelector('[data-diplo-alliance-bonus]') as HTMLElement
+    expect(row).toBeTruthy()
+    expect(row.textContent).toContain('+20.00%')
+  })
+
   it('胁迫外交：未解锁时显示解锁提示且无勒索按钮', () => {
     const container = document.createElement('div')
     buildLayout(container)

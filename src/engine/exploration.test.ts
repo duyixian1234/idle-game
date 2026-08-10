@@ -352,6 +352,16 @@ describe('engine: 派遣结算（自动入账）', () => {
     expect(s.stats.explorations).toBe(1)
   })
 
+  it('planet 分支：已解锁但目标 def 缺失（边界态）日志显示占位名（未知天体）而非原始 id', () => {
+    const s = endedState()
+    s.planets['ghost'] = { unlocked: true, unlockedAt: 0 } // 旧存档残留态：解锁但不在任何 def 表
+    s.expeditions.push(fakeExpedition({ result: { kind: 'planet', planetId: 'ghost' } }))
+    const logs = settleExpeditions(s, CYCLE)
+    expect(logs).toHaveLength(1)
+    expect(logs[0].text).not.toContain('ghost')
+    expect(logs[0].text).toContain('未知天体')
+  })
+
   it('重复发现已收录派系：好感 +5（封顶 100），不重复创建', () => {
     const s = endedState()
     s.factions.ashCommune = createFactionState({ id: '灰潮共同体', descText: '', initialFavor: 10, initialThreat: 35 })

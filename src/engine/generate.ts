@@ -1,5 +1,4 @@
 import { t } from '../i18n'
-import type { DeepKey, Zh } from '../i18n'
 import { RESOURCE_META } from './data'
 import {
   ENDLESS_BATCH_2_EXPLORATIONS,
@@ -39,21 +38,23 @@ import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 // ---- 生成词库（命名/描述素材，程序生成专用） ----
 
-const CONQUEST_PREFIX = ['gen.cqPre.0', 'gen.cqPre.1', 'gen.cqPre.2', 'gen.cqPre.3', 'gen.cqPre.4', 'gen.cqPre.5', 'gen.cqPre.6', 'gen.cqPre.7']
-const CONQUEST_NOUN = ['gen.cqNoun.0', 'gen.cqNoun.1', 'gen.cqNoun.2', 'gen.cqNoun.3', 'gen.cqNoun.4', 'gen.cqNoun.5', 'gen.cqNoun.6', 'gen.cqNoun.7']
-const FACTION_PREFIX = ['gen.facPre.0', 'gen.facPre.1', 'gen.facPre.2', 'gen.facPre.3', 'gen.facPre.4', 'gen.facPre.5', 'gen.facPre.6', 'gen.facPre.7']
-const FACTION_NOUN = ['gen.facNoun.0', 'gen.facNoun.1', 'gen.facNoun.2', 'gen.facNoun.3', 'gen.facNoun.4', 'gen.facNoun.5', 'gen.facNoun.6', 'gen.facNoun.7']
-const PLANET_PREFIX = ['gen.plPre.0', 'gen.plPre.1', 'gen.plPre.2', 'gen.plPre.3', 'gen.plPre.4', 'gen.plPre.5', 'gen.plPre.6', 'gen.plPre.7']
-const PLANET_NOUN = ['gen.plNoun.0', 'gen.plNoun.1', 'gen.plNoun.2', 'gen.plNoun.3', 'gen.plNoun.4', 'gen.plNoun.5', 'gen.plNoun.6', 'gen.plNoun.7']
+// 词库 key 引用 i18n 资源顶层数组（cqPre/cqNoun/facPre/facNoun/plPre/plNoun；修复：原误用 gen. 前缀导致 t() 返回 key 本身）
+// as const：保留字面量联合类型，使 t() 的 DeepKey<Zh> 约束直接通过（无需强转）
+const CONQUEST_PREFIX = ['cqPre.0', 'cqPre.1', 'cqPre.2', 'cqPre.3', 'cqPre.4', 'cqPre.5', 'cqPre.6', 'cqPre.7'] as const
+const CONQUEST_NOUN = ['cqNoun.0', 'cqNoun.1', 'cqNoun.2', 'cqNoun.3', 'cqNoun.4', 'cqNoun.5', 'cqNoun.6', 'cqNoun.7'] as const
+const FACTION_PREFIX = ['facPre.0', 'facPre.1', 'facPre.2', 'facPre.3', 'facPre.4', 'facPre.5', 'facPre.6', 'facPre.7'] as const
+const FACTION_NOUN = ['facNoun.0', 'facNoun.1', 'facNoun.2', 'facNoun.3', 'facNoun.4', 'facNoun.5', 'facNoun.6', 'facNoun.7'] as const
+const PLANET_PREFIX = ['plPre.0', 'plPre.1', 'plPre.2', 'plPre.3', 'plPre.4', 'plPre.5', 'plPre.6', 'plPre.7'] as const
+const PLANET_NOUN = ['plNoun.0', 'plNoun.1', 'plNoun.2', 'plNoun.3', 'plNoun.4', 'plNoun.5', 'plNoun.6', 'plNoun.7'] as const
 const PRODUCING_RESOURCES: ResourceKey[] = ['mineral', 'energy', 'tech']
 
 /** 从词库取一项（roll 推进一位） */
-function pick<T>(arr: T[], roll: () => number): T {
+function pick<T>(arr: readonly T[], roll: () => number): T {
   return arr[Math.min(arr.length - 1, Math.floor(roll() * arr.length))]
 }
 
 /** Fisher-Yates 洗牌（roll 驱动，确定性） */
-function shuffle<T>(arr: T[], roll: () => number): T[] {
+function shuffle<T>(arr: readonly T[], roll: () => number): T[] {
   const out = [...arr]
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.min(i, Math.floor(roll() * (i + 1)))
@@ -108,7 +109,7 @@ export function isEndlessTargetId(id: string): boolean {
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${t(pick(CONQUEST_PREFIX, roll) as DeepKey<Zh>)}${t(pick(CONQUEST_NOUN, roll) as DeepKey<Zh>)}`
+  const name = `${t(pick(CONQUEST_PREFIX, roll))}${t(pick(CONQUEST_NOUN, roll))}`
   const prod = netProduction(state)
   // 守卫锚军力名义产能（不被容量截断）：回充守卫恒 = GEN_CONQUEST_GUARD_SECONDS 秒；
   // 满员截断不压低守卫（否则军力越满守卫越小，攻占反而变便宜——设计悖论）
@@ -131,7 +132,7 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
 /** 外交对象生成：词库命名；初始 favor [0, GEN_FACTION_FAVOR_MAX]、threat [MIN, MAX]；
  * 特性从 3 类池随机抽 1-2 个（数值落在现有区间：tradeDiscount 0.05-0.08 / techShareCostMult 0.5 / intimidateCostMult 0.75） */
 export function generateFactionTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${t(pick(FACTION_PREFIX, roll) as DeepKey<Zh>)}${t(pick(FACTION_NOUN, roll) as DeepKey<Zh>)}`
+  const name = `${t(pick(FACTION_PREFIX, roll))}${t(pick(FACTION_NOUN, roll))}`
   const seq = state.generatedTargets.length
   const target: GeneratedTarget = {
     kind: 'faction',
@@ -156,7 +157,7 @@ export function generateFactionTarget(state: GameState, roll: () => number): Gen
 /** 天体生成：词库命名；单种产出（mineral/energy/tech 均匀抽 1 种）；
  * output ∈ [MIN, MAX]、outputPct ∈ [PCT_MIN, PCT_MAX]（封死不破现有天花板，Q10 定稿） */
 export function generatePlanetTarget(state: GameState, roll: () => number): GeneratedTarget {
-  const name = `${t(pick(PLANET_PREFIX, roll) as DeepKey<Zh>)}${t(pick(PLANET_NOUN, roll) as DeepKey<Zh>)}`
+  const name = `${t(pick(PLANET_PREFIX, roll))}${t(pick(PLANET_NOUN, roll))}`
   const seq = state.generatedTargets.length
   const resKey = pick(PRODUCING_RESOURCES, roll)
   const output = Math.round((GEN_PLANET_OUTPUT_MIN + roll() * (GEN_PLANET_OUTPUT_MAX - GEN_PLANET_OUTPUT_MIN)) * 100) / 100

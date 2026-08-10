@@ -521,6 +521,7 @@ export const en: Zh = {
     'Diplomacy target',
     'Body',
     'Reaching a military cap of {a0} or facing faction harassment unlocks coercion (extortion / tribute treaty / subjugation).',
+    'Alliance Bonus: +{a0} all output',
     ],
     explore: [
     'Explored',
@@ -1010,5 +1011,9 @@ export const en: Zh = {
     ],
     save: [
     '[Save Migration]{a0}.',
-    ], },
+    ],
+    },
+  misc: {
+  unknownPlanet: 'Unknown celestial body',
+  },
 }

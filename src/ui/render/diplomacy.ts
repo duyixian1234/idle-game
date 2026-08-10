@@ -11,8 +11,8 @@ import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { FactionDef } from '../../engine/data'
 import {ENDLESS_FACTIONS, defName, defDesc} from '../../engine/data'
-import {ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, TECH_SHARE_COST} from '../../engine/balance'
-import {canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost} from '../../engine/diplomacy'
+import {ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, ALLIANCE_PRODUCTION_PCT_PER_FACTION, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, TECH_SHARE_COST} from '../../engine/balance'
+import {alliedNamedFactionCount, canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost} from '../../engine/diplomacy'
 import {endlessBatchUnlocked, endlessTargetId} from '../../engine/generate'
 import {formatMultiplier, formatNumber, formatPercent} from '../../engine/format'
 import {iconUse} from '../icons'
@@ -99,13 +99,19 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     return
   }
   const ov = diplomacyOverview(state)
+  const allianceCount = alliedNamedFactionCount(state)
+  const allianceBonusRow =
+    allianceCount > 0
+      ? `<div class="diplo-header-row" data-diplo-alliance-bonus>${t('ui.diplomacy.38', { a0: formatPercent(allianceCount * ALLIANCE_PRODUCTION_PCT_PER_FACTION * 100) })}</div>`
+      : ''
   const header = document.createElement('div')
   header.className = 'diplo-header'
   header.setAttribute('data-diplo-overview', '')
   header.innerHTML = `
     <div class="diplo-header-row" data-diplo-federation>${t('ui.diplomacy.7', { a0: ov.satisfied, a1: ov.total })}</div>
     <div class="diplo-header-row" data-diplo-threat>${ov.threatCount === 0 ? t('ui.diplomacy.8') : t('ui.diplomacy.18', { a0: ov.threatCount })}</div>
-    <div class="diplo-header-row" data-diplo-alliance>${t('ui.diplomacy.9', { a0: ov.allied, a1: ov.total })}</div>`
+    <div class="diplo-header-row" data-diplo-alliance>${t('ui.diplomacy.9', { a0: ov.allied, a1: ov.total })}</div>
+    ${allianceBonusRow}`
   el.appendChild(header)
   // 胁迫外交解锁提示（diplomacy-coercion：军力上限达标或遭遇派系骚扰后解锁，双通道）
   if (!coercionUnlocked(state)) {

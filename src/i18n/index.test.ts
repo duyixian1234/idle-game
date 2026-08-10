@@ -35,6 +35,19 @@ describe('i18n: 资源层', () => {
     expect(nonEmptyZh).toBeGreaterThan(zhEntries.length / 2)
     expect(nonEmptyEn).toBeGreaterThan(enEntries.length / 2)
   })
+
+  it('生成词库（cqPre/cqNoun/facPre/facNoun/plPre/plNoun）key 全覆盖——t() 不返回 key 本身', () => {
+    // 防回归：generate.ts 曾用 gen.* 前缀误引用导致 t() 返回 key 本身（天体/军事/派系名变坏 key）
+    const domains = ['cqPre', 'cqNoun', 'facPre', 'facNoun', 'plPre', 'plNoun'] as const
+    for (const domain of domains) {
+      const arr = (zh as unknown as Record<string, string[]>)[domain]
+      expect(arr.length).toBe(8)
+      arr.forEach((_, i) => {
+        const key = `${domain}.${i}` as Parameters<typeof t>[0]
+        expect(t(key)).not.toBe(`${domain}.${i}`)
+      })
+    }
+  })
 })
 
 describe('i18n: t() 翻译', () => {
