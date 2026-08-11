@@ -12,6 +12,7 @@
 | [0004](./0004-dispatch-action-registry.md) | 动作注册表 dispatch + 载荷类型化（ActionPayloads 判别联合） |
 | [0005](./0005-save-schema-migration.md) | 存档版本化 JSON：字段表驱动校验 + 链式迁移 + 事件契约独立版本线 |
 | [0006](./0006-balance-single-source-of-truth.md) | 数值单一真源：balance.ts 根因子集中，内容数据显式保留 |
+| [0050](./0050-pwa.md) | PWA 可安装外壳：manifest + SW 离线缓存（engine 零改动，离线收益语义不变） |
 
 ## 领域模型
 

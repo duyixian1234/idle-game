@@ -39,4 +39,5 @@ jobs:
         run: |
           pnpm typecheck
           pnpm build
+          node scripts/check-pwa-build.mjs
           pnpm test

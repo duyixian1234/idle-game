@@ -17,6 +17,7 @@ import { renderBootOverlay } from './ui/overlays'
 import { markBootSeen, shouldShowBoot } from './ui/boot'
 import { prefersReducedMotion } from './ui/typewriter'
 import { initLanguage, t } from './i18n'
+import { registerPwa } from './pwa'
 
 const SAVE_INTERVAL_MS = 5_000
 const TICK_INTERVAL_MS = 250
@@ -106,6 +107,9 @@ async function main(): Promise<void> {
   setInterval(() => {
     void saveGame(session.state)
   }, SAVE_INTERVAL_MS)
+
+  // PWA：Service Worker 注册（ADR-0050）——容错、不 await 阻断首帧；与游戏循环/存档并行
+  void registerPwa()
 
   // 暴露重置入口（11 完整化）
   ;(window as unknown as { __resetGame?: () => Promise<void> }).__resetGame = async () => {

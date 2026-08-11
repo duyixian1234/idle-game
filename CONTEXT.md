@@ -150,3 +150,6 @@ _Avoid_: 天体奖励（探索收获特指「派遣结算的 resource 分支」�
 **累计获得（Total Earned）**:
 全局累计字段（`totalMineralEarned`/`totalTechEarned`/`totalEnergyEarned`）升级后的语义——代表「全部来源获得」（生产 + 产出型天体持续产出 + 探索收获），周目内口径、NG+ 重置。区别于「累计采集」旧语义（仅生产路径）；探索收获并入后展示文案用「累计获得」。ADR-0041。
 _Avoid_: 累计采集（旧语义已升级，探索收获并入后不再是纯采集口径）
+
+**可安装外壳（Installable Shell）**:
+应用外壳（HTML/CSS/JS/字体/图标）经 Service Worker 预缓存形成的离线可加载 + 可安装形态（manifest + SW，ADR-0050）——**只管应用加载，不管离线收益**（离线收益是引擎对存档时间差的结算，二者正交互补、引擎零感知）。_Avoid_: 离线模式（离线收益是引擎语义，与外壳缓存正交）
