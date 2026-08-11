@@ -4,7 +4,16 @@
 
 ### Issue tracker
 
-Issues and specs live as markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+**Issues 通过 `gh` 客户端创建为 GitHub issues（repo: `duyixian1234/idle-game`）——2026-08-11 起定稿。** 本地 `.scratch/<feature-slug>/` 仅存 spec.md 与 issue body 草稿留档，**tracker 以 GitHub issues 为唯一事实源**。旧约定（纯本地 markdown tracker）见 `docs/agents/issue-tracker.md`（已废弃）。
+
+铁律：
+
+- 发布一律 `gh issue create --title "<title>" --body-file <file> --label ready-for-agent`——正文先落盘（Write）再 `--body-file`，防中文乱码。
+- **blocked 依赖用 issue body 内 `## Blocked by` 文本引用**（`#<编号>` 自动渲染链接）；GitHub 无原生 block 关系，文本引用即事实。
+- 发布顺序 = 依赖序：**先建无 blocker 的票，再建 blocked 的票**（后者引用前者的真实编号）。
+- 创建后先 `gh issue list` 核对编号与 label，再更新本地留档文件中的 Blocked by 引用。
+- label 词汇：`ready-for-agent`（triage 完成，agent 可抓取）——spec 与 tickets 一律打此 label。
+- 新 feature 流程：grill → to-spec（创建 spec issue）→ to-tickets（创建 tickets，blocked 引用 spec 编号）→ implement（agent 按 frontier 抓取）。
 
 ### Domain docs
 
@@ -33,13 +42,3 @@ Git Bash 下工具调用 stdout 回显可能为空（vitest ANSI 彩色输出/�
 - 日志末尾带 `EXIT=` 哨兵行，先找哨兵再判断；读到半截日志=仍在运行或已中断，不是结论。
 - vitest 加 `CI=1`（禁用颜色与进度刷新），输出稳定可解析。
 - 工具返回空输出 → 直接读日志文件核实，不要重复执行命令（幂等副作用）。
-
-### E2E 断言：语义化优先（2026-08-06 定稿）
-
-E2E 断言**优先使用语义化元素**（`data-*` 属性），不依赖具体样式类（`.tab`/`.panel`/`.hidden` 等）。
-
-- 新 spec 一律 `data-*` 选择器，禁止类名断言。
-- 混合选择器去类名：`.tab[data-tab="tech"]` → `[data-tab="tech"]`。
-- 纯类名元素须有 data 属性承载：`.log-area` → `[data-log]`、`.buy-max-overlay` → `[data-overlay="buy-max"]`、`.event-card` → `[data-event-card]` 等。
-- 状态用行为断言替代样式断言：`toHaveClass(/hidden/)` → `toBeHidden()` / `toBeVisible()`。
-- 存量 33 处类名断言随 ui-restructure 阶段①一次性迁移（ticket 03）。
