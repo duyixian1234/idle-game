@@ -7,7 +7,7 @@ import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import { BUILDINGS, RESOURCE_META, TECHS, defName, defDesc} from '../../engine/data'
 import { TECH_MAX_LEVEL } from '../../engine/balance'
-import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techAlliesMet, techCost, techLevel, techRequirementsMet } from '../../engine/tech'
+import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techAlliesMet, techConquestsMet, techCost, techLevel, techRequirementsMet } from '../../engine/tech'
 import { techMultiplier } from '../../engine/production'
 import { formatMultiplier, formatNumber } from '../../engine/format'
 import { iconUse } from '../icons'
@@ -36,10 +36,11 @@ export function renderTechPanel(el: HTMLElement, state: GameState): void {
     card.className = 'build-card tech-card'
     card.setAttribute('data-tech', def.id)
 
-    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁；带 label 的探索类（星舰线）显示自定义文案
+    // 效果描述：产出类显示当前生效系数（升级预览展示下一级）；探索类显示槽位解锁；带 label 的探索类（星舰线）显示自定义文案；
+    // 攻占类（conquest-guard-cap）显示攻占产出/消耗系数（当前 → 下一级）
     let effectText: string
     if (def.effect.kind === 'unlockBuilding') {
-effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BUILDINGS[def.effect.buildingId]) : def.effect.buildingId) })
+effectText = t('ui.tech.3', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BUILDINGS[def.effect.buildingId]) : def.effect.buildingId) })
     } else if (def.effect.kind === 'exploration') {
       // ADR-0038：探索类科技仅剩带 labelKey 的星舰线（纯 UI 文案，无信道/倍率逻辑）
       effectText = def.effect.labelKey
@@ -47,6 +48,16 @@ effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
           ? `${t(def.effect.labelKey)}（Lv.${formatNumber(level)}${upgradable ? ` → ${formatNumber(level + 1)}` : ''}）`
           : t(def.effect.labelKey)
         : ''
+    } else if (def.effect.kind === 'conquest') {
+      // 攻占产出 1 + rewardMult×Lv；攻占消耗 1 − costMult×Lv（下限 0.5 由引擎 conquestCostMult 保证）
+      const curReward = 1 + def.effect.rewardMult * Math.max(1, level)
+      const curCost = Math.max(0.5, 1 - def.effect.costMult * Math.max(1, level))
+      effectText = `攻占产出 ${formatMultiplier(curReward)}、攻占消耗 ${formatMultiplier(curCost)}`
+      if (upgradable) {
+        const nextReward = 1 + def.effect.rewardMult * (level + 1)
+        const nextCost = Math.max(0.5, 1 - def.effect.costMult * (level + 1))
+        effectText += ` → ${formatMultiplier(nextReward)}/${formatMultiplier(nextCost)}`
+      }
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${t(RESOURCE_META[def.effect.resource].nameKey)}产出 ${formatMultiplier(cur)}`
@@ -85,7 +96,18 @@ effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
         card.innerHTML = `${icon}
           <div class="build-card-body">
             ${info}
-            <div class="build-lock"><span class="lock-hint">${t('ui.tech.1', { a0: formatNumber(def.requiresAllies) })}</span></div>
+            <div class="build-lock"><span class="lock-hint">${t('ui.tech.5', { a0: formatNumber(def.requiresAllies) })}</span></div>
+          </div>`
+        grid.appendChild(card)
+        continue
+      }
+      // 已攻占目标数量门槛（conquest-guard-cap：如「需已攻占 5 个军事目标」）
+      if (def.requiresConquests && !techConquestsMet(state, def.id)) {
+        card.classList.add('locked')
+        card.innerHTML = `${icon}
+          <div class="build-card-body">
+            ${info}
+            <div class="build-lock"><span class="lock-hint">${t('ui.tech.4', { a0: formatNumber(def.requiresConquests) })}</span></div>
           </div>`
         grid.appendChild(card)
         continue
@@ -97,7 +119,7 @@ effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
         card.innerHTML = `${icon}
           <div class="build-card-body">
             ${info}
-            <div class="build-lock"><span class="lock-hint">${t('ui.tech.2', { a0: names })}</span></div>
+            <div class="build-lock"><span class="lock-hint">${t('ui.tech.6', { a0: names })}</span></div>
           </div>`
         grid.appendChild(card)
         continue
@@ -127,7 +149,7 @@ effectText = t('ui.tech.0', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
     card.innerHTML = `${icon}
       <div class="build-card-body">${info}</div>
       <div class="build-actions">
-        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="${t('ui.tech.3', { a0: formatNumber(0.5), a1: formatNumber(level), a2: formatNumber(level + 1) })}">
+        <button type="button" class="build-btn tech-btn upgrade-tech-btn" data-upgrade-tech="${def.id}" ${canUp ? '' : 'disabled'} title="${t('ui.tech.2', { a0: formatNumber(0.5), a1: formatNumber(level), a2: formatNumber(level + 1) })}">
           升级 ▶ ${formatCost(cost)}
         </button>
       </div>`

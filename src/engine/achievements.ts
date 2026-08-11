@@ -1,5 +1,5 @@
 import {defName} from '../engine/data'
-import {pushLog, alliedCount} from './core'
+import {conqueredCount, pushLog, alliedCount} from './core'
 import {COERCION_UNLOCK_MILITARY_CAP} from './balance'
 import {militaryCap} from './production'
 import {dockLevel} from './fleet'
@@ -51,11 +51,11 @@ export interface AchievementDef {
 }
 
 /** 派系字段求和辅助（贸易/威慑/好感——周目内口径，NG+ 后 factions 重置）；
- * 结盟数 alliedCount 已提升为 diplomacy.ts 公共 helper（虫洞科技/成就同源引用） */
+ * 结盟数 alliedCount 已提升为 diplomacy.ts 公共 helper（虫洞科技/成就同源引用）；
+ * 已攻占数 conqueredCount 已提升为 core.ts 公共 helper（攻占科技门槛/成就同源引用，conquest-guard-cap） */
 const sumTradeCount = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.tradeCount, 0)
 const sumIntimidateCount = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.intimidateCount, 0)
 const sumFavor = (s: GameState): number => Object.values(s.factions).reduce((a, f) => a + f.favor, 0)
-const conqueredCount = (s: GameState): number => Object.values(s.conquest).filter((c) => c.status === 'conquered').length
 const HOUR = 3600
 
 /**
@@ -309,6 +309,43 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     progress: (s) => [conqueredCount(s), 2],
     rewardMineral: 50_000,
     rep: 4,
+  },
+  // 攻占数量梯度（conquest-guard-cap，2026-08-11：无限模式攻占长线目标，与攻占科技同源 conqueredCount）
+  conquests10: {
+    id: 'conquests10',
+    icon: 'wreckage',
+    nameKey: 'ach.conquests10.name',
+    descKey: 'ach.conquests10.desc',
+    descArgs: { n: formatNumber(10) },
+    category: 'collect',
+    condition: (s) => conqueredCount(s) >= 10,
+    progress: (s) => [conqueredCount(s), 10],
+    rewardMineral: 100_000,
+    rep: 4,
+  },
+  conquests25: {
+    id: 'conquests25',
+    icon: 'wreckage',
+    nameKey: 'ach.conquests25.name',
+    descKey: 'ach.conquests25.desc',
+    descArgs: { n: formatNumber(25) },
+    category: 'collect',
+    condition: (s) => conqueredCount(s) >= 25,
+    progress: (s) => [conqueredCount(s), 25],
+    rewardMineral: 500_000,
+    rep: 5,
+  },
+  conquests50: {
+    id: 'conquests50',
+    icon: 'wreckage',
+    nameKey: 'ach.conquests50.name',
+    descKey: 'ach.conquests50.desc',
+    descArgs: { n: formatNumber(50) },
+    category: 'collect',
+    condition: (s) => conqueredCount(s) >= 50,
+    progress: (s) => [conqueredCount(s), 50],
+    rewardMineral: 1_000_000,
+    rep: 6,
   },
 
   // ---- 探索类（通关后派遣，周目重解锁）----

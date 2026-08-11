@@ -64,7 +64,7 @@
 | [0030](./0030-auto-diplomacy-tiers.md) | 外交自动化分级：每派系三态 + 阶段门控 + raid 安全边界 |
 | [0031](./0031-coercion-derived-archiving.md) | 胁迫态派生折叠：subjugated/treaty 中 → 折叠区，状态变化自动折/展 |
 | [0032](./0032-auto-diplomacy-global-direction.md) | 外交自动化纯全局方向：全局选结盟/胁迫 + 阈值 0 自动完成前置 + 挂机同步 |
-| [0033](./0033-auto-conquest-military-cost.md) | 自动攻占 + 守卫挂钩军力产能（修订：容量 15-40% → 名义产能 ×40s、保底 20% → 10%）：投满必成/挂机同步，攻占节奏恒定、堆容量不再抬高门槛 |
+| [0033](./0033-auto-conquest-military-cost.md) | 自动攻占 + 守卫挂钩军力产能（修订：容量 15-40% → 名义产能 ×40s、保底 20% → 10%；2026-08-11 再修订：+容量/3 与 180s 双上限）：投满必成/挂机同步，攻占节奏恒定、门槛 ≤ 总兵力 1/3 |
 | [0034](./0034-tick-registry.md) | tick 注册表：结算阶段组 DAG + 组内序列 + 拓扑排序 fail-fast + Golden Order 保序 |
 | [0035](./0035-render-registry.md) | render 注册表：RenderNode 阶段保序（content/overlay/badge）+ 宽 ctx + 状态副作用留主函数 |
 | [0039](./0039-building-count-requirement.md) | 星港矿场解锁改「深层钻机数量 ≥6」：ADR-0036 普通升级取消后的死锁修复（requiresCount） |

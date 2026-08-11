@@ -36,3 +36,10 @@ export function isEnded(state: GameState): boolean {
 export function alliedCount(state: GameState): number {
   return Object.values(state.factions).filter((f) => f.allied).length
 }
+
+/** 已攻占目标数（全口径：静态 4 区域 + 动态生成目标，status 'conquered'）——攻占科技门槛/成就同源引用的单一事实源
+ * （conquest-guard-cap 2026-08-11 从 achievements.ts 迁出；周目内口径，NG+ 后 conquest 重置）。
+ * 置于零依赖核心层：tech 与 achievements 均依赖 core，避免 tech→conquest→… 环。 */
+export function conqueredCount(state: GameState): number {
+  return Object.values(state.conquest).filter((c) => c.status === 'conquered').length
+}

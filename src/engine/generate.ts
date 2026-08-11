@@ -4,6 +4,8 @@ import {
   ENDLESS_BATCH_2_EXPLORATIONS,
   GEN_CONQUEST_COST_ENERGY_SECONDS,
   GEN_CONQUEST_COST_MINERAL_SECONDS,
+  GEN_CONQUEST_GUARD_CAP_PCT,
+  GEN_CONQUEST_GUARD_MAX_SECONDS,
   GEN_CONQUEST_GUARD_MIN,
   GEN_CONQUEST_GUARD_SECONDS,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
@@ -18,7 +20,8 @@ import {
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
   WORMHOLE_GENCAP_PER_LEVEL,
 } from './balance'
-import { nominalMilitaryProduction, netProduction } from './production'
+import { militaryCap, nominalMilitaryProduction, netProduction } from './production'
+import { conquestCostMult } from './conquest'
 import type { GeneratedTarget, GameState, ResourceKey } from './types'
 
 /**
@@ -103,17 +106,21 @@ export function isEndlessTargetId(id: string): boolean {
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
 /**
- * 军事目标生成：词库命名；guard = 军力净产出 × GEN_CONQUEST_GUARD_SECONDS（clamp 500 下限，ADR-0033 修订 conquest-fleet）——
- * 守卫锚回充速度而非容量上限：攻占需求与产能同源（ADR-0028 哲学同构），扩军港不再抬高攻占门槛、攻占节奏可预期；
- * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞）；
+ * 军事目标生成：词库命名；guard = min(max(500, ⌊军力名义产出 × 40s⌋), ⌊军力上限/3⌋, ⌊名义产出×180s⌋)
+ * （conquest-guard-cap 2026-08-11 双上限：攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间，grill Q1-Q5）——
+ * 守卫锚回充速度（产出高时回充 40s 语义保留）且受容量/3 硬约束（上限优先：早期容量/3 < 500 时守卫 = 容量/3）；
+ * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞；消耗另乘攻占科技折扣，ticket 04）；
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
   const name = `${t(pick(CONQUEST_PREFIX, roll))}${t(pick(CONQUEST_NOUN, roll))}`
   const prod = netProduction(state)
-  // 守卫锚军力名义产能（不被容量截断）：回充守卫恒 = GEN_CONQUEST_GUARD_SECONDS 秒；
-  // 满员截断不压低守卫（否则军力越满守卫越小，攻占反而变便宜——设计悖论）
-  const guard = Math.max(GEN_CONQUEST_GUARD_MIN, Math.floor(nominalMilitaryProduction(state) * GEN_CONQUEST_GUARD_SECONDS))
+  // 守卫锚军力名义产能（不被容量截断）：满员截断不压低守卫（否则军力越满守卫越小，攻占反而变便宜——设计悖论）；
+  // byProd = 产出×40s 回充口径；prodCap = 产出×180s 上限（产能 0 时取 500 保底防守卫压到 0）；capCap = 容量/3 硬上限（上限优先）
+  const byProd = Math.floor(nominalMilitaryProduction(state) * GEN_CONQUEST_GUARD_SECONDS)
+  const prodCap = Math.max(GEN_CONQUEST_GUARD_MIN, Math.floor(nominalMilitaryProduction(state) * GEN_CONQUEST_GUARD_MAX_SECONDS))
+  const capCap = Math.floor(militaryCap(state) * GEN_CONQUEST_GUARD_CAP_PCT)
+  const guard = Math.min(Math.max(GEN_CONQUEST_GUARD_MIN, byProd), prodCap, capCap)
   const seq = state.generatedTargets.length
   return {
     kind: 'conquest',
@@ -124,8 +131,9 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
     guard,
     rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
     rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS),
-    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS),
-    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS),
+    // 攻占消耗折扣（conquest-guard-cap，Q10 生成时固化）：按生成时科技等级乘 conquestCostMult（Lv10 ×0.5），升级后新目标立享
+    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS * conquestCostMult(state)),
+    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS * conquestCostMult(state)),
   }
 }
 

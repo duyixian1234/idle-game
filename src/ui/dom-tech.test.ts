@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { createEventInstance } from '../engine/events'
 import { TECH_MAX_LEVEL } from '../engine/balance'
-import { formatMultiplier } from '../engine/format'
+import { formatMultiplier, formatNumber } from '../engine/format'
 import { buildLayout } from './layout'
 import { renderTechPanel } from './render/tech'
 import { renderPendingEvents } from './log'
@@ -78,6 +78,45 @@ describe('ui: 科技面板', () => {
     expect(item!.textContent).toContain('Lv.1')
     expect(item!.textContent).toContain('✓ 生效中')
     expect(item!.querySelector('[data-upgrade-tech]')).toBeNull()
+  })
+
+  it('conquestTheory：未达门槛锁定卡（需已攻占 5 个军事目标，conquest-guard-cap）', () => {
+    const el = panel()
+    const s = createInitialState(0) // conqueredCount 0 < 5
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="conquestTheory"]')
+    expect(item).toBeTruthy()
+    expect(item!.classList.contains('locked')).toBe(true)
+    expect(item!.textContent).toContain(`需已攻占 ${formatNumber(5)} 个军事目标`)
+    expect(item!.querySelector('[data-research="conquestTheory"]')).toBeNull()
+  })
+
+  it('conquestTheory：已达门槛 + 资源充足 → 研发按钮可用', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    for (let i = 0; i < 5; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    s.resources.mineral = 1_000_000
+    s.resources.tech = 100_000
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="conquestTheory"]')
+    expect(item!.classList.contains('locked')).toBe(false)
+    const btn = item!.querySelector<HTMLButtonElement>('[data-research="conquestTheory"]')
+    expect(btn).toBeTruthy()
+    expect(btn!.disabled).toBe(false)
+  })
+
+  it('conquestTheory：已研发 Lv5 显示攻占产出/消耗效果文案与升级按钮', () => {
+    const el = panel()
+    const s = createInitialState(0)
+    for (let i = 0; i < 5; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    s.techLevels.conquestTheory = 5
+    s.resources.mineral = 1_000_000
+    s.resources.tech = 100_000
+    renderTechPanel(el, s)
+    const item = el.querySelector<HTMLElement>('[data-tech="conquestTheory"]')
+    expect(item!.textContent).toContain('Lv.5')
+    expect(item!.textContent).toContain(`攻占产出 ${formatMultiplier(1.5)}、攻占消耗 ${formatMultiplier(0.75)}`)
+    expect(item!.querySelector('[data-upgrade-tech="conquestTheory"]')).toBeTruthy()
   })
 })
 

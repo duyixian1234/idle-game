@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
-import { isConquestAvailable, autoConquestTick, settleConquests, startConquest } from './conquest'
+import { conquestCostMult, conquestRewardMult, isConquestAvailable, autoConquestTick, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
+import { generateConquestTarget } from './generate'
+import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
+import { TECHS } from './data'
 import type { GameState } from './types'
 
 /** 构造状态：解锁前置星球、给足军力与资源 */
@@ -284,5 +287,65 @@ describe('engine: NG+ 与区域继承', () => {
     // 军力清零、军械科技重置
     expect(s.resources.military).toBe(0)
     expect(s.techLevels.militaryTech).toBeUndefined()
+  })
+})
+
+describe('engine: 攻占科技（conquest-guard-cap：劫掠战术）', () => {
+  /** 已攻占 N 个目标（构造 status conquered）+ 可选科技等级 */
+  function techState(conquered: number, lv = 0): GameState {
+    const s = conquestState()
+    for (let i = 0; i < conquered; i++) s.conquest[`gen:conquest:${i}`] = { status: 'conquered' }
+    if (lv > 0) s.techLevels.conquestTheory = lv
+    return s
+  }
+
+  it('研发门槛：已攻占 4 个拒绝、5 个可研发（requiresConquests 全口径 conqueredCount）', () => {
+    const s4 = techState(4)
+    expect(canResearchTech(s4, 'conquestTheory')).toBe(false)
+    const s5 = techState(5)
+    expect(canResearchTech(s5, 'conquestTheory')).toBe(true)
+    expect(researchTech(s5, 'conquestTheory').ok).toBe(true)
+    expect(s5.techLevels.conquestTheory).toBe(1)
+    // 已研发后不可重复研发
+    expect(researchTech(s5, 'conquestTheory').ok).toBe(false)
+  })
+
+  it('conquest 效果科技可升级：Lv1 → Lv2（canTechUpgrade 认 kind conquest）', () => {
+    const s = techState(5, 1)
+    expect(canTechUpgrade(TECHS.conquestTheory, 1)).toBe(true)
+    expect(upgradeTech(s, 'conquestTheory').ok).toBe(true)
+    expect(s.techLevels.conquestTheory).toBe(2)
+  })
+
+  it('效果派生：产出 1+0.1×Lv、消耗 max(0.5, 1−0.05×Lv)；未研发 = 1', () => {
+    expect(conquestRewardMult(techState(0, 0))).toBe(1)
+    expect(conquestCostMult(techState(0, 0))).toBe(1)
+    expect(conquestRewardMult(techState(0, 5))).toBe(1.5)
+    expect(conquestCostMult(techState(0, 5))).toBe(0.75)
+    expect(conquestRewardMult(techState(0, 10))).toBe(2)
+    expect(conquestCostMult(techState(0, 10))).toBe(0.5)
+  })
+
+  it('产出结算时实时乘：Lv5 攻占静态 outpost → 奖励 ×1.5（floor；静态+动态全适用 Q12）', () => {
+    const s = techState(0, 5)
+    startConquest(s, 'outpost', 2_000, 0)
+    settleConquests(s, 60 * 60_000, () => 0)
+    expect(s.conquest.outpost.status).toBe('conquered')
+    expect(s.resources.mineral).toBe(10_000_000 + Math.floor(50_000 * 1.5)) // 10,075,000
+    expect(s.resources.tech).toBe(1_000_000 + Math.floor(5_000 * 1.5)) // 1,007,500
+  })
+
+  it('消耗生成时固化：同净产出下 Lv5 生成目标 costMineral/costEnergy ≈ Lv0 ×0.75（floor 容差 ≤1），奖励不变', () => {
+    const s0 = techState(0, 0)
+    s0.buildings.miner = 100
+    const s5 = techState(0, 5)
+    s5.buildings.miner = 100
+    const t0 = generateConquestTarget(s0, () => 0.5)
+    const t5 = generateConquestTarget(s5, () => 0.5)
+    expect(Math.abs(t5.costMineral! - Math.floor(t0.costMineral! * 0.75))).toBeLessThanOrEqual(1)
+    expect(Math.abs(t5.costEnergy! - Math.floor(t0.costEnergy! * 0.75))).toBeLessThanOrEqual(1)
+    // 产出结算时乘：生成目标快照奖励不受科技影响（ticket 04：generate 只乘消耗）
+    expect(t5.rewardMineral!).toBe(t0.rewardMineral!)
+    expect(t5.rewardTech!).toBe(t0.rewardTech!)
   })
 })

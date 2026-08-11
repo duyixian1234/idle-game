@@ -4,6 +4,8 @@
 
 > **⚠️ 修订（2026-08-09，[conquest-fleet](../../.scratch/conquest-fleet/spec.md)）**：守卫挂钩对象从「军力容量 ×15-40%」改为「军力名义产能 × 40s」——原容量挂钩产生「容量涨 → 守卫同涨」的剪刀差，容量科技对攻占无帮助只抬门槛；守卫锚名义产能（`nominalMilitaryProduction`，`production.ts` 新增导出，不被容量截断）后回充守卫恒 40s。自动攻占保底 `AUTO_CONQUEST_MILITARY_RESERVE_PCT` 0.2 → 0.1（保底原为主导回充的瓶颈，降比后总回充 ≈55s ≤ 冷却 60s）。`GEN_CONQUEST_GUARD_PCT_MIN/MAX` 删除，新增 `GEN_CONQUEST_GUARD_SECONDS = 40`。舰队参与手动攻占见 [ADR-0046](./0046-fleet-conquest.md)。
 
+> **⚠️ 修订（2026-08-11，[conquest-guard-cap](../../.scratch/conquest-guard-cap/spec.md)）**：守卫公式在「名义产能 × 40s」基础上新增**双上限**——`min(max(500, ⌊名义产能×40s⌋), ⌊军力上限×1/3⌋, ⌊名义产能×180s⌋)`（攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间，用户硬约束；上限优先，早期容量/3 < 500 时守卫 = 容量/3）。新增 `GEN_CONQUEST_GUARD_CAP_PCT = 1/3`、`GEN_CONQUEST_GUARD_MAX_SECONDS = 180`。攻占科技线/成就梯度见 [ADR-0051](./0051-conquest-guard-cap.md)。⚠️ 语义张力：容量 < 120×名义产能时守卫随容量涨（"≤1/3"硬约束的必然），容量足够大时恢复产出锚定。
+
 **状态**: Accepted（2026-08-08 用户需求迭代；2026-08-09 守卫锚定修订）
 **证据**: `src/engine/conquest.ts:166-201`（autoConquestTick）；`src/engine/generate.ts:99-125`（守卫挂钩产能）；`src/engine/production.ts`（nominalMilitaryProduction）；`src/engine/balance.ts:254-262`（GEN_CONQUEST_GUARD_SECONDS / AUTO_CONQUEST_*）；`src/engine/engine.ts`（tick 调用 + NG+ 重置）、`src/engine/offline.ts:103-111`（离线批量推进）
 

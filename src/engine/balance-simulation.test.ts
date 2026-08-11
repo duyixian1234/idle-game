@@ -121,7 +121,7 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     }
   })
 
-  it('守卫锚产出 + 保底 10%：后期攻占节奏（守卫+保底回充）≤ 自动攻占冷却 60s（conquest-fleet）', () => {
+  it('守卫双上限 + 保底 10%：后期攻占节奏（守卫+保底回充）≤ 自动攻占冷却 60s（conquest-guard-cap）', () => {
     // 后期形态：100 军港（容量 40,200）+ 200 兵营 + 军械 Lv10（军力产出 550/s）
     const s = createInitialState(0)
     s.phase = 'ended'
@@ -130,21 +130,22 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     s.buildings.barracks = 200
     s.techLevels.militaryTech = 10
     const guard = generateConquestTarget(s, () => 0.5).guard!
-    expect(guard).toBe(200 * 0.5 * 5.5 * GEN_CONQUEST_GUARD_SECONDS) // 22,000（名义产能 × 40s）
+    // 容量/3 = ⌊40,200/3⌋ = 13,400 < 产出锚定 22,000 → 容量/3 主导（≤ 总兵力 1/3 硬约束）
+    expect(guard).toBe(Math.floor(militaryCap(s) / 3))
     const cap = militaryCap(s)
     expect(cap).toBe(40_200) // (100 + 200×100) × 2
     const prod = nominalMilitaryProduction(s)
     expect(prod).toBe(550)
-    const rechargeSec = (guard + Math.floor(cap * 0.1)) / prod // (22,000 + 4,020) / 550 = 47.31s
+    const rechargeSec = (guard + Math.floor(cap * 0.1)) / prod // (13,400 + 4,020) / 550 = 31.67s
     expect(rechargeSec).toBeLessThanOrEqual(AUTO_CONQUEST_COOLDOWN_MS / 1000)
-    // 守卫不随军港（容量）漂移——堆容量不再抬高攻占门槛（剪刀差根治）
+    // 容量足够大时恢复产出锚定：1,000 军港 → 容量 400,200、⌊/3⌋=133,400 > 22,000 → 守卫 = 产出×40s
     const s2 = createInitialState(0)
     s2.phase = 'ended'
     s2.planets.orbital = { unlocked: true }
     s2.buildings.militaryPort = 1_000
     s2.buildings.barracks = 200
     s2.techLevels.militaryTech = 10
-    expect(generateConquestTarget(s2, () => 0.5).guard).toBe(guard)
+    expect(generateConquestTarget(s2, () => 0.5).guard).toBe(200 * 0.5 * 5.5 * GEN_CONQUEST_GUARD_SECONDS) // 22,000
   })
 
   it('军械容量每级 +10%：MILITARY_CAP_TECH_PER_LEVEL 常量生效（5 级 = ×1.5）', () => {

@@ -275,10 +275,18 @@ export const GENERATED_CAP_EXPLORATIONS_DIVISOR = 10
 export const ENDLESS_BATCH_2_EXPLORATIONS = 15
 /** 程序生成军事目标守卫下限（clamp：早期军力产出小 → 守卫不低于 500，Q8 定稿保底） */
 export const GEN_CONQUEST_GUARD_MIN = 500
-/** 守卫锚定军力产出秒数（conquest-fleet，2026-08-09，ADR-0033 修订）：gen 目标守卫 = 军力净产出 × 此秒数（clamp 500 下限）——
- * 守卫锚回充速度而非容量上限：攻占需求与产能同源（ADR-0028 哲学同构），堆容量不再抬高攻占门槛；
- * 40s = 回充满守卫恒 40s + 保底 10% 容量后总回充 ≈55s ≤ 自动攻占冷却 60s（原 15-40% 容量挂钩剪刀差根治） */
+/** 守卫锚定军力产出秒数（conquest-fleet，2026-08-09，ADR-0033 修订；conquest-guard-cap 2026-08-11 加双上限）：
+ * gen 目标守卫 = min(max(500, ⌊军力名义产出 × 此秒数⌋), ⌊军力上限 × GEN_CONQUEST_GUARD_CAP_PCT⌋, ⌊名义产出 × GEN_CONQUEST_GUARD_MAX_SECONDS⌋)——
+ * 守卫锚回充速度（40s = 回充满守卫恒 40s + 保底 10% 容量后总回充 ≈55s ≤ 自动攻占冷却 60s），
+ * 双上限为硬约束：攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间（grill Q1-Q5）；
+ * 容量 < 120×名义产出时守卫由容量/3 主导（随容量涨——"≤1/3"硬约束的必然），容量 ≥ 120×名义产出时恢复产出锚定 */
 export const GEN_CONQUEST_GUARD_SECONDS = 40
+/** 守卫上限：不超过军力上限的 1/3（conquest-guard-cap，2026-08-11，grill Q2/Q4）——攻占所需兵力 ≤ 总兵力 1/3 的硬约束；
+ * 上限优先：早期容量/3 < 500 下限时守卫 = 容量/3（可低于 500） */
+export const GEN_CONQUEST_GUARD_CAP_PCT = 1 / 3
+/** 守卫上限：不超过 3 分钟名义军力产能（conquest-guard-cap，2026-08-11，grill Q5）——恒 > 40s 公式，作安全阀防 GEN_CONQUEST_GUARD_SECONDS 上调；
+ * 名义产能为 0（无兵营）时无意义，取 max(500, ...) 保底防守卫压到 0 */
+export const GEN_CONQUEST_GUARD_MAX_SECONDS = 180
 /** 自动攻占冷却（ms，ADR-0033）：60s 一拍防频繁 tick；并行攻占受军力保底约束 */
 export const AUTO_CONQUEST_COOLDOWN_MS = 60_000
 /** 自动攻占军力保底：投满守卫后仍保留军力容量 × 此比例（防耗尽影响 raid 击退 / 探索派遣）；

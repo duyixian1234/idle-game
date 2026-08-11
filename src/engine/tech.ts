@@ -1,7 +1,7 @@
 import { RESOURCE_KEYS, TECHS } from './data'
 import type { TechDef } from './data'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
-import { canAfford, zeroResources, alliedCount } from './core'
+import { canAfford, zeroResources, alliedCount, conqueredCount } from './core'
 import { playMilestone } from './story'
 import { formatNumber } from './format'
 import { t } from '../i18n'
@@ -23,9 +23,10 @@ export function isTechResearched(state: GameState, id: string): boolean {
   return techLevel(state, id) > 0
 }
 
-/** 是否可升级：产出类/探索类科技且未满级（军械科技等短升级线按 def.maxLevel；探索科技 Lv1-5 提供收获倍率） */
+/** 是否可升级：产出类/探索类/攻占类科技且未满级（军械科技等短升级线按 def.maxLevel；探索科技 Lv1-5 提供收获倍率；
+ * conquest-guard-cap：攻占类 kind 'conquest' 可升级） */
 export function canTechUpgrade(def: TechDef, level: number): boolean {
-  const upgradable = def.effect.kind === 'production' || def.effect.kind === 'exploration'
+  const upgradable = def.effect.kind === 'production' || def.effect.kind === 'exploration' || def.effect.kind === 'conquest'
   return upgradable && level > 0 && level < (def.maxLevel ?? TECH_MAX_LEVEL)
 }
 
@@ -50,6 +51,7 @@ export function techRequirementsMet(state: GameState, id: string): boolean {
   if (!def) return false
   if (def.requires && !def.requires.every((t) => techLevel(state, t) > 0)) return false
   if (def.requiresAllies && alliedCount(state) < def.requiresAllies) return false
+  if (def.requiresConquests && conqueredCount(state) < def.requiresConquests) return false
   return true
 }
 
@@ -58,6 +60,13 @@ export function techAlliesMet(state: GameState, id: string): boolean {
   const need = TECHS[id]?.requiresAllies
   if (!need) return true
   return alliedCount(state) >= need
+}
+
+/** 派生查询：已攻占目标数量门槛是否满足（conquest-guard-cap：requiresConquests 全口径 conqueredCount，与成就同源） */
+export function techConquestsMet(state: GameState, id: string): boolean {
+  const need = TECHS[id]?.requiresConquests
+  if (!need) return true
+  return conqueredCount(state) >= need
 }
 
 /** 派生查询：当前是否研得起某科技（未研发 + 资源 + 前置 + 通关门控 + 结盟门槛） */

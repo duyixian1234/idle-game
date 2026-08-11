@@ -7,6 +7,7 @@ import { migrateSave, serializeSave } from './save'
 import { ENDLESS_BATCH_2_EXPLORATIONS } from './balance'
 import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, programmaticActiveCount } from './generate'
 import { CONQUESTS, ENDLESS_CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
+import { militaryCap } from './production'
 import { SCHEMA_VERSION } from './types'
 import type { ExpeditionState, GameState } from './types'
 
@@ -57,11 +58,12 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect(a.kind).toBe('conquest')
   })
 
-  it('军事目标：守卫 ≥ 500、奖励/成本同源锚当期产出（矿+科技双发）、**永不生成 permanentBonus**（关键防回归）', () => {
+  it('军事目标：守卫 ≤ 总兵力 1/3（conquest-guard-cap 硬约束）、奖励/成本同源锚当期产出（矿+科技双发）、**永不生成 permanentBonus**（关键防回归）', () => {
     const s = infiniteState()
     for (let i = 0; i < 50; i++) {
       const t = generateConquestTarget(s, fixedRolls([0.1, 0.2, 0.3, 0.4, 0.5]))
-      expect(t.guard).toBeGreaterThanOrEqual(500)
+      // 守卫 = ⌊容量/3⌋（infiniteState 无军港 → 容量 100 → 33；上限优先可低于 500 下限）
+      expect(t.guard).toBe(Math.floor(militaryCap(s) / 3))
       expect(t.bonus).toBeUndefined()
       // ADR-0028：奖励矿+科技双发，成本与奖励同源（N=120 / M=60 → 奖励 = 2×成本）
       expect(t.rewardMineral).toBeDefined()
@@ -90,29 +92,40 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBe((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!)
   })
 
-  it('军事目标守卫随军力净产出缩放（ADR-0033 修订 conquest-fleet：产出 × 40s，clamp 500 下限），不随容量/周目直接缩放', () => {
+  it('军事目标守卫双上限：min(max(500, 产出×40s), 容量/3, 产出×180s)——容量小时容量/3 主导（≤ 总兵力 1/3 硬约束，上限优先可低于 500 下限）', () => {
+    // 无军港（容量 100）→ ⌊100/3⌋=33 主导，产出/军械均无法突破（≤ 总兵力 1/3 硬约束）
     const s1 = infiniteState()
     s1.planets.orbital = { unlocked: true }
-    s1.buildings.barracks = 0 // 无兵营 → 军力产出 0 → 守卫 clamp 500
+    s1.buildings.barracks = 0
     const g1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g1.guard).toBe(500)
+    expect(g1.guard).toBe(33)
     const s3 = infiniteState()
     s3.planets.orbital = { unlocked: true }
-    s3.buildings.barracks = 100 // 军力产出 50/s → 守卫 = 50×40 = 2000
+    s3.buildings.barracks = 100 // 产出 50/s → byProd 2000，仍被容量/3=33 压住
     const g3 = generateConquestTarget(s3, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g3.guard).toBe(2_000)
-    // 军械科技放大产出 → 守卫同涨（守卫锚回充速度：产出↑守卫↑但回充恒 40s）
+    expect(g3.guard).toBe(33)
+    // 军械科技放大产出（150/s）且 +容量（100×1.5=150）→ 容量/3=50 仍主导
     const s4 = infiniteState()
     s4.planets.orbital = { unlocked: true }
     s4.buildings.barracks = 100
-    s4.techLevels.militaryTech = 5 // 产出 ×3 → 150/s → 守卫 6000
+    s4.techLevels.militaryTech = 5
     const g4 = generateConquestTarget(s4, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g4.guard).toBe(6_000)
-    // 军港（容量）不影响守卫——堆容量不再抬高攻占门槛（剪刀差根治）
+    expect(g4.guard).toBe(50)
+    // 军港扩容量 → 容量/3 上升（⌊5100/3⌋=1700）但仍 < 产出锚定 2000 → 容量主导
     const s5 = structuredClone(s3)
     s5.buildings.militaryPort = 25
     const g5 = generateConquestTarget(s5, fixedRolls([0.1, 0.2, 0.3]))
-    expect(g5.guard).toBe(2_000)
+    expect(g5.guard).toBe(1_700)
+    // 转折点：容量 ≥ 120×产出（30 军港 → 容量 6100、⌊/3⌋=2033 ≥ 2000）→ 恢复产出锚定（回充 40s 语义）
+    const s6 = structuredClone(s3)
+    s6.buildings.militaryPort = 30
+    const g6 = generateConquestTarget(s6, fixedRolls([0.1, 0.2, 0.3]))
+    expect(g6.guard).toBe(2_000)
+    // 产出 0 且容量/3 ≥ 500（大容量无兵营）→ clamp 500 保底生效（prodCap 不把守卫压到 0）
+    const s7 = structuredClone(s1)
+    s7.buildings.militaryPort = 25 // 容量 5100 → /3=1700；byProd=0、prodCap=500 → max(500,0)=500
+    const g7 = generateConquestTarget(s7, fixedRolls([0.1, 0.2, 0.3]))
+    expect(g7.guard).toBe(500)
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {

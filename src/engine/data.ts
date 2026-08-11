@@ -297,7 +297,17 @@ export interface TechEffectExploration {
   labelKey?: DeepKey<Zh>
 }
 
-export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration
+/** 科技效果：攻占（conquest-guard-cap，2026-08-11）——攻占产出/消耗双效果，每级线性；
+ * 产出在攻占结算时按当前等级实时乘（静态+动态全适用）；消耗在目标生成时按当前等级固化快照（ADR-0028 快照哲学一致）。 */
+export interface TechEffectConquest {
+  kind: 'conquest'
+  /** 每级攻占产出乘数增量（1 + rewardMult×Lv；0.1 → Lv10 ×2） */
+  rewardMult: number
+  /** 每级攻占消耗折扣（1 − costMult×Lv，下限 0.5；0.05 → Lv10 ×0.5） */
+  costMult: number
+}
+
+export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration | TechEffectConquest
 
 export interface TechDef {
   id: string
@@ -315,6 +325,8 @@ export interface TechDef {
   requires?: string[]
   /** 结盟派系数量门槛（如虫洞理论需结盟 ≥10；与 diplomacy.alliedCount 同口径，周目内） */
   requiresAllies?: number
+  /** 已攻占目标数量门槛（conquest-guard-cap：攻占科技线，如劫掠战术需已攻占 ≥5；与 core.conqueredCount 同口径，静态+动态全算） */
+  requiresConquests?: number
   /** 等级上限（缺省 TECH_MAX_LEVEL=10；星舰推进等长升级线设 20，军械科技 2026-08-11 起 10，无科技设低于缺省） */
   maxLevel?: number
   /** 攻占区域后解锁（军事线科技；渲染于科技面板列表末尾的分组） */
@@ -527,6 +539,17 @@ export const TECHS: Record<string, TechDef> = {
     maxLevel: 10,
     unlockByConquest: 'outpost',
     icon: 'militaryTech',
+  },
+  conquestTheory: {
+    id: 'conquestTheory',
+    nameKey: 'tech.conquestTheory.name',
+    descKey: 'tech.conquestTheory.desc',
+    descArgs: { pct: formatPercent(10), pct2: formatPercent(5), n: formatNumber(5) },
+    cost: { mineral: 100_000, tech: 20_000 }, // 参照 warpDrive 通关后量级（攻占科技天然通关后达成）
+    effect: { kind: 'conquest', rewardMult: 0.1, costMult: 0.05 },
+    requiresConquests: 5,
+    maxLevel: 10,
+    icon: 'shipyard',
   },
   warpDrive: {
     id: 'warpDrive',

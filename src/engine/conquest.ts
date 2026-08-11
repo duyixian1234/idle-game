@@ -1,5 +1,5 @@
 import { t } from '../i18n'
-import { CONQUESTS, defName } from './data'
+import { CONQUESTS, TECHS, defName } from './data'
 import type { ConquestDef } from './data'
 import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { playMilestone } from './story'
@@ -7,6 +7,7 @@ import { reputationBonuses } from './reputation'
 import { militaryCap } from './production'
 import { fleetAvailablePower } from './fleet'
 import { rollDomain } from './rng'
+import { techLevel } from './tech'
 import { formatNumber, formatPercent } from './format'
 import type { ConquestState, GameState } from './types'
 
@@ -69,6 +70,26 @@ export function isConquestAvailable(state: GameState, id: string): boolean {
   if (!state.planets[def.unlockPlanet]?.unlocked) return false
   if (def.afterEnding && state.phase === 'playing') return false
   return true
+}
+
+/**
+ * 攻占产出乘数（conquest-guard-cap，2026-08-11）：1 + conquestTheory 等级 × rewardMult（0.1/级，Lv10 ×2）。
+ * 结算时按当前等级实时乘（Q10）；科技未研发/效果非 conquest → 1.0（零影响）。
+ */
+export function conquestRewardMult(state: GameState): number {
+  const def = TECHS.conquestTheory
+  if (!def || def.effect.kind !== 'conquest') return 1
+  return 1 + techLevel(state, def.id) * def.effect.rewardMult
+}
+
+/**
+ * 攻占消耗乘数（conquest-guard-cap，2026-08-11）：max(0.5, 1 − conquestTheory 等级 × costMult)（0.05/级，Lv10 ×0.5 半价封顶）。
+ * 目标生成时按当前等级固化快照（Q10）；科技未研发/效果非 conquest → 1.0（零影响）。
+ */
+export function conquestCostMult(state: GameState): number {
+  const def = TECHS.conquestTheory
+  if (!def || def.effect.kind !== 'conquest') return 1
+  return Math.max(0.5, 1 - techLevel(state, def.id) * def.effect.costMult)
 }
 
 /** 发起攻占：投入军力（≥1）并锁定倒计时（startedAt/finishAt；时长为 duration 域随机 10~30min，rng 可选注入供测试覆盖）。
@@ -150,13 +171,15 @@ function settleOneConquest(
     delete cs.invested
     delete cs.fleetLocked // 舰队压制锁定释放（conquest-fleet）
     const rewards: string[] = []
+    // 攻占产出乘数（conquest-guard-cap）：结算时按当前科技等级实时乘（Q10；静态+动态全适用 Q12）
+    const rewardMult = conquestRewardMult(state)
     if (def.rewardMineral) {
-      state.resources.mineral += def.rewardMineral
-      rewards.push(t('cq.0', { a0: formatNumber(def.rewardMineral) }))
+      state.resources.mineral += Math.floor(def.rewardMineral * rewardMult)
+      rewards.push(t('cq.0', { a0: formatNumber(Math.floor(def.rewardMineral * rewardMult)) }))
     }
     if (def.rewardTech) {
-      state.resources.tech += def.rewardTech
-      rewards.push(t('cq.1', { a0: formatNumber(def.rewardTech) }))
+      state.resources.tech += Math.floor(def.rewardTech * rewardMult)
+      rewards.push(t('cq.1', { a0: formatNumber(Math.floor(def.rewardTech * rewardMult)) }))
     }
     if (def.bonus) {
       state.permanentBonuses[def.bonus.kind] = (state.permanentBonuses[def.bonus.kind] ?? 0) + def.bonus.value

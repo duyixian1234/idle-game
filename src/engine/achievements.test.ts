@@ -12,9 +12,9 @@ function makeState(): GameState {
 }
 
 describe('achievements', () => {
-  it('ACHIEVEMENTS 表完整性：37 个（auto-infinite-entry 删 endless；+wormhole-empire 星际帝国）、类别分布、rep 正数、条件非空', () => {
+  it('ACHIEVEMENTS 表完整性：40 个（+conquest-guard-cap 攻占梯度 3 条）、类别分布、rep 正数、条件非空', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(40)
     const cats = new Set(defs.map((d) => d.category))
     expect(cats).toEqual(new Set(['story', 'collect', 'finale']))
     for (const d of defs) {
@@ -253,9 +253,9 @@ describe('achievements: 胁迫外交', () => {
 })
 
 describe('achievements: 卡片化数据（icon/progress）', () => {
-  it('37 个成就 icon 非空且命中 ICONS 表', () => {
+  it('40 个成就 icon 非空且命中 ICONS 表', () => {
     const defs = Object.values(ACHIEVEMENTS)
-    expect(defs).toHaveLength(37)
+    expect(defs).toHaveLength(40)
     for (const d of defs) {
       expect(d.icon, `缺少成就图标：${d.id}`).toBeTruthy()
       expect(ICONS[d.icon], `成就图标不在 ICONS 表：${d.id} → ${d.icon}`).toBeTruthy()
@@ -268,7 +268,7 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     const story = defs.filter((d) => d.category === 'story')
     expect(story).toHaveLength(11)
     for (const d of story) expect(d.progress, `${d.id} 不应有 progress`).toBeUndefined()
-    // 有 progress 的成就数量与 spec 映射一致（20 个；+stellarEmpire wormhole-empire）
+    // 有 progress 的成就数量与 spec 映射一致（23 个；+conquests10/25/50 conquest-guard-cap）
     const withProgress = defs.filter((d) => d.progress)
     expect(withProgress.map((d) => d.id).sort()).toEqual(
       [
@@ -277,6 +277,7 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
         'explorerComplete', 'escortFirst', 'dockLord',
         'warpVeteran', 'warpMaster', 'stellarEmpire',
         'ng2', 'ng3',
+        'conquests10', 'conquests25', 'conquests50',
       ].sort(),
     )
   })
@@ -326,6 +327,52 @@ describe('achievements: 卡片化数据（icon/progress）', () => {
     s.ngPlusLevel = 5
     expect(ACHIEVEMENTS.ng2.progress!(s)).toEqual([1, 1])
     expect(ACHIEVEMENTS.ng3.progress!(s)).toEqual([2, 2])
+  })
+})
+
+describe('achievements: 攻占数量梯度（conquest-guard-cap）', () => {
+  it('conquests10/25/50：逐级解锁并发放奖励（全口径 conqueredCount）', () => {
+    const s = makeState()
+    for (let i = 0; i < 10; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    const ids10 = checkAchievements(s, 1000).map((d) => d.id)
+    expect(ids10).toContain('conquests10')
+    expect(ids10).not.toContain('conquests25')
+    expect(ids10).not.toContain('conquests50')
+    expect(s.achievements.conquests10).toEqual({ unlockedAt: 1000, unlockedInRound: 0 })
+    // 初始 15 + conquests2（5 万）+ conquests10（10 万）
+    expect(s.resources.mineral).toBe(15 + (ACHIEVEMENTS.conquests2.rewardMineral ?? 0) + (ACHIEVEMENTS.conquests10.rewardMineral ?? 0))
+    for (let i = 10; i < 25; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    const ids25 = checkAchievements(s, 2000).map((d) => d.id)
+    expect(ids25).toContain('conquests25')
+    expect(ids25).not.toContain('conquests50')
+    for (let i = 25; i < 50; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    const ids50 = checkAchievements(s, 3000).map((d) => d.id)
+    expect(ids50).toContain('conquests50')
+    expect(s.achievements.conquests50).toEqual({ unlockedAt: 3000, unlockedInRound: 0 })
+  })
+
+  it('progress 读数：conqueredCount 分子、阈值分母', () => {
+    const s = makeState()
+    for (let i = 0; i < 7; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    expect(ACHIEVEMENTS.conquests10.progress!(s)).toEqual([7, 10])
+    expect(ACHIEVEMENTS.conquests25.progress!(s)).toEqual([7, 25])
+    expect(ACHIEVEMENTS.conquests50.progress!(s)).toEqual([7, 50])
+  })
+
+  it('周目语义：NG+ 后 conquest 重置 → 重新积累可重解锁', () => {
+    const s = makeState()
+    for (let i = 0; i < 10; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    checkAchievements(s, 1000)
+    expect(s.achievements.conquests10?.unlockedInRound).toBe(0)
+    // NG+：conquest 重置，成就解锁记录保留但周目不匹配 → 不重发；重新攻占 10 个 → 重解锁
+    startNewGamePlus(s, 2000)
+    const before = s.resources.mineral
+    expect(checkAchievements(s, 3000).map((d) => d.id)).not.toContain('conquests10')
+    for (let i = 0; i < 10; i++) s.conquest[`c${i}`] = { status: 'conquered' }
+    const newly = checkAchievements(s, 4000)
+    expect(newly.map((d) => d.id)).toContain('conquests10')
+    expect(s.achievements.conquests10?.unlockedInRound).toBe(1)
+    expect(s.resources.mineral).toBeGreaterThan(before) // 重发奖励
   })
 })
 
