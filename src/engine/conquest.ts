@@ -1,10 +1,11 @@
 import { t } from '../i18n'
 import { CONQUESTS, TECHS, defName } from './data'
 import type { ConquestDef } from './data'
-import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, BOSS_GUARD_CAP_LAYER_GROWTH, BOSS_GUARD_CAP_PCT, BOSS_GUARD_MAX_SECONDS, BOSS_GUARD_PROD_LAYER_GROWTH, BOSS_GUARD_PROD_SECONDS, BOSS_REWARD_LAYER_GROWTH, BOSS_REWARD_MINERAL_SECONDS, BOSS_REWARD_TECH_SECONDS, ENDLESS_CONQUEST_LAYER_PROGRESS, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { advanceEndlessLayer, endlessBossAvailable, endlessLayer } from './events'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
-import { militaryCap } from './production'
+import { militaryCap, netProduction, nominalMilitaryProduction } from './production'
 import { fleetAvailablePower } from './fleet'
 import { rollDomain } from './rng'
 import { techLevel } from './tech'
@@ -58,6 +59,68 @@ export function conquestDef(state: GameState, id: string): ConquestDef | undefin
     rewardTech: t.rewardTech,
     bonus: t.bonus,
   }
+}
+
+// ---- boss 军力挑战（endless-progression，ADR-0053，2026-08-11）----
+
+/** boss 守卫公式（ADR-0053）：`min(产能×40s×(1+0.15×(layer-1)), ⌊军力上限×1/3⌋×(1+0.10×(layer-1)), 产能×180s×2)`
+ * - 产能项 × 层数系数（产出越高、层数越高 → 守卫越强）
+ * - 容量项受攻占双上限硬约束（≤ 军力上限 1/3），随层数放大
+ * - 末项 = GEN_CONQUEST_GUARD_MAX_SECONDS×2 安全阀（boss 强于普通生成目标）
+ * 产能 0（无兵营）时取 500 保底（与生成目标同构防守卫塌 0） */
+export function endlessBossGuard(state: GameState, layer: number): number {
+  const byProd = Math.floor(nominalMilitaryProduction(state) * BOSS_GUARD_PROD_SECONDS * (1 + BOSS_GUARD_PROD_LAYER_GROWTH * (layer - 1)))
+  const byCap = Math.floor(Math.floor(militaryCap(state) * BOSS_GUARD_CAP_PCT) * (1 + BOSS_GUARD_CAP_LAYER_GROWTH * (layer - 1)))
+  const byMax = Math.floor(nominalMilitaryProduction(state) * BOSS_GUARD_MAX_SECONDS)
+  return Math.max(500, Math.min(byProd, byCap, byMax))
+}
+
+/** boss 一次性奖励（层数系数）：奖励锚定当期净产出（ADR-0028 同源），× (1 + 0.15×(layer-1)) */
+export function endlessBossReward(state: GameState, layer: number): { rewardMineral?: number; rewardTech?: number } {
+  const prod = netProduction(state)
+  const growth = 1 + BOSS_REWARD_LAYER_GROWTH * (layer - 1)
+  return {
+    rewardMineral: Math.floor(prod.mineral * BOSS_REWARD_MINERAL_SECONDS * growth),
+    rewardTech: Math.floor(prod.mineral * BOSS_REWARD_TECH_SECONDS * growth),
+  }
+}
+
+/** 当前 boss 目标 id（`boss:L<layer>`，每 3 层一个；已攻克则下次同层不再生成，层推进后新层出现新 boss） */
+export function endlessBossId(state: GameState): string | null {
+  if (!endlessBossAvailable(state)) return null
+  const layer = endlessLayer(state)
+  return `boss:L${layer}`
+}
+
+/** 确保当前层 boss 目标存在（幂等）：layer%3===0 且未获得时注入 generatedTargets + conquest 可用态。
+ * boss 复用攻占结算管线（发起/守卫/结算/奖励）；autoBoss 开启后由自动系统按冷却发起。 */
+export function ensureEndlessBoss(state: GameState): string | null {
+  const id = endlessBossId(state)
+  if (!id) return null
+  if (state.generatedTargets.some((x) => x.kind === 'conquest' && x.id === id)) return id
+  const layer = endlessLayer(state)
+  const guard = endlessBossGuard(state, layer)
+  const { rewardMineral, rewardTech } = endlessBossReward(state, layer)
+  const target: GeneratedTarget = {
+    kind: 'conquest',
+    id,
+    name: t('cq.10', { a0: formatNumber(layer) }),
+    desc: t('cq.11', { a0: formatNumber(layer), a1: formatNumber(guard) }),
+    batch: 0,
+    guard,
+    rewardMineral,
+    rewardTech,
+  }
+  state.generatedTargets.push(target)
+  state.conquest[id] = { status: 'available' }
+  return id
+}
+
+/** boss 是否被当前层已攻克（归档）：判定当前 boss 层是否已归档 */
+export function endlessBossDefeated(state: GameState): boolean {
+  const id = endlessBossId(state)
+  if (!id) return false
+  return state.archivedRounds[id] != null || state.conquest[id]?.status === 'conquered'
 }
 
 /** 区域是否可发起攻占：未攻占、不在进行中、前置星球已解锁、（通关后区域需 phase ≠ playing） */
@@ -132,6 +195,8 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
  */
 export function settleConquests(state: GameState, nowMs: number, rng?: () => number): string[] {
   const logs: string[] = []
+  // 确保当前层 boss 目标存在（ADR-0053：layer%3===0 时注入；幂等）
+  ensureEndlessBoss(state)
   const roll = rng ?? (() => rollDomain(state, 'conquest')())
   for (const def of Object.values(CONQUESTS)) {
     const log = settleOneConquest(state, def.id, def, nowMs, roll, true)
@@ -198,6 +263,14 @@ function settleOneConquest(
         playMilestone(state, 'conquestAll')
       }
     }
+    // endless 层推进（endless-progression）：每次征服 +0.04（平滑进度制，跨 NG+ 继承）
+    advanceEndlessLayer(state, ENDLESS_CONQUEST_LAYER_PROGRESS)
+    // boss 军力挑战（ADR-0053）：攻克当前层 boss → bossDefeated 计数 + 层数 +1（boss 击败路径保留）
+    if (id.startsWith('boss:L')) {
+      state.endless.bossDefeated = (state.endless.bossDefeated ?? 0) + 1
+      advanceEndlessLayer(state, 1)
+      // 下一层 boss 由 ensureEndlessBoss 在后续 tick 注入（当前层已归档）
+    }
     return t('cq.3', { a0: defName(def), a1: rewards.join(t('cq.6')) || t('cq.7') })
   }
   // 失败：军力全损、区域回到可重试状态（不破坏任何建筑/科技/进度）
@@ -230,9 +303,13 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
   const cfg = state.autoConquest
   if (!cfg?.enabled) return []
   if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
+  // 确保当前层 boss 目标存在（autoBoss 开启时由本函数纳入候选）
+  ensureEndlessBoss(state)
   const candidates = state.generatedTargets
     .filter((gt) => {
       if (gt.kind !== 'conquest') return false
+      // boss 军力挑战（ADR-0053）：仅 autoBoss 开启时纳入自动候选（默认关 = 手动发起）
+      if (gt.id.startsWith('boss:L') && state.endless?.autoBoss !== true) return false
       const cs = state.conquest[gt.id]
       if (cs?.status !== 'available' || cs.startedAt != null) return false
       return (gt.guard ?? 0) > 0

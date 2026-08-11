@@ -1,5 +1,5 @@
 import type { MechanicId, ResourceKey } from './types'
-import { JUMPGATE_HARVEST_PCT_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL } from './balance'
+import { INFINITE_TECH_COST_BASE, JUMPGATE_HARVEST_PCT_PER_LEVEL, INFINITE_TECH_MAX_LEVEL, INFINITE_TECH_PCT_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL } from './balance'
 import { formatMultiplier, formatNumber, formatPercent, formatRate } from './format'
 import { t } from '../i18n'
 import type { DeepKey, TranslateParams, Zh } from '../i18n'
@@ -307,7 +307,29 @@ export interface TechEffectConquest {
   costMult: number
 }
 
-export type TechEffect = TechEffectProduction | TechEffectUnlock | TechEffectExploration | TechEffectConquest
+/** 科技效果：全产出无限线（infinite-tech，ADR-0055，2026-08-11）——每级 +pct 全产出（矿/能源/科技，军力不吃）。
+ * 效果 = 1 + pct×Lv（Lv100 = ×3）；1.7^n 成本曲线使科技永远点不满，作存量资源 sink。 */
+export interface TechEffectProductionAll {
+  kind: 'productionAll'
+  /** 每级全产出加成（0.02 = +2%/级） */
+  pct: number
+}
+
+/** 科技效果：护航吞吐无限线（infinite-tech，ADR-0055）——每级 +pct 护航吞吐（基于修复后护航模型：费用侧吞吐杠杆）。
+ * 效果 = 1 + pct×Lv；回报锚定远征费同比放大，ROI 恒常数不膨胀。 */
+export interface TechEffectEscortThroughput {
+  kind: 'escortThroughput'
+  /** 每级护航吞吐加成（0.02 = +2%/级） */
+  pct: number
+}
+
+export type TechEffect =
+  | TechEffectProduction
+  | TechEffectUnlock
+  | TechEffectExploration
+  | TechEffectConquest
+  | TechEffectProductionAll
+  | TechEffectEscortThroughput
 
 export interface TechDef {
   id: string
@@ -573,6 +595,30 @@ export const TECHS: Record<string, TechDef> = {
     afterEnding: true,
     icon: 'wormhole',
   },
+  // ---- 无限科技 sink（infinite-tech，ADR-0055，2026-08-11）：两条无限线，存量资源永续出口 ----
+  // cost = base ×1.7^Lv（base 1e9 矿 + 2e8 科），maxLevel 名义 100（1.7^n 曲线下实际点不满，始终有目标）
+  deepMetallurgy: {
+    id: 'deepMetallurgy',
+    nameKey: 'tech.deepMetallurgy.name',
+    descKey: 'tech.deepMetallurgy.desc',
+    descArgs: { pct: formatPercent(INFINITE_TECH_PCT_PER_LEVEL * 100), n: formatNumber(INFINITE_TECH_MAX_LEVEL) },
+    cost: INFINITE_TECH_COST_BASE,
+    effect: { kind: 'productionAll', pct: INFINITE_TECH_PCT_PER_LEVEL },
+    maxLevel: INFINITE_TECH_MAX_LEVEL,
+    afterEnding: true,
+    icon: 'ringSmelter',
+  },
+  deepNavigation: {
+    id: 'deepNavigation',
+    nameKey: 'tech.deepNavigation.name',
+    descKey: 'tech.deepNavigation.desc',
+    descArgs: { pct: formatPercent(INFINITE_TECH_PCT_PER_LEVEL * 100), n: formatNumber(INFINITE_TECH_MAX_LEVEL) },
+    cost: INFINITE_TECH_COST_BASE,
+    effect: { kind: 'escortThroughput', pct: INFINITE_TECH_PCT_PER_LEVEL },
+    maxLevel: INFINITE_TECH_MAX_LEVEL,
+    afterEnding: true,
+    icon: 'ship',
+  },
 }
 
 /** 攻占区域定义 */
@@ -747,19 +793,20 @@ export const EXPLORE_PLANETS: Record<string, PlanetDef> = {
 
 // ---- 无尽模式手写保底池（endless-expansion：仅 phase==='infinite' 注入探索奖池）----
 
-/** 无尽保底军事目标（ConquestDef + 解锁批次）：batch 1 = 进入无尽即解锁，batch 2 = 第 15 次探索后解锁 */
+/** 无尽保底军事目标（ConquestDef + 解锁批次）：batch 1 = 进入无尽即解锁，batch 2 = 第 15 次探索后解锁，
+ * batch 3 = 层数 ≥10 后解锁（关键层批次，ticket 05 加深） */
 export interface EndlessConquestDef extends ConquestDef {
-  batch: 1 | 2
+  batch: 1 | 2 | 3
 }
 
 /** 无尽保底外交对象（FactionDef + 解锁批次） */
 export interface EndlessFactionDef extends FactionDef {
-  batch: 1 | 2
+  batch: 1 | 2 | 3
 }
 
 /** 无尽保底天体（PlanetDef + 解锁批次；1 机制型 + 1 产出型） */
 export interface EndlessPlanetDef extends PlanetDef {
-  batch: 1 | 2
+  batch: 1 | 2 | 3
 }
 
 /**
@@ -800,6 +847,18 @@ export const ENDLESS_CONQUESTS: Record<string, EndlessConquestDef> = {
     bonus: { kind: 'production', value: 0.05 },
     batch: 2,
   },
+  // batch 3（关键层批次：层数 ≥10 解锁）：一次性高价值目标，**零永久加成**（永久加成全部走层奖励，ADR-0053 红线）
+  sentinelColossus: {
+    id: 'sentinelColossus',
+    nameKey: 'conquest.sentinelColossus.name',
+    descKey: 'conquest.sentinelColossus.desc',
+    guard: 6_000,
+    unlockPlanet: 'dawn',
+    afterEnding: true,
+    rewardMineral: 8_000_000,
+    rewardTech: 400_000,
+    batch: 3,
+  },
 }
 
 /** 无尽保底外交对象表（3 个，延续探索势力质感） */
@@ -831,6 +890,16 @@ export const ENDLESS_FACTIONS: Record<string, EndlessFactionDef> = {
     intimidateCostMult: 0.7,
     batch: 2,
   },
+  // batch 3（关键层批次：层数 ≥10 解锁）
+  voidSingularity: {
+    id: 'voidSingularity',
+    nameKey: 'faction.voidSingularity.name',
+    descKey: 'faction.voidSingularity.desc',
+    initialFavor: 15,
+    initialThreat: 45,
+    tradeDiscount: 0.07,
+    batch: 3,
+  },
 }
 
 /** 无尽保底天体表（2 个：1 机制型 + 1 产出型） */
@@ -855,6 +924,19 @@ export const ENDLESS_PLANETS: Record<string, EndlessPlanetDef> = {
     output: { energy: 1.8 },
     outputPct: { energy: 0.02 },
     batch: 2,
+  },
+  // batch 3（关键层批次：层数 ≥10 解锁）：产出型天体（零永久加成）
+  cosmicForge: {
+    id: 'cosmicForge',
+    nameKey: 'planet.cosmicForge.name',
+    descKey: 'planet.cosmicForge.desc',
+    descArgs: { rate: formatRate(2.5) },
+    unlock: { resources: {} },
+    mechanicId: 'none',
+    discoverOnly: true,
+    output: { mineral: 2.5 },
+    outputPct: { mineral: 0.02 },
+    batch: 3,
   },
 }
 

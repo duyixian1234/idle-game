@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { canResearchTech, canUpgradeTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
+import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
 import { alliedCount } from './core'
 import { buyBuilding, isBuildingUnlocked } from './buildings'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
 import { netProduction, productionMultipliers } from './production'
+import { escortThroughputMult } from './exploration'
+import { TECHS } from './data'
 import type { GameState } from './types'
 
 describe('engine: 科技系统', () => {
@@ -302,3 +304,52 @@ describe('engine: 神经网络科技（tech-line-completion ticket 01）', () =>
   })
 })
 
+
+describe('engine: 无限科技 sink（infinite-tech，ADR-0055）', () => {
+  it('深空冶金：+2%/级全产出（Lv10 = ×1.2 矿/能/科，军力不吃）；深空导航：+2%/级护航吞吐', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.buildings.miner = 100
+    s.buildings.solar = 100
+    s.resources.mineral = 1e15
+    s.resources.tech = 1e15
+    s.resources.military = 1e7
+    // 未研发：全产出系数 1
+    expect(productionMultipliers(s).mineral).toBe(1)
+    expect(escortThroughputMult(s)).toBe(1)
+    // 研发 + 升级 Lv10
+    expect(canResearchTech(s, 'deepMetallurgy')).toBe(true)
+    expect(researchTech(s, 'deepMetallurgy')).toEqual({ ok: true })
+    for (let lv = 1; lv < 10; lv++) expect(upgradeTech(s, 'deepMetallurgy')).toEqual({ ok: true })
+    expect(s.techLevels.deepMetallurgy).toBe(10)
+    expect(productionMultipliers(s).mineral).toBeCloseTo(1 + 0.02 * 10)
+    expect(productionMultipliers(s).energy).toBeCloseTo(1 + 0.02 * 10)
+    expect(productionMultipliers(s).tech).toBeCloseTo(1 + 0.02 * 10)
+    expect(productionMultipliers(s).military).toBe(1) // 军力不吃
+    // 深空导航：不影响全产出，只放大护航吞吐
+    s.resources.mineral = 1e15
+    s.resources.tech = 1e15
+    expect(canResearchTech(s, 'deepNavigation')).toBe(true)
+    expect(researchTech(s, 'deepNavigation')).toEqual({ ok: true })
+    for (let lv = 1; lv < 10; lv++) expect(upgradeTech(s, 'deepNavigation')).toEqual({ ok: true })
+    expect(escortThroughputMult(s)).toBeCloseTo(1 + 0.02 * 10)
+  })
+
+  it('成本曲线：base 1e9 矿 + 2e8 科，×1.7^Lv；maxLevel 名义 100（可升级但永远点不满）', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.resources.mineral = 1e18
+    s.resources.tech = 1e18
+    expect(techCost(s, 'deepMetallurgy')).toMatchObject({ mineral: 1_000_000_000, tech: 200_000_000 })
+    // Lv1 成本 = base ×1.7
+    s.techLevels.deepMetallurgy = 1
+    expect(techCost(s, 'deepMetallurgy')).toMatchObject({ mineral: Math.ceil(1_000_000_000 * 1.7), tech: Math.ceil(200_000_000 * 1.7) })
+    // maxLevel 名义 100：Lv99 → Lv100 仍可升级；Lv100 满级不可再升
+    const def = TECHS.deepMetallurgy
+    expect(def.maxLevel).toBe(100)
+    s.techLevels.deepMetallurgy = 99
+    expect(canTechUpgrade(def, 99)).toBe(true)
+    s.techLevels.deepMetallurgy = 100
+    expect(canTechUpgrade(def, 100)).toBe(false)
+  })
+})

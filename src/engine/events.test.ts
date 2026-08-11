@@ -12,6 +12,8 @@ import {
   fallbackGate,
   advanceEndlessLayer,
   endlessEventPool,
+  endlessBossAvailable,
+  endlessBossProgress,
   evaluateEndlessCurve,
   evaluateEventCurve,
   pruneStaleEvents,
@@ -428,6 +430,80 @@ describe('engine: 事件优先级与处理模式', () => {
   })
 
   describe('engine: 事件自动处理', () => {
+    it('一键全自动开关（ticket 07）：默认关时行为与现状一致（五类策略默认全关）；开启后按各策略 fallback 自动结算', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 100_000
+      s.resources.tech = 100_000
+      // 默认关：策略未启用 → 事件保留（暂停）
+      s.pendingEvents.push({
+        uid: 1,
+        defId: 'trade',
+        title: '贸易',
+        desc: '',
+        options: [{ id: 'accept', label: '成交', hint: '' }, { id: 'refuse', label: '拒绝' }],
+        createdAt: 0,
+        resolved: false,
+        contractVersion: 1,
+        theme: 'trade',
+        decisionType: 'exchange',
+        riskLevel: 'low',
+      })
+      expect(s.eventsFullAuto ?? false).toBe(false)
+      expect(autoResolvePendingEvents(s, 1_000)).toHaveLength(0)
+      expect(s.pendingEvents).toHaveLength(1) // 未自动结算
+      // 开启 → 按默认 fallback（trade=accept）自动结算
+      s.eventsFullAuto = true
+      const results = autoResolvePendingEvents(s, 2_000)
+      expect(results).toHaveLength(1)
+      expect(results[0].status).toBe('resolved')
+      expect(s.pendingEvents).toHaveLength(0)
+      // 能源分支（disaster）fallback = collect；security 走降级链
+      const s2 = createInitialState(0)
+      s2.resources.mineral = 100_000
+      s2.eventsFullAuto = true
+      s2.pendingEvents.push({
+        uid: 2,
+        defId: 'meteor',
+        title: '陨石',
+        desc: '',
+        options: [{ id: 'collect', label: '收集' }, { id: 'shield', label: '护盾' }],
+        createdAt: 0,
+        resolved: false,
+        contractVersion: 1,
+        theme: 'disaster',
+        decisionType: 'collect',
+        riskLevel: 'medium',
+      })
+      const r2 = autoResolvePendingEvents(s2, 1_000)
+      expect(r2[0].status).toBe('resolved')
+      expect(s2.pendingEvents).toHaveLength(0)
+    })
+
+    it('一键全自动与类别策略共存：显式启用的类别策略优先，未启用的类别由 fullAuto 兜底', () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 100_000
+      s.eventsFullAuto = true
+      // trade 显式启用且自定义 fallback refuse → 用 refuse（fullAuto 不覆盖显式配置）
+      s.automationPolicies.trade = { enabled: true, rules: [], fallbackOptionId: 'refuse' }
+      s.pendingEvents.push({
+        uid: 1,
+        defId: 'trade',
+        title: '贸易',
+        desc: '',
+        options: [{ id: 'accept', label: '成交' }, { id: 'refuse', label: '拒绝' }],
+        createdAt: 0,
+        resolved: false,
+        contractVersion: 1,
+        theme: 'trade',
+        decisionType: 'exchange',
+        riskLevel: 'low',
+      })
+      const r = autoResolvePendingEvents(s, 1_000)
+      expect(r[0].status).toBe('resolved')
+      expect(s.pendingEvents).toHaveLength(0)
+      // 显式 fallback refuse → 事件被自动拒绝（不改资源：changed=false 但无规则 → resolved）
+      expect(r[0].reason).toBeDefined()
+    })
     it('低风险贸易按类别规则自动结算，并记录规则与原因', () => {
       const s = createInitialState(0)
       s.resources.mineral = 10_000
@@ -688,6 +764,54 @@ describe('engine: 事件与产出协同', () => {
       expect(endlessEventPool(s).some((event) => event.isBoss)).toBe(false)
       advanceEndlessLayer(s, 3)
       expect(endlessEventPool(s).some((event) => event.isBoss)).toBe(true)
+    })
+
+    it('平滑进度制（endless-progression，ADR-0053）：小数推进累入 layerProgress，满 1.0 进位 1 层并保留余量', () => {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      expect(s.endless.layer).toBe(0)
+      expect(s.endless.layerProgress ?? 0).toBe(0)
+      advanceEndlessLayer(s, 0.04) // 一次征服
+      expect(s.endless.layer).toBe(0)
+      expect(s.endless.layerProgress).toBeCloseTo(0.04)
+      // 25 次征服累计 1.0 → 进位 1 层，余量 0
+      for (let i = 0; i < 24; i++) advanceEndlessLayer(s, 0.04)
+      expect(s.endless.layer).toBe(1)
+      expect(s.endless.layerProgress).toBeCloseTo(0)
+      // 跨层进位与余量保留：0.9 + 0.3 = 1.2 → +1 层，余 0.2
+      const s2 = createInitialState(0)
+      s2.phase = 'infinite'
+      advanceEndlessLayer(s2, 0.9)
+      advanceEndlessLayer(s2, 0.3)
+      expect(s2.endless.layer).toBe(1)
+      expect(s2.endless.layerProgress).toBeCloseTo(0.2)
+      // 整数推进（boss 击败路径）原语义保留
+      const s3 = createInitialState(0)
+      s3.phase = 'infinite'
+      advanceEndlessLayer(s3)
+      expect(s3.endless.layer).toBe(1)
+    })
+
+    it('boss 每 3 层出现（endlessBossAvailable / endlessBossProgress 门控）', () => {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      expect(endlessBossAvailable(s)).toBe(false)
+      advanceEndlessLayer(s, 2.9)
+      expect(endlessBossAvailable(s)).toBe(false)
+      expect(endlessBossProgress(s)).toBeCloseTo(2.9)
+      advanceEndlessLayer(s, 0.1) // 满 3 层 → 可战；进度回绕到 0
+      expect(endlessBossAvailable(s)).toBe(true)
+      expect(endlessBossProgress(s)).toBeCloseTo(0)
+      // 越过 boss 层（layer 4）后不可战，进度从 1 重新累积
+      advanceEndlessLayer(s, 1)
+      expect(endlessBossAvailable(s)).toBe(false)
+      expect(endlessBossProgress(s)).toBeCloseTo(1)
+      // 层 5 → 进度 2；层 6 → 再次可战
+      advanceEndlessLayer(s, 1)
+      expect(endlessBossAvailable(s)).toBe(false)
+      expect(endlessBossProgress(s)).toBeCloseTo(2)
+      advanceEndlessLayer(s, 1)
+      expect(endlessBossAvailable(s)).toBe(true)
     })
 
     it('连续低风险结果触发坏运气保护并优先给出高风险事件', () => {

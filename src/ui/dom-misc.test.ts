@@ -31,6 +31,30 @@ describe('ui: 星球机制状态条', () => {
     expect(els.mechanicBar.textContent).toContain('引力井')
     expect(els.mechanicBar.textContent).toContain('80.00%')
   })
+
+  it('无尽成长轴状态行：infinite 常驻显示无尽层数与距下次 boss 进度（data-endless-status）', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.endless.layer = 2
+    s.endless.layerProgress = 0.5
+    renderPlanetMechanic(els.mechanicBar, s)
+    const line = els.mechanicBar.querySelector('[data-endless-status]')
+    expect(line).toBeTruthy()
+    expect(line!.textContent).toContain('无尽 Lv.2')
+    expect(line!.textContent).toContain('距 boss 0.50 层') // 3 - 2.5 = 0.5 层
+    // 层 3 → boss 可战
+    const s2 = createInitialState(0)
+    s2.phase = 'infinite'
+    s2.endless.layer = 3
+    renderPlanetMechanic(els.mechanicBar, s2)
+    const line2 = els.mechanicBar.querySelector('[data-endless-status]')
+    expect(line2!.textContent).toContain('boss 可战')
+    // playing 不渲染（层推进为后期成长轴）
+    const s3 = createInitialState(0)
+    renderPlanetMechanic(els.mechanicBar, s3)
+    expect(els.mechanicBar.querySelector('[data-endless-status]')).toBeNull()
+  })
 })
 
 describe('ui: 探索页', () => {
@@ -301,6 +325,44 @@ describe('ui: 探索页', () => {
     const s2 = endedState()
     renderExplorePage(page, s2, 0)
     expect(page.querySelector('[data-explore-endless]')).toBeNull()
+  })
+
+  it('无尽面板（endless-progression）：infinite 渲染层数/boss 状态/奖励预览/autoBoss/发起按钮；playing 不渲染', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = endedState()
+    enterInfiniteMode(s)
+    s.endless.layer = 3
+    const page = container.querySelector('[data-nav-page="explore"]') as HTMLElement
+    renderExplorePage(page, s, 0)
+    const panel = page.querySelector('[data-endless-panel]')
+    expect(panel).toBeTruthy()
+    expect(panel!.textContent).toContain('无尽面板')
+    expect(panel!.textContent).toContain('boss 可战')
+    expect(panel!.textContent).toContain('下一层奖励')
+    expect(panel!.querySelector('[data-endless-auto-boss]')).toBeTruthy()
+    // 已解锁内容行：层 3 未达标 batch 3（层 ≥10）→ 显示锁定文案
+    expect(panel!.querySelector('[data-endless-content]')!.textContent).toContain('层数 ≥10')
+    // 发起 boss 按钮（当前层 boss 未攻克 → 展示）
+    const launch = panel!.querySelector<HTMLElement>('[data-endless-boss-launch]')
+    expect(launch).toBeTruthy()
+    expect(launch!.dataset.endlessBossLaunch).toContain('boss:L')
+    // 已攻克 → 不再展示发起按钮
+    s.archivedRounds['boss:L3'] = 0
+    renderExplorePage(page, s, 0)
+    const panel2 = page.querySelector('[data-endless-panel]')
+    expect(panel2!.textContent).toContain('boss 已攻克')
+    expect(panel2!.querySelector('[data-endless-boss-launch]')).toBeNull()
+    // 层 10 达标 → 新目标已入池
+    const s4 = endedState()
+    enterInfiniteMode(s4)
+    s4.endless.layer = 10
+    renderExplorePage(page, s4, 0)
+    expect(page.querySelector('[data-endless-panel]')!.querySelector('[data-endless-content]')!.textContent).toContain('新目标已入池')
+    // playing 不渲染
+    const s3 = createInitialState(0)
+    renderExplorePage(page, s3, 0)
+    expect(page.querySelector('[data-endless-panel]')).toBeNull()
   })
 
   it('星栏：探索天体不进入顶部行星条（产出型信息集中于探索页）；hiddenPlanets 不影响主线行星', () => {

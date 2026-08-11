@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
-import { conquestCostMult, conquestRewardMult, isConquestAvailable, autoConquestTick, settleConquests, startConquest } from './conquest'
+import { autoConquestTick, conquestCostMult, conquestRewardMult, ensureEndlessBoss, isConquestAvailable, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
 import { generateConquestTarget } from './generate'
 import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
 import { TECHS } from './data'
+import { militaryCap, nominalMilitaryProduction } from './production'
 import type { GameState, GeneratedTarget } from './types'
 
 /** 构造状态：解锁前置星球、给足军力与资源 */
@@ -426,5 +427,80 @@ describe('engine: 攻占科技（conquest-guard-cap：劫掠战术）', () => {
     // 产出结算时乘：生成目标快照奖励不受科技影响（ticket 04：generate 只乘消耗）
     expect(t5.rewardMineral!).toBe(t0.rewardMineral!)
     expect(t5.rewardTech!).toBe(t0.rewardTech!)
+  })
+})
+
+describe('engine: boss 军力挑战（endless-progression，ADR-0053）', () => {
+  /** infinite 生产档：军港+兵营使产能/容量可算 */
+  function bossState(): GameState {
+    const s = createInitialState(0, 7)
+    s.phase = 'infinite'
+    s.endingTriggered = true
+    s.planets.dawn = { unlocked: true }
+    s.resources.military = 10_000_000
+    s.resources.mineral = 10_000_000_000
+    s.resources.tech = 1_000_000_000
+    s.buildings.miner = 100
+    s.buildings.solar = 100
+    s.buildings.militaryPort = 25
+    s.buildings.barracks = 100
+    return s
+  }
+
+  it('boss 目标：layer%3===0 且 ≥3 时注入，守卫公式含层数系数且受双上限约束', () => {
+    const s = bossState()
+    s.endless.layer = 3
+    expect(ensureEndlessBoss(s)).toBe('boss:L3')
+    const t = s.generatedTargets.find((x) => x.id === 'boss:L3')!
+    expect(t.kind).toBe('conquest')
+    expect(s.conquest['boss:L3']).toEqual({ status: 'available' })
+    // 守卫 = min(产能×40s×1.3, ⌊容量/3⌋×1.2, 产能×360s)
+    const cap = militaryCap(s)
+    const prod = nominalMilitaryProduction(s)
+    const byProd = Math.floor(prod * 40 * (1 + 0.15 * 2))
+    const byCap = Math.floor(Math.floor(cap / 3) * (1 + 0.10 * 2))
+    const byMax = Math.floor(prod * 360)
+    expect(t.guard).toBe(Math.max(500, Math.min(byProd, byCap, byMax)))
+    // 幂等：不重复注入
+    expect(ensureEndlessBoss(s)).toBe('boss:L3')
+    expect(s.generatedTargets.filter((x) => x.id === 'boss:L3')).toHaveLength(1)
+    // 层数非 3 倍数不注入
+    const s2 = bossState()
+    s2.endless.layer = 4
+    expect(ensureEndlessBoss(s2)).toBeNull()
+  })
+
+  it('boss 结算复用攻占管线：足额投入必成，bossDefeated +1、层数 +1（boss 击败路径保留）', () => {
+    const s = bossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    const mineralBefore = s.resources.mineral
+    const r = startConquest(s, 'boss:L3', guard, 0)
+    expect(r.ok).toBe(true)
+    const logs = settleConquests(s, 30 * 60_000 + 1)
+    expect(s.conquest['boss:L3'].status).toBe('conquered')
+    expect(s.archivedRounds['boss:L3']).toBe(0)
+    expect(s.endless.bossDefeated).toBe(1)
+    expect(s.endless.layer).toBe(4) // +1
+    expect(s.resources.mineral).toBeGreaterThan(mineralBefore) // 层数系数奖励到账
+    expect(logs.some((l) => l.includes('无尽守卫'))).toBe(true)
+  })
+
+  it('autoBoss：默认关（不自动发起）；开启后按自动攻占冷却发起 boss', () => {
+    const s = bossState()
+    s.endless.layer = 3
+    s.autoConquest = { enabled: true }
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    expect(s.resources.military).toBeGreaterThan(guard)
+    // 默认关：autoConquest 不自动发起 boss
+    expect(autoConquestTick(s, 0)).toEqual([])
+    expect(s.conquest['boss:L3'].startedAt).toBeUndefined()
+    // 开启 autoBoss：按冷却发起
+    s.endless.autoBoss = true
+    const logs = autoConquestTick(s, 0)
+    expect(logs.some((l) => l.includes('boss:L3') || l.includes('无尽守卫'))).toBe(true)
+    expect(s.conquest['boss:L3'].startedAt).toBe(0)
   })
 })

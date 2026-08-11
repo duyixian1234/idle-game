@@ -5,6 +5,7 @@ import { settleConquests, startConquest } from './conquest'
 import { factionAlliance } from './diplomacy'
 import { migrateSave, serializeSave } from './save'
 import { ENDLESS_BATCH_2_EXPLORATIONS } from './balance'
+import { advanceEndlessLayer } from './events'
 import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, programmaticActiveCount } from './generate'
 import { CONQUESTS, ENDLESS_CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
 import { militaryCap } from './production'
@@ -194,14 +195,38 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect(programmaticActiveCount(s, 'conquest')).toBe(1)
   })
 
-  it('保底批次：batch 1 恒解锁；batch 2 需 ≥ 15 次探索', () => {
+  it('保底批次：batch 1 恒解锁；batch 2 需 ≥ 15 次探索；batch 3 需层数 ≥10（关键层批次，ticket 05）', () => {
     const s = infiniteState()
     expect(endlessBatchUnlocked(s, 1)).toBe(true)
     expect(endlessBatchUnlocked(s, 2)).toBe(false)
+    expect(endlessBatchUnlocked(s, 3)).toBe(false)
     s.stats.explorations = ENDLESS_BATCH_2_EXPLORATIONS - 1
     expect(endlessBatchUnlocked(s, 2)).toBe(false)
     s.stats.explorations = ENDLESS_BATCH_2_EXPLORATIONS
     expect(endlessBatchUnlocked(s, 2)).toBe(true)
+    // 探索达标但层数不足 → batch 3 仍锁
+    expect(endlessBatchUnlocked(s, 3)).toBe(false)
+    s.endless.layer = 9
+    expect(endlessBatchUnlocked(s, 3)).toBe(false)
+    s.endless.layer = 10
+    expect(endlessBatchUnlocked(s, 3)).toBe(true)
+  })
+
+  it('batch 3 目标入池（层数达标后）：哨兵巨像/虚空奇点/宇宙熔炉进入探索奖池且零永久加成', () => {
+    const s = infiniteState()
+    s.stats.explorations = ENDLESS_BATCH_2_EXPLORATIONS // batch 2 解锁
+    s.endless.layer = 10 // batch 3 解锁
+    const pool = expeditionPool(s)
+    expect(pool.some((e) => e.id === endlessTargetId('sentinelColossus'))).toBe(true)
+    expect(pool.some((e) => e.id === endlessTargetId('voidSingularity'))).toBe(true)
+    expect(pool.some((e) => e.id === endlessTargetId('cosmicForge'))).toBe(true)
+    // 层数不达标 → batch 3 目标不入池
+    const s2 = infiniteState()
+    s2.stats.explorations = ENDLESS_BATCH_2_EXPLORATIONS
+    const pool2 = expeditionPool(s2)
+    expect(pool2.some((e) => e.id === endlessTargetId('sentinelColossus'))).toBe(false)
+    // 零永久加成红线：batch 3 手写目标 bonus 未定义
+    expect(ENDLESS_CONQUESTS.sentinelColossus.bonus).toBeUndefined()
   })
 
   it('generatedCap：虫洞等级叠加提升（原公式 + 虫洞等级，wormhole-empire ticket 04）', () => {
@@ -453,5 +478,57 @@ describe('engine: endless-expansion 结盟归档与存档', () => {
     enterInfiniteMode(s)
     const pool2 = expeditionPool(s)
     expect(pool2.some((e) => e.kind === 'conquest')).toBe(true)
+  })
+})
+
+describe('engine: endless 层推进源（endless-progression，ADR-0053）', () => {
+  it('征服成功推进层进度 +0.04（动态目标；死锁修复：层数从 0 经真实路径可达 ≥3）', () => {
+    const s = infiniteState()
+    // 连续 75 次动态征服（75×0.04 = 3.0）→ 层数从 0 自然可达 3（原死锁：仅 boss 击败且 boss 需 layer≥3）
+    for (let i = 0; i < 75; i++) {
+      s.generatedTargets.push({ kind: 'conquest', id: `gen:conquest:${i}`, name: `目标${i}`, desc: '', batch: 0, guard: 800, rewardMineral: 100 })
+      s.conquest[`gen:conquest:${i}`] = { status: 'available' }
+      const r = startConquest(s, `gen:conquest:${i}`, 800, 0)
+      expect(r.ok).toBe(true)
+      settleConquests(s, CYCLE + 1)
+      expect(s.conquest[`gen:conquest:${i}`].status).toBe('conquered')
+    }
+    expect(s.endless.layer).toBe(3)
+    expect(s.endless.layerProgress ?? 0).toBe(0)
+    // 余量保留：再征服 1 次 → 进度 0.04，层不变
+    s.generatedTargets.push({ kind: 'conquest', id: 'gen:conquest:75', name: '目标75', desc: '', batch: 0, guard: 800, rewardMineral: 100 })
+    s.conquest['gen:conquest:75'] = { status: 'available' }
+    startConquest(s, 'gen:conquest:75', 800, 0)
+    settleConquests(s, CYCLE + 1)
+    expect(s.endless.layer).toBe(3)
+    expect(s.endless.layerProgress).toBeCloseTo(0.04)
+  })
+
+  it('探索结算推进层进度 +0.008（真实派遣路径）', () => {
+    const s = infiniteState()
+    // 125 次探索 = 125×0.008 = 1.0 → 层 1
+    for (let i = 0; i < 125; i++) {
+      s.expeditions.push(fakeExpedition({ kind: 'resource', mineral: 1, tech: 1, energy: 1 }))
+      settleExpeditions(s, CYCLE + 1)
+    }
+    expect(s.endless.layer).toBe(1)
+    expect(s.endless.layerProgress ?? 0).toBe(0)
+  })
+
+  it('layer 与 layerProgress 跨 NG+ 继承（endless 状态全继承）', () => {
+    const s = infiniteState()
+    advanceEndlessLayer(s, 0.5)
+    s.endless.layer = 2
+    s.endless.bossDefeated = 1
+    startNewGamePlus(s, 0)
+    expect(s.endless.layer).toBe(2)
+    expect(s.endless.layerProgress).toBeCloseTo(0.5)
+    expect(s.endless.autoBoss).toBe(false)
+    expect(s.endless.bossDefeated).toBe(1)
+    // 再次通关进入 infinite：层数保留（不再归零）
+    s.phase = 'ended'
+    enterInfiniteMode(s)
+    expect(s.endless.layer).toBe(2)
+    expect(s.endless.layerProgress).toBeCloseTo(0.5)
   })
 })

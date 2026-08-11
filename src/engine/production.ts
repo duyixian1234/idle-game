@@ -2,7 +2,7 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
@@ -113,6 +113,14 @@ export function allianceProductionMult(state: GameState): number {
   return 1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION * alliedNamedFactionCount(state)
 }
 
+/** 无尽层数全产出永久加成（endless-progression，ADR-0053）：每层 +1%，跨 NG+ 继承（endless 状态全继承）。
+ * 层加成因子 = 1 + min(层数×1%, ENDLESS_LAYER_BONUS_CAP)（cap 防 runaway）；与 NG+ permanentMult /
+ * 攻占 production 加成乘法叠乘（层加成 × NG+ 倍率叠乘的上限校验见 balance-sim 断言）。 */
+export function layerProductionMult(state: GameState): number {
+  const layer = Math.max(0, Math.floor(state.endless?.layer ?? 0))
+  return 1 + Math.min(layer * ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP)
+}
+
 /**
  * 完整生产报告：
  * 先汇总各建筑名义产出（数量 × 等级加成 × 科技系数），再汇总能源消耗需求；
@@ -128,7 +136,8 @@ export function productionReport(state: GameState): ProductionReport {
 
   // NG+ 永久产出加成 × 区域永久加成（permanentBonuses['production'] 累计，随存档持久化）。
   // 作用于能源结算前：影响能源供给池（存量行为保持——NG+ 周目遗产可为自己供能）。
-  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  // endless 层数永久加成（layerProductionMult）同层叠乘（跨 NG+ 继承，cap 见 balance）。
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0)) * layerProductionMult(state)
   if (permMult !== 1) {
     for (const key of RESOURCE_KEYS) nominal[key] *= permMult
   }
@@ -183,7 +192,7 @@ export function productionReport(state: GameState): ProductionReport {
  */
 export function nominalMilitaryProduction(state: GameState): number {
   const { nominal } = pipelineNominal(state)
-  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0)) * layerProductionMult(state)
   return nominal.military * permMult
 }
 
@@ -200,7 +209,7 @@ export function tributePerSec(state: GameState, nowMs = Date.now()): number {
 /** 探索产出型天体当前每秒贡献明细（UI data-planet-output 单一真源，与 productionReport 同口径含 permMult 与冶炼场乘数） */
 export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
   const { techMult, nominal } = pipelineNominal(state)
-  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0)) * layerProductionMult(state)
   const smelterMult = smelterGlobalMult(state)
   const out: ExplorePlanetOutput[] = []
   for (const [id, ps] of Object.entries(state.planets)) {
@@ -279,7 +288,14 @@ export function productionMultipliers(state: GameState): Record<ResourceKey, num
   const m: Record<ResourceKey, number> = { mineral: 1, energy: 1, tech: 1, military: 1 }
   for (const def of Object.values(TECHS)) {
     const lv = state.techLevels[def.id] ?? 0
-    if (lv <= 0 || def.effect.kind !== 'production') continue
+    if (lv <= 0) continue
+    if (def.effect.kind === 'productionAll') {
+      // 无限产出线（深空冶金）：全产出 ×(1 + pct×Lv)，军力不吃（对齐 smelterMult 口径）
+      const factor = 1 + def.effect.pct * lv
+      for (const key of ['mineral', 'energy', 'tech'] as const) m[key] *= factor
+      continue
+    }
+    if (def.effect.kind !== 'production') continue
     m[def.effect.resource] *= techMultiplier(def.effect, lv)
   }
   return m
@@ -484,8 +500,8 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     }
   }
 
-  // 5. NG+ 永久加成（×permMult：NG+ 遗产 + 攻占奖励 + 冶炼场遗产）
-  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0))
+  // 5. NG+ 永久加成（×permMult：NG+ 遗产 + 攻占奖励 + 冶炼场遗产 + endless 层数加成）
+  const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0)) * layerProductionMult(state)
   const permRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
   if (permMult !== 1) {
     for (const key of RESOURCE_KEYS) {

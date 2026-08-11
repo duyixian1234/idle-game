@@ -27,10 +27,11 @@ import {
   EXPEDITION_OUTPUT_BONUS_STEP,
   EXPEDITION_REPEAT_FAVOR_GAIN,
   FAVOR_CAP,
-  FLEET_HARVEST_PCT_PER_SHIP,
   GEN_FACTION_GIFT_FAVOR,
   GEN_FACTION_GIFT_MINERAL_SECONDS,
   GEN_FACTION_GIFT_TECH_SECONDS,
+  ENDLESS_EXPLORE_LAYER_PROGRESS,
+  INFINITE_TECH_PCT_PER_LEVEL,
   JUMPGATE_HARVEST_PCT_PER_LEVEL,
   MISSION_DURATION_MAX_MINUTES,
   MISSION_DURATION_MIN_MINUTES,
@@ -46,6 +47,7 @@ import {
 } from './balance'
 import { fleetAvailablePower, fleetPowered } from './fleet'
 import { playMilestone } from './story'
+import { advanceEndlessLayer } from './events'
 import { militaryCap, netProduction } from './production'
 import { formatNumber, formatPercent } from './format'
 import { rollDomain } from './rng'
@@ -218,16 +220,26 @@ export function escortFeePerShip(state: GameState): number {
   return Math.max(1, Math.floor(netProduction(state).energy * ESCORT_ENERGY_SECONDS))
 }
 
-/** 总护航远征费（能源）= 单艘 × 等效舰数（0 舰/停摆 = 0）——加成与费用同一杠杆，权衡始终一致；
- * 星舰推进 Lv≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变，锚定产出不脱钩） */
+/** 总护航远征费（能源）= 单艘 × 等效舰数 × 护航吞吐倍率（0 舰/停摆 = 0）——
+ * 加成与费用同一杠杆，权衡始终一致；星舰推进 Lv≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变，锚定产出不脱钩）。
+ * 吞吐倍率（深空导航）放大费用侧吞吐 → 回报锚定远征费同比放大，ROI 恒常数（ADR-0055）。 */
 export function escortFee(state: GameState): number {
-  const fee = Math.floor(escortFeePerShip(state) * equivalentFleet(state))
+  const fee = Math.floor(escortFeePerShip(state) * equivalentFleet(state) * escortThroughputMult(state))
   return (state.techLevels?.warpDrive ?? 0) >= 20 ? Math.floor(fee * (1 - WARP_ESCORT_FEE_REDUCTION)) : fee
 }
 
-/** 护航收获倍率 = 1 + FLEET_HARVEST_PCT_PER_SHIP × 等效舰数（与科技收获倍率乘法叠加，只作用 resource 分支） */
+/** 护航收获倍率 = 1（escort-ROI 修复，ADR-0054，2026-08-11）：E 的倍率贡献已移除——
+ * 大舰队不再放大收益倍率（回报/投入比恒为常数），E 仅保留为费用侧吞吐杠杆。
+ * 实际 resource 分支倍率 = explorationHarvestMult（枢纽等级），见 startExpedition mult 计算。 */
 export function escortHarvestMult(state: GameState): number {
-  return 1 + FLEET_HARVEST_PCT_PER_SHIP * equivalentFleet(state)
+  void state
+  return 1
+}
+
+/** 护航吞吐倍率（infinite-tech 深空导航，ADR-0055）：每级 +2% 护航吞吐。
+ * 吞吐 = 单次护航可转换的能源量（费用 ∝ 能净产出 × E × 吞吐倍率），回报锚定远征费 → ROI 恒常数不膨胀。 */
+export function escortThroughputMult(state: GameState): number {
+  return 1 + INFINITE_TECH_PCT_PER_LEVEL * (state.techLevels?.deepNavigation ?? 0)
 }
 
 /** 奖池候选条目 */
@@ -415,7 +427,8 @@ export function startExpedition(state: GameState, nowMs: number, rng?: () => num
   state.resources.energy -= cost.energy + fee
   state.resources.military -= cost.military
   const pool = expeditionPool(state)
-  // 护航：科技收获倍率 × 护航倍率（乘法叠加，只作用 resource 分支补偿）
+  // 护航 ROI 修复（ADR-0054）：收获倍率只挂枢纽等级（explorationHarvestMult），E 不再贡献倍率——
+  // 大舰队 = 更高吞吐（费用 ∝ E），回报/投入比恒为常数。escortHarvestMult 恒 1（结构声明，防回归）。
   const mult = escortOn ? explorationHarvestMult(state) * escortHarvestMult(state) : explorationHarvestMult(state)
   // 极后期防印钞：远征费的当期矿物等价（mineral 分支锚定用；能源/科技分支锚定远征费本身）
   const prod = netProduction(state)
@@ -456,6 +469,8 @@ export function settleExpeditions(state: GameState, nowMs: number): ExpeditionLo
     exp.resolved = true
     state.stats.explorations = (state.stats.explorations ?? 0) + 1
     if (exp.escort) state.stats.escortedExpeditions = (state.stats.escortedExpeditions ?? 0) + 1
+    // endless 层推进（endless-progression）：每次探索 +0.008（平滑进度制，跨 NG+ 继承）
+    advanceEndlessLayer(state, ENDLESS_EXPLORE_LAYER_PROGRESS)
     // 深空碑文叙事挂点（deepspace-unlock spec 方案 B）：通关后首次任意探索结算确定性触发。
     // 本函数是探索结算唯一入口（在线 tick / 离线回归 / 自动探索离线循环三路调用）→ 天然全覆盖；
     // playMilestone 内部 storyFlags 防重复 → 一次循环多笔结算仅第一笔生效（双保险）。

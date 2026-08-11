@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
-import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost } from './exploration'
+import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost, startExpedition } from './exploration'
 import { generateConquestTarget } from './generate'
-import { FLEET_HARVEST_PCT_PER_SHIP, TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS } from './balance'
-import { militaryCap, nominalMilitaryProduction } from './production'
+import { TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS, ENDLESS_LAYER_BONUS_CAP } from './balance'
+import { militaryCap, nominalMilitaryProduction, productionReport, layerProductionMult } from './production'
 import type { GameState } from './types'
 
 function simulate(seed: number) {
@@ -59,7 +59,7 @@ describe('balance: deterministic event simulation', () => {
 })
 
 describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 03）', () => {
-  it('护航投入产出比不漂移：费/E 恒 = 每舰费、倍率增量/E 恒 = 1%（任意舰数×科技组合）', () => {
+  it('护航投入产出比不漂移：护航费 ∝ E（每舰费恒定），收获倍率与 E 无关（escort ROI 修复，ADR-0054）', () => {
     const combos: Array<[number, number, number]> = [
       [3, 0, 0],
       [3, 5, 0],
@@ -87,8 +87,49 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
       const fee = escortFee(s)
       const raw = Math.floor(escortFeePerShip(s) * E)
       expect(fee).toBe(warp >= 20 ? Math.floor(raw * (1 - WARP_ESCORT_FEE_REDUCTION)) : raw)
-      expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * E)
+      // escort-ROI 修复（ADR-0054）：收获倍率与 E 解耦——恒 1（枢纽倍率在 explorationHarvestMult 单独承载）
+      expect(escortHarvestMult(s)).toBe(1)
     }
+  })
+
+  it('护航 ROI 恒定（ADR-0054）：高 E 与低 E 下 resource 远征回报/投入比不变（费用 ∝ E、回报 ∝ 费用）', () => {
+    const roi = (count: number): { fee: number; cost: { mineral: number; energy: number }; returnMineral: number; returnEnergy: number; prod: Record<string, number> } => {
+      const s = createInitialState(0)
+      s.phase = 'ended'
+      s.buildings.dock = 1
+      s.upgrades.dock = 1
+      s.fleet.count = count
+      s.resources.energy = 1e15
+      s.resources.mineral = 1e15
+      s.resources.military = 1e6
+      s.resources.tech = 1e12
+      s.buildings.solar = 100
+      s.upgrades.solar = 5
+      s.buildings.miner = 100
+      s.upgrades.miner = 5
+      s.buildings.jumpgate = 1
+      s.upgrades.jumpgate = 1 // mult = 1.3
+      const fee = escortFee(s)
+      const r = startExpedition(s, 0, () => 0.99, 0, true)
+      expect(r.ok).toBe(true)
+      const res = r.value!.result
+      if (res.kind !== 'resource') throw new Error('rng 0.99 应落入 resource 补偿')
+      return { fee, cost: r.value!.cost, returnMineral: res.mineral, returnEnergy: res.energy, prod: productionReport(s).nominal }
+    }
+    const low = roi(3)
+    const high = roi(24)
+    // 费用随 E 放大（×8）
+    expect(high.fee / low.fee).toBeCloseTo(8)
+    // 矿物分支：返还锚定 mineralFee = fee × 矿/能产出比（E 驱动部分同比放大 → 回报/费用比恒定）
+    const lowFee = low.fee * (low.prod.mineral / low.prod.energy)
+    const highFee = high.fee * (high.prod.mineral / high.prod.energy)
+    expect(highFee / lowFee).toBeCloseTo(8)
+    // 固定基础成本补偿（cost.mineral × ratio × mult）不变 → 扣除后 E 驱动部分同比放大
+    const fixedBase = (n: { cost: { mineral: number } }): number => n.cost.mineral * 0.75 * 1.3
+    expect((high.returnMineral - fixedBase(high)) / (low.returnMineral - fixedBase(low))).toBeCloseTo(8, 1)
+    // 能源分支不再净正印钞：energy 返还率 × mult = 0.20 × 1.3 = 0.26 < 1（与 E 无关，恒 < 印钞阈值）
+    expect(high.returnEnergy / (high.cost.energy + high.fee)).toBeCloseTo(low.returnEnergy / (low.cost.energy + low.fee), 2)
+    expect(high.returnEnergy / (high.cost.energy + high.fee)).toBeLessThan(1)
   })
 
   it('星舰线科技点出口容量量级：Lv1-20 累计 ≈ 11.6 亿（> 枢纽 5000 万 ×20，出口容量两个数量级）', () => {
@@ -186,12 +227,12 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
 })
 
 describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-economy ticket 01，ADR-0028）', () => {
-  /** 构造带矿物产出的 infinite 状态（miner Lv5 → 产出 = count × 3.5/s） */
+  /** 构造带矿物+能源产出的 infinite 状态（ADR-0036：普通建筑无等级乘数 → 产出 = count × 1/s） */
   function prodState(minerCount: number): GameState {
     const s = createInitialState(0)
     s.phase = 'infinite'
     s.buildings.miner = minerCount
-    s.upgrades.miner = 5
+    s.buildings.solar = minerCount
     s.resources.mineral = 1e12
     s.resources.energy = 1e12
     s.resources.military = 1e9
@@ -204,22 +245,43 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
   }
   const ROLLS = [0.1, 0.2, 0.3]
 
-  it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定', () => {
+  it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定（未触发封顶区间）', () => {
+    // 产出 = count × 1/s（ADR-0036 普通建筑无等级乘数）；cap 150k/75k 对应 count < 1250 不触发
     const cases: Array<[number, number]> = [
       [100, 1_000],
       [100, 300],
-      [500, 2_000],
+      [500, 1_000],
     ]
     for (const [m1, m2] of cases) {
       const t1 = generateConquestTarget(prodState(m1), fixedRolls(ROLLS))
       const t2 = generateConquestTarget(prodState(m2), fixedRolls(ROLLS))
-      // 产出 10×/3×/4× → 奖励与成本同比例缩放（矿产出 = count × 3.5）
+      // 产出 10×/3×/2× → 奖励与成本同比例缩放（矿产出 = count）
       expect(t2.rewardMineral! / t1.rewardMineral!).toBeCloseTo(m2 / m1)
       expect(t2.costMineral! / t1.costMineral!).toBeCloseTo(m2 / m1)
       const ratio1 = (t1.rewardMineral! - t1.costMineral!) / t1.costMineral!
       const ratio2 = (t2.rewardMineral! - t2.costMineral!) / t2.costMineral!
       expect(ratio2).toBeCloseTo(ratio1)
     }
+  })
+
+  it('ADR-0028 封顶落地（ticket 08）：高产出档奖励/成本受 cap 约束，不再随产出无上限放大', () => {
+    // 触发封顶区间：count ≥ 1250 → reward ≥ 150k cap、cost ≥ 75k cap
+    const low = generateConquestTarget(prodState(1_000), fixedRolls(ROLLS)) // 1000/s：reward 120k < cap
+    const high = generateConquestTarget(prodState(10_000), fixedRolls(ROLLS)) // 10000/s：远超 cap
+    const capped = generateConquestTarget(prodState(1_000_000), fixedRolls(ROLLS))
+    // 产出 ×1000 → 奖励仍被 cap 钉住（120k → 150k 封顶），成本 75k 封顶
+    expect(high.rewardMineral!).toBeLessThanOrEqual(low.rewardMineral! * 2)
+    expect(capped.rewardMineral!).toBe(150_000)
+    expect(capped.rewardTech!).toBe(10_000)
+    expect(capped.costMineral!).toBe(75_000)
+    expect(capped.costEnergy!).toBe(30_000)
+    // cap 随周目增长（×1.5^ng）：周目 5 → cap ×7.59
+    const ng5 = prodState(1_000_000)
+    ng5.ngPlusLevel = 5
+    const t5 = generateConquestTarget(ng5, fixedRolls(ROLLS))
+    expect(t5.rewardMineral!).toBe(Math.floor(150_000 * Math.pow(1.5, 5)))
+    // ROI 锚点比例保持（奖励 120s / 成本 60s = 2×，未打折时）
+    expect(capped.rewardMineral! / capped.costMineral!).toBe(2)
   })
 
   it('价值密度有界：奖励 ≤ 2×成本（N ≤ 2M 结构性防印钞上限）、净正、零永久加成红线', () => {
@@ -251,5 +313,85 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
     expect(GEN_FACTION_GIFT_FAVOR).toBe(10)
     expect(GEN_FACTION_FAVOR_MAX - 1 + GEN_FACTION_GIFT_FAVOR).toBe(39)
     expect(GEN_FACTION_FAVOR_MAX - 1 + GEN_FACTION_GIFT_FAVOR).toBeLessThan(40)
+  })
+})
+
+describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', () => {
+  /** 毕业档：建筑/科技全毕业的 infinite 状态（矿/能 1000/s 级） */
+  function graduateState(ngPlusLevel: number, miner: number): GameState {
+    const s = createInitialState(0, 7)
+    s.phase = 'infinite'
+    s.ngPlusLevel = ngPlusLevel
+    s.permanentMult = 1 + 0.15 * ngPlusLevel
+    s.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false }
+    s.planets.dawn = { unlocked: true }
+    s.resources.mineral = 1e18
+    s.resources.energy = 1e18
+    s.resources.tech = 1e18
+    s.resources.military = 1e9
+    s.buildings.miner = miner
+    s.buildings.solar = miner
+    s.buildings.militaryPort = 100
+    s.buildings.barracks = 200
+    s.techLevels.militaryTech = 10
+    return s
+  }
+
+  it('层推进速率：征服 0.04/次 + 探索 0.008/次，单日（挂机探索 60min×10 槽）≈ 0.8 层；25 征服 = 1 层', () => {
+    // 单日探索推进：10 槽 × 24h/1h(60min 派遣) = 240 次 × 0.008 = 1.92 层（约每 1.5 天 3 层 → 单日 boss 频率 < 1）
+    const dailyExplore = 240 * 0.008
+    expect(dailyExplore).toBeCloseTo(1.92)
+    expect(dailyExplore).toBeLessThan(3) // 单日不产生完整 boss 周期
+    // 征服推进：25 次 = 1 层
+    expect(25 * 0.04).toBe(1)
+    // 层推进与 boss 节奏：层 ≥3 后每 3 层一次 boss；单日探索 ~1.92 层 → 约 1.56 天一次 boss
+    const daysPerBoss = 3 / dailyExplore
+    expect(daysPerBoss).toBeGreaterThan(1)
+  })
+
+  it('护航 ROI 修复后三档（毕业/NG+5/普通通关）能源分支回报率 < 印钞阈值', () => {
+    const roiAt = (ng: number, miner: number): number => {
+      const s = graduateState(ng, miner)
+      s.buildings.dock = 1
+      s.upgrades.dock = 1
+      s.fleet.count = 24
+      s.resources.energy = 1e18
+      const fee = escortFee(s)
+      const r = startExpedition(s, 0, () => 0.99, 0, true)
+      expect(r.ok).toBe(true)
+      const res = r.value!.result
+      if (res.kind !== 'resource') throw new Error('rng 0.99 应落入 resource')
+      // 能源分支回报/投入 = 0.20 × mult（mult = 枢纽倍率 1 + 0.3×Lv，恒 < 1）
+      return res.energy / (r.value!.cost.energy + fee)
+    }
+    const graduated = roiAt(0, 10_000)
+    const ng5 = roiAt(5, 10_000)
+    const normal = roiAt(0, 1_000)
+    // 三档回报率一致（恒 0.20 × 1.0 = 0.20）且 < 1（不印钞）
+    expect(graduated).toBeCloseTo(normal, 3)
+    expect(ng5).toBeCloseTo(normal, 3)
+    expect(normal).toBeLessThan(1)
+  })
+
+  it('无限科技 Lv40 成本 vs 同期存量增速：1.7^39 ≈ 9.7e8× base，仍可追赶（sink 有效但非不可达）', () => {
+    const cost40 = Math.pow(TECH_UPGRADE_GROWTH, 39)
+    expect(cost40).toBeGreaterThan(1e8)
+    expect(cost40).toBeLessThan(1e9)
+    // Lv40 矿物成本 = 1e9 × 1.7^39 ≈ 9.7e17；毕业档存量增速（矿产出 3500/s → 单日 3e8）vs 成本：天数 ≈ 成本/日产出
+    const mineralCost40 = 1e9 * cost40
+    const dailyMiner = 3500 * 86400
+    const daysToAfford = mineralCost40 / dailyMiner
+    // 存量资源 sink 语义：成本量级 = 数百年产出（点不满），但每级收益持续 → 决策权衡存在
+    expect(daysToAfford).toBeGreaterThan(1e6)
+    expect(mineralCost40).toBeGreaterThan(1e15)
+  })
+
+  it('层加成 × NG+ 倍率叠乘上限校验：层 50 + NG+5 下 permMult 有界（防 runaway）', () => {
+    const s = graduateState(5, 10_000)
+    s.endless.layer = 50 // +50%
+    const permMult = s.permanentMult * (1 + (s.permanentBonuses['production'] ?? 0)) * layerProductionMult(s)
+    // NG+5 (×1.75) × 层 50 (+50%) = 2.625 < runaway 阈值（ENDLESS_LAYER_BONUS_CAP 3.0 约束层项）
+    expect(permMult).toBeLessThan(1 + 0.15 * 5 + ENDLESS_LAYER_BONUS_CAP)
+    expect(layerProductionMult(s)).toBe(1.5)
   })
 })

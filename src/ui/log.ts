@@ -207,6 +207,10 @@ export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expande
     <div class="auto-config-card" data-auto-config-panel>
       <div class="auto-config-header"><h2>${t('ui.logPanel.5')}</h2><button type="button" data-auto-config-close aria-label="${t('ui.logPanel.22')}">×</button></div>
       <p class="auto-config-hint">${t('ui.logPanel.6')}</p>
+      <div class="auto-config-full-auto" data-event-full-auto-row>
+        <label class="escort-toggle-label"><input type="checkbox" data-event-full-auto ${state.eventsFullAuto ? 'checked' : ''}>${t('ui.logPanel.24')}</label>
+        <span class="settings-empty">${t('ui.logPanel.25')}</span>
+      </div>
       <div data-auto-categories>
         ${AUTO_CATEGORIES.map((category) => {
           const policy = state.automationPolicies[category.id]

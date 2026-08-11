@@ -208,6 +208,18 @@ describe('ui: 布局与冒烟', () => {
     expect(els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-auto-budget="trade:mineral"]')?.value).toBe('500')
   })
 
+  it('一键全自动开关（ticket 07）：默认关回填、开启回填 checked（data-event-full-auto）', () => {
+    const els = buildLayout(document.createElement('div'))
+    const s = createInitialState(0)
+    renderAutoConfigPanel(els.autoConfigOverlay, s)
+    const toggle = els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-event-full-auto]')
+    expect(toggle).toBeTruthy()
+    expect(toggle!.checked).toBe(false)
+    s.eventsFullAuto = true
+    renderAutoConfigPanel(els.autoConfigOverlay, s)
+    expect(els.autoConfigOverlay.querySelector<HTMLInputElement>('[data-event-full-auto]')!.checked).toBe(true)
+  })
+
   it('renderLogInto 增量渲染新增日志并返回游标', () => {
     const container = document.createElement('div')
     const els = buildLayout(container)

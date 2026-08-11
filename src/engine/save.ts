@@ -39,6 +39,8 @@ const SCHEMA_V13 = 13
 const SCHEMA_V14 = 14
 /** 首个支持普通建筑取消升级的存档版本（ADR-0036：7 普通建筑升级投入折算返还，upgrades 清零） */
 const SCHEMA_V15 = 15
+/** 首个支持 endless 层推进进度与 autoBoss 的存档版本（endless-progression 占用） */
+const SCHEMA_V16 = 16
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -103,6 +105,8 @@ const SAVE_SCHEMA: FieldSpec[] = [
   },
   { key: 'generatedTargets', since: SCHEMA_V12, check: isArray },
   { key: 'archivedRounds', since: SCHEMA_V12, check: isPlainObject },
+  { key: 'endless', since: SCHEMA_V9, check: isPlainObject },
+  { key: 'eventsFullAuto', since: SCHEMA_V16, check: isBoolean },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -543,6 +547,22 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
   return next
 }
 
+/** v15 → v16：无尽层推进进度与 autoBoss 补齐（endless-progression）。
+ * - endless.layerProgress 缺省 0（进度从 0 起步；存量档层数原样保留，不进位不回溯）
+ * - endless.autoBoss 缺省 false（默认关闭，boss 手动发起）
+ * - state.eventsFullAuto 缺省 false（一键全自动事件开关，ticket 07 默认关）
+ * 幂等：字段已存在则保留。 */
+function migrateV15ToV16(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const endless = isPlainObject(next.endless) ? { ...(next.endless as Record<string, unknown>) } : {}
+  if (typeof endless.layerProgress !== 'number' || !Number.isFinite(endless.layerProgress)) endless.layerProgress = 0
+  if (typeof endless.autoBoss !== 'boolean') endless.autoBoss = false
+  next.endless = endless
+  if (typeof next.eventsFullAuto !== 'boolean') next.eventsFullAuto = false
+  next.schemaVersion = SCHEMA_V16
+  return next
+}
+
 /**
  * 迁移旧版本存档到当前版本。
  * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7 → 转 v8
@@ -559,6 +579,7 @@ function migrateEventContract(raw: Record<string, unknown>): Record<string, unkn
  * - v12 存档（无胁迫外交派系字段）→ 转 v13
  * - v13 存档（外交自动化 perFaction boolean → 三态模式）→ 转 v14
  * - v14 存档（普通建筑升级取消，升级投入折算返还）→ 转 v15
+ * - v15 存档（endless 层推进进度 + autoBoss，一键全自动事件开关）→ 转 v16
  * - 任意版本最后过事件契约迁移（幂等：eventConfigVersion 达标则跳过事件处理，主 schema 版本不变）
  * - 已是当前版本：事件迁移幂等跳过，原样返回
  *
@@ -583,6 +604,7 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V12) cur = migrateV12ToV13(cur)
   if (cur.schemaVersion === SCHEMA_V13) cur = migrateV13ToV14(cur)
   if (cur.schemaVersion === SCHEMA_V14) cur = migrateV14ToV15(cur)
+  if (cur.schemaVersion === SCHEMA_V15) cur = migrateV15ToV16(cur)
   // 事件契约迁移对任意进入版本执行：v1-v14 链式迁移后必已 ≥ v14，v15 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   return cur as unknown as GameState

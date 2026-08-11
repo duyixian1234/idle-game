@@ -127,6 +127,8 @@ export const en: Zh = {
   'none',
   'Not enough minerals',
   'Not enough energy',
+  'Endless Warden - Lv.{a0}',
+  'A ruler of the deep layers. A military challenge (every 3 layers); defeating advances layers and the boss counter. Guard {a1}.',
   ],
   imp: [
   'Imported save offline gains: away {a0}, gained {a1}.',
@@ -172,6 +174,8 @@ export const en: Zh = {
   'Consumption details',
   ', ',
   ', ',
+  'boss ready',
+  '{a0} layers to boss',
   ],
   expR: [
   '(with escort fleet)',
@@ -367,7 +371,8 @@ export const en: Zh = {
     'Enabled{a0}{a1}',
     'Close auto-handling config',
     'No events available',
-
+    'Full auto',
+    'When enabled, all five event categories auto-resolve via their default policy (disabled by default)',
     ],
     archive: [
     '{a0}:{a1} · Round {a2}',
@@ -564,9 +569,19 @@ export const en: Zh = {
     'Start New Run',
     'Jumpgate Lv{a0} (Endgame · Exploration track)',
     'Wormhole Lv{a0} (Endgame · Exploration track extension)',
-    'Escort fleet (each equivalent ship +{a0} harvest multiplier, power equivalent {a1} ships)',
+    'Escort fleet (throughput {a2}, equivalent ships {a1}; Deep Navigation +{a0}/level)',
     'Hide',
     'Show',
+    'Endless Panel - Lv.{a0}',
+    '{a0}/3 to next boss',
+    'Boss defeated',
+    'Boss ready - Guard {a0} - Reward {a1} mineral + {a2} tech',
+    'Layer progress {a0}/3',
+    'Next layer reward: all production {a0}',
+    'autoBoss (auto launch)',
+    'Content: new targets unlock at layer {a0}',
+    'Content: new targets unlocked',
+    'Launch boss',
     ],
     overlays: [
     'Deep-Space Pioneering · Star System Federation',
@@ -673,6 +688,8 @@ export const en: Zh = {
     conquestTheory: { name: 'Raid Tactics', desc: 'Decode enemy supply lines: conquest rewards +{pct} per level, conquest costs −{pct2} per level (halved at cap). Requires {n} conquered targets.' },
     warpDrive: { name: 'Warp Drive', desc: 'Rebuilds frigate warp engines and hull armor: fleet power +{pct} per level, stacking with Ordnance Tech. From Lv{n}, dispatch cost −{pct2}; from Lv{n2}, escort fee −{pct3}. Unlocked after the ending.', label: 'Fleet power +10%/level' },
     wormholeTheory: { name: 'Wormhole Theory', desc: 'Decodes the spacetime topology of deep-space wormholes, unlocking the "Wormhole" — a second shortcut for interstellar exploration. Requires alliances with {n} factions.' },
+    deepMetallurgy: { name: 'Deep Metallurgy', desc: 'Alchemy for deep-space metals: all production +{pct} per level, a permanent sink for stockpiled minerals. Unlocked after the ending, nominal cap Lv.{n}.' },
+    deepNavigation: { name: 'Deep Navigation', desc: 'Calibrates deep-space routes: escorted throughput +{pct} per level, turning large fleets into higher throughput. Unlocked after the ending, nominal cap Lv.{n}.' },
   },
   planet: {
     barren: { name: 'Barren World P-01', desc: 'Your starting point. Shallow ore veins lie under a grey-brown surface.' },
@@ -687,6 +704,7 @@ export const en: Zh = {
     riftChasm: { name: 'Deep Rift', desc: 'A vast chasm across the dark sector: base mineral {rate} and tech {rate2}, scaling with the main base\'s mineral/tech output (production world, always mounted regardless of active planet).' },
     blackHoleObservatory: { name: 'Black Hole Horizon Observatory', desc: 'An observatory outside a black hole\'s accretion disk: tech surplus can be converted into energy (same as Interstellar Logistics Hub).' },
     magnetarField: { name: 'Magnetar Pulse Field', desc: 'A pulsar radiation field near a magnetar: base energy output {rate}, scaling with the main base\'s energy output (production world, always mounted regardless of active planet).' },
+    cosmicForge: { name: 'Cosmic Forge', desc: 'A natural refinery formed from stellar remnants: base mineral output {rate}, scaling with the main base\'s mineral output (production world, always mounted regardless of active planet).' },
   },
   faction: {
     ferro: { name: 'Iron Guard Alliance', desc: 'An old military bloc controlling the orbital defense network.' },
@@ -700,6 +718,7 @@ export const en: Zh = {
     starlightLeague: { name: 'Starlight League', desc: 'An interstellar caravan of lightsail merchant ships — well-informed and pragmatic.' },
     deepObservatory: { name: 'Deep-Space Observatory', desc: 'A scholarly order stationed in the darkest sector, exchanging observations for research support.' },
     mechSwarm: { name: 'Mech Swarm', desc: 'A collective consciousness formed from nanomachines, abnormally sensitive to intimidation signals.' },
+    voidSingularity: { name: 'Void Singularity', desc: 'A collapsed ancient information core; offers a trade discount once allied.' },
   },
   conquest: {
     outpost: { name: 'Bug Outpost', desc: 'A bug outpost on Frozen World\'s orbit. Conquering it unlocks the "Ordnance Tech" line.' },
@@ -709,6 +728,7 @@ export const en: Zh = {
     warband: { name: 'Raider Fleet', desc: 'A scavenger fleet roaming the dark lanes, living off raiding supply depots. Purge it to recover rich mineral stores.' },
     iceFortress: { name: 'Frozen Fortress', desc: 'A military fortress inside the frozen cloud-shell, sealing old-Federation weapon blueprints.' },
     devourer: { name: 'Devourer Hive', desc: 'A colossal drifting bio-hive that devours every ship that comes near. Purge it and the lanes will be calm again.' },
+    sentinelColossus: { name: 'Sentinel Colossus', desc: 'An ancient construct of the deep layers, awaiting civilizations that ascend higher. Purge it to recover vast resources.' },
   },
   ach: {
     firstBuild: { name: 'First Claim', desc: 'Build your first miner and let the drill bite into P-01\'s crust.' },

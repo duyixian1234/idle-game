@@ -17,7 +17,7 @@ import { deserializeSave, migrateSave, serializeSave } from './save'
 import { settleOffline } from './offline'
 import { productionReport } from './production'
 import { dockLevel } from './fleet'
-import { ESCORT_COMPENSATE_RATIO, ESCORT_ENERGY_SECONDS, FLEET_HARVEST_PCT_PER_SHIP } from './balance'
+import { ESCORT_COMPENSATE_RATIO, ESCORT_ENERGY_SECONDS } from './balance'
 import { t } from '../i18n'
 import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { SCHEMA_VERSION } from './types'
@@ -70,15 +70,13 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
     expect(equivalentFleet(s)).toBeCloseTo(13.5)
   })
 
-  it('护航倍率/费随星舰等级放大，投入产出同杠杆（费与倍率增量均线性于 E）', () => {
+  it('护航费随星舰等级放大；收获倍率与 E 解耦恒 1（escort-ROI 修复，ADR-0054）', () => {
     const s = escortState()
     const fee0 = escortFee(s)
     const mult0 = escortHarvestMult(s)
-    expect(mult0).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 3)
+    expect(mult0).toBe(1) // 倍率不再含 E 贡献（枢纽倍率在 explorationHarvestMult 单独承载）
     s.techLevels.warpDrive = 20
-    expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 9)
-    // 同杠杆：倍率增量随 E 线性放大（×3）——无白嫖路径
-    expect((escortHarvestMult(s) - 1) / (mult0 - 1)).toBeCloseTo(3)
+    expect(escortHarvestMult(s)).toBe(1)
     // 护航费：E ×3 但 Lv20 质变 −10%（ADR-0026）→ 3 × 0.9 = 2.7
     expect(escortFee(s) / fee0).toBeCloseTo(2.7)
   })
@@ -101,7 +99,7 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
     expect(escortFee(s)).toBe(0)
   })
 
-  it('停摆时 E=0：护航费 0、倍率 1（停摆语义不变：无战力即无护航收益）', () => {
+  it('停摆时 E=0：护航费 0、倍率恒 1（停摆语义不变：无战力即无护航收益）', () => {
     const s = escortState()
     s.resources.energy = 0
     expect(equivalentFleet(s)).toBe(0)
@@ -111,12 +109,12 @@ describe('engine: 护航等效舰数（fleet-power-exploration ticket 02）', ()
     expect(startExpedition(s, 0, () => 0.99, 0, true)).toMatchObject({ ok: false })
   })
 
-  it('舰队压制锁定期间等效舰数用可用战力：锁 1000 → E=(3600−1000)/1200，倍率/费同步降（conquest-fleet）', () => {
+  it('舰队压制锁定期间等效舰数用可用战力：锁 1000 → E=(3600−1000)/1200，费同步降、倍率恒 1（conquest-fleet）', () => {
     const s = escortState()
     expect(equivalentFleet(s)).toBe(3)
     s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 1, finishAt: 2, invested: 500, fleetLocked: 1_000 }
     expect(equivalentFleet(s)).toBeCloseTo(2600 / 1200)
-    expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * (2600 / 1200))
+    expect(escortHarvestMult(s)).toBe(1) // 倍率与 E 解耦（escort-ROI 修复）
     expect(escortFee(s)).toBe(Math.floor(escortFeePerShip(s) * (2600 / 1200)))
     // 结算释放后恢复
     delete s.conquest['gen:conquest:0'].fleetLocked
@@ -137,13 +135,13 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     expect(canEscort(s)).toBe(false)
   })
 
-  it('护航收获倍率 = 1 + 0.01 × 舰数（每艘 +1%，满编 24 艘 +24%）', () => {
+  it('护航收获倍率恒 1（escort-ROI 修复：收获倍率只挂枢纽等级，与舰数无关）', () => {
     const s = escortState()
-    expect(escortHarvestMult(s)).toBeCloseTo(1 + FLEET_HARVEST_PCT_PER_SHIP * 3)
+    expect(escortHarvestMult(s)).toBe(1)
     s.fleet.count = 24
     s.upgrades.dock = 10
     s.resources.energy = 10_000_000_000
-    expect(escortHarvestMult(s)).toBeCloseTo(1.24)
+    expect(escortHarvestMult(s)).toBe(1)
   })
 
   it('护航派遣：一次性扣总远征费（能源）+ 基础成本；escort 标记固化', () => {
@@ -187,7 +185,7 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     expect(startExpedition(s, 0, () => 0.99, 0, false).ok).toBe(true)
   })
 
-  it('返还锚定（基础成本 + 远征费折算）× 护航返还率 ×（枢纽 × 护航倍率），只作用 resource 分支', () => {
+  it('返还锚定（基础成本 + 远征费折算）× 护航返还率 × 枢纽倍率，只作用 resource 分支（escort-ROI 修复后倍率 = 枢纽倍率）', () => {
     const s = escortState()
     s.buildings.jumpgate = 1 // 枢纽倍率 1.3
     s.upgrades.jumpgate = 1
@@ -196,9 +194,7 @@ describe('engine: 护航远征（fleet-dock-10 ticket 02）', () => {
     const res = r.value!.result
     expect(res.kind).toBe('resource')
     const realCost = r.value!.cost
-    const techMult = 1.3 // 枢纽 Lv1
-    const escortMult = 1 + FLEET_HARVEST_PCT_PER_SHIP * 3
-    const mult = techMult * escortMult
+    const mult = 1.3 // 枢纽 Lv1（escort-ROI 修复：escortHarvestMult 恒 1，倍率只剩枢纽）
     // 极后期防印钞锚定：mineral 分支按远征费的当期矿物等价折算（mineralFee = fee × 矿物产出/能源产出）
     const prod = productionReport(s).nominal
     const mineralFee = fee * (prod.mineral / prod.energy)

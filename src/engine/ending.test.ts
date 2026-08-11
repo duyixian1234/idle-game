@@ -16,7 +16,7 @@ describe('engine: 结局判定', () => {
     expect(triggered).toBe(true)
     // auto-infinite-entry：通关即自动进入无限模式（不再停留 ended）
     expect(s.phase).toBe('infinite')
-    expect(s.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 })
+    expect(s.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false })
     expect(s.log.some((e) => e.text.includes('星系统一联邦'))).toBe(true)
     expect(s.log.some((e) => e.text.includes('无限模式开启'))).toBe(true)
     expect(s.storyFlags.endless).toBe(true)

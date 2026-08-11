@@ -53,6 +53,10 @@ export interface EndlessEventState {
   lastFamily?: string
   chain?: EndlessChainState
   bossDefeated: number
+  /** 层推进进度（0~1，满 1.0 升 1 层；v16 新增）：征服/探索平滑推进制，跨 NG+ 继承 */
+  layerProgress?: number
+  /** autoBoss 开关（v16 新增，默认 false）：开启后 boss 由自动系统按冷却发起 */
+  autoBoss?: boolean
 }
 
 export interface EventAutomationRule {
@@ -147,8 +151,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 15
+/** 存档 schema 版本（v16 = endless 层推进进度 + autoBoss；v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 16
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -265,8 +269,9 @@ export interface GeneratedTarget {
   id: string
   name: string
   desc: string
-  /** 0 = 程序生成；1/2 = 手写保底解锁批次（进入无尽解锁 batch 1，第 15 次探索解锁 batch 2） */
-  batch: 0 | 1 | 2
+  /** 0 = 程序生成；1/2 = 手写保底解锁批次（进入无尽解锁 batch 1，第 15 次探索解锁 batch 2）；
+   * 3+ = 手写保底关键层解锁批次（batch 3 每 10 层解锁一档：Lv10/20/30…，ticket 05 加深） */
+  batch: 0 | 1 | 2 | 3
   /** 军事目标：守卫强度（成功率 = 投入军力/守卫，足额投入必成） */
   guard?: number
   /** 军事目标：一次性矿物奖励（程序生成必填，无 permanentBonus） */
@@ -406,6 +411,8 @@ export interface GameState {
   hiddenBuildings: string[]
   /** 外交自动化配置（可选；undefined = 默认关闭，见 DiplomacyAutoConfig） */
   diplomacyAuto?: DiplomacyAutoConfig
+  /** 一键全自动事件开关（v16 新增，默认 false）：开启后等价于五类自动化策略全部启用（按各自 fallback 结算） */
+  eventsFullAuto?: boolean
   /** 下一条派遣 id（递增；v6 新增） */
   nextExpeditionId: number
   /** 派系外交状态：factionId -> FactionState */

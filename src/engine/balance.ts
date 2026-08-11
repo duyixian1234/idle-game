@@ -302,6 +302,14 @@ export const GEN_CONQUEST_REWARD_MINERAL_SECONDS = 120
 export const GEN_CONQUEST_REWARD_TECH_SECONDS = 8
 export const GEN_CONQUEST_COST_MINERAL_SECONDS = 60
 export const GEN_CONQUEST_COST_ENERGY_SECONDS = 60
+/** 攻占一次性奖励/成本封顶（ADR-0028 未决项落地，2026-08-11）：与探索侧 scaledClamp 对称——
+ * 奖励/成本随当期净产出缩放但封顶（cap × 1.5^ng 随周目增长），ROI 锚点（奖励 120s / 成本 60s×折扣 ≈ 4×）
+ * 比例保持，仅防产出极端膨胀后失控（balance-sim 高产出档断言封顶生效）。
+ * 对称探索侧 cap 语义：EXPEDITION_MINERAL.cap=150_000 / EXPEDITION_ENERGY.cap=60_000（同构 1.5^ng 增长）。 */
+export const GEN_CONQUEST_REWARD_MINERAL_CAP = 150_000
+export const GEN_CONQUEST_REWARD_TECH_CAP = 10_000
+export const GEN_CONQUEST_COST_MINERAL_CAP = 75_000
+export const GEN_CONQUEST_COST_ENERGY_CAP = 30_000
 export const GEN_FACTION_GIFT_MINERAL_SECONDS = 60
 export const GEN_FACTION_GIFT_TECH_SECONDS = 5
 /** 外交发现礼包好感加成：+10 → 初始 favor ∈ [0,29] 后最高 39 < 自动外交阈值 40，零钳制逻辑（grill Q14） */
@@ -323,6 +331,50 @@ export const GEN_PLANET_OUTPUT_MIN = 0.5
 export const GEN_PLANET_OUTPUT_MAX = 2
 export const GEN_PLANET_PCT_MIN = 0.005
 export const GEN_PLANET_PCT_MAX = 0.02
+
+// ---- endless 成长轴（endless-progression，2026-08-11，ADR-0053）----
+
+/** 征服成功层推进增量：每次 +0.04（进度满 1.0 升 1 层） */
+export const ENDLESS_CONQUEST_LAYER_PROGRESS = 0.04
+/** 探索结算层推进增量：每次 +0.008 */
+export const ENDLESS_EXPLORE_LAYER_PROGRESS = 0.008
+/** boss 出现周期：每 N 层一次（layer % N === 0 且 layer ≥ N） */
+export const ENDLESS_BOSS_EVERY_LAYERS = 3
+/** 每层全产出永久加成：+1%/层（跨 NG+ 继承，与 NG+ 倍率叠乘） */
+export const ENDLESS_LAYER_PRODUCTION_PCT = 0.01
+/** 关键层解锁批次周期：每 10 层解锁一档（batch 3 = Lv10、batch 4 = Lv20…） */
+export const ENDLESS_BATCH_LAYER_INTERVAL = 10
+/** 层永久加成 × NG+ 倍率叠乘上限（防 runaway；spec 阶段校验定稿锚点）：
+ * 层加成因子 cap = 3.0（层 300 = +300% → ×4）；NG+ 倍率本身 1+0.15×Lv 不在此 cap 内，
+ * 但 balance-sim 断言层加成 × NG+ 倍率叠乘在合理周目/层数组合下有界。 */
+export const ENDLESS_LAYER_BONUS_CAP = 3.0
+
+// ---- boss 军力挑战（endless-progression，ADR-0053）----
+
+/** boss 守卫公式（复用攻占双上限约束）：
+ * `min(产能×40s×(1+0.15×(layer-1)), ⌊军力上限×1/3⌋×(1+0.10×(layer-1)), 产能×180s×2)`
+ * - 产能项系数：0.15/层（军力产出放大）
+ * - 容量项系数：0.10/层（军力容量放大）
+ * - 末项 = 产能×180s×2（GEN_CONQUEST_GUARD_MAX_SECONDS 的安全阀 ×2，boss 强于普通生成目标） */
+export const BOSS_GUARD_PROD_SECONDS = 40
+export const BOSS_GUARD_PROD_LAYER_GROWTH = 0.15
+export const BOSS_GUARD_CAP_PCT = 1 / 3
+export const BOSS_GUARD_CAP_LAYER_GROWTH = 0.10
+export const BOSS_GUARD_MAX_SECONDS = 180 * 2
+/** boss 一次性奖励（与生成目标同源锚定，随层数系数放大） */
+export const BOSS_REWARD_MINERAL_SECONDS = 120
+export const BOSS_REWARD_TECH_SECONDS = 8
+/** boss 奖励层数系数：× (1 + 0.15×(layer-1)) */
+export const BOSS_REWARD_LAYER_GROWTH = 0.15
+
+// ---- 无限科技 sink（endless-progression，ADR-0055，2026-08-11）----
+
+/** 无限科技成本基数：1e9 矿物 + 2e8 科技，×1.7^level */
+export const INFINITE_TECH_COST_BASE = { mineral: 1_000_000_000, tech: 200_000_000 }
+/** 无限科技每级效果：+2%/级（产出线全产出 / 吞吐线护航吞吐） */
+export const INFINITE_TECH_PCT_PER_LEVEL = 0.02
+/** 无限科技名义等级上限（1.7^n 成本曲线下实际点不满，名义封顶防 UI 溢出） */
+export const INFINITE_TECH_MAX_LEVEL = 100
 
 /**
  * 带封顶的缩放：Math.min(cap, Math.max(min, Math.floor(rate * factor)))。
@@ -381,8 +433,6 @@ export const ESCORT_ENERGY_SECONDS = 1
  * 逐槽判定 → 余额 < 2×fee 即暂缓（AUTO_PAUSE_REASONS 冷却重试），能源底线 ≈ 单次护航费、
  * 永不归零——防止 autoExplore 多槽连派把能源抽干（归零 → 能源依赖生产停滞） */
 export const ESCORT_FEE_ENERGY_CAP_PCT = 0.5
-/** 护航每艘收获倍率：+1%/艘（满编 24 艘 = +24%，与科技收获倍率乘法叠加，只作用 resource 分支补偿） */
-export const FLEET_HARVEST_PCT_PER_SHIP = 0.01
 /** 护航专属返还率（balance-sim 定标）：返还锚定（基础成本 + 远征费）；
  * energy 分支压低（投入能源却返还能源无意义），mineral/tech 分支突出（海量投入 → 海量回报）。
  * 非护航沿用 EXPEDITION_COMPENSATE_RATIO。 */

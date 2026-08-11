@@ -77,6 +77,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     hiddenPlanets: [],
     hiddenBuildings: [],
     diplomacyAuto: { enabled: false },
+    eventsFullAuto: false,
     nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,
@@ -89,7 +90,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     automationPolicies: createDefaultAutomationPolicies(),
     automationHistory: [],
     nextEventId: 1,
-    endless: { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 },
+    endless: { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false },
     nextEventAt: nowMs + FIRST_EVENT_DELAY_SECONDS * 1000,
     lastTick: nowMs,
     createdAt: nowMs,
@@ -276,10 +277,22 @@ export function enterInfiniteMode(state: GameState): void {
 }
 
 /** 应用无限模式（无守卫共享逻辑：phase → infinite + endless 初始化 + 叙事 + endless 里程碑）。
- * checkEnding（通关自动进入）与 enterInfiniteMode（存量档转换/测试构造）同源引用，防双实现漂移。 */
+ * checkEnding（通关自动进入）与 enterInfiniteMode（存量档转换/测试构造）同源引用，防双实现漂移。
+ * endless 存续语义（endless-progression）：layer/layerProgress/autoBoss/bossDefeated 跨 NG+ 继承，
+ * 通关重新进入 infinite 时原样保留（仅坏运气/阶段链等周目内事件态重置）。 */
 function applyInfiniteMode(state: GameState): void {
   state.phase = 'infinite'
-  state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
+  const prev = state.endless ?? {}
+  state.endless = {
+    layer: prev.layer ?? 0,
+    stage: prev.stage ?? 0,
+    badLuck: 0,
+    lastFamily: undefined,
+    chain: undefined,
+    bossDefeated: prev.bossDefeated ?? 0,
+    layerProgress: prev.layerProgress ?? 0,
+    autoBoss: prev.autoBoss ?? false,
+  }
   pushLog(state, 'story', t('engine.2'))
   playMilestone(state, 'endless')
 }
@@ -373,7 +386,21 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
 
   state.pendingEvents = []
   state.nextEventId = 1
-  state.endless = { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 }
+  // endless 存续语义（endless-progression）：layer/layerProgress/autoBoss/bossDefeated 跨 NG+ 继承（不重置）；
+  // 仅坏运气/阶段链/上次事件族等周目内事件态重置（NG+ 语义全继承清单见 spec 决策）
+  const prevEndless = state.endless ?? {}
+  state.endless = {
+    layer: prevEndless.layer ?? 0,
+    stage: 0,
+    badLuck: 0,
+    lastFamily: undefined,
+    chain: undefined,
+    bossDefeated: prevEndless.bossDefeated ?? 0,
+    layerProgress: prevEndless.layerProgress ?? 0,
+    autoBoss: prevEndless.autoBoss ?? false,
+  }
+  // 一键全自动事件开关（ticket 07）：全局 QoL 开关跨 NG+ 保留（与 diplomacyAuto 同款可选字段持久化语义）
+  state.eventsFullAuto = state.eventsFullAuto ?? false
   state.lastStormHarvestAt = nowMs
   // 区域攻占重置为全部 locked（永久加成已保留在 permanentBonuses，NG+ 继承）
   const conquestReset: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}

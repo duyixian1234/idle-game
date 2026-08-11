@@ -58,6 +58,22 @@ effectText = t('ui.tech.3', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
         const nextCost = Math.max(0.5, 1 - def.effect.costMult * (level + 1))
         effectText += ` → ${formatMultiplier(nextReward)}/${formatMultiplier(nextCost)}`
       }
+    } else if (def.effect.kind === 'productionAll') {
+      // 无限产出线（深空冶金）：全产出 ×(1 + pct×Lv)，Lv0 预览 Lv1
+      const cur = 1 + def.effect.pct * Math.max(1, level)
+      effectText = `全产出 ${formatMultiplier(cur)}`
+      if (upgradable) {
+        const next = 1 + def.effect.pct * (level + 1)
+        effectText += ` → ${formatMultiplier(next)}`
+      }
+    } else if (def.effect.kind === 'escortThroughput') {
+      // 无限吞吐线（深空导航）：护航吞吐 ×(1 + pct×Lv)，Lv0 预览 Lv1
+      const cur = 1 + def.effect.pct * Math.max(1, level)
+      effectText = `护航吞吐 ${formatMultiplier(cur)}`
+      if (upgradable) {
+        const next = 1 + def.effect.pct * (level + 1)
+        effectText += ` → ${formatMultiplier(next)}`
+      }
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${t(RESOURCE_META[def.effect.resource].nameKey)}产出 ${formatMultiplier(cur)}`
