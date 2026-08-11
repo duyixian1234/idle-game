@@ -669,6 +669,7 @@ export const zh = {
     planetDrill: { name: '行星钻探', desc: '深入行星地壳，矿物产出 {mult}。' },
     solarEfficiency: { name: '太阳能效率', desc: '优化光伏材料，能源产出 {mult}。' },
     computingBoost: { name: '计算加速', desc: '升级量子计算核心，科技点产出 {mult}。' },
+    neuralNetwork: { name: '神经网络', desc: '构建分布式神经网络阵列，科技点产出 {mult}。' },
     deepDrill: { name: '深层钻探', desc: '解锁「深层钻机」建筑。' },
     fusionCell: { name: '聚变电池', desc: '核聚变储能技术，能源产出 {mult}。' },
     nanoFab: { name: '纳米制造', desc: '纳米级矿物重组，矿物产出 {mult}。' },

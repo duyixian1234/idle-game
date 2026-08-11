@@ -661,6 +661,7 @@ export const en: Zh = {
     planetDrill: { name: 'Planetary Drilling', desc: 'Bores deep into the crust: mineral output {mult}.' },
     solarEfficiency: { name: 'Solar Efficiency', desc: 'Optimizes photovoltaic materials: energy output {mult}.' },
     computingBoost: { name: 'Computing Boost', desc: 'Upgrades the quantum computing core: tech point output {mult}.' },
+    neuralNetwork: { name: 'Neural Network', desc: 'Builds distributed neural computing arrays: tech point output {mult}.' },
     deepDrill: { name: 'Deep Drilling', desc: 'Unlocks the "Deep Drill" building.' },
     fusionCell: { name: 'Fusion Cell', desc: 'Fusion energy storage: energy output {mult}.' },
     nanoFab: { name: 'Nano Fabrication', desc: 'Nanoscale mineral recombination: mineral output {mult}.' },

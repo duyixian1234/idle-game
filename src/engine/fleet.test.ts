@@ -145,7 +145,7 @@ describe('engine: 舰队数据模型（ticket 01 + fleet-dock-10）——船坞/
     expect(fleetPowered(s)).toBe(false)
   })
 
-  it('fleetPower：count × 基础 × 军械科技倍率（每级 +10%，Lv5 = 1.5×）；停摆归零', () => {
+  it('fleetPower：count × 基础 × 军械科技倍率（每级 +10%，Lv10 = 2×）；停摆归零', () => {
     const s = fleetState()
     s.upgrades.dock = 1
     s.fleet.count = 3
@@ -153,6 +153,9 @@ describe('engine: 舰队数据模型（ticket 01 + fleet-dock-10）——船坞/
     expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE) // 科技 0 = ×1
     s.techLevels.militaryTech = 5
     expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 5))
+    // Lv10（满级）：×2
+    s.techLevels.militaryTech = 10
+    expect(fleetPower(s)).toBeCloseTo(3 * SHIP_POWER_BASE * (1 + FLEET_POWER_TECH_PER_LEVEL * 10))
     // 停摆归零
     s.resources.energy = 1
     expect(fleetPower(s)).toBe(0)
@@ -313,8 +316,9 @@ describe('engine: 数值锚点防回归（balance-sim 校准回写）', () => {
     expect(SHIP_GROWTH).toBe(1.5)
   })
 
-  it('军械科技倍率：Lv5 满级 = 1.5× 基础（与科技线节奏协调）', () => {
+  it('军械科技倍率：Lv5 = 1.5×、Lv10 满级 = 2× 基础（与科技线节奏协调）', () => {
     expect(1 + FLEET_POWER_TECH_PER_LEVEL * 5).toBeCloseTo(1.5)
+    expect(1 + FLEET_POWER_TECH_PER_LEVEL * 10).toBeCloseTo(2)
   })
 
   it('SHIP_MAINT_BASE：Lv2 满编 6 艘维护占星港时代能源产出 15~30%（balance-sim 锚点防回归）', () => {

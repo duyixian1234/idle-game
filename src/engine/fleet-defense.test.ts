@@ -153,7 +153,7 @@ describe('engine: 军械科技舰队放大器（ticket 05）——倍率改变�
     expect(s3.pendingEvents).toHaveLength(0)
   })
 
-  it('科技 0/1/满级倍率：×1 / ×1.1 / ×1.5（Lv5 满级 = 1.5× 基础锚点）', () => {
+  it('科技 0/1/满级倍率：×1 / ×1.1 / ×2（Lv10 满级 = 2× 基础锚点）', () => {
     const s = fleetRaiderState()
     s.fleet.count = 3
     expect(fleetPower(s)).toBeCloseTo(3 * 1200)
@@ -161,6 +161,8 @@ describe('engine: 军械科技舰队放大器（ticket 05）——倍率改变�
     expect(fleetPower(s)).toBeCloseTo(3 * 1200 * 1.1)
     s.techLevels.militaryTech = 5
     expect(fleetPower(s)).toBeCloseTo(3 * 1200 * 1.5)
+    s.techLevels.militaryTech = 10
+    expect(fleetPower(s)).toBeCloseTo(3 * 1200 * 2)
   })
 })
 

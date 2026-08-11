@@ -315,7 +315,7 @@ export interface TechDef {
   requires?: string[]
   /** 结盟派系数量门槛（如虫洞理论需结盟 ≥10；与 diplomacy.alliedCount 同口径，周目内） */
   requiresAllies?: number
-  /** 等级上限（缺省 TECH_MAX_LEVEL；军械科技等短升级线设 5） */
+  /** 等级上限（缺省 TECH_MAX_LEVEL=10；星舰推进等长升级线设 20，军械科技 2026-08-11 起 10，无科技设低于缺省） */
   maxLevel?: number
   /** 攻占区域后解锁（军事线科技；渲染于科技面板列表末尾的分组） */
   unlockByConquest?: string
@@ -507,6 +507,16 @@ export const TECHS: Record<string, TechDef> = {
     requires: ['planetDrill'],
     icon: 'nanoFab',
   },
+  neuralNetwork: {
+    id: 'neuralNetwork',
+    nameKey: 'tech.neuralNetwork.name',
+    descKey: 'tech.neuralNetwork.desc',
+    descArgs: { mult: formatMultiplier(2.5) },
+    cost: { mineral: 6000, tech: 400 },
+    effect: { kind: 'production', resource: 'tech', mult: 2.5 },
+    requires: ['computingBoost'],
+    icon: 'neuralNet',
+  },
   militaryTech: {
     id: 'militaryTech',
     nameKey: 'tech.militaryTech.name',
@@ -514,7 +524,7 @@ export const TECHS: Record<string, TechDef> = {
     descArgs: { n: formatNumber(1), mult: formatMultiplier(1), n2: formatNumber(0.5), pct: formatPercent(10) },
     cost: { mineral: 20_000, tech: 2_000 },
     effect: { kind: 'production', resource: 'military', mult: 1 },
-    maxLevel: 5,
+    maxLevel: 10,
     unlockByConquest: 'outpost',
     icon: 'militaryTech',
   },

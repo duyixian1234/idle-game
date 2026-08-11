@@ -112,9 +112,12 @@ describe('engine: 军力资源（military）', () => {
     // 军械科技 Lv1：×1.1
     s.techLevels.militaryTech = 1
     expect(militaryCap(s)).toBe(330)
-    // Lv5（满级）：×1.5
+    // Lv5：×1.5
     s.techLevels.militaryTech = 5
     expect(militaryCap(s)).toBe(450)
+    // Lv10（满级）：×2
+    s.techLevels.militaryTech = 10
+    expect(militaryCap(s)).toBe(600)
   })
 
   it('军械科技容量加成与永久加成/声望加成乘法叠加', () => {
@@ -136,7 +139,7 @@ describe('engine: 生产报告含军力（回归）', () => {
   })
 })
 
-describe('engine: 军械科技（军事线科技，Lv1-5）', () => {
+describe('engine: 军械科技（军事线科技，Lv1-10）', () => {
   it('攻占虫群前哨后解锁军械科技（Lv1），军力产出 ×1', () => {
     const s = stateWithMilitary()
     s.buildings.barracks = 1
@@ -151,13 +154,13 @@ describe('engine: 军械科技（军事线科技，Lv1-5）', () => {
     expect(netProduction(s).military).toBe(0.75)
   })
 
-  it('军械科技 Lv5 封顶（短升级线），Lv6 拒绝', () => {
+  it('军械科技 Lv10 封顶（tech-line-completion：上限 5→10），Lv11 拒绝', () => {
     const s = stateWithMilitary()
-    s.techLevels.militaryTech = 5
+    s.techLevels.militaryTech = 10
     s.resources.mineral += 1_000_000
     s.resources.tech += 1_000_000
     expect(upgradeTech(s, 'militaryTech')).toEqual({ ok: false, reason: '已满级' })
-    expect(s.techLevels.militaryTech).toBe(5)
+    expect(s.techLevels.militaryTech).toBe(10)
   })
 
   it('军械科技单次升级至 Lv2（无批量，ADR-0037）', () => {

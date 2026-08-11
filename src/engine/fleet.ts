@@ -57,8 +57,8 @@ export function fleetPowered(state: GameState): boolean {
   return state.fleet.count > 0 && state.resources.energy >= fleetMaintenance(state)
 }
 
-/** 舰队战力：舰数 × 基础 × 军械科技倍率 × 星舰科技倍率（军械每级 +FLEET_POWER_TECH_PER_LEVEL，满级 Lv5 = 1.5×；
- * 星舰每级同系数，满级 Lv20 = 3×，两线乘积——满配 4.5×）；
+/** 舰队战力：舰数 × 基础 × 军械科技倍率 × 星舰科技倍率（军械每级 +FLEET_POWER_TECH_PER_LEVEL，满级 Lv10 = 2×；
+ * 星舰每级同系数，满级 Lv20 = 3×，两线乘积——满配 6×）；
  * 停摆（能源不足）时归零——自动迎击失效、骚扰退回手动弹窗 */
 export function fleetPower(state: GameState): number {
   if (!fleetPowered(state)) return 0

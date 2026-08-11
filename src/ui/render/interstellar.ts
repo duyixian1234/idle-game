@@ -101,7 +101,7 @@ else if (nextCost && !affordEnergy) buyHint = t('ui.interstellar.8')
   const buildBtn = nextCost
     ? `<button type="button" class="build-btn" data-fleet-build ${affordMineral && affordEnergy ? '' : 'disabled'} title="${escapeHtml(buyHint)}">建造护卫舰 ${formatCost({ mineral: nextCost.mineral, energy: nextCost.energy } as Record<ResourceKey, number>)}</button>`
     : `<button type="button" class="build-btn" data-fleet-build disabled title="已达舰数上限">${t('ui.interstellar.9')}</button>`
-  // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 1.5×）
+  // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 Lv10 = 2×，ADR-0049）
   const techNote = techLv > 0 ? t('ui.interstellar.16', { a0: formatNumber(techLv), a1: formatMultiplier(1 + 0.1 * techLv) }) : ''
   // 护航加成说明（fleet-power-exploration）：每等效舰 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 等效舰数（战力/单舰基础战力，探索页护航远征共用）
   const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每等效舰 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%，战力等效 ${formatNumber(Math.round(equivalentFleet(state)))} 艘）` : ''

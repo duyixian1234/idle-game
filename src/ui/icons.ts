@@ -144,6 +144,14 @@ export const ICONS: Record<string, string> = {
   nanoFab: `
     <path d="M12 5l6.2 3.6v7.2L12 19.4l-6.2-3.6V8.6z"/>
     <path d="M12 9.2l3.1 1.8v3.6L12 16.4l-3.1-1.8v-3.6z"/>`,
+  // 神经网络 = 节点网络（中心节点 + 四向连接节点）
+  neuralNet: `
+    <circle cx="12" cy="12" r="1.8"/>
+    <circle cx="5" cy="12" r="1.6"/>
+    <circle cx="19" cy="12" r="1.6"/>
+    <circle cx="12" cy="5" r="1.6"/>
+    <circle cx="12" cy="19" r="1.6"/>
+    <path d="M6.8 12h3.4M13.8 12h3.4M12 6.8v3.4M12 13.8v3.4"/>`,
   // 军械科技 = 十字准星（外环 + 内环 + 刻度）
   militaryTech: `
     <circle cx="12" cy="12" r="6.5"/>

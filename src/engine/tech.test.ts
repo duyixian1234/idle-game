@@ -265,3 +265,40 @@ describe('engine: 虫洞理论科技门控（wormhole-empire ticket 01）', () =
   })
 })
 
+describe('engine: 神经网络科技（tech-line-completion ticket 01）', () => {
+  it('前置计算加速未研发时不可研发', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    expect(techRequirementsMet(s, 'neuralNetwork')).toBe(false)
+    expect(canResearchTech(s, 'neuralNetwork')).toBe(false)
+    const r = researchTech(s, 'neuralNetwork')
+    expect(r).toMatchObject({ ok: false })
+    expect((r as { reason: string }).reason).toContain('需先研发')
+  })
+
+  it('前置满足后研发成功并扣除 6000 矿物 + 400 科技点', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 100_000
+    s.resources.tech = 10_000
+    s.techLevels.computingBoost = 1
+    expect(canResearchTech(s, 'neuralNetwork')).toBe(true)
+    expect(techCost(s, 'neuralNetwork')).toMatchObject({ mineral: 6000, tech: 400 })
+    expect(researchTech(s, 'neuralNetwork')).toEqual({ ok: true })
+    expect(s.techLevels.neuralNetwork).toBe(1)
+    expect(s.resources.mineral).toBe(94_000)
+    expect(s.resources.tech).toBe(9_600)
+  })
+
+  it('与计算加速累乘：Lv1 科技点产出 ×1.5×2.5 = ×3.75；Lv2 线性 +0.5/级', () => {
+    const s = createInitialState(0)
+    s.buildings.lab = 1
+    s.techLevels.computingBoost = 1
+    s.techLevels.neuralNetwork = 1
+    expect(productionMultipliers(s).tech).toBe(3.75)
+    expect(netProduction(s).tech).toBeCloseTo(0.5 * 3.75)
+    s.techLevels.neuralNetwork = 2
+    expect(productionMultipliers(s).tech).toBe(1.5 * 3.0)
+  })
+})
+

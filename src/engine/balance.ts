@@ -201,7 +201,7 @@ export const CODEX_FAVOR_BONUS = 25
 export const MILITARY_BASE_CAP = 100
 /** 每座军港提供的军力容量 */
 export const MILITARY_PORT_CAP = 200
-/** 军械科技每级军力容量加成（整体乘法，Lv5 满级 = ×1.5；ADR-0027，2026-08-08） */
+/** 军械科技每级军力容量加成（整体乘法，Lv10 满级 = ×2；ADR-0027，2026-08-08；上限见 ADR-0049 5→10） */
 export const MILITARY_CAP_TECH_PER_LEVEL = 0.1
 /** 虫洞每级军力容量加成（整体乘法，Lv10 满级 = ×2，与军械科技并列第二等级放大轴；ADR-0047，2026-08-10） */
 export const WORMHOLE_CAP_PER_LEVEL = 0.1
@@ -353,7 +353,7 @@ export const SHIP_BUY_ENERGY = 200_000
  * 落 15~30% 取舍带）、Lv3 满编 10 艘 2,833/s（恒星阵列 Lv3+ 时代 ~26%）——生产 vs 军备的真实取舍，
  * 满编永不超过当期产出 30%（不破产） */
 export const SHIP_MAINT_BASE = 25
-/** 军械科技每级舰队战力加成（+10%/级，满级 Lv5 = ×1.5 基础） */
+/** 军械科技每级舰队战力加成（+10%/级，满级 Lv10 = ×2 基础；上限见 ADR-0049 5→10） */
 export const FLEET_POWER_TECH_PER_LEVEL = 0.1
 
 // ---- 星舰推进满级质变（warpdrive-qualitative-rewards，ADR-0026，2026-08-08）----
