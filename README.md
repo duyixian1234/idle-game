@@ -11,7 +11,7 @@ Start on a barren planet, build up an automated mining economy, research technol
 - **Idle-first**: buildings keep producing minerals, energy, and tech while you're away; offline earnings are settled from the real time difference (capped at 8 hours, extended to 12 with the Jump Gate).
 - **Four resources**: mineral `◆`, energy `⚡`, tech `◎`, and military `⚔`.
 - **Buildings & tech**: multi-buy buildings (miner, solar, lab, refinery, deep drill, barracks, military port) scale by quantity; unique megastructures and technologies scale by level (`×2`/level), with no quantity × level coupling.
-- **5 planets, 5 mechanics**: each planet you unlock introduces a new mechanic — orbital alloy forging, gravity-well decay, storm-driven mass production, and warp-core time acceleration — leading to the homeworld, Dawn.
+- **5 planets, 4 mechanics**: each planet you unlock introduces a new mechanic — orbital alloy forging, gravity-well decay, storm-driven mass production, and warp-core time acceleration — leading to the homeworld, Dawn.
 - **Faction diplomacy**: trade, ally, or coerce (extort → tribute → subjugate) the four named factions plus generated ones; auto-diplomacy modes keep progression alive while idling.
 - **Conquest & fleet**: train military, build ports to raise your military cap, auto-conquer generated targets, research raid tactics, and maintain a fleet with soft degradation when energy runs short.
 - **Exploration**: dispatch expeditions to program-generated celestial bodies, discover resource-yielding targets, and unlock endgame engineering lines.
