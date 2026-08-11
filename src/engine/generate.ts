@@ -2,13 +2,18 @@ import { t } from '../i18n'
 import { RESOURCE_META } from './data'
 import {
   ENDLESS_BATCH_2_EXPLORATIONS,
+  ENDLESS_BATCH_LAYER_INTERVAL,
+  GEN_CONQUEST_COST_ENERGY_CAP,
   GEN_CONQUEST_COST_ENERGY_SECONDS,
+  GEN_CONQUEST_COST_MINERAL_CAP,
   GEN_CONQUEST_COST_MINERAL_SECONDS,
   GEN_CONQUEST_GUARD_CAP_PCT,
   GEN_CONQUEST_GUARD_MAX_SECONDS,
   GEN_CONQUEST_GUARD_MIN,
   GEN_CONQUEST_GUARD_SECONDS,
+  GEN_CONQUEST_REWARD_MINERAL_CAP,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
+  GEN_CONQUEST_REWARD_TECH_CAP,
   GEN_CONQUEST_REWARD_TECH_SECONDS,
   GEN_FACTION_FAVOR_MAX,
   GEN_FACTION_THREAT_MAX,
@@ -18,7 +23,9 @@ import {
   GEN_PLANET_PCT_MAX,
   GEN_PLANET_PCT_MIN,
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
+  EXPEDITION_CAP_GROWTH,
   WORMHOLE_GENCAP_PER_LEVEL,
+  scaledClamp,
 } from './balance'
 import { militaryCap, nominalMilitaryProduction, netProduction } from './production'
 import { conquestCostMult } from './conquest'
@@ -82,15 +89,20 @@ export function generatedCap(state: GameState, kind: GeneratedTarget['kind']): n
 }
 
 /** 程序生成目标（batch 0）未归档活跃计数——数量上限只约束程序生成（手写保底不受限，Q13 定稿）。
+ * boss 军力挑战（boss:L*，ADR-0053）不占生成名额（每 3 层固定一个，不计入 generatedCap）。
  * 注意：归档周目标记可为 0（第 0 周目归档），必须用 `== null` 判定，不能用 falsy。 */
 export function programmaticActiveCount(state: GameState, kind: GeneratedTarget['kind']): number {
-  return state.generatedTargets.filter((t) => t.kind === kind && t.batch === 0 && state.archivedRounds[t.id] == null).length
+  return state.generatedTargets.filter((t) => t.kind === kind && t.batch === 0 && !t.id.startsWith('boss:L') && state.archivedRounds[t.id] == null).length
 }
 
-/** 保底批次解锁（Q16 方案 B）：batch 1 = 进入无尽即解锁；batch 2 = 第 ENDLESS_BATCH_2_EXPLORATIONS 次探索后解锁 */
-export function endlessBatchUnlocked(state: GameState, batch: 1 | 2): boolean {
+/** 保底批次解锁（endless-expansion Q16 方案 B + endless-progression 关键层批次）：
+ * batch 1 = 进入无尽即解锁；batch 2 = 第 ENDLESS_BATCH_2_EXPLORATIONS 次探索后解锁；
+ * batch 3+ = 层数 ≥ ENDLESS_BATCH_LAYER_INTERVAL×(batch−2) 后解锁（每 10 层解锁一档，ticket 05 加深） */
+export function endlessBatchUnlocked(state: GameState, batch: 1 | 2 | 3): boolean {
   if (batch === 1) return true
-  return (state.stats?.explorations ?? 0) >= ENDLESS_BATCH_2_EXPLORATIONS
+  if (batch === 2) return (state.stats?.explorations ?? 0) >= ENDLESS_BATCH_2_EXPLORATIONS
+  const layer = Math.max(0, Math.floor(state.endless?.layer ?? 0))
+  return layer >= ENDLESS_BATCH_LAYER_INTERVAL * (batch - 2)
 }
 
 /** 手写保底目标快照 id（endless:<defId>；探索奖池与 generatedTargets 共用标识） */
@@ -122,6 +134,13 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
   const capCap = Math.floor(militaryCap(state) * GEN_CONQUEST_GUARD_CAP_PCT)
   const guard = Math.min(Math.max(GEN_CONQUEST_GUARD_MIN, byProd), prodCap, capCap)
   const seq = state.generatedTargets.length
+  // 攻占一次性经济封顶（ADR-0028 未决项落地，ticket 08）：奖励/成本随当期净产出缩放但带 cap（cap × 1.5^ng 随周目增长），
+  // 与探索侧 scaledClamp 同构；ROI 锚点（奖励 120s / 成本 60s×折扣 ≈ 4×）比例保持，仅上限约束。
+  const capGrowth = Math.pow(EXPEDITION_CAP_GROWTH, state.ngPlusLevel ?? 0)
+  const rewardMineralCap = Math.floor(GEN_CONQUEST_REWARD_MINERAL_CAP * capGrowth)
+  const rewardTechCap = Math.floor(GEN_CONQUEST_REWARD_TECH_CAP * capGrowth)
+  const costMineralCap = Math.floor(GEN_CONQUEST_COST_MINERAL_CAP * capGrowth)
+  const costEnergyCap = Math.floor(GEN_CONQUEST_COST_ENERGY_CAP * capGrowth)
   return {
     kind: 'conquest',
     id: `gen:conquest:${seq}`,
@@ -129,11 +148,11 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
     desc: t('gen.0', { a0: name }),
     batch: 0,
     guard,
-    rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
-    rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS),
+    rewardMineral: scaledClamp(prod.mineral, 0, GEN_CONQUEST_REWARD_MINERAL_SECONDS, rewardMineralCap),
+    rewardTech: scaledClamp(prod.mineral, 0, GEN_CONQUEST_REWARD_TECH_SECONDS, rewardTechCap),
     // 攻占消耗折扣（conquest-guard-cap，Q10 生成时固化）：按生成时科技等级乘 conquestCostMult（Lv10 ×0.5），升级后新目标立享
-    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS * conquestCostMult(state)),
-    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS * conquestCostMult(state)),
+    costMineral: Math.floor(scaledClamp(prod.mineral, 0, GEN_CONQUEST_COST_MINERAL_SECONDS, costMineralCap) * conquestCostMult(state)),
+    costEnergy: Math.floor(scaledClamp(prod.energy, 0, GEN_CONQUEST_COST_ENERGY_SECONDS, costEnergyCap) * conquestCostMult(state)),
   }
 }
 

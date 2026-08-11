@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { explorePlanetOutputs, militaryCap, nominalMilitaryProduction, productionReport } from './production'
+import { explorePlanetOutputs, layerProductionMult, militaryCap, nominalMilitaryProduction, productionReport } from './production'
+import { ENDLESS_LAYER_BONUS_CAP } from './balance'
 import type { GameState } from './types'
 
 /** 通关后生产档：足量资源（探索天体机制测试统一基线） */
@@ -171,5 +172,27 @@ describe('engine: 探索产出型天体（production 管线）', () => {
     expect(outs[0].planetId).toBe('rubbleBelt')
     // (2×1 + 100×0.02) × 1.1 × 1.3 = 4.4 × 1.3 = 5.72
     expect(outs[0].values.mineral).toBeCloseTo(4.4 * 1.3, 6)
+  })
+})
+
+describe('engine: endless 层数永久产出加成（endless-progression，ADR-0053）', () => {
+  it('layerProductionMult：每层 +1%，封顶 ENDLESS_LAYER_BONUS_CAP（×3）；跨 NG+ 继承', () => {
+    const s = prodState()
+    s.buildings.miner = 100
+    s.endless.layer = 0
+    const base = productionReport(s).nominal.mineral
+    expect(layerProductionMult(s)).toBe(1)
+    s.endless.layer = 10
+    expect(layerProductionMult(s)).toBeCloseTo(1.1)
+    expect(productionReport(s).nominal.mineral).toBeCloseTo(base * 1.1, 6)
+    s.endless.layer = 300 // 300×1% = 300% → 封顶 ×3
+    expect(layerProductionMult(s)).toBe(4)
+    expect(layerProductionMult(s)).toBeLessThanOrEqual(1 + ENDLESS_LAYER_BONUS_CAP)
+    // 与 NG+ 倍率叠乘（permanentMult = 1 + 0.15×ng，NG+ 继承链路引擎侧写入）
+    s.ngPlusLevel = 5
+    s.permanentMult = 1 + 0.15 * 5
+    s.endless.layer = 10
+    const withNg = productionReport(s).nominal.mineral
+    expect(withNg).toBeCloseTo(base * 1.1 * (1 + 0.15 * 5), 6)
   })
 })

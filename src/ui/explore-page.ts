@@ -3,8 +3,11 @@ import type { GameState } from '../engine/types'
 import {ENDLESS_PLANETS, EXPLORE_PLANETS, RESOURCE_META, RESOURCE_KEYS, defName} from '../engine/data'
 import {formatMultiplier, formatNumber, formatPercent, formatRate} from '../engine/format'
 import {formatDuration} from '../engine/offline'
-import {canEscort, equivalentFleet, escortFee, escortHarvestMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot} from '../engine/exploration'
-import {ENDLESS_BATCH_2_EXPLORATIONS, FLEET_HARVEST_PCT_PER_SHIP, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES} from '../engine/balance'
+import {canEscort, equivalentFleet, escortFee, explorationHarvestMult, escortThroughputMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot} from '../engine/exploration'
+import {endlessBossAvailable, endlessBossProgress, endlessLayer} from '../engine/events'
+import {endlessBossDefeated, endlessBossGuard, endlessBossId, endlessBossReward} from '../engine/conquest'
+import {layerProductionMult} from '../engine/production'
+import {ENDLESS_BATCH_2_EXPLORATIONS, ENDLESS_BATCH_LAYER_INTERVAL, INFINITE_TECH_PCT_PER_LEVEL, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES} from '../engine/balance'
 import {explorePlanetOutputs} from '../engine/production'
 import {endlessBatchUnlocked, endlessTargetId} from '../engine/generate'
 import {iconUse} from './icons'
@@ -96,13 +99,14 @@ else if (!affordMilitary) reason = t('ui.explorePage.9', { a0: formatNumber(cost
     const checked = escortChecked.has(slotNo)
     const escortDisabled = !fleetReady
     const fee = escortFee(state)
-    const mult = escortHarvestMult(state)
+    const mult = explorationHarvestMult(state)
+    const throughput = escortThroughputMult(state)
     const equiv = Math.round(equivalentFleet(state))
     const escortBlock = `
       <div class="explore-slot-escort" data-escort-option>
         <label class="escort-toggle-label">
           <input type="checkbox" data-escort-toggle="${slotNo}" ${checked ? 'checked' : ''} ${escortDisabled ? 'disabled' : ''}>
-          ${t('ui.explorePage.36', { a0: formatPercent(FLEET_HARVEST_PCT_PER_SHIP * 100), a1: formatNumber(equiv) })}
+          ${t('ui.explorePage.36', { a0: formatPercent(INFINITE_TECH_PCT_PER_LEVEL * 100), a1: formatNumber(equiv), a2: formatMultiplier(throughput) })}
         </label>
         ${escortDisabled ? `<span class="escort-warn" data-escort-disabled>${t('ui.explorePage.10')}</span>` : ''}
         ${fleetReady ? `<div class="explore-slot-escort-preview" data-escort-preview>${t('ui.explorePage.11', { a0: formatNumber(fee), a1: formatMultiplier(mult) })}</div>` : ''}
@@ -204,6 +208,7 @@ else if (!affordMilitary) reason = t('ui.explorePage.9', { a0: formatNumber(cost
           </div>`
         : ''}
       ${autoPanel}
+      ${state.phase === 'infinite' ? renderEndlessPanel(state) : ''}
       <div class="explore-slots build-grid">${slotCards.join('')}</div>
       ${outputRows ? `<div class="explore-planet-outputs">${outputRows}</div>` : ''}
       ${hiddenPlanetBlock}
@@ -220,4 +225,39 @@ else if (!affordMilitary) reason = t('ui.explorePage.9', { a0: formatNumber(cost
       </div>`)
   }
   el.innerHTML = parts.join('')
+}
+
+/** 无尽面板（endless-progression，ADR-0053）：层数/进度/boss 状态/已解锁内容/下一层奖励预览/发起 boss/autoBoss。
+ * 仅 infinite 渲染；data-endless-panel 契约承载测试断言。 */
+function renderEndlessPanel(state: GameState): string {
+  const layer = endlessLayer(state)
+  const progress = endlessBossProgress(state)
+  const bossReady = endlessBossAvailable(state)
+  const bossDefeated = endlessBossDefeated(state)
+  const bossId = endlessBossId(state)
+  const nextLayerMult = layerProductionMult(state)
+  const bossDef = bossId ? { guard: endlessBossGuard(state, layer), ...endlessBossReward(state, layer) } : null
+  const bossState = !bossReady
+    ? t('ui.explorePage.40', { a0: formatNumber(progress) })
+    : bossDefeated
+      ? t('ui.explorePage.41')
+      : t('ui.explorePage.42', { a0: formatNumber(bossDef!.guard), a1: formatNumber(bossDef!.rewardMineral ?? 0), a2: formatNumber(bossDef!.rewardTech ?? 0) })
+  // autoBoss 开关（默认关；开启后由自动攻占系统按冷却发起）
+  const autoBossChecked = state.endless?.autoBoss === true
+  // 已解锁内容批次：batch 3+（关键层批次）在层数达标后进入探索池（ticket 05）
+  const contentText = endlessBatchUnlocked(state, 3)
+    ? t('ui.explorePage.47')
+    : t('ui.explorePage.46', { a0: formatNumber(ENDLESS_BATCH_LAYER_INTERVAL) })
+  return `
+    <div class="explore-card endless-panel" data-endless-panel>
+      <h2 class="ending-title">${t('ui.explorePage.39', { a0: formatNumber(layer) })}</h2>
+      <div class="explore-progress" data-endless-progress>${t('ui.explorePage.43', { a0: formatNumber(progress) })}</div>
+      <div class="explore-endless-content" data-endless-content>${escapeHtml(contentText)}</div>
+      <div class="explore-endless-boss" data-endless-boss-state>${escapeHtml(bossState)}</div>
+      <div class="explore-endless-reward" data-endless-reward>${t('ui.explorePage.44', { a0: formatMultiplier(nextLayerMult) })}</div>
+      <div class="explore-auto" data-auto-boss-row>
+        <label class="escort-toggle-label"><input type="checkbox" data-endless-auto-boss ${autoBossChecked ? 'checked' : ''}>${t('ui.explorePage.45')}</label>
+        ${bossReady && !bossDefeated ? `<button type="button" class="ending-btn primary" data-endless-boss-launch="${escapeHtml(bossId ?? '')}">${t('ui.explorePage.48')}</button>` : ''}
+      </div>
+    </div>`
 }

@@ -1,4 +1,5 @@
 import { MEGASTRUCTURE_BUILDINGS, PLANETS } from '../../engine/data'
+import { conquestDef, ensureEndlessBoss } from '../../engine/conquest'
 import { pushLog } from '../../engine/core'
 import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
 import { setLanguage } from '../../i18n'
@@ -276,6 +277,15 @@ export function bindListeners(ctx: SessionCtx): void {
   // 自动配置浮层：change 事件（开关/输入框 → 保存策略）
   els.autoConfigOverlay.addEventListener('change', (e) => {
     const target = e.target as HTMLInputElement
+    // 一键全自动事件开关（ticket 07）：全局 eventsFullAuto 持久化（默认关，开启 = 五类策略全部启用）
+    const fullAuto = target.closest<HTMLInputElement>('[data-event-full-auto]')
+    if (fullAuto) {
+      const state = getState()
+      state.eventsFullAuto = fullAuto.checked
+      render()
+      void deps.save()
+      return
+    }
     ctx.saveAutomationControl(target)
   })
 
@@ -378,6 +388,19 @@ export function bindListeners(ctx: SessionCtx): void {
       const escortToggle = slotCard?.querySelector<HTMLInputElement>('[data-escort-toggle]')
       const escortFlag = escortToggle?.checked
       dispatch(getState(), 'explore', { slot: Number(slotNo || '1'), escort: escortFlag === true }, deps)
+      return
+    }
+    // 无尽面板：发起 boss 军力挑战（data-endless-boss-launch → 走攻占管线投满守卫）
+    const bossLaunch = (e.target as HTMLElement).closest<HTMLElement>('[data-endless-boss-launch]')
+    if (bossLaunch) {
+      const state = getState()
+      // 确保当前层 boss 目标已注入（层推进后可能尚未经 tick 生成）
+      const bossId = ensureEndlessBoss(state) ?? bossLaunch.dataset.endlessBossLaunch ?? ''
+      const boss = conquestDef(state, bossId)
+      if (boss && bossId) {
+        dispatch(state, 'conquest', { id: bossId, invest: boss.guard }, deps)
+      }
+      return
     }
   })
   // 手动护航勾选（change）：更新跨渲染勾选集合并重渲染（预览数据在渲染时实时计算）
@@ -401,6 +424,16 @@ export function bindListeners(ctx: SessionCtx): void {
     const autoEscort = target.closest<HTMLInputElement>('[data-auto-escort]')
     if (autoEscort) {
       dispatch(getState(), 'setAutoExplore', { escort: autoEscort.checked }, deps)
+      return
+    }
+    // autoBoss 开关（endless-progression）：持久化到 state.endless.autoBoss（v16 字段，默认关）
+    const autoBoss = target.closest<HTMLInputElement>('[data-endless-auto-boss]')
+    if (autoBoss) {
+      const state = getState()
+      state.endless ??= { layer: 0, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false }
+      state.endless.autoBoss = autoBoss.checked
+      render()
+      void deps.save()
     }
   })
 

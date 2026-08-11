@@ -383,7 +383,7 @@ describe('engine: 存档序列化往返', () => {
     expect(migrated.pendingEvents[0].payload?.cost).toBe(500)
     expect(migrated.pendingEvents[0].contractVersion).toBe(1)
     expect(migrated.pendingEvents[0].handlingMode).toBe('queue')
-    expect(migrated.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0 })
+    expect(migrated.endless).toEqual({ layer: 0, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false })
   })
 
   it('旧档已知事件补齐处理模式，未知事件安全阻塞且保留迁移说明', () => {
@@ -468,6 +468,30 @@ describe('engine: 存档序列化往返', () => {
     const migrated = deserializeSave(JSON.stringify(raw))
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
     expect(migrated.bugEscalation).toBe(1)
+  })
+
+  it('v15 → v16 迁移：endless 层推进进度/autoBoss/eventsFullAuto 补齐默认值，存量层数保留', () => {
+    const s = createInitialState(0)
+    s.endless.layer = 2 // 存量层数
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 15
+    delete (raw.endless as Record<string, unknown>).layerProgress
+    delete (raw.endless as Record<string, unknown>).autoBoss
+    delete (raw as Record<string, unknown>).eventsFullAuto
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.endless.layer).toBe(2) // 层数原样保留，不进位不回溯
+    expect(migrated.endless.layerProgress).toBe(0) // 进度从 0 起步
+    expect(migrated.endless.autoBoss).toBe(false) // 默认关
+    expect(migrated.eventsFullAuto).toBe(false) // 一键全自动默认关
+    // 幂等：已是 v16 且字段存在则保留原值
+    s.eventsFullAuto = true
+    s.endless.autoBoss = true
+    s.endless.layerProgress = 0.5
+    const restored = deserializeSave(serializeSave(s))
+    expect(restored.eventsFullAuto).toBe(true)
+    expect(restored.endless.autoBoss).toBe(true)
+    expect(restored.endless.layerProgress).toBe(0.5)
   })
 
   it('保存恢复后事件随机序列与待处理队列连续', () => {

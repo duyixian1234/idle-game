@@ -7,6 +7,7 @@ import {formatMultiplier, formatNumber, formatRate} from '../engine/format'
 import {isPlanetUnlocked} from '../engine/planets'
 import {militaryCap, productionBreakdown} from '../engine/production'
 import type { BreakdownRow } from '../engine/production'
+import {endlessBossAvailable, endlessBossProgress, endlessLayer} from '../engine/events'
 import {iconUse} from './icons'
 import {escapeHtml} from './helpers'
 
@@ -65,7 +66,20 @@ export function renderPlanetMechanic(el: HTMLElement, state: GameState): void {
   }
   const mech = PLANET_MECHANICS[def.mechanicId] ?? PLANET_MECHANICS.none
   const status = mech.describe(state)
-  el.innerHTML = `<span class="mech-name">${escapeHtml(t(mech.nameKey))}</span><span class="mech-desc">${escapeHtml(t(mech.descKey, mech.descArgs))}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}`
+  el.innerHTML = `<span class="mech-name">${escapeHtml(t(mech.nameKey))}</span><span class="mech-desc">${escapeHtml(t(mech.descKey, mech.descArgs))}</span>${status ? `<span class="mech-status">${escapeHtml(status)}</span>` : ''}${renderEndlessStatus(state)}`
+}
+
+/** endless 成长轴状态行（endless-progression，ADR-0053）：无尽层数 + 距下次 boss 进度。
+ * 仅 infinite 阶段渲染（层推进为后期成长轴，跨 NG+ 继承）；常驻于状态行，无尽面板见探索页。 */
+function renderEndlessStatus(state: GameState): string {
+  if (state.phase !== 'infinite') return ''
+  const layer = endlessLayer(state)
+  const progress = endlessBossProgress(state)
+  const boss = endlessBossAvailable(state)
+  const bossText = boss
+    ? t('bar.8')
+    : t('bar.9', { a0: formatNumber(Math.max(0, 3 - progress)) })
+  return `<span class="mech-status endless-status" data-endless-status>无尽 Lv.${formatNumber(layer)} · ${bossText}（${formatNumber(progress)}/3）</span>`
 }
 
 /** 渲染顶部资源条（带正/负速率标记；军力显示「当前/上限」） */

@@ -24,9 +24,14 @@ export function isTechResearched(state: GameState, id: string): boolean {
 }
 
 /** 是否可升级：产出类/探索类/攻占类科技且未满级（军械科技等短升级线按 def.maxLevel；探索科技 Lv1-5 提供收获倍率；
- * conquest-guard-cap：攻占类 kind 'conquest' 可升级） */
+ * conquest-guard-cap：攻占类 kind 'conquest' 可升级；infinite-tech：全产出/护航吞吐线可升级至名义 maxLevel） */
 export function canTechUpgrade(def: TechDef, level: number): boolean {
-  const upgradable = def.effect.kind === 'production' || def.effect.kind === 'exploration' || def.effect.kind === 'conquest'
+  const upgradable =
+    def.effect.kind === 'production' ||
+    def.effect.kind === 'exploration' ||
+    def.effect.kind === 'conquest' ||
+    def.effect.kind === 'productionAll' ||
+    def.effect.kind === 'escortThroughput'
   return upgradable && level > 0 && level < (def.maxLevel ?? TECH_MAX_LEVEL)
 }
 

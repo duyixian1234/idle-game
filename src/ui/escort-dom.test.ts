@@ -34,9 +34,8 @@ describe('ui: 护航远征（fleet-dock-10）——探索页渲染与状态', ()
     expect(toggle!.disabled).toBe(false)
     expect(page.querySelector('[data-escort-preview]')?.textContent).toContain('护航消耗')
     expect(page.querySelector('[data-escort-preview]')?.textContent).toContain('能源/轮')
-    // 倍率说明（每等效舰 +1%，含战力等效舰数口径）
-    expect(page.textContent).toContain('每等效舰 +1.00%')
-    expect(page.textContent).toContain('战力等效')
+    // 倍率说明（escort-ROI 修复后：收获倍率挂枢纽、吞吐挂等效舰数口径）
+    expect(page.textContent).toContain('等效舰')
     // 派遣按钮契约保留（data-explore-dispatch 值 = 槽位号）
     expect(page.querySelector('[data-explore-dispatch="1"]')).toBeTruthy()
   })
@@ -125,7 +124,7 @@ describe('ui: 自动探索（fleet-dock-10）——控制面板渲染', () => {
 })
 
 describe('ui: 舰队区护航加成说明（fleet-power-exploration）', () => {
-  it('有舰队时显示护航加成（data-fleet-escort：当前倍率 + 每等效舰 +1%）', () => {
+  it('有舰队时显示护航加成（data-fleet-escort：收获倍率挂枢纽、吞吐挂等效舰数）', () => {
     const container = document.createElement('div')
     buildLayout(container)
     const s = escortUiState()
@@ -133,8 +132,9 @@ describe('ui: 舰队区护航加成说明（fleet-power-exploration）', () => {
     renderMilitaryPanel(panel, s)
     const escortNote = panel.querySelector('[data-fleet-escort]')
     expect(escortNote).toBeTruthy()
-    expect(escortNote!.textContent).toContain('1.03倍') // 3 艘 = +3%
-    expect(escortNote!.textContent).toContain('+1.00%')
+    expect(escortNote!.textContent).toContain('护航远征')
+    expect(escortNote!.textContent).toContain('吞吐')
+    expect(escortNote!.textContent).toContain('等效舰 3')
   })
 
   it('无舰队时不显示护航加成说明', () => {

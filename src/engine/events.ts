@@ -15,7 +15,7 @@ import type {
   ResourceKey,
 } from './types'
 import {ALL_FACTIONS, FACTIONS} from './data'
-import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, } from './balance'
+import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, ENDLESS_BOSS_EVERY_LAYERS} from './balance'
 import {netProduction} from './production'
 import {fleetAvailablePower, fleetPower} from './fleet'
 import {raidThreshold} from './reputation'
@@ -126,11 +126,36 @@ export function endlessLayer(state: GameState): number {
   return Math.max(0, Math.floor(state.endless?.layer ?? (state.phase === 'infinite' ? state.ngPlusLevel : 0)))
 }
 
-/** 推进无尽层数并初始化下一条阶段链，供结算与存档恢复共用。 */
+/** 距下次 boss 的平滑进度（0~ENDLESS_BOSS_EVERY_LAYERS）：层数余位 + 层推进进度的小数部分。
+ * boss 每 ENDLESS_BOSS_EVERY_LAYERS 层出现一次（layer % 3 === 0 且 layer ≥ 3 可战）；
+ * 进度满即下次 boss 层。UI 状态行「无尽层数 + 距下次 boss 进度」单一真源。 */
+export function endlessBossProgress(state: GameState): number {
+  const layer = endlessLayer(state)
+  const frac = state.endless?.layerProgress ?? 0
+  return Math.round(((layer % ENDLESS_BOSS_EVERY_LAYERS) + frac) * 1e9) / 1e9
+}
+
+/** boss 是否可战（每 3 层一次：layer ≥ 3 且 layer % 3 === 0）——boss 军力挑战（ADR-0053）门控 */
+export function endlessBossAvailable(state: GameState): boolean {
+  const layer = endlessLayer(state)
+  return layer >= ENDLESS_BOSS_EVERY_LAYERS && layer % ENDLESS_BOSS_EVERY_LAYERS === 0
+}
+
+/**
+ * 推进无尽层数（平滑进度制，endless-progression，ADR-0053）：amount 可为小数——
+ * 累入 layerProgress，满 1.0 进位 1 层（进位后余量保留）。boss 击败路径传 1（原语义保留）；
+ * 征服/探索推进源传 0.04 / 0.008。层数跨 NG+ 继承（NG+ 不重置）。
+ */
 export function advanceEndlessLayer(state: GameState, amount = 1): number {
-  state.endless.layer = Math.max(0, state.endless.layer + Math.max(0, Math.floor(amount)))
-  state.endless.stage = Math.max(state.endless.stage, state.endless.layer)
-  state.endless.chain = { id: `layer-${state.endless.layer}`, step: 0, completed: false }
+  // 9 位小数取整防浮点累积漂移（0.04×25 / 0.008×125 应精确进位）
+  const progress = Math.round(((state.endless.layerProgress ?? 0) + Math.max(0, amount)) * 1e9) / 1e9
+  const gained = Math.floor(progress)
+  state.endless.layerProgress = progress - gained
+  if (gained > 0) {
+    state.endless.layer = Math.max(0, state.endless.layer + gained)
+    state.endless.stage = Math.max(state.endless.stage, state.endless.layer)
+    state.endless.chain = { id: `layer-${state.endless.layer}`, step: 0, completed: false }
+  }
   return state.endless.layer
 }
 
@@ -694,9 +719,21 @@ function recordAutomation(
 /** 按事件类别选择规则并复用 resolveEvent 结算；无可用策略时保留事件并暂停通知。 */
 export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTick): AutomationResolution[] {
   const results: AutomationResolution[] = []
+  // 一键全自动事件开关（ticket 07，ADR-0055）：开启后等价于五类策略全部启用（按各策略 fallback 结算）；
+  // 关闭（默认）时行为与现状逐字节一致——仅在「类别策略未启用」且 fullAuto 开启时按默认 fallback 合成策略。
+  const fullAuto = state.eventsFullAuto === true
   for (const instance of [...state.pendingEvents]) {
     const category = instance.theme ?? instance.defId
-    const policy = state.automationPolicies[category]
+    const rawPolicy = state.automationPolicies[category]
+    const policy = fullAuto && !rawPolicy?.enabled
+      ? {
+          enabled: true,
+          rules: rawPolicy?.rules ?? [],
+          // 合成策略：security 走智能降级链（不注入默认 ignore），其余类别注入默认兜底——与「五类策略全部启用」语义一致
+          fallbackOptionId: rawPolicy?.fallbackOptionId ?? ((AUTOMATION_FALLBACK_CHAIN[category as EventTheme] ?? []).length > 0 ? undefined : DEFAULT_AUTOMATION_FALLBACK[category as EventTheme]),
+          maxRiskLevel: rawPolicy?.maxRiskLevel,
+        }
+      : rawPolicy
     if (!policy?.enabled) continue
     const rules = [...policy.rules].sort((a, b) => b.priority - a.priority)
     const eligible = rules.filter((candidate) => ruleEligible(state, instance, candidate, nowMs))

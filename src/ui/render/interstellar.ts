@@ -8,8 +8,8 @@ import type { GameState, ResourceKey } from '../../engine/types'
 import {INTERSTELLAR_BUILDINGS, MEGASTRUCTURE_BUILDINGS, defName} from '../../engine/data'
 import {buildingCost, buildingLockReason, isBuildingUnlocked, megastructurePrereqsMet} from '../../engine/buildings'
 import {dockLevel, fleetMaintenance, fleetPower, fleetPowered, nextShipCost, shipCap} from '../../engine/fleet'
-import {equivalentFleet, escortHarvestMult} from '../../engine/exploration'
-import {FLEET_HARVEST_PCT_PER_SHIP} from '../../engine/balance'
+import {equivalentFleet, escortThroughputMult, explorationHarvestMult} from '../../engine/exploration'
+import {INFINITE_TECH_PCT_PER_LEVEL} from '../../engine/balance'
 import {formatMultiplier, formatNumber, formatRate} from '../../engine/format'
 import {iconUse} from '../icons'
 import {escapeHtml} from '../helpers'
@@ -104,7 +104,7 @@ else if (nextCost && !affordEnergy) buyHint = t('ui.interstellar.8')
   // 维护费/战力预览：数据语义化 + 科技贡献行（军械科技满级 Lv10 = 2×，ADR-0049）
   const techNote = techLv > 0 ? t('ui.interstellar.16', { a0: formatNumber(techLv), a1: formatMultiplier(1 + 0.1 * techLv) }) : ''
   // 护航加成说明（fleet-power-exploration）：每等效舰 +1% 探索收获倍率，当前倍率 = 1 + 0.01 × 等效舰数（战力/单舰基础战力，探索页护航远征共用）
-  const escortNote = count > 0 ? `护航远征加成 ${formatMultiplier(escortHarvestMult(state))}（每等效舰 +${formatNumber(FLEET_HARVEST_PCT_PER_SHIP * 100)}%，战力等效 ${formatNumber(Math.round(equivalentFleet(state)))} 艘）` : ''
+  const escortNote = count > 0 ? `护航远征：收获倍率 ${formatMultiplier(explorationHarvestMult(state))} · 吞吐 ${formatMultiplier(escortThroughputMult(state))}（+${formatNumber(INFINITE_TECH_PCT_PER_LEVEL * 100)}%/级，等效舰 ${formatNumber(Math.round(equivalentFleet(state)))} 艘）` : ''
   body.innerHTML = `
     <div class="build-card-icon">${iconUse('ship')}</div>
     <div class="build-card-body">
