@@ -5,7 +5,7 @@ import { settleOffline } from './offline'
 import { generateConquestTarget } from './generate'
 import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
 import { TECHS } from './data'
-import type { GameState } from './types'
+import type { GameState, GeneratedTarget } from './types'
 
 /** 构造状态：解锁前置星球、给足军力与资源 */
 function conquestState(): GameState {
@@ -194,6 +194,85 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期）
     expect(s.conquest['gen:conquest:0'].invested).toBe(800)
     expect(s.resources.military).toBe(5_100 - 800) // 容量 5100 截断后投 800
+  })
+
+  /** 多目标自动攻占态（auto-conquest-priority）：默认守卫 800/1200/2000 无资源费；数组序 = 发现序 */
+  function autoStateMulti(targets: GeneratedTarget[] = [
+    { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, rewardMineral: 100_000 },
+    { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 1_200, rewardMineral: 100_000 },
+    { kind: 'conquest', id: 'gen:conquest:2', name: '目标丙', desc: '', batch: 0, guard: 2_000, rewardMineral: 100_000 },
+  ]): GameState {
+    const s = conquestState()
+    s.autoConquest = { enabled: true }
+    s.planets.dawn = { unlocked: true }
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.generatedTargets.push(...targets)
+    for (const gt of s.generatedTargets) s.conquest[gt.id] = { status: 'available' }
+    return s
+  }
+
+  it('多目标可用 → 优先选择守卫最低的目标（消耗排序主序）', () => {
+    const s = autoStateMulti()
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs.length).toBe(1)
+    expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.conquest['gen:conquest:1']).toEqual({ status: 'available' })
+    expect(s.conquest['gen:conquest:2']).toEqual({ status: 'available' })
+    expect(s.autoConquest?.lastActionAt).toBe(60_000)
+  })
+
+  it('冷却后下一 tick → 选次低守卫目标', () => {
+    const s = autoStateMulti()
+    autoConquestTick(s, 60_000) // 首 tick 选 800
+    const logs = autoConquestTick(s, 120_000)
+    expect(logs.length).toBe(1)
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.conquest['gen:conquest:2']).toEqual({ status: 'available' })
+  })
+
+  it('守卫最低目标进行中（startedAt）→ 跳过，选次低守卫目标', () => {
+    const s = autoStateMulti()
+    s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 0, finishAt: 10 * 60_000, invested: 800 }
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs.length).toBe(1)
+    expect(s.conquest['gen:conquest:0'].invested).toBe(800) // 进行中不重投
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+  })
+
+  it('守卫相同 → 资源费（costMineral+costEnergy）更低的目标优先', () => {
+    const s = autoStateMulti([
+      { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, costMineral: 500_000, costEnergy: 0, rewardMineral: 100_000 },
+      { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 800, costMineral: 1_000, costEnergy: 0, rewardMineral: 100_000 },
+    ])
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs.length).toBe(1)
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+  })
+
+  it('守卫最低目标资源费不足 → 暂停并跳过，选次低守卫目标（pausedAt 语义保留）', () => {
+    const s = autoStateMulti([
+      { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, costMineral: 9_000_000, costEnergy: 0, rewardMineral: 100_000 },
+      { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 1_200, rewardMineral: 100_000 },
+    ])
+    s.resources.mineral = 1_000 // 不够目标甲的 costMineral，目标乙无资源费
+    const logs = autoConquestTick(s, 60_000)
+    expect(logs.length).toBe(1)
+    expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' }) // 资源费不足未发起
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.autoConquest?.pausedAt).toBe(60_000)
+  })
+
+  it('离线批量推进（settleOffline）：多目标按消耗升序逐个发起', () => {
+    const s = autoStateMulti()
+    settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期，3 目标全部投满）
+    expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
+    // 发起顺序与消耗升序一致：守卫最低目标 startAt 最早
+    expect(s.conquest['gen:conquest:0'].startedAt).toBeLessThan(s.conquest['gen:conquest:1'].startedAt!)
+    expect(s.conquest['gen:conquest:1'].startedAt).toBeLessThan(s.conquest['gen:conquest:2'].startedAt!)
   })
 })
 

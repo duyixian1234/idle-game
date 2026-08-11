@@ -9,7 +9,7 @@ import { fleetAvailablePower } from './fleet'
 import { rollDomain } from './rng'
 import { techLevel } from './tech'
 import { formatNumber, formatPercent } from './format'
-import type { ConquestState, GameState } from './types'
+import type { ConquestState, GameState, GeneratedTarget } from './types'
 
 /**
  * 攻占系统深层模块：4 个第三方区域（虫群前哨/废弃船坞/星际残骸带/虫群母巢）。
@@ -205,10 +205,23 @@ function settleOneConquest(
   return t('cq.4', { a0: defName(def), a1: formatNumber(invest) })
 }
 
+/** 自动攻占排序键：军力投入（守卫）——每次自动攻占恒全额消耗 */
+function consumeOf(gt: GeneratedTarget): number {
+  return gt.guard ?? 0
+}
+
+/** 自动攻占排序键（平局打破）：快照资源费（ADR-0028 costMineral/costEnergy，矿+能合计） */
+function feeOf(gt: GeneratedTarget): number {
+  return (gt.costMineral ?? 0) + (gt.costEnergy ?? 0)
+}
+
 /**
- * 自动攻占 tick（ADR-0033，2026-08-08）：每冷却周期（60s）对第一个可用生成军事目标投满守卫发起攻占。
+ * 自动攻占 tick（ADR-0033，2026-08-08；auto-conquest-priority 2026-08-11）：每冷却周期（60s）对可用生成军事目标投满守卫发起攻占。
  * - 目标 = generatedTargets kind='conquest' 且 status==='available' 未进行中（仅生成目标，静态主线区域保持手动）；
  * - 投入策略：投满守卫（必成）；
+ * - **目标优先级（auto-conquest-priority）**：先对「可立即发起」候选排序——守卫（军力投入）升序为主序、
+ *   快照资源费（costMineral+costEnergy）升序为平局打破——资源消耗更少的目标优先处理；只作用于候选数组
+ *   （filter 后新数组 sort，不改 generatedTargets 展示顺序；Array.prototype.sort 稳定 → 等键保持发现顺序）；
  * - 军力保底：投满后仍保留军力容量 × AUTO_CONQUEST_MILITARY_RESERVE_PCT（防耗尽影响 raid 击退/探索派遣）；
  * - 资源费不足（ADR-0028 costMineral/costEnergy）→ 暂停（pausedAt），冷却后重试；
  * - 离线由 settleOffline 按冷却周期批量推进（虚拟时钟）。
@@ -217,12 +230,17 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
   const cfg = state.autoConquest
   if (!cfg?.enabled) return []
   if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
-  for (const gt of state.generatedTargets) {
-    if (gt.kind !== 'conquest') continue
-    const cs = state.conquest[gt.id]
-    if (cs?.status !== 'available' || cs.startedAt != null) continue
+  const candidates = state.generatedTargets
+    .filter((gt) => {
+      if (gt.kind !== 'conquest') return false
+      const cs = state.conquest[gt.id]
+      if (cs?.status !== 'available' || cs.startedAt != null) return false
+      return (gt.guard ?? 0) > 0
+    })
+    // 排序键：军力投入（守卫）升序为主序；快照资源费（mineral+energy）升序为平局打破（稳定排序 → 等键保持发现顺序）
+    .sort((a, b) => consumeOf(a) - consumeOf(b) || feeOf(a) - feeOf(b))
+  for (const gt of candidates) {
     const guard = gt.guard ?? 0
-    if (guard <= 0) continue
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
     if (state.resources.military < guard + reserve) continue
     // 自动攻占纯军力（useFleet=false，conquest-fleet Q6）：舰队锁定 = 防御真空取舍，自动系统不替玩家做
