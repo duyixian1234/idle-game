@@ -169,11 +169,15 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     expect(s.conquest.outpost).toEqual({ status: 'available' })
   })
 
-  it('冷却未过（60s 内）→ 不发起', () => {
+  it('冷却未过（30s 内）→ 不发起', () => {
     const s = autoState()
     s.autoConquest!.lastActionAt = 0
-    const logs = autoConquestTick(s, 30_000)
+    const logs = autoConquestTick(s, 30_000 - 1) // 29,999ms < 30s 冷却 → 不发起
     expect(logs).toEqual([])
+    // 恰好 = 冷却 → 发起
+    const s2 = autoState()
+    s2.autoConquest!.lastActionAt = 0
+    expect(autoConquestTick(s2, 30_000).length).toBe(1)
   })
 
   it('开关关闭 → 不动作', () => {
@@ -361,8 +365,8 @@ describe('engine: 自动攻占（ADR-0033）', () => {
       const s = autoStateMulti()
       autoConquestTick(s, 60_000)
       expect(s.autoConquest?.lastActionAt).toBe(60_000)
-      // 冷却未过 → 不重复发起
-      expect(autoConquestTick(s, 60_000 + 30_000)).toEqual([])
+      // 冷却未过（20s < 30s）→ 不重复发起
+      expect(autoConquestTick(s, 60_000 + 20_000)).toEqual([])
     })
   })
 })

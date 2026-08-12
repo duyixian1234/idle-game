@@ -107,7 +107,7 @@ export function settleOffline(state: GameState, nowMs: number, rng?: () => numbe
       autoDiplomacyTick(state, autoStart + (i + 1) * DIPLO_AUTO_COOLDOWN_MS)
     }
   }
-  // 自动攻占离线推进（ADR-0033）：60s 冷却周期批量发起（投满守卫 + 军力保底 20%；
+  // 自动攻占离线推进（ADR-0033）：30s 冷却周期批量发起（投满守卫 + 军力保底 10%；
   // 攻占倒计时离线照常推进——下一轮回归时由 settleConquests 结算）
   if (state.autoConquest?.enabled) {
     const autoStart = nowMs - duration * 1000

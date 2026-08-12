@@ -192,7 +192,7 @@ function settlementTick(state: GameState, nowMs: number, rng?: () => number): vo
   for (const autoLog of autoExploreDispatch(state, nowMs)) {
     pushLog(state, autoLog.type, autoLog.text)
   }
-  // 自动攻占（ADR-0033）：自动探索/手动发现后的生成军事目标自动投满守卫发起（60s 冷却 + 军力保底 20%）
+  // 自动攻占（ADR-0033）：自动探索/手动发现后的生成军事目标自动投满守卫发起（30s 冷却 + 军力保底 10%）
   for (const conquestAutoLog of autoConquestTick(state, nowMs)) {
     pushLog(state, 'system', conquestAutoLog)
   }

@@ -309,7 +309,7 @@ function feeOf(gt: GeneratedTarget): number {
 
 /**
  * 自动攻占 tick（ADR-0033，2026-08-08；auto-conquest-priority 2026-08-11；auto-conquest-batch 2026-08-12）：
- * 每冷却周期（60s）对可用生成军事目标**批量发起**（军力充足时一次多个；军力不足停止、经济费不足跳过，直到无目标可发）。
+ * 每冷却周期（30s，2026-08-12 60s→30s 提速）对可用生成军事目标**批量发起**（军力充足时一次多个；军力不足停止、经济费不足跳过，直到无目标可发）。
  * - 目标 = generatedTargets kind='conquest' 且 status==='available' 未进行中（仅生成目标，静态主线区域保持手动）；
  * - 投入策略：投满守卫（必成）；
  * - **目标优先级（auto-conquest-priority）**：先对「可立即发起」候选排序——守卫（军力投入）升序为主序、

@@ -6,6 +6,8 @@
 
 > **⚠️ 修订（2026-08-11，[conquest-guard-cap](../../.scratch/conquest-guard-cap/spec.md)）**：守卫公式在「名义产能 × 40s」基础上新增**双上限**——`min(max(500, ⌊名义产能×40s⌋), ⌊军力上限×1/3⌋, ⌊名义产能×180s⌋)`（攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间，用户硬约束；上限优先，早期容量/3 < 500 时守卫 = 容量/3）。新增 `GEN_CONQUEST_GUARD_CAP_PCT = 1/3`、`GEN_CONQUEST_GUARD_MAX_SECONDS = 180`。攻占科技线/成就梯度见 [ADR-0051](./0051-conquest-guard-cap.md)。⚠️ 语义张力：容量 < 120×名义产能时守卫随容量涨（"≤1/3"硬约束的必然），容量足够大时恢复产出锚定。
 
+> **⚠️ 修订（2026-08-12）**：自动攻占冷却 `AUTO_CONQUEST_COOLDOWN_MS` 60s → **30s**（用户提速需求，配合 ADR-0057 批量）。冷却 30s < 守卫 40s 回充 → 单目标实际发起节奏由军力回充自然限速（守卫+保底总回充 ≈31.7s），冷却仅决定「检查拍」频率与批量吞吐窗口；军力不足时保底 `break` 兜底不抽干。联动文档（0046/0049/0052/0056/0057）中「60s 冷却」「1 目标/60s」为当时状态描述。测试：balance-sim「守卫+保底回充 ≥ 冷却 30s → 军力限速接管」断言替换原「≤ 60s」。
+
 **状态**: Accepted（2026-08-08 用户需求迭代；2026-08-09 守卫锚定修订）
 **证据**: `src/engine/conquest.ts:166-201`（autoConquestTick）；`src/engine/generate.ts:99-125`（守卫挂钩产能）；`src/engine/production.ts`（nominalMilitaryProduction）；`src/engine/balance.ts:254-262`（GEN_CONQUEST_GUARD_SECONDS / AUTO_CONQUEST_*）；`src/engine/engine.ts`（tick 调用 + NG+ 重置）、`src/engine/offline.ts:103-111`（离线批量推进）
 

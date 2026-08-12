@@ -163,7 +163,7 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     }
   })
 
-  it('守卫双上限 + 保底 10%：后期攻占节奏（守卫+保底回充）≤ 自动攻占冷却 60s（conquest-guard-cap）', () => {
+  it('守卫双上限 + 保底 10%：守卫+保底回充 ≥ 冷却 30s → 单目标节奏由军力自然限速（冷却提速后不抽干军力，保底 break 兜底）', () => {
     // 后期形态：100 军港（容量 40,200）+ 200 兵营 + 军械 Lv10（军力产出 550/s）
     const s = createInitialState(0)
     s.phase = 'ended'
@@ -179,7 +179,10 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     const prod = nominalMilitaryProduction(s)
     expect(prod).toBe(550)
     const rechargeSec = (guard + Math.floor(cap * 0.1)) / prod // (13,400 + 4,020) / 550 = 31.67s
-    expect(rechargeSec).toBeLessThanOrEqual(AUTO_CONQUEST_COOLDOWN_MS / 1000)
+    // 冷却已 30s（< 守卫 40s 回充）→ 回充 ≥ 冷却：单目标由军力限速（≈31.7s/目标），
+    // autoConquestTick 军力不足时 break 保底，不会把军力抽到保底线以下
+    expect(rechargeSec).toBeGreaterThanOrEqual(AUTO_CONQUEST_COOLDOWN_MS / 1000)
+    expect(rechargeSec).toBeLessThanOrEqual(GEN_CONQUEST_GUARD_SECONDS + cap * 0.1 / prod + 0.01)
     // 容量足够大时恢复产出锚定：1,000 军港 → 容量 400,200、⌊/3⌋=133,400 > 22,000 → 守卫 = 产出×40s
     const s2 = createInitialState(0)
     s2.phase = 'ended'
@@ -400,7 +403,7 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
     // 三档基准（毕业/NG+5/普通通关），各跑连续攻占完整循环（生成→发起→结算成功）直至军力不足以发起下一个：
     // 模拟「满员 → 投入守卫 → 结算返还 → 军力在冷却期回充」循环。断言：
     // ① 单目标平均军力净耗（投入 − 返还）> 0（返还率 <1 → 不净增，防印钞）；
-    // ② 单目标净耗回充时间（净耗/军力名义产能）< 自动攻占 60s 冷却（军力不构成吞吐瓶颈，漏斗转移到冷却）。
+    // ② 单目标净耗回充时间（净耗/军力名义产能）< 自动攻占 30s 冷却（军力不构成吞吐瓶颈，漏斗转移到冷却+批量）。
     const netCostPerTarget = (ng: number, miner: number): { net: number; seconds: number; targets: number } => {
       const s = graduateState(ng, miner)
       // 军力存量设为满容量（真实挂机合法态：军力 ≤ 容量，production 截断 + offline clamp 保证）——
@@ -433,7 +436,7 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
       const net = (totalInvest - totalRefund) / targets
       expect(net).toBeGreaterThan(0)
       // 单目标净耗回充时间 = 净耗 / 军力名义产能。守卫受双上限约束（产出×40s 或容量/3 取小，容量主导时守卫 = 容量/3），
-      // 净耗 = 守卫×(1−rate) ∈ [20s×产出, 容量/3×0.5]——断言上限 < 60s 冷却即军力不构成吞吐瓶颈（毕业档实测 ≈12s）。
+      // 净耗 = 守卫×(1−rate) ∈ [20s×产出, 容量/3×0.5]——断言上限 < 30s 冷却即军力不构成吞吐瓶颈（毕业档实测 ≈12s）。
       const prod = nominalMilitaryProduction(s)
       expect(prod).toBeGreaterThan(0)
       return { net, seconds: net / prod, targets }
@@ -441,9 +444,9 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
     const graduated = netCostPerTarget(0, 10_000)
     const ng5 = netCostPerTarget(5, 10_000)
     const normal = netCostPerTarget(0, 1_000)
-    // 三档净耗回充时间均 < 60s 冷却（50% 返还 → 单目标净耗 ≈ 20s 产出）
+    // 三档净耗回充时间均 < 30s 冷却（50% 返还 → 单目标净耗 ≈ 20s 产出）
     for (const [label, { seconds }] of Object.entries({ graduated, ng5, normal })) {
-      expect(seconds, `${label} 净耗回充时间`).toBeLessThan(60)
+      expect(seconds, `${label} 净耗回充时间`).toBeLessThan(30)
       expect(seconds, `${label} 净耗回充时间`).toBeGreaterThan(0)
     }
   })

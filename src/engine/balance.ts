@@ -284,7 +284,8 @@ export const ENDLESS_BATCH_2_EXPLORATIONS = 15
 export const GEN_CONQUEST_GUARD_MIN = 500
 /** 守卫锚定军力产出秒数（conquest-fleet，2026-08-09，ADR-0033 修订；conquest-guard-cap 2026-08-11 加双上限）：
  * gen 目标守卫 = min(max(500, ⌊军力名义产出 × 此秒数⌋), ⌊军力上限 × GEN_CONQUEST_GUARD_CAP_PCT⌋, ⌊名义产出 × GEN_CONQUEST_GUARD_MAX_SECONDS⌋)——
- * 守卫锚回充速度（40s = 回充满守卫恒 40s + 保底 10% 容量后总回充 ≈55s ≤ 自动攻占冷却 60s），
+ * 守卫锚回充速度（40s = 回充满守卫恒 40s + 保底 10% 容量后总回充 ≈55s；2026-08-12 冷却 60s→30s 后
+ * 守卫 40s 回充 > 冷却 30s → 单目标实际节奏由军力限速 ≈31.7s，保底 break 兜底不抽干），
  * 双上限为硬约束：攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间（grill Q1-Q5）；
  * 容量 < 120×名义产出时守卫由容量/3 主导（随容量涨——"≤1/3"硬约束的必然），容量 ≥ 120×名义产出时恢复产出锚定 */
 export const GEN_CONQUEST_GUARD_SECONDS = 40
@@ -294,17 +295,20 @@ export const GEN_CONQUEST_GUARD_CAP_PCT = 1 / 3
 /** 守卫上限：不超过 3 分钟名义军力产能（conquest-guard-cap，2026-08-11，grill Q5）——恒 > 40s 公式，作安全阀防 GEN_CONQUEST_GUARD_SECONDS 上调；
  * 名义产能为 0（无兵营）时无意义，取 max(500, ...) 保底防守卫压到 0 */
 export const GEN_CONQUEST_GUARD_MAX_SECONDS = 180
-/** 自动攻占冷却（ms，ADR-0033）：60s 一拍防频繁 tick；并行攻占受军力保底约束 */
-export const AUTO_CONQUEST_COOLDOWN_MS = 60_000
+/** 自动攻占冷却（ms，ADR-0033；2026-08-12 60s→30s 提速）：30s 一拍检查/批量发起（并行攻占受军力保底约束）。
+ * ⚠️ 守卫锚 40s 回充（GEN_CONQUEST_GUARD_SECONDS）> 30s 冷却 → 单目标实际发起节奏由军力回充自然限速
+ * （守卫+保底总回充 ≈31.7s），冷却只决定「检查拍」与批量吞吐窗口；军力不足时保底 break 兜底，不会抽干。 */
+export const AUTO_CONQUEST_COOLDOWN_MS = 30_000
 /** 自动攻占军力保底：投满守卫后仍保留军力容量 × 此比例（防耗尽影响 raid 击退 / 探索派遣）；
- * conquest-fleet 修订：0.2 → 0.1（守卫改锚产出后保底主导回充，降比让总回充 ≈55s 跟上 60s 冷却） */
+ * conquest-fleet 修订：0.2 → 0.1（守卫改锚产出后保底主导回充，降比让总回充 ≈55s 跟上 60s 冷却；
+ * 2026-08-12 冷却 60s→30s 后由军力限速兜底） */
 export const AUTO_CONQUEST_MILITARY_RESERVE_PCT = 0.1
 /** 攻占成功后军力返还比例（conquest-refund，2026-08-12，ADR-0056）：残兵归队/半回收投资——军力从"消耗品"转"半回收资源"，
- * 缓解后期探索生成军事目标速率 > 自动攻占处理速率（60s/目标）的积压漏斗。
+ * 缓解后期探索生成军事目标速率 > 自动攻占处理速率（30s 冷却/目标 + 批量，ADR-0057）的积压漏斗。
  * - 返还 = ⌊invested × 此比例⌋，仅成功时返还（失败全损），受 militaryCap 容量截断（溢出浪费）；
  * - 按 invested 实际投入而非守卫（防薄投刷军力）；fleetLocked 折算非军力消耗不参与；
  * - 初值 0.5 起步，由 balance-sim 三档基准校验"单目标返还 ≤ 消耗"（军力不净增防印钞）后定稿；
- * - 单目标净耗 = 50%×守卫 = 名义产出×20s < 自动攻占 60s 冷却 → 军力不构成瓶颈，漏斗转移到冷却（吞吐上限 1 目标/60s）。 */
+ * - 单目标净耗 = 50%×守卫 = 名义产出×20s < 自动攻占 30s 冷却 → 军力不构成瓶颈，漏斗转移到冷却+批量（吞吐上限 1 目标/30s，批量 ADR-0057 放大）。 */
 export const CONQUEST_MILITARY_REFUND_PCT = 0.5
 /** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
  * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
