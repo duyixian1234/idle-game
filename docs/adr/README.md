@@ -83,6 +83,7 @@
 | [0056](./0056-conquest-refund.md) | 攻占军力返还：成功返还 ⌊投入×50%⌋（受容量截断，失败全损，按 invested、排除 fleetLocked，统一管线）——军力转半回收投资，缓解后期军事目标积压 |
 | [0057](./0057-auto-conquest-batch.md) | 自动攻占批量发起：同一冷却周期军力充足时一次发多个目标（守卫升序逐条，军力不足 break）——吞吐从 1 目标/60s 提升至军力/守卫（主档 ≈3/60s），不动冷却/保底/返还锚点 |
 | [0058](./0058-save-size-opt.md) | 存档体积优化：automationHistory 12h 窗口清理（+保底 50 条）+ generatedTargets 已归档条目白名单压缩（conquest/faction → {kind,id,name,batch}，planet 原样保留）——运行时行为非结构变更，实测 318KB→179KB（省 43.9%） |
+| [0059](./0059-conquest-cap-removal.md) | 移除军事目标一次性奖励/成本封顶（ADR-0028 修订）：恢复产出×秒数无 cap 同构（防印钞由供给上限+ROI 比例兜底），存量撞 cap 目标加载时惰性重滚——修复 endgame 高产出档 ROI 崩塌回归 |
 
 ## 关联关系
 

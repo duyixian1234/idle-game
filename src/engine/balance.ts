@@ -309,21 +309,23 @@ export const CONQUEST_MILITARY_REFUND_PCT = 0.5
 /** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
  * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
 export const FLEET_CONQUEST_CAP_PCT = 0.5
-/** 生成目标一次性经济同源锚定（endgame-discovery-economy，2026-08-08，ADR-0028）：
+/** 生成目标一次性经济同源锚定（endgame-discovery-economy，2026-08-08，ADR-0028；cap 移除 2026-08-12，ADR-0059）：
  * 军事目标奖励/攻占成本与外交礼包统一锚定当期净产出（×N 秒），成本与奖励同源 → 净比值恒定防印钞。
- * N/M/G 初值带由 balance-sim 校准（spec open items；N ∈ [30, 180] 秒带内）。 */
+ * N/M/G 初值带由 balance-sim 校准（spec open items；N ∈ [30, 180] 秒带内）。
+ * ⚠️ 无一次性封顶（ADR-0059）：曾用 GEN_CONQUEST_*_CAP × 1.5^ng 固定 cap（f0c6c3b，2026-08-11），
+ * endgame 高产出档全部撞 cap → 奖励压死、与守卫（锚军力容量/3 无 cap）背离 → ROI 崩塌（实测 NG+3 撞 cap 目标 50.6 万矿 vs 探索返航 623 兆）。
+ * 防印钞改由三层兜底：奖励为消耗型一次性收入（非永久加成，不滚雪球）、供给数量上限 generatedCap（探索驱动，征服归档释放）、
+ * ROI 比例恒定（reward ≤ 4×cost）；与 boss（endlessBossReward 无 cap）同构。 */
 export const GEN_CONQUEST_REWARD_MINERAL_SECONDS = 120
 export const GEN_CONQUEST_REWARD_TECH_SECONDS = 8
 export const GEN_CONQUEST_COST_MINERAL_SECONDS = 60
 export const GEN_CONQUEST_COST_ENERGY_SECONDS = 60
-/** 攻占一次性奖励/成本封顶（ADR-0028 未决项落地，2026-08-11）：与探索侧 scaledClamp 对称——
- * 奖励/成本随当期净产出缩放但封顶（cap × 1.5^ng 随周目增长），ROI 锚点（奖励 120s / 成本 60s×折扣 ≈ 4×）
- * 比例保持，仅防产出极端膨胀后失控（balance-sim 高产出档断言封顶生效）。
- * 对称探索侧 cap 语义：EXPEDITION_MINERAL.cap=150_000 / EXPEDITION_ENERGY.cap=60_000（同构 1.5^ng 增长）。 */
-export const GEN_CONQUEST_REWARD_MINERAL_CAP = 150_000
-export const GEN_CONQUEST_REWARD_TECH_CAP = 10_000
-export const GEN_CONQUEST_COST_MINERAL_CAP = 75_000
-export const GEN_CONQUEST_COST_ENERGY_CAP = 30_000
+/** 惰性重滚检测参数（ADR-0059）：判定生成军事目标是否撞上旧固定 cap（cap 移除前的固化值，
+ * 撞 cap 时 reward 精确等于 ⌊CONQUEST_LEGACY_REWARD_MINERAL_CAP × EXPEDITION_CAP_GROWTH^k⌋，k = 生成时周目数 ≤ 30）。
+ * 正常无 cap 目标 reward = prod×120 ≥ 1e11 量级；极端巧合（prod = 1250×1.5^k/s）时重滚值相同、幂等保持，无害。 */
+export const CONQUEST_STALE_CAP_MAX_NG_LEVEL = 30
+/** ⚠️ legacy：旧固定 cap 基数（f0c6c3b 引入、ADR-0059 移除，仅惰性重滚检测引用）——勿用于新目标生成 */
+export const CONQUEST_LEGACY_REWARD_MINERAL_CAP = 150_000
 export const GEN_FACTION_GIFT_MINERAL_SECONDS = 60
 export const GEN_FACTION_GIFT_TECH_SECONDS = 5
 /** 外交发现礼包好感加成：+10 → 初始 favor ∈ [0,29] 后最高 39 < 自动外交阈值 40，零钳制逻辑（grill Q14） */

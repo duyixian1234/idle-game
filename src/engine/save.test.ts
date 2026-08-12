@@ -516,6 +516,30 @@ describe('engine: 存档序列化往返', () => {
     expect(again.generatedTargets).toEqual(restored.generatedTargets)
   })
 
+  it('ADR-0059 惰性重滚：加载含撞旧 cap 军事目标的存档 → 按新公式重算 reward/cost，guard 不动，endless 手写排除，幂等', () => {
+    const s = createInitialState(0)
+    s.buildings.miner = 350 // 矿产出 350/s → 新公式 reward 42,000 / tech 2,800 / cost 21,000
+    s.buildings.solar = 350
+    s.generatedTargets.push(
+      // 撞 cap 目标（NG+3 固化值 150000×1.5³ = 506,250）
+      { kind: 'conquest', id: 'gen:conquest:0', name: '暴君母舰', desc: 'x', batch: 0, guard: 500, rewardMineral: 506_250, rewardTech: 33_750, costMineral: 126_562, costEnergy: 50_625 },
+      // 排除项：endless 手写保底（设计固定快照）
+      { kind: 'conquest', id: 'endless:warband', name: '掠夺者舰队', desc: 'x', batch: 1, guard: 800, rewardMineral: 800_000 },
+    )
+    const restored = deserializeSave(serializeSave(s))
+    const gen = restored.generatedTargets.find((t) => t.id === 'gen:conquest:0')
+    const hand = restored.generatedTargets.find((t) => t.id === 'endless:warband')
+    expect(gen!.rewardMineral).toBe(42_000)
+    expect(gen!.rewardTech).toBe(2_800)
+    expect(gen!.costMineral).toBe(21_000)
+    expect(gen!.costEnergy).toBe(21_000)
+    expect(gen!.guard).toBe(500) // guard 不动
+    expect(hand!.rewardMineral).toBe(800_000) // endless 手写不重滚
+    // 幂等：重滚后 reward >> cap，二次加载不再变化
+    const again = deserializeSave(serializeSave(restored))
+    expect(again.generatedTargets).toEqual(restored.generatedTargets)
+  })
+
   it('保存恢复后事件随机序列与待处理队列连续', () => {
     const uninterrupted = createInitialState(0, 42)
     const resumed = createInitialState(0, 42)

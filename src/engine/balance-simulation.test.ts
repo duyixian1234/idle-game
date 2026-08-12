@@ -246,8 +246,8 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
   }
   const ROLLS = [0.1, 0.2, 0.3]
 
-  it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定（未触发封顶区间）', () => {
-    // 产出 = count × 1/s（ADR-0036 普通建筑无等级乘数）；cap 150k/75k 对应 count < 1250 不触发
+  it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定（无一次性封顶，ADR-0059）', () => {
+    // 产出 = count × 1/s（ADR-0036 普通建筑无等级乘数）
     const cases: Array<[number, number]> = [
       [100, 1_000],
       [100, 300],
@@ -265,24 +265,25 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
     }
   })
 
-  it('ADR-0028 封顶落地（ticket 08）：高产出档奖励/成本受 cap 约束，不再随产出无上限放大', () => {
-    // 触发封顶区间：count ≥ 1250 → reward ≥ 150k cap、cost ≥ 75k cap
-    const low = generateConquestTarget(prodState(1_000), fixedRolls(ROLLS)) // 1000/s：reward 120k < cap
-    const high = generateConquestTarget(prodState(10_000), fixedRolls(ROLLS)) // 10000/s：远超 cap
-    const capped = generateConquestTarget(prodState(1_000_000), fixedRolls(ROLLS))
-    // 产出 ×1000 → 奖励仍被 cap 钉住（120k → 150k 封顶），成本 75k 封顶
-    expect(high.rewardMineral!).toBeLessThanOrEqual(low.rewardMineral! * 2)
-    expect(capped.rewardMineral!).toBe(150_000)
-    expect(capped.rewardTech!).toBe(10_000)
-    expect(capped.costMineral!).toBe(75_000)
-    expect(capped.costEnergy!).toBe(30_000)
-    // cap 随周目增长（×1.5^ng）：周目 5 → cap ×7.59
+  it('ADR-0059 cap 移除：高产出档奖励/成本随产出无上限缩放（与 boss/探索返航同构），ROI 锚点比例保持', () => {
+    // 无 cap：reward = ⌊prod×120⌋、cost = ⌊prod×60⌋（未打折时 reward/cost = 2），产出 ×1000 → 奖励 ×1000
+    const low = generateConquestTarget(prodState(1_000), fixedRolls(ROLLS)) // 1000/s：reward 120k
+    const high = generateConquestTarget(prodState(10_000), fixedRolls(ROLLS)) // 10000/s：reward 1.2M
+    const huge = generateConquestTarget(prodState(1_000_000), fixedRolls(ROLLS)) // 1e6/s：reward 1.2e8
+    expect(high.rewardMineral!).toBe(10 * low.rewardMineral!)
+    expect(huge.rewardMineral!).toBe(1_000 * low.rewardMineral!)
+    // 具体值 = 产出×秒数（120/8/60/60），不再被 cap 钉住
+    expect(huge.rewardMineral!).toBe(120_000_000)
+    expect(huge.rewardTech!).toBe(8_000_000)
+    expect(huge.costMineral!).toBe(60_000_000)
+    expect(huge.costEnergy!).toBe(60_000_000)
+    // 周目不再影响奖励（无 cap）：ng5 与 ng0 同值
     const ng5 = prodState(1_000_000)
     ng5.ngPlusLevel = 5
     const t5 = generateConquestTarget(ng5, fixedRolls(ROLLS))
-    expect(t5.rewardMineral!).toBe(Math.floor(150_000 * Math.pow(1.5, 5)))
+    expect(t5.rewardMineral!).toBe(huge.rewardMineral!)
     // ROI 锚点比例保持（奖励 120s / 成本 60s = 2×，未打折时）
-    expect(capped.rewardMineral! / capped.costMineral!).toBe(2)
+    expect(huge.rewardMineral! / huge.costMineral!).toBe(2)
   })
 
   it('价值密度有界：奖励 ≤ 2×成本（N ≤ 2M 结构性防印钞上限）、净正、零永久加成红线', () => {
@@ -296,11 +297,10 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
 
   it('价值密度对照（防印钞）：军事单目标净收益 ≤ 探索机会成本折算上限', () => {
     // 探索成本带封顶（scaledClamp：prod×300 clamp 150k）——探索自身是转换器（净 +8%），不印钞。
-    // 军事奖励 prod×N 未封顶：在探索成本未封顶区间（prod×300 < cap ⟺ prod < 500），
+    // 军事奖励 prod×N 未封顶（ADR-0059 落地 302-303 行 open item）：在探索成本未封顶区间（prod×300 < cap ⟺ prod < 500），
     // 单目标净收益 ≤ 产生 1 个军事名额的探索机会成本
     //   （GENERATED_CAP_EXPLORATIONS_DIVISOR 次探索 × 单次矿成本）⟺ N−M ≤ 3000（当前 60，余量充分）
-    // ⚠️ 深后期（prod×300 ≥ cap）机会成本封顶、军事奖励不封顶 → 印钞由供给 cap（generatedCap 探索驱动）兜底，
-    //    是否给军事奖励/成本加 cap 列为 ADR-0028 balance-sim 校准项（spec open items）。
+    // 深后期（prod×300 ≥ cap）机会成本封顶、军事奖励不封顶 → 印钞由供给 cap（generatedCap 探索驱动）兜底（ADR-0059 已确认此语义）。
     const count = 115 // 115 × 3.5 ≈ 402/s，prod×300 = 120k < cap 150k
     const s = prodState(count)
     const t = generateConquestTarget(s, fixedRolls(ROLLS))

@@ -10,6 +10,7 @@ import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD } from '.
 import { netProduction } from './production'
 import { pruneArchivedTargets } from './archive'
 import { pruneAutomationHistory } from './events'
+import { refreshCappedConquestTargets } from './generate'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -614,6 +615,9 @@ export function migrateSave(raw: GameState): GameState {
   pruneArchivedTargets(migrated)
   // save-size-opt：存量 automationHistory 按 12h 窗口 + 保底 50 条修剪（与运行时 autoResolvePendingEvents 维护同口径）
   pruneAutomationHistory(migrated, typeof migrated.lastTick === 'number' ? migrated.lastTick : Date.now())
+  // 军事目标惰性重滚（ADR-0059，cap 移除）：撞旧固定 cap 的 available gen:conquest 目标按新公式重算 reward/cost
+  // （guard 不动）——运行时数值修复，非结构变更；幂等（重滚后 reward >> cap 不再命中）。双加载入口（IndexedDB/导入）共用此路径。
+  refreshCappedConquestTargets(migrated)
   return migrated
 }
 

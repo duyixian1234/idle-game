@@ -3,17 +3,13 @@ import { RESOURCE_META } from './data'
 import {
   ENDLESS_BATCH_2_EXPLORATIONS,
   ENDLESS_BATCH_LAYER_INTERVAL,
-  GEN_CONQUEST_COST_ENERGY_CAP,
   GEN_CONQUEST_COST_ENERGY_SECONDS,
-  GEN_CONQUEST_COST_MINERAL_CAP,
   GEN_CONQUEST_COST_MINERAL_SECONDS,
   GEN_CONQUEST_GUARD_CAP_PCT,
   GEN_CONQUEST_GUARD_MAX_SECONDS,
   GEN_CONQUEST_GUARD_MIN,
   GEN_CONQUEST_GUARD_SECONDS,
-  GEN_CONQUEST_REWARD_MINERAL_CAP,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
-  GEN_CONQUEST_REWARD_TECH_CAP,
   GEN_CONQUEST_REWARD_TECH_SECONDS,
   GEN_FACTION_FAVOR_MAX,
   GEN_FACTION_THREAT_MAX,
@@ -23,9 +19,10 @@ import {
   GEN_PLANET_PCT_MAX,
   GEN_PLANET_PCT_MIN,
   GENERATED_CAP_EXPLORATIONS_DIVISOR,
+  CONQUEST_STALE_CAP_MAX_NG_LEVEL,
+  CONQUEST_LEGACY_REWARD_MINERAL_CAP,
   EXPEDITION_CAP_GROWTH,
   WORMHOLE_GENCAP_PER_LEVEL,
-  scaledClamp,
 } from './balance'
 import { militaryCap, nominalMilitaryProduction, netProduction } from './production'
 import { conquestCostMult } from './conquest'
@@ -117,11 +114,24 @@ export function isEndlessTargetId(id: string): boolean {
 
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
+/** 军事目标一次性经济（ADR-0028 同源锚定，ADR-0059 无 cap）：奖励/成本随当期净产出缩放（×秒数），
+ * 成本乘攻占科技折扣（conquestCostMult，生成/重滚时固化）。generateConquestTarget 与惰性重滚共用，防调参漂移。 */
+function conquestEconomy(prod: Record<ResourceKey, number>, costMult: number): Pick<GeneratedTarget, 'rewardMineral' | 'rewardTech' | 'costMineral' | 'costEnergy'> {
+  return {
+    rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
+    rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS),
+    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS * costMult),
+    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS * costMult),
+  }
+}
+
 /**
  * 军事目标生成：词库命名；guard = min(max(500, ⌊军力名义产出 × 40s⌋), ⌊军力上限/3⌋, ⌊名义产出×180s⌋)
  * （conquest-guard-cap 2026-08-11 双上限：攻占所需兵力 ≤ 总兵力 1/3、≤ 3 分钟生产时间，grill Q1-Q5）——
  * 守卫锚回充速度（产出高时回充 40s 语义保留）且受容量/3 硬约束（上限优先：早期容量/3 < 500 时守卫 = 容量/3）；
- * 一次性奖励/攻占成本统一锚定当期净产出（ADR-0028：成本与奖励同源缩放 → 净比值恒定防印钞；消耗另乘攻占科技折扣，ticket 04）；
+ * 一次性奖励/攻占成本统一锚定当期净产出、**无一次性封顶**（ADR-0028 修订，ADR-0059，2026-08-12）——
+ * 曾用 scaledClamp cap（150k/10k/75k/30k × 1.5^ng）压死 endgame 高产出档 → ROI 崩塌；移除后与 boss/探索返航同构，
+ * 防印钞由供给上限（generatedCap）+ ROI 比例恒定兜底（成本另乘攻占科技折扣，ticket 04；生成时固化）；
  * **永不生成 permanentBonus**（红线，单测锁定）
  */
 export function generateConquestTarget(state: GameState, roll: () => number): GeneratedTarget {
@@ -134,13 +144,7 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
   const capCap = Math.floor(militaryCap(state) * GEN_CONQUEST_GUARD_CAP_PCT)
   const guard = Math.min(Math.max(GEN_CONQUEST_GUARD_MIN, byProd), prodCap, capCap)
   const seq = state.generatedTargets.length
-  // 攻占一次性经济封顶（ADR-0028 未决项落地，ticket 08）：奖励/成本随当期净产出缩放但带 cap（cap × 1.5^ng 随周目增长），
-  // 与探索侧 scaledClamp 同构；ROI 锚点（奖励 120s / 成本 60s×折扣 ≈ 4×）比例保持，仅上限约束。
-  const capGrowth = Math.pow(EXPEDITION_CAP_GROWTH, state.ngPlusLevel ?? 0)
-  const rewardMineralCap = Math.floor(GEN_CONQUEST_REWARD_MINERAL_CAP * capGrowth)
-  const rewardTechCap = Math.floor(GEN_CONQUEST_REWARD_TECH_CAP * capGrowth)
-  const costMineralCap = Math.floor(GEN_CONQUEST_COST_MINERAL_CAP * capGrowth)
-  const costEnergyCap = Math.floor(GEN_CONQUEST_COST_ENERGY_CAP * capGrowth)
+  // 一次性经济无封顶（ADR-0059）：奖励 = 产出×120s（ROI 锚点 120s / 成本 60s×折扣 ≈ 4×），随当期净产出同源缩放
   return {
     kind: 'conquest',
     id: `gen:conquest:${seq}`,
@@ -148,12 +152,39 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
     desc: t('gen.0', { a0: name }),
     batch: 0,
     guard,
-    rewardMineral: scaledClamp(prod.mineral, 0, GEN_CONQUEST_REWARD_MINERAL_SECONDS, rewardMineralCap),
-    rewardTech: scaledClamp(prod.mineral, 0, GEN_CONQUEST_REWARD_TECH_SECONDS, rewardTechCap),
-    // 攻占消耗折扣（conquest-guard-cap，Q10 生成时固化）：按生成时科技等级乘 conquestCostMult（Lv10 ×0.5），升级后新目标立享
-    costMineral: Math.floor(scaledClamp(prod.mineral, 0, GEN_CONQUEST_COST_MINERAL_SECONDS, costMineralCap) * conquestCostMult(state)),
-    costEnergy: Math.floor(scaledClamp(prod.energy, 0, GEN_CONQUEST_COST_ENERGY_SECONDS, costEnergyCap) * conquestCostMult(state)),
+    ...conquestEconomy(prod, conquestCostMult(state)),
   }
+}
+
+/** 判定程序生成军事目标是否撞上旧固定 cap（ADR-0059 移除前的固化值，f0c6c3b）：
+ * 旧公式 rewardMineral = min(prod×120, ⌊CONQUEST_LEGACY_REWARD_MINERAL_CAP × EXPEDITION_CAP_GROWTH^k⌋)，
+ * 撞 cap 时恰好等于该值（k = 生成时周目数）。精确匹配任意 k ∈ [0, CONQUEST_STALE_CAP_MAX_NG_LEVEL]
+ * （周目 ≥31 不现实，穷举开销可忽略）——正常无 cap 目标 reward = prod×120，等于该值概率可忽略；
+ * 仅 batch 0 程序生成，endless: 手写保底 / boss:L* 排除（设计固定快照、无 cap 问题）。 */
+export function matchesStaleConquestCap(rewardMineral: number): boolean {
+  for (let k = 0; k <= CONQUEST_STALE_CAP_MAX_NG_LEVEL; k++) {
+    if (rewardMineral === Math.floor(CONQUEST_LEGACY_REWARD_MINERAL_CAP * Math.pow(EXPEDITION_CAP_GROWTH, k))) return true
+  }
+  return false
+}
+
+/**
+ * 惰性重滚（ADR-0059，2026-08-12）：加载存档时对撞旧 cap 的军事目标用新公式（无 cap）重算 reward/cost，
+ * guard 不动（守卫锚军力容量/3，本就正常）。幂等：重滚后 reward = prod×120 >> cap，不再命中检测。
+ * 由 migrateSave 在加载路径统一调用（IndexedDB + 导入双入口一致）；返回重滚目标数（日志/测试用）。
+ */
+export function refreshCappedConquestTargets(state: GameState): number {
+  const prod = netProduction(state)
+  const costMult = conquestCostMult(state)
+  let refreshed = 0
+  for (const t of state.generatedTargets) {
+    if (t.kind !== 'conquest' || t.batch !== 0) continue
+    if (isEndlessTargetId(t.id) || t.id.startsWith('boss:')) continue
+    if (t.rewardMineral == null || !matchesStaleConquestCap(t.rewardMineral)) continue
+    Object.assign(t, conquestEconomy(prod, costMult))
+    refreshed++
+  }
+  return refreshed
 }
 
 /** 外交对象生成：词库命名；初始 favor [0, GEN_FACTION_FAVOR_MAX]、threat [MIN, MAX]；

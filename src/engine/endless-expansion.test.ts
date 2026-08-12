@@ -6,11 +6,11 @@ import { factionAlliance } from './diplomacy'
 import { migrateSave, serializeSave } from './save'
 import { ENDLESS_BATCH_2_EXPLORATIONS } from './balance'
 import { advanceEndlessLayer } from './events'
-import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, programmaticActiveCount } from './generate'
+import { endlessBatchUnlocked, endlessTargetId, generateConquestTarget, generateFactionTarget, generatePlanetTarget, generatedCap, matchesStaleConquestCap, programmaticActiveCount, refreshCappedConquestTargets } from './generate'
 import { CONQUESTS, ENDLESS_CONQUESTS, EXPLORE_FACTIONS, EXPLORE_PLANETS } from './data'
 import { militaryCap } from './production'
 import { SCHEMA_VERSION } from './types'
-import type { ExpeditionState, GameState } from './types'
+import type { ExpeditionState, GameState, GeneratedTarget } from './types'
 
 /** 派遣/攻占时长上限（测试周期常量）：真实派遣掷 10~30min，30min 保证任意真实派遣到期；fake 数据与 settle 时刻同口径 */
 const CYCLE = 30 * 60_000
@@ -127,6 +127,65 @@ describe('engine: endless-expansion 程序生成器', () => {
     s7.buildings.militaryPort = 25 // 容量 5100 → /3=1700；byProd=0、prodCap=500 → max(500,0)=500
     const g7 = generateConquestTarget(s7, fixedRolls([0.1, 0.2, 0.3]))
     expect(g7.guard).toBe(500)
+  })
+
+  it('惰性重滚（ADR-0059 cap 移除）：撞旧固定 cap 的军事目标按新公式重算 reward/cost，guard 不动，endless/boss/batch≠0 排除，幂等', () => {
+    const s = infiniteState() // 矿/能产出各 350/s → 新公式 reward = 42,000 / tech 2,800 / cost 21,000
+    // 撞 cap 目标（NG+3 固化值：150000×1.5³ = 506,250）
+    const capped = generateConquestTarget(s, () => 0.5)
+    capped.id = 'gen:conquest:999'
+    const cappedGuard = capped.guard!
+    capped.rewardMineral = 506_250
+    capped.rewardTech = 33_750
+    capped.costMineral = 126_562
+    capped.costEnergy = 50_625
+    // 排除项：endless 手写保底 / boss / batch≠0
+    const handWritten: GeneratedTarget = { kind: 'conquest', id: 'endless:warband', name: 'x', desc: 'x', batch: 1, guard: 800, rewardMineral: 800_000 }
+    const boss: GeneratedTarget = { kind: 'conquest', id: 'boss:L3', name: 'x', desc: 'x', batch: 0, guard: 100_000, rewardMineral: 506_250 }
+    const batchOne: GeneratedTarget = { kind: 'conquest', id: 'gen:conquest:998', name: 'x', desc: 'x', batch: 1, guard: 500, rewardMineral: 506_250 }
+    s.generatedTargets.push(capped, handWritten, boss, batchOne)
+
+    const refreshed = refreshCappedConquestTargets(s)
+    expect(refreshed).toBe(1) // 仅 gen:conquest:999 命中（endless/boss/batch≠0 排除）
+    // 新公式：矿 350/s × 120s / 8s / 60s（costMult=1 未研发）
+    expect(capped.rewardMineral).toBe(42_000)
+    expect(capped.rewardTech).toBe(2_800)
+    expect(capped.costMineral).toBe(21_000)
+    expect(capped.costEnergy).toBe(21_000)
+    expect(capped.guard).toBe(cappedGuard) // guard 不动（守卫锚军力容量/3，本就正常）
+    // 排除项原样
+    expect(handWritten.rewardMineral).toBe(800_000)
+    expect(boss.rewardMineral).toBe(506_250)
+    expect(batchOne.rewardMineral).toBe(506_250)
+    // 幂等：重滚后 reward >> cap，再次调用不命中
+    expect(refreshCappedConquestTargets(s)).toBe(0)
+  })
+
+  it('matchesStaleConquestCap：精确匹配旧 cap 公式值（150000×1.5^k，k=0..30），不匹配正常目标值', () => {
+    expect(matchesStaleConquestCap(150_000)).toBe(true) // k=0
+    expect(matchesStaleConquestCap(506_250)).toBe(true) // k=3（NG+3 实测撞 cap 值）
+    expect(matchesStaleConquestCap(Math.floor(150_000 * Math.pow(1.5, 10)))).toBe(true) // k=10
+    expect(matchesStaleConquestCap(42_000)).toBe(false) // 正常小产出目标（prod×120）
+    expect(matchesStaleConquestCap(120_000_000)).toBe(false) // 高产出正常目标
+    expect(matchesStaleConquestCap(0)).toBe(false)
+  })
+
+  it('惰性重滚按加载时攻占科技折扣重算成本（conquestCostMult 非 1 场景）：Lv5 → costMineral = ⌊prod×60×0.75⌋', () => {
+    const s = infiniteState() // 矿/能产出各 350/s
+    s.techLevels.conquestTheory = 5
+    const capped = generateConquestTarget(s, () => 0.5)
+    capped.id = 'gen:conquest:997'
+    capped.rewardMineral = 506_250 // 撞 cap（k=3）
+    capped.costMineral = 126_562
+    capped.costEnergy = 50_625
+    s.generatedTargets.push(capped)
+    const refreshed = refreshCappedConquestTargets(s)
+    expect(refreshed).toBe(1)
+    // reward 不打折（generate 只乘消耗，ticket 04）
+    expect(capped.rewardMineral).toBe(42_000)
+    // cost 乘加载时折扣：350×60×0.75 = 15,750（能源同口径：350×60×0.75 = 15,750）
+    expect(capped.costMineral).toBe(15_750)
+    expect(capped.costEnergy).toBe(15_750)
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {

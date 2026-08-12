@@ -46,3 +46,7 @@
 ## 修订（2026-08-11，issue #4 ticket 08）
 
 **军事奖励/成本封顶落地**（ADR-0053 同批，`scaledClamp` 对称探索侧）：`generateConquestTarget` 的 `rewardMineral`/`rewardTech`/`costMineral`/`costEnergy` 加 cap（`GEN_CONQUEST_REWARD_*_CAP` / `GEN_CONQUEST_COST_*_CAP`，cap × 1.5^ng 随周目增长）——上方「深后期封顶不对称（已知限制）」的未决项已落地；ROI 锚点（奖励 120s / 成本 60s×折扣 ≈ 4×）比例保持，仅上限约束。balance-sim 新增「高产出档封顶生效」断言。**护航 ROI 同杠杆修复**与**无限科技 sink** 分见 ADR-0054 / ADR-0055。
+
+## 修订（2026-08-12，ADR-0059）
+
+**固定 cap 移除 + 存量惰性重滚**：2026-08-11 落地后实测回归（NG+3 存档新目标 4 项全撞 cap，奖励 50.6 万矿 vs 探索返航 623 兆，ROI 崩塌）——cap 基数按早期产出设计、1.5^ng 增长远慢于产出增长，endgame 必然全撞；而守卫锚军力容量/3 无 cap 持续涨，双锚点背离致投入产出比持续恶化。决策：恢复「奖励/成本随当期净产出同源缩放、无一次性封顶」（与 Boss/探索返航同构），防印钞由供给上限 generatedCap + ROI 比例恒定兜底（回到本 ADR「深后期封顶不对称」的原始未决语义）；存量撞 cap 目标在 `migrateSave` 加载路径惰性重滚（`refreshCappedConquestTargets`，guard 不动、endless/boss 排除、幂等）。详见 ADR-0059。
