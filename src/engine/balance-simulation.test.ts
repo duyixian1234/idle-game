@@ -247,7 +247,7 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
     let i = 0
     return () => values[i++] ?? 0.5
   }
-  const ROLLS = [0.1, 0.2, 0.3]
+  const ROLLS = [0.1, 0.2, 0.5, 0.5] // prefix/noun 词库 + reward/cost jitter（0.5 → 因子 1，锁基准公式）
 
   it('同源锚定：奖励与成本随当期净产出缩放，任意产出水平下净比值 (N−M)/M 恒定（无一次性封顶，ADR-0059）', () => {
     // 产出 = count × 1/s（ADR-0036 普通建筑无等级乘数）

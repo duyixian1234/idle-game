@@ -324,6 +324,11 @@ export const GEN_CONQUEST_REWARD_MINERAL_SECONDS = 120
 export const GEN_CONQUEST_REWARD_TECH_SECONDS = 8
 export const GEN_CONQUEST_COST_MINERAL_SECONDS = 60
 export const GEN_CONQUEST_COST_ENERGY_SECONDS = 60
+/** 攻占目标奖励/消耗随机波动幅度（2026-08-12 用户体验）：生成时对奖励整体与消耗整体各乘独立因子
+ * `1 + (roll×2−1)×PCT`（roll∈[0,1) → 因子 ∈ [1−PCT, 1+PCT)）——目标间数值有差异、消除单调「一模一样」；
+ * 奖励/消耗各 1 个因子（矿+科技共享、矿+能源共享，避免 4 字段碎片化）。防印钞：净收益恒正
+ * （奖励基准 120s / 成本 60s×折扣 ≤0.5 → 最差波动 120×0.8/(60×0.5×1.2) = 2.67× > 0）；生成时确定性固化（fixed-rng，防 SL）。 */
+export const GEN_CONQUEST_RANDOM_PCT = 0.2
 /** 惰性重滚检测参数（ADR-0059）：判定生成军事目标是否撞上旧固定 cap（cap 移除前的固化值，
  * 撞 cap 时 reward 精确等于 ⌊CONQUEST_LEGACY_REWARD_MINERAL_CAP × EXPEDITION_CAP_GROWTH^k⌋，k = 生成时周目数 ≤ 30）。
  * 正常无 cap 目标 reward = prod×120 ≥ 1e11 量级；极端巧合（prod = 1250×1.5^k/s）时重滚值相同、幂等保持，无害。 */

@@ -11,6 +11,7 @@ import {
   GEN_CONQUEST_GUARD_SECONDS,
   GEN_CONQUEST_REWARD_MINERAL_SECONDS,
   GEN_CONQUEST_REWARD_TECH_SECONDS,
+  GEN_CONQUEST_RANDOM_PCT,
   GEN_FACTION_FAVOR_MAX,
   GEN_FACTION_THREAT_MAX,
   GEN_FACTION_THREAT_MIN,
@@ -115,14 +116,26 @@ export function isEndlessTargetId(id: string): boolean {
 // ---- 程序生成器（纯函数：输入 state + roll，无副作用；确定性由 roll 序列保证）----
 
 /** 军事目标一次性经济（ADR-0028 同源锚定，ADR-0059 无 cap）：奖励/成本随当期净产出缩放（×秒数），
- * 成本乘攻占科技折扣（conquestCostMult，生成/重滚时固化）。generateConquestTarget 与惰性重滚共用，防调参漂移。 */
-function conquestEconomy(prod: Record<ResourceKey, number>, costMult: number): Pick<GeneratedTarget, 'rewardMineral' | 'rewardTech' | 'costMineral' | 'costEnergy'> {
+ * 成本乘攻占科技折扣（conquestCostMult，生成/重滚时固化）。generateConquestTarget 与惰性重滚共用，防调参漂移。
+ * rewardJitter/costJitter（默认 1）：生成时注入的独立随机因子（±GEN_CONQUEST_RANDOM_PCT）——奖励整体（矿+科技）
+ * 与消耗整体（矿+能源）各乘一个，目标间数值有差异；重滚不随机（传 1）保持幂等。 */
+function conquestEconomy(
+  prod: Record<ResourceKey, number>,
+  costMult: number,
+  rewardJitter = 1,
+  costJitter = 1,
+): Pick<GeneratedTarget, 'rewardMineral' | 'rewardTech' | 'costMineral' | 'costEnergy'> {
   return {
-    rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS),
-    rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS),
-    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS * costMult),
-    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS * costMult),
+    rewardMineral: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_MINERAL_SECONDS * rewardJitter),
+    rewardTech: Math.floor(prod.mineral * GEN_CONQUEST_REWARD_TECH_SECONDS * rewardJitter),
+    costMineral: Math.floor(prod.mineral * GEN_CONQUEST_COST_MINERAL_SECONDS * costMult * costJitter),
+    costEnergy: Math.floor(prod.energy * GEN_CONQUEST_COST_ENERGY_SECONDS * costMult * costJitter),
   }
+}
+
+/** 随机波动因子（2026-08-12）：`1 + (roll×2−1)×GEN_CONQUEST_RANDOM_PCT`，roll=0.5 → 1.0（无波动，测试可注入） */
+function conquestJitter(roll: () => number): number {
+  return 1 + (roll() * 2 - 1) * GEN_CONQUEST_RANDOM_PCT
 }
 
 /**
@@ -144,7 +157,8 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
   const capCap = Math.floor(militaryCap(state) * GEN_CONQUEST_GUARD_CAP_PCT)
   const guard = Math.min(Math.max(GEN_CONQUEST_GUARD_MIN, byProd), prodCap, capCap)
   const seq = state.generatedTargets.length
-  // 一次性经济无封顶（ADR-0059）：奖励 = 产出×120s（ROI 锚点 120s / 成本 60s×折扣 ≈ 4×），随当期净产出同源缩放
+  // 一次性经济无封顶（ADR-0059）：奖励 = 产出×120s（ROI 锚点 120s / 成本 60s×折扣 ≈ 4×），随当期净产出同源缩放；
+  // 生成时奖励/消耗各掷独立随机因子（±20%，目标间有差异；fixed-rng 确定性固化防 SL）
   return {
     kind: 'conquest',
     id: `gen:conquest:${seq}`,
@@ -152,7 +166,7 @@ export function generateConquestTarget(state: GameState, roll: () => number): Ge
     desc: t('gen.0', { a0: name }),
     batch: 0,
     guard,
-    ...conquestEconomy(prod, conquestCostMult(state)),
+    ...conquestEconomy(prod, conquestCostMult(state), conquestJitter(roll), conquestJitter(roll)),
   }
 }
 

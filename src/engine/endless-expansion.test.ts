@@ -62,7 +62,7 @@ describe('engine: endless-expansion 程序生成器', () => {
   it('军事目标：守卫 ≤ 总兵力 1/3（conquest-guard-cap 硬约束）、奖励/成本同源锚当期产出（矿+科技双发）、**永不生成 permanentBonus**（关键防回归）', () => {
     const s = infiniteState()
     for (let i = 0; i < 50; i++) {
-      const t = generateConquestTarget(s, fixedRolls([0.1, 0.2, 0.3, 0.4, 0.5]))
+      const t = generateConquestTarget(s, fixedRolls([0.1, 0.2, 0.5, 0.5, 0.5])) // jitter 0.5 → 因子 1（锁基准公式）
       // 守卫 = ⌊容量/3⌋（infiniteState 无军港 → 容量 100 → 33；上限优先可低于 500 下限）
       expect(t.guard).toBe(Math.floor(militaryCap(s) / 3))
       expect(t.bonus).toBeUndefined()
@@ -83,10 +83,10 @@ describe('engine: endless-expansion 程序生成器', () => {
   it('军事目标奖励/成本随当期净产出缩放：同源锚定 → 净比值恒定（防印钞结构）', () => {
     const s1 = infiniteState()
     s1.buildings.miner = 100
-    const t1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.3]))
+    const t1 = generateConquestTarget(s1, fixedRolls([0.1, 0.2, 0.5, 0.5])) // jitter 0.5 → 因子 1（锁基准公式）
     const s2 = infiniteState()
     s2.buildings.miner = 1_000 // 矿物产出 ×10
-    const t2 = generateConquestTarget(s2, fixedRolls([0.1, 0.2, 0.3]))
+    const t2 = generateConquestTarget(s2, fixedRolls([0.1, 0.2, 0.5, 0.5]))
     expect(t2.rewardMineral!).toBe(t1.rewardMineral! * 10)
     expect(t2.costMineral!).toBe(t1.costMineral! * 10)
     // 净比值 (N−M)/M 恒定
@@ -186,6 +186,36 @@ describe('engine: endless-expansion 程序生成器', () => {
     // cost 乘加载时折扣：350×60×0.75 = 15,750（能源同口径：350×60×0.75 = 15,750）
     expect(capped.costMineral).toBe(15_750)
     expect(capped.costEnergy).toBe(15_750)
+  })
+
+  it('军事目标奖励/消耗随机波动（GEN_CONQUEST_RANDOM_PCT）：因子 ∈ [0.8,1.2]、奖励/消耗独立、确定性固化、重滚不随机', () => {
+    const base = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0.5, 0.5])) // jitter 1 → 基准
+    const min = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0, 0])) // roll 0 → 因子 0.8
+    const max = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0.999, 0.999])) // 因子 ≈1.2
+    // 波动幅度：±20%（roll 0 → 精确 ×0.8；roll≈1（0.999）→ 因子 1.1996 ≈ ×1.2）
+    expect(min.rewardMineral!).toBe(Math.floor(base.rewardMineral! * 0.8))
+    expect(max.rewardMineral! / base.rewardMineral!).toBeCloseTo(1.2, 2)
+    // 奖励整体（矿+科技）共享因子、消耗整体（矿+能源）共享因子：同 roll 下同比例
+    expect(max.rewardTech! / base.rewardTech!).toBeCloseTo(1.2, 2) // floor 后 1.1993，容差 5e-3
+    expect(min.costMineral! / base.costMineral!).toBeCloseTo(0.8, 5)
+    expect(min.costEnergy! / base.costEnergy!).toBeCloseTo(0.8, 5)
+    // 奖励/消耗独立：reward 因子 0.8 + cost 因子 1.2 → 比值 2×0.8/1.2 ≈ 1.33（非恒 2，ROI 波动有界）
+    const mixed = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0, 0.999]))
+    expect(mixed.rewardMineral! / mixed.costMineral!).toBeCloseTo(base.rewardMineral! / base.costMineral! * 0.8 / 1.2, 3)
+    // 防印钞：净收益恒正（最差 reward×0.8 / cost×1.2 仍 > 1）
+    expect(mixed.rewardMineral!).toBeGreaterThan(mixed.costMineral!)
+    // 确定性固化：同 rolls → 同值（防 SL）
+    const again = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0, 0.999]))
+    expect(again.rewardMineral!).toBe(mixed.rewardMineral!)
+    expect(again.costMineral!).toBe(mixed.costMineral!)
+    // 惰性重滚不随机（jitter 默认 1）：重滚后 = 基准值（幂等语义）
+    const s = infiniteState()
+    const capped = generateConquestTarget(s, () => 0.5)
+    capped.id = 'gen:conquest:996'
+    capped.rewardMineral = 506_250 // 撞 cap
+    s.generatedTargets.push(capped)
+    refreshCappedConquestTargets(s)
+    expect(capped.rewardMineral).toBe(42_000) // = floor(350×120)，无随机
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {
