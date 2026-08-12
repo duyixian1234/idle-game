@@ -40,10 +40,36 @@ function seqRng(values: number[]): () => number {
 }
 
 describe('engine: 类别 fallback 策略门', () => {
-  it('默认处理方式与风险上限固定', () => {
+  it('默认处理方式与风险上限固定（2026-08-12：默认全放行 critical，挂机全自动；显式 maxRiskLevel 仍可收紧）', () => {
     expect(DEFAULT_AUTOMATION_FALLBACK).toMatchObject({ trade: 'accept', disaster: 'collect', security: 'ignore' })
-    expect(DEFAULT_AUTOMATION_MAX_RISK).toMatchObject({ trade: 'medium', disaster: 'high', security: 'high' })
-    expect(DEFAULT_AUTOMATION_MAX_RISK.exploration).toBeUndefined()
+    expect(DEFAULT_AUTOMATION_MAX_RISK).toMatchObject({ trade: 'critical', disaster: 'critical', security: 'critical' })
+    expect(DEFAULT_AUTOMATION_MAX_RISK.exploration).toBe('critical')
+    expect(DEFAULT_AUTOMATION_MAX_RISK.investment).toBe('critical')
+  })
+
+  it('critical 事件默认可自动处理（fallback 风险门放行），显式 maxRiskLevel 收紧仍拦截', () => {
+    const mk = () => {
+      const s = createInitialState(0)
+      s.resources.mineral = 10_000_000
+      s.resources.energy = 10_000_000
+      s.resources.tech = 10_000_000
+      s.resources.military = 10_000_000
+      const instance = createEventInstance(s, 'meteor')
+      instance.riskLevel = 'critical'
+      s.pendingEvents.push(instance)
+      return s
+    }
+    // 默认策略（无 maxRiskLevel）→ 走 DEFAULT_AUTOMATION_MAX_RISK（critical）→ 自动处理 resolved
+    const a = mk()
+    a.automationPolicies.disaster = { enabled: true, rules: [], fallbackOptionId: 'collect' }
+    const results = autoResolvePendingEvents(a)
+    expect(results[0].status).toBe('resolved')
+    // 显式收紧 maxRiskLevel: 'high' → critical 事件被风险门拒绝 → paused（不自动处理）
+    const b = mk()
+    b.automationPolicies.disaster = { enabled: true, rules: [], fallbackOptionId: 'collect', maxRiskLevel: 'high' }
+    const paused = autoResolvePendingEvents(b)
+    expect(paused[0].status).toBe('paused')
+    expect(paused[0].reason).toContain('风险')
   })
 
   it('风险、预算、选项和冷却门分别拦截 fallback', () => {

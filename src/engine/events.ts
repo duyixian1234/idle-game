@@ -52,12 +52,16 @@ export const DEFAULT_AUTOMATION_FALLBACK: Record<EventTheme, string | undefined>
   investment: undefined,
 }
 
+/** 类别级自动处理默认风险上限（2026-08-12 修订：全部放行至 critical）——
+ * 原默认 trade=medium / disaster/security=high 使 critical 事件无法自动处理（fallbackGate 风险门拒绝 → paused）；
+ * 挂机全自动（eventsFullAuto）语义下应允许最高风险按兜底处理。显式配置的 maxRiskLevel 仍优先收紧
+ * （rule/maxRiskLevel 在 ruleEligible / fallbackGate 中优先于默认值）。 */
 export const DEFAULT_AUTOMATION_MAX_RISK: Record<EventTheme, EventRiskLevel | undefined> = {
-  trade: 'medium',
-  disaster: 'high',
-  security: 'high',
-  exploration: undefined,
-  investment: undefined,
+  trade: 'critical',
+  disaster: 'critical',
+  security: 'critical',
+  exploration: 'critical',
+  investment: 'critical',
 }
 
 /** 类别级自动处理「未显式配置兜底选项」时的智能降级链：
