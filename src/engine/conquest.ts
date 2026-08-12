@@ -59,6 +59,8 @@ export function conquestDef(state: GameState, id: string): ConquestDef | undefin
     rewardMineral: t.rewardMineral,
     rewardTech: t.rewardTech,
     bonus: t.bonus,
+    costMineral: t.costMineral,
+    costEnergy: t.costEnergy,
   }
 }
 

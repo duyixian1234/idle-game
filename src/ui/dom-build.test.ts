@@ -502,6 +502,30 @@ describe('ui: 建造卡片（building-cards）', () => {
     expect(panel.textContent).not.toContain('攻占「虫群前哨」后解锁')
   })
 
+  it('军事面板卡片显示攻占消耗（ADR-0028 资源费，仅程序生成目标）：◆矿 + ⚡能；静态区域无消耗行', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.phase = 'ended'
+    s.endingTriggered = true
+    s.planets.dawn = { unlocked: true }
+    s.planets.ice = { unlocked: true } // outpost 前置星球（静态区域对照）
+    s.resources.mineral = 1_000_000_000
+    s.resources.energy = 1_000_000_000
+    s.resources.military = 1_000_000
+    // 程序生成军事目标：带攻占资源费快照（ADR-0028 costMineral/costEnergy）
+    s.generatedTargets.push({ kind: 'conquest', id: 'gen:conquest:0', name: '暴君母舰', desc: 'x', batch: 0, guard: 500, rewardMineral: 1_000_000, rewardTech: 50_000, costMineral: 126_562, costEnergy: 50_625 })
+    renderMilitaryPanel(container.querySelector('[data-panel="military"]') as HTMLElement, s)
+    const panel = container.querySelector('[data-panel="military"]') as HTMLElement
+    const card = panel.querySelector('[data-conquest-input="gen:conquest:0"]')?.closest('.conquest-card')
+    expect(card?.textContent).toContain('消耗')
+    expect(card?.textContent).toContain('◆12.66万') // 126,562 → 12.66万
+    expect(card?.textContent).toContain('⚡5.06万') // 50,625 → 5.06万
+    // 静态区域（outpost，无资源费）无消耗行
+    const staticCard = panel.querySelector('[data-conquest-input="outpost"]')?.closest('.conquest-card')
+    expect(staticCard?.textContent).not.toContain('消耗')
+  })
+
   it('舰队压制开关（conquest-fleet）：默认勾选、有舰队显示贡献预览、关闭/无舰队隐藏', () => {
     const mk = () => {
       const container = document.createElement('div')

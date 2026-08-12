@@ -644,6 +644,9 @@ export interface ConquestDef {
   /** 一次性奖励 */
   rewardMineral?: number
   rewardTech?: number
+  /** 攻占启动资源费快照（ADR-0028，仅程序生成 gen:conquest 目标带；静态区域/手写保底无 → 0，UI 不显示消耗行） */
+  costMineral?: number
+  costEnergy?: number
   /** 永久全局加成（写入 permanentBonuses，NG+ 继承） */
   bonus?: { kind: 'production' | 'militaryCap'; value: number }
   /** 攻占后解锁的科技（军械科技线） */

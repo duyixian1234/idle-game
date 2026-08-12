@@ -34,6 +34,15 @@ function conquestRewardText(def: ConquestDef): string {
   return parts.join('、') || t('ui.military.7')
 }
 
+/** 攻占启动资源费预览文本（ADR-0028，仅程序生成目标带）：`消耗：◆矿、⚡能`；静态/手写保底无资源费 → 空串不显示 */
+function conquestCostText(def: ConquestDef): string {
+  if (!def.costMineral && !def.costEnergy) return ''
+  const parts: string[] = []
+  if (def.costMineral) parts.push(`${RESOURCE_META.mineral.symbol}${formatNumber(def.costMineral)}`)
+  if (def.costEnergy) parts.push(`${RESOURCE_META.energy.symbol}${formatNumber(def.costEnergy)}`)
+  return parts.length > 0 ? ` · 消耗：${parts.join('、')}` : ''
+}
+
 /** 舰队压制贡献预览：= min(可用战力, 守卫×FLEET_CONQUEST_CAP_PCT)（与引擎 startConquest 折算同式，UI 单一真源预览） */
 function fleetConquestContrib(state: GameState, guard: number): number {
   return Math.floor(Math.min(fleetAvailablePower(state), guard * FLEET_CONQUEST_CAP_PCT))
@@ -57,7 +66,7 @@ function renderConquestRow(def: ConquestDef, state: GameState, fleetEnabled: boo
         ${ongoing ? `<span class="build-count ongoing-badge">${t('ui.military.1')}</span>` : ''}
       </div>
       <div class="build-desc">${escapeHtml(defDesc(def))}</div>
-      <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}</div>
+      <div class="conquest-meta">守卫 ${formatNumber(def.guard)}⚔ · 奖励：${escapeHtml(conquestRewardText(def))}${escapeHtml(conquestCostText(def))}</div>
     </div>`
   const icon = `<div class="build-card-icon">${iconUse(def.icon ?? def.id)}</div>`
   if (conquered) {
