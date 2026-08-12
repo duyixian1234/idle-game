@@ -494,6 +494,28 @@ describe('engine: 存档序列化往返', () => {
     expect(restored.endless.layerProgress).toBe(0.5)
   })
 
+  it('save-size-opt：存量已归档 generatedTargets 条目在加载时幂等压缩（conquest/faction 白名单，planet 原样）', () => {
+    const s = createInitialState(0)
+    s.archivedRounds['gen:conquest:0'] = 0
+    s.archivedRounds['gen:faction:0'] = 0
+    s.archivedRounds['endless:blackHoleObservatory'] = 0
+    s.generatedTargets.push(
+      { kind: 'conquest', id: 'gen:conquest:0', name: '幽影军团', desc: '已征服', batch: 0, guard: 800, rewardMineral: 100_000, costMineral: 100, costEnergy: 50 },
+      { kind: 'faction', id: 'gen:faction:0', name: '星光商会', desc: '已结盟', batch: 1, initialFavor: 20, initialThreat: 40, tradeDiscount: 0.05 },
+      { kind: 'planet', id: 'endless:blackHoleObservatory', name: '黑洞视界观测站', desc: '', batch: 1, mechanicId: 'logisticsHub' },
+    )
+    const restored = deserializeSave(serializeSave(s))
+    const conquest = restored.generatedTargets.find((t) => t.id === 'gen:conquest:0')
+    const faction = restored.generatedTargets.find((t) => t.id === 'gen:faction:0')
+    const planet = restored.generatedTargets.find((t) => t.id === 'endless:blackHoleObservatory')
+    expect(conquest).toEqual({ kind: 'conquest', id: 'gen:conquest:0', name: '幽影军团', batch: 0 })
+    expect(faction).toEqual({ kind: 'faction', id: 'gen:faction:0', name: '星光商会', batch: 1 })
+    expect(planet).toMatchObject({ kind: 'planet', id: 'endless:blackHoleObservatory', name: '黑洞视界观测站', mechanicId: 'logisticsHub' })
+    // 幂等：二次加载不再变化
+    const again = deserializeSave(serializeSave(restored))
+    expect(again.generatedTargets).toEqual(restored.generatedTargets)
+  })
+
   it('保存恢复后事件随机序列与待处理队列连续', () => {
     const uninterrupted = createInitialState(0, 42)
     const resumed = createInitialState(0, 42)

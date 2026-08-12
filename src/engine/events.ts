@@ -15,7 +15,7 @@ import type {
   ResourceKey,
 } from './types'
 import {ALL_FACTIONS, FACTIONS} from './data'
-import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, ENDLESS_BOSS_EVERY_LAYERS} from './balance'
+import {MEAN_EVENT_GAP_SECONDS, RAID_BUYOFF_FAVOR_GAIN, RAID_EVENT_WEIGHT, RAID_GAP_SECONDS, RAID_IGNORE_LOSS_PCT, RAID_OFFLINE_LOSS_CAP, RAID_STRENGTH_MULT, RAID_THREAT_LOSS, BUG_ESCALATION_STEP, BUG_ESCALATION_CAP, BUG_STRENGTH_FLEET_RATIO, BUG_REPEL_MIN, BUG_STRENGTH_BASE, TRADE_GAIN_STOCK_PCT, TRADE_COST_STOCK_PCT, TRADE_SOFT_CAP_RATE_SECONDS, ENDLESS_BOSS_EVERY_LAYERS, AUTOMATION_HISTORY_WINDOW_MS, AUTOMATION_HISTORY_MIN_KEEP} from './balance'
 import {netProduction} from './production'
 import {fleetAvailablePower, fleetPower} from './fleet'
 import {raidThreshold} from './reputation'
@@ -716,6 +716,16 @@ function recordAutomation(
   state.automationHistory.push({ ...audit, eventUid: instance.uid, category: instance.theme ?? instance.defId, time: nowMs })
 }
 
+/** automationHistory 窗口清理（save-size-opt，ADR-0058）：只保留 12h 内记录，不足保底条数时保留最近 N 条。
+ * 消费方仅 cooldown 判断（取最近一条 resolved）+ 补写最后一条 failureReason——窗口内保留即覆盖，语义无损。
+ * 就地修改 state，幂等（重复调用无变化）。 */
+export function pruneAutomationHistory(state: GameState, nowMs = state.lastTick): void {
+  const within = state.automationHistory.filter((a) => nowMs - a.time <= AUTOMATION_HISTORY_WINDOW_MS)
+  state.automationHistory = within.length >= AUTOMATION_HISTORY_MIN_KEEP
+    ? within
+    : state.automationHistory.slice(-AUTOMATION_HISTORY_MIN_KEEP)
+}
+
 /** 按事件类别选择规则并复用 resolveEvent 结算；无可用策略时保留事件并暂停通知。 */
 export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTick): AutomationResolution[] {
   const results: AutomationResolution[] = []
@@ -797,6 +807,7 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
     }
     results.push({ eventUid: instance.uid, status, outcome, ruleId: rule?.id, reason })
   }
+  pruneAutomationHistory(state, nowMs)
   return results
 }
 

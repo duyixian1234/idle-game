@@ -17,6 +17,7 @@ import {
   evaluateEndlessCurve,
   evaluateEventCurve,
   pruneStaleEvents,
+  pruneAutomationHistory,
   pickEndlessEventDef,
   resolveEvent,
   scheduleNextEvent,
@@ -848,5 +849,64 @@ describe('engine: 事件与产出协同', () => {
     const s = createInitialState(0)
     s.buildings.miner = 2
     expect(netProduction(s).mineral).toBe(2)
+  })
+})
+
+describe('engine: automationHistory 窗口清理（save-size-opt）', () => {
+  const NOW = 1_000_000
+  const audit = (time: number, over: Partial<{ ruleId: string; optionId: string }> = {}) =>
+    ({
+      eventUid: 1,
+      category: 'trade',
+      source: 'automation',
+      status: 'resolved',
+      optionId: 'accept',
+      reason: 'test',
+      time,
+      ...over,
+    }) as const
+  // 生成 n 条时间递增（旧→新）的审计记录，起始时间为 startTime
+  const audits = (startTime: number, stepMs: number, n: number) => Array.from({ length: n }, (_, i) => audit(startTime + i * stepMs))
+
+  it('窗口外（>12h）记录被清理：窗口内条数 ≥ 保底时只保留窗口内', () => {
+    const s = createInitialState(0)
+    s.automationHistory.push(...audits(NOW - 13 * 3_600_000, 60_000, 10), ...audits(NOW - 11 * 3_600_000, 60_000, 55))
+    pruneAutomationHistory(s, NOW)
+    expect(s.automationHistory).toHaveLength(55) // 55 条窗口内（≥50 保底）→ 窗口外 10 条被清
+    expect(s.automationHistory.every((a) => NOW - a.time <= 12 * 3_600_000)).toBe(true)
+  })
+
+  it('窗口内多条记录全部保留且顺序不变（尾部最新）', () => {
+    const s = createInitialState(0)
+    const within = audits(NOW - 60_000, 1_000, 55)
+    s.automationHistory.push(...within)
+    pruneAutomationHistory(s, NOW)
+    expect(s.automationHistory.map((a) => a.time)).toEqual(within.map((a) => a.time))
+  })
+
+  it('窗口内不足保底条数时保留最近 N 条（低频场景兜底）', () => {
+    const s = createInitialState(0)
+    // 20 条窗口内 + 40 条窗口外（共 60）；窗口内 20 < 50 → 保底取最近 50 条
+    s.automationHistory.push(...audits(NOW - 13 * 3_600_000, 60_000, 40), ...audits(NOW - 11 * 3_600_000, 60_000, 20))
+    pruneAutomationHistory(s, NOW)
+    expect(s.automationHistory).toHaveLength(50)
+    expect(s.automationHistory.at(-1)!.time).toBe(NOW - 11 * 3_600_000 + 19 * 60_000) // 窗口内最新一条保留
+  })
+
+  it('cooldown 语义不回归：窗口内 resolved 仍拦截；窗口外且被保底清掉后视为冷却已过', () => {
+    const s = createInitialState(0)
+    s.resources.mineral = 10_000
+    const instance = createEventInstance(s, 'trade-frontier')
+    const base = { enabled: true, rules: [], fallbackOptionId: 'accept' as const }
+    // 场景 A：窗口内 500ms 前 resolved → 冷却拦截（500ms < cooldownMs 1000ms）
+    s.automationHistory.push(audit(NOW - 500))
+    pruneAutomationHistory(s, NOW)
+    expect(fallbackGate(s, instance, 'accept', { ...base, cooldownMs: 1_000 }, NOW).reason).toBe('类别冷却中')
+    // 场景 B：51 条窗口外，resolved 是最旧一条 → 保底 50 清掉它 → last 为 undefined → allowed
+    const s2 = createInitialState(0)
+    s2.resources.mineral = 10_000
+    s2.automationHistory.push(audit(NOW - 13 * 3_600_000), ...audits(NOW - 13 * 3_600_000 + 60_000, 60_000, 50))
+    pruneAutomationHistory(s2, NOW)
+    expect(fallbackGate(s2, instance, 'accept', { ...base, cooldownMs: 1_000 }, NOW).allowed).toBe(true)
   })
 })

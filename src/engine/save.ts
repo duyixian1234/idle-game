@@ -8,6 +8,8 @@ import { formatNumber } from './format'
 import { BUILDINGS, RESOURCE_KEYS } from './data'
 import { POST100_BUY_TARGET_SECONDS, POST100_GROWTH, POST100_THRESHOLD } from './balance'
 import { netProduction } from './production'
+import { pruneArchivedTargets } from './archive'
+import { pruneAutomationHistory } from './events'
 
 /** 首个支持 techLevels 等级化的 schema 版本 */
 const SCHEMA_V1 = 1
@@ -607,7 +609,12 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V15) cur = migrateV15ToV16(cur)
   // 事件契约迁移对任意进入版本执行：v1-v14 链式迁移后必已 ≥ v14，v15 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
-  return cur as unknown as GameState
+  // save-size-opt（ADR-0058）：存量已归档 generatedTargets 条目幂等压缩（conquest/faction 白名单，planet 原样）——运行时行为，非结构变更
+  const migrated = cur as unknown as GameState
+  pruneArchivedTargets(migrated)
+  // save-size-opt：存量 automationHistory 按 12h 窗口 + 保底 50 条修剪（与运行时 autoResolvePendingEvents 维护同口径）
+  pruneAutomationHistory(migrated, typeof migrated.lastTick === 'number' ? migrated.lastTick : Date.now())
+  return migrated
 }
 
 /**

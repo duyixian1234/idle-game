@@ -2,6 +2,7 @@ import { t } from '../i18n'
 import { ALL_FACTIONS, EXPLORE_FACTIONS, FACTIONS, RESOURCE_KEYS } from './data'
 import type { FactionDef } from './data'
 import { isEndlessTargetId } from './generate'
+import { compactTargetOnArchive } from './archive'
 import {
   ALLIANCE_COST,
   ALLIANCE_FAVOR_THRESHOLD,
@@ -235,6 +236,9 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   if (!state.factionCodex.includes(id)) state.factionCodex.push(id)
   // 归档周目标记（endless-expansion：结盟 = 外交对象不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
   state.archivedRounds[id] = state.ngPlusLevel ?? 0
+  // save-size-opt：生成派系结盟归档即压缩（conquest/faction 白名单；静态派系不在 generatedTargets）
+  const gtIdx = state.generatedTargets.findIndex((x) => x.id === id)
+  if (gtIdx >= 0) state.generatedTargets[gtIdx] = compactTargetOnArchive(state.generatedTargets[gtIdx])
   // 首次结盟叙事
   playMilestone(state, 'firstAlliance')
   return { ok: true }

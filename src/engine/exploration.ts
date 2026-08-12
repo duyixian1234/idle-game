@@ -12,6 +12,7 @@ import {
   isEndlessTargetId,
   programmaticActiveCount,
 } from './generate'
+import { compactTargetOnArchive } from './archive'
 import {
   AUTO_EXPLORE_RETRY_MS,
   ESCORT_COMPENSATE_RATIO,
@@ -641,7 +642,12 @@ function settleEndlessPlanet(state: GameState, planetId: string, nowMs: number, 
         mechanicId: def.mechanicId,
       })
       if (!state.exploredPlanets.includes(planetId)) state.exploredPlanets.push(planetId)
-      if (!def.output) state.archivedRounds[planetId] = state.ngPlusLevel ?? 0
+      if (!def.output) {
+        state.archivedRounds[planetId] = state.ngPlusLevel ?? 0
+        // save-size-opt：归档即压缩（planet 分支原样保留——产出/机制管线依赖；幂等 no-op）
+        const gtIdx = state.generatedTargets.findIndex((x) => x.id === planetId)
+        if (gtIdx >= 0) state.generatedTargets[gtIdx] = compactTargetOnArchive(state.generatedTargets[gtIdx])
+      }
       return { type: 'story', text: t('log.exploration.21', { a0: defName(def), a1: escortNote }) }
     }
     const ps = state.planets[planetId]

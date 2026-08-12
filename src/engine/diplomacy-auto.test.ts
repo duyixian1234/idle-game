@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
-import { autoDiplomacyTick } from './diplomacy'
+import { autoDiplomacyTick, factionAlliance } from './diplomacy'
 import { settleOffline } from './offline'
 
 const NOW = 1_000_000_000
@@ -110,6 +110,20 @@ describe('autoDiplomacyTick 全局方向（ally/coerce，2026-08-08 用户确认
     expect(s.factions[FERRO].allied).toBe(true)
     expect(s.archivedRounds[FERRO]).toBe(0)
     expect(s.diplomacyAuto?.lastActionAt).toBe(NOW + 100_000)
+  })
+
+  it('save-size-opt：程序生成派系结盟归档后，generatedTargets 条目压缩为白名单 {kind,id,name,batch}', () => {
+    const s = baseState()
+    const gid = 'gen:faction:1'
+    s.factions[gid] = { favor: 85, allied: false, tradeCount: 0, intimidateCount: 0, threat: 10 }
+    s.generatedTargets.push({ kind: 'faction', id: gid, name: '星光商会', desc: '测试描述', batch: 1, initialFavor: 20, initialThreat: 40, tradeDiscount: 0.05 })
+    s.resources.energy = 1_000_000 // ALLIANCE_COST 需 50k 能源
+    const r = factionAlliance(s, gid)
+    expect(r.ok).toBe(true)
+    expect(s.factions[gid].allied).toBe(true)
+    expect(s.archivedRounds[gid]).toBe(0)
+    const t = s.generatedTargets.find((x) => x.id === gid)
+    expect(t).toEqual({ kind: 'faction', id: gid, name: '星光商会', batch: 1 })
   })
 
   it('playing 阶段 favor ≥ 80 → 不自动结盟（防自动通关），只贸易', () => {

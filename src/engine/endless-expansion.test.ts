@@ -359,6 +359,9 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
     expect(s.planets[id]?.unlocked).toBe(true)
     expect(s.archivedRounds[id]).toBe(0)
     expect(s.exploredPlanets).toContain(id)
+    // save-size-opt：planet 归档条目全量保留字段（产出/机制管线依赖，不压缩）
+    const t = s.generatedTargets.find((x) => x.id === id)
+    expect(t).toMatchObject({ kind: 'planet', id, name: '黑洞视界观测站', mechanicId: 'logisticsHub' })
   })
 
   it('天体（程序生成产出型）：结算解锁 + 不归档（保留列表持续派遣）', () => {
@@ -395,6 +398,9 @@ describe('engine: endless-expansion 攻占双遍历', () => {
     expect(s.conquest[id].status).toBe('conquered')
     expect(s.archivedRounds[id]).toBe(0)
     expect(logs.some((l) => l.includes('掠夺者舰队'))).toBe(true)
+    // save-size-opt：conquest 归档条目压缩为白名单 {kind,id,name,batch}（desc/guard/奖励字段清除）
+    const t = s.generatedTargets.find((x) => x.id === id)
+    expect(t).toEqual({ kind: 'conquest', id, name: '掠夺者舰队', batch: 1 })
   })
 
   it('动态军事目标：投入不足失败 → 可重试（status available）', () => {

@@ -181,6 +181,13 @@ export const MEAN_EVENT_GAP_SECONDS = 90
 /** 首次触发延迟（秒） */
 export const FIRST_EVENT_DELAY_SECONDS = 45
 
+// ---- 存档体积（save-size-opt，ADR-0058）----
+
+/** automationHistory 保留窗口：12 小时（超出即清理；消费方 cooldown 判断只需最近一条 resolved） */
+export const AUTOMATION_HISTORY_WINDOW_MS = 12 * 3_600_000
+/** automationHistory 保底条数：窗口内不足时保留最近 N 条（防低频场景冷却判断无数据） */
+export const AUTOMATION_HISTORY_MIN_KEEP = 50
+
 // ---- 离线 ----
 
 /** 离线收益封顶：8 小时 */

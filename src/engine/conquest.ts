@@ -10,6 +10,7 @@ import { fleetAvailablePower } from './fleet'
 import { rollDomain } from './rng'
 import { techLevel } from './tech'
 import { formatNumber, formatPercent } from './format'
+import { compactTargetOnArchive } from './archive'
 import type { ConquestState, GameState, GeneratedTarget } from './types'
 
 /**
@@ -269,6 +270,9 @@ function settleOneConquest(
     }
     // 归档周目标记（endless-expansion：征服 = 军事目标不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
     state.archivedRounds[id] = state.ngPlusLevel ?? 0
+    // save-size-opt：动态军事目标归档即压缩（conquest/faction 白名单；planet 原样；静态目标不在 generatedTargets）
+    const gtIdx = state.generatedTargets.findIndex((x) => x.id === id)
+    if (gtIdx >= 0) state.generatedTargets[gtIdx] = compactTargetOnArchive(state.generatedTargets[gtIdx])
     if (isStatic) {
       // 首次攻占与全肃清叙事（storyFlags 防重复）——仅静态目标参与里程碑
       playMilestone(state, 'firstConquest')
