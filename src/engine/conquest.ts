@@ -302,12 +302,15 @@ function feeOf(gt: GeneratedTarget): number {
 }
 
 /**
- * 自动攻占 tick（ADR-0033，2026-08-08；auto-conquest-priority 2026-08-11）：每冷却周期（60s）对可用生成军事目标投满守卫发起攻占。
+ * 自动攻占 tick（ADR-0033，2026-08-08；auto-conquest-priority 2026-08-11；auto-conquest-batch 2026-08-12）：
+ * 每冷却周期（60s）对可用生成军事目标**批量发起**（军力充足时一次多个；军力不足停止、经济费不足跳过，直到无目标可发）。
  * - 目标 = generatedTargets kind='conquest' 且 status==='available' 未进行中（仅生成目标，静态主线区域保持手动）；
  * - 投入策略：投满守卫（必成）；
  * - **目标优先级（auto-conquest-priority）**：先对「可立即发起」候选排序——守卫（军力投入）升序为主序、
  *   快照资源费（costMineral+costEnergy）升序为平局打破——资源消耗更少的目标优先处理；只作用于候选数组
  *   （filter 后新数组 sort，不改 generatedTargets 展示顺序；Array.prototype.sort 稳定 → 等键保持发现顺序）；
+ * - **批量发起（auto-conquest-batch）**：一次冷却内沿升序连续发起，直到军力不足（break，升序单调屏障）或
+ *   经济费不足（continue + pausedAt，非单调屏障）；批量成功数由军力保底逐目标判定自然约束（主档实测 2-3 个）；
  * - 军力保底：投满后仍保留军力容量 × AUTO_CONQUEST_MILITARY_RESERVE_PCT（防耗尽影响 raid 击退/探索派遣）；
  * - 资源费不足（ADR-0028 costMineral/costEnergy）→ 暂停（pausedAt），冷却后重试；
  * - 离线由 settleOffline 按冷却周期批量推进（虚拟时钟）。
@@ -329,19 +332,23 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     })
     // 排序键：军力投入（守卫）升序为主序；快照资源费（mineral+energy）升序为平局打破（稳定排序 → 等键保持发现顺序）
     .sort((a, b) => consumeOf(a) - consumeOf(b) || feeOf(a) - feeOf(b))
+  const logs: string[] = []
   for (const gt of candidates) {
     const guard = gt.guard ?? 0
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
-    if (state.resources.military < guard + reserve) continue
+    // 军力不足：候选已按守卫升序 → 当前打不起则后续守卫更大更打不起（单调屏障），break 结束本冷却周期
+    if (state.resources.military < guard + reserve) break
     // 自动攻占纯军力（useFleet=false，conquest-fleet Q6）：舰队锁定 = 防御真空取舍，自动系统不替玩家做
     const r = startConquest(state, gt.id, guard, nowMs, undefined, false)
     if (r.ok) {
-      cfg.lastActionAt = nowMs
-      return [t('cq.5', { a0: gt.name, a1: formatNumber(guard) })]
+      logs.push(t('cq.5', { a0: gt.name, a1: formatNumber(guard) }))
+      continue // 批量发起：军力充足时继续扫下一个候选（同冷却周期内多目标）
     }
     if (r.reason === t('cq.8') || r.reason === t('cq.9') || r.reason === '矿物不足' || r.reason === '能源不足') {
+      // 经济费不足：非单调屏障（后续目标资源费可能更低）→ continue + pausedAt，冷却后重试
       cfg.pausedAt = nowMs
     }
   }
-  return []
+  if (logs.length > 0) cfg.lastActionAt = nowMs // 批量成功后统一更新（本 tick 只进一次冷却判定）
+  return logs
 }

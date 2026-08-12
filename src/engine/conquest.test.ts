@@ -147,7 +147,7 @@ describe('engine: 自动攻占（ADR-0033）', () => {
 
   it('军力不足保底（投满后 < 容量×10%）→ 不发起；恰好等于保底 → 发起', () => {
     const s = autoState()
-    s.resources.military = 1_300 // 容量 5100 → 保底 510；1300 − 800 = 500 < 510 → 跳过
+    s.resources.military = 1_300 // 容量 5100 → 保底 510；1300 − 800 = 500 < 510 → 首个目标即 break
     const logs = autoConquestTick(s, 60_000)
     expect(logs).toEqual([])
     expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
@@ -215,67 +215,155 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     return s
   }
 
-  it('多目标可用 → 优先选择守卫最低的目标（消耗排序主序）', () => {
+  it('多目标可用 → 守卫升序优先（批量后一次冷却按消耗升序发起全部）', () => {
     const s = autoStateMulti()
     const logs = autoConquestTick(s, 60_000)
-    expect(logs.length).toBe(1)
+    expect(logs.length).toBe(3)
     expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
-    expect(s.conquest['gen:conquest:1']).toEqual({ status: 'available' })
-    expect(s.conquest['gen:conquest:2']).toEqual({ status: 'available' })
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
+    // 日志顺序 = 守卫升序（消耗排序主序）
+    expect(logs[0]).toContain('目标甲')
+    expect(logs[1]).toContain('目标乙')
+    expect(logs[2]).toContain('目标丙')
     expect(s.autoConquest?.lastActionAt).toBe(60_000)
   })
 
-  it('冷却后下一 tick → 选次低守卫目标', () => {
+  it('军力仅够一个 → 冷却后下一 tick → 选次低守卫目标（批量与冷却协同）', () => {
     const s = autoStateMulti()
-    autoConquestTick(s, 60_000) // 首 tick 选 800
+    // 容量 5100 → 保底 510；军力 1310：发 800 后剩 510（=保底），1200/2000 break
+    s.resources.military = 1_310
+    autoConquestTick(s, 60_000) // 首 tick 发 800
+    expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.conquest['gen:conquest:1']).toEqual({ status: 'available' })
+    // 冷却期间军力回充（模拟生产），下次冷却可发次低守卫
+    s.resources.military = 1_310 + 1_200
     const logs = autoConquestTick(s, 120_000)
     expect(logs.length).toBe(1)
     expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
     expect(s.conquest['gen:conquest:2']).toEqual({ status: 'available' })
   })
 
-  it('守卫最低目标进行中（startedAt）→ 跳过，选次低守卫目标', () => {
+  it('守卫最低目标进行中（startedAt）→ 跳过，批量发起其余目标', () => {
     const s = autoStateMulti()
     s.conquest['gen:conquest:0'] = { status: 'available', startedAt: 0, finishAt: 10 * 60_000, invested: 800 }
     const logs = autoConquestTick(s, 60_000)
-    expect(logs.length).toBe(1)
+    expect(logs.length).toBe(2) // 甲跳过，乙丙批量发起
     expect(s.conquest['gen:conquest:0'].invested).toBe(800) // 进行中不重投
     expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
   })
 
-  it('守卫相同 → 资源费（costMineral+costEnergy）更低的目标优先', () => {
+  it('守卫相同 → 资源费（costMineral+costEnergy）更低的目标优先（军力只够一个时平局打破决定胜者）', () => {
     const s = autoStateMulti([
       { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, costMineral: 500_000, costEnergy: 0, rewardMineral: 100_000 },
       { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 800, costMineral: 1_000, costEnergy: 0, rewardMineral: 100_000 },
     ])
+    s.resources.mineral = 600_000 // 只够发起一个的矿物费（乙 1000 够、甲 500000 也够，军力只够一个）
+    s.resources.military = 1_310 // 军力只够发起一个守卫 800（+保底 510）
     const logs = autoConquestTick(s, 60_000)
     expect(logs.length).toBe(1)
-    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 800 })
+    expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 800 }) // 乙资源费低先发
     expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
   })
 
-  it('守卫最低目标资源费不足 → 暂停并跳过，选次低守卫目标（pausedAt 语义保留）', () => {
+  it('守卫最低目标资源费不足 → 暂停并跳过，批量发起其余目标（pausedAt 语义保留）', () => {
     const s = autoStateMulti([
       { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, costMineral: 9_000_000, costEnergy: 0, rewardMineral: 100_000 },
       { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 1_200, rewardMineral: 100_000 },
+      { kind: 'conquest', id: 'gen:conquest:2', name: '目标丙', desc: '', batch: 0, guard: 2_000, rewardMineral: 100_000 },
     ])
-    s.resources.mineral = 1_000 // 不够目标甲的 costMineral，目标乙无资源费
+    s.resources.mineral = 1_000 // 不够目标甲的 costMineral，目标乙丙无资源费
     const logs = autoConquestTick(s, 60_000)
-    expect(logs.length).toBe(1)
+    expect(logs.length).toBe(2) // 甲跳过，乙丙批量发起
     expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' }) // 资源费不足未发起
     expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+    expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
     expect(s.autoConquest?.pausedAt).toBe(60_000)
   })
 
-  it('离线批量推进（settleOffline）：多目标按消耗升序逐个发起', () => {
+  it('离线批量推进（settleOffline）：多目标在同一冷却周期批量发起（同口径在线）', () => {
     const s = autoStateMulti()
     settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期，3 目标全部投满）
     expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
     expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
     expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
-    // 发起顺序与消耗升序一致：守卫最低目标 startAt 最早
-    expect(s.conquest['gen:conquest:0'].startedAt).toBeLessThan(s.conquest['gen:conquest:1'].startedAt!)
-    expect(s.conquest['gen:conquest:1'].startedAt).toBeLessThan(s.conquest['gen:conquest:2'].startedAt!)
+    // 批量语义：三个目标在同一冷却周期（首个离线周期）内发起 → startedAt 相等
+    expect(s.conquest['gen:conquest:0'].startedAt).toBe(s.conquest['gen:conquest:1'].startedAt)
+    expect(s.conquest['gen:conquest:1'].startedAt).toBe(s.conquest['gen:conquest:2'].startedAt)
+  })
+
+  describe('批量发起（auto-conquest-batch，ADR-0057）', () => {
+    it('军力充足多目标 → 一次冷却批量发起全部（logs 逐条，守卫升序）', () => {
+      const s = autoStateMulti()
+      const logs = autoConquestTick(s, 60_000)
+      expect(logs.length).toBe(3)
+      expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+      expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+      expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
+      // 日志顺序 = 守卫升序
+      expect(logs[0]).toContain('目标甲')
+      expect(logs[1]).toContain('目标乙')
+      expect(logs[2]).toContain('目标丙')
+      // 军力：100_000 − 800 − 1200 − 2000 = 96_000
+      expect(s.resources.military).toBe(96_000)
+      expect(s.autoConquest?.lastActionAt).toBe(60_000)
+    })
+
+    it('军力仅够部分 → 发起前 N 个后 break（守卫升序单调屏障）', () => {
+      const s = autoStateMulti()
+      // 容量 5100 → 保底 510；军力 2510：发 800 → 1710 → 发 1200 → 510（=保底恰好）→ 2000 break
+      s.resources.military = 2_510
+      const logs = autoConquestTick(s, 60_000)
+      expect(logs.length).toBe(2)
+      expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+      expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+      expect(s.conquest['gen:conquest:2']).toEqual({ status: 'available' }) // 未发起
+      expect(s.resources.military).toBe(510) // 恰为保底
+    })
+
+    it('首个目标军力不足 → 直接 break（logs 空，lastActionAt 不更新）', () => {
+      const s = autoStateMulti()
+      s.resources.military = 1_300 // 容量 5100 → 保底 510；1300 − 800 = 500 < 510 → 首个 break
+      const logs = autoConquestTick(s, 60_000)
+      expect(logs).toEqual([])
+      expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+      expect(s.autoConquest?.lastActionAt).toBeUndefined()
+    })
+
+    it('资源费不足目标 continue（pausedAt），后续经济够的目标仍批量发起', () => {
+      const s = autoStateMulti([
+        { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, costMineral: 9_000_000, costEnergy: 0, rewardMineral: 100_000 },
+        { kind: 'conquest', id: 'gen:conquest:1', name: '目标乙', desc: '', batch: 0, guard: 1_200, rewardMineral: 100_000 },
+        { kind: 'conquest', id: 'gen:conquest:2', name: '目标丙', desc: '', batch: 0, guard: 2_000, rewardMineral: 100_000 },
+      ])
+      s.resources.mineral = 1_000 // 不够目标甲 costMineral；乙丙无资源费
+      const logs = autoConquestTick(s, 60_000)
+      expect(logs.length).toBe(2) // 甲跳过，乙丙批量发起
+      expect(s.conquest['gen:conquest:0']).toEqual({ status: 'available' })
+      expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+      expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
+      expect(s.autoConquest?.pausedAt).toBe(60_000) // 甲资源费不足暂停标记保留
+    })
+
+    it('离线批量（settleOffline）→ 每冷却周期批量发起，与在线同口径', () => {
+      const s = autoStateMulti()
+      // 军力充足；5min 离线 ≥ 5 冷却周期，但首周期已发全部 3 目标 → 后续周期无候选
+      settleOffline(s, s.lastTick + 5 * 60_000)
+      expect(s.conquest['gen:conquest:0']).toMatchObject({ status: 'available', invested: 800 })
+      expect(s.conquest['gen:conquest:1']).toMatchObject({ status: 'available', invested: 1_200 })
+      expect(s.conquest['gen:conquest:2']).toMatchObject({ status: 'available', invested: 2_000 })
+      // 批量在同一冷却周期内发起：startedAt 相等（同一次 autoConquestTick 循环）
+      expect(s.conquest['gen:conquest:0'].startedAt).toBe(s.conquest['gen:conquest:2'].startedAt)
+    })
+
+    it('lastActionAt 批量成功后统一更新为本次 nowMs（循环结束一次）', () => {
+      const s = autoStateMulti()
+      autoConquestTick(s, 60_000)
+      expect(s.autoConquest?.lastActionAt).toBe(60_000)
+      // 冷却未过 → 不重复发起
+      expect(autoConquestTick(s, 60_000 + 30_000)).toEqual([])
+    })
   })
 })
 
