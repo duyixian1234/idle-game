@@ -86,6 +86,8 @@ export function createSession(args: CreateSessionArgs): Session {
     archivedExpanded: {},
     // 事件卡 typewriter 进度表（ticket 04）：key = 事件 uid → partial/full 文本；跨 250ms 重建续打
     typedEvents: new Map(),
+    // 事件卡「结算明细」details 展开态（ADR-0014：#26 同构，250ms 重建不重置；key = 事件 uid）
+    openSettlement: new Set(),
     // 刚升级高亮（卡片一次性动画：升级后 1.2s 窗口内渲染 just-upgraded 类，250ms 重建只重放首帧）
     justUpgradedId: null,
     justUpgradedUntil: 0,
@@ -114,6 +116,11 @@ export function createSession(args: CreateSessionArgs): Session {
     seenAchievementMaxAt: 0,
     // 舰队压制开关（conquest-fleet：UI 会话内存默认开，刷新回默认；引擎侧 autoConquest 恒纯军力）
     conquestFleetEnabled: true,
+    // 攻占投入输入框值（ADR-0014：#26 同构，250ms 重建不重置玩家输入；key = conquest id）
+    conquestInputs: {},
+    // 自动配置面板 number 输入框值（ADR-0014：#26 同构，250ms 重建不重置玩家输入；
+    // key = `cooldown:<category>` / `budget:<category>:<resource>`，与 data-auto-* 控件一一对应）
+    autoConfigInputs: {},
   }
 
   /** 记录一次升级高亮（仅单次升级触发；卡片主体与升级按钮共用） */

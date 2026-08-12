@@ -97,6 +97,11 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
   // 原生 <select> 被替换会导致移动端系统选择器瞬间关闭（体感「点开闪一下就消失」），
   // 重建时复用旧 select DOM 节点（重建 option 刷新 i18n 文本 + 同步 value），引用保持稳定
   const prevAutoSelect = el.querySelector<HTMLSelectElement>('[data-diplo-auto-mode]')
+  // #26 增强（桌面浏览器 popup）：原生 select 下拉打开期间跳过整个面板重建。
+  // Playwright 实证：el.innerHTML=''（销毁节点）与节点 move 均会关闭桌面浏览器原生 popup，
+  // 唯一保持 popup 的办法是 popup 打开期间完全不触碰 select 节点——直接 return 跳过本 tick 重建。
+  // （移动端系统 picker 是模态 UI，DOM 变更不影响；此守卫对两端均无害）
+  if (prevAutoSelect?.matches(':open')) return
   el.innerHTML = ''
   if (!factionsVisible(state)) {
     el.innerHTML = `<div class="diplo-empty">${t('ui.diplomacy.6')}</div>`

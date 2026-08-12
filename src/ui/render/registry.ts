@@ -162,6 +162,8 @@ RENDER_NODES.register({
       hiddenBuildingsOpen: ctx.ui.hiddenBuildingsOpen,
       // 舰队压制开关（conquest-fleet：UI 会话内存，勾选状态驱动手动攻占 useFleet）
       conquestFleetEnabled: ctx.ui.conquestFleetEnabled,
+      // 攻占投入输入框值（ADR-0014：250ms 重建不重置玩家输入）
+      conquestInputs: ctx.ui.conquestInputs,
     }),
 })
 RENDER_NODES.register({
@@ -193,12 +195,12 @@ RENDER_NODES.register({
 RENDER_NODES.register({
   id: 'pending-events',
   phase: 'content',
-  render: (ctx) => renderPendingEvents(ctx.els.logEl, ctx.state, ctx.ui.typedEvents),
+  render: (ctx) => renderPendingEvents(ctx.els.logEl, ctx.state, ctx.ui.typedEvents, ctx.ui.openSettlement),
 })
 RENDER_NODES.register({
   id: 'auto-config',
   phase: 'overlay',
-  render: (ctx) => renderAutoConfigPanel(ctx.els.autoConfigOverlay, ctx.state, ctx.ui.autoExpandedCategory),
+  render: (ctx) => renderAutoConfigPanel(ctx.els.autoConfigOverlay, ctx.state, ctx.ui.autoExpandedCategory, ctx.ui.autoConfigInputs),
 })
 RENDER_NODES.register({
   id: 'tutorial',

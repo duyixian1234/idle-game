@@ -40,8 +40,9 @@ function fleetConquestContrib(state: GameState, guard: number): number {
 }
 
 /** 攻占区域单张卡片（守卫/奖励/状态/发起控件；conquest-cards：与建造物同构卡片，data-conquest 契约原样保留；
- * fleetEnabled：舰队压制开关（conquest-fleet，UI 会话内存）——开启且可用战力 > 0 时显示贡献预览行） */
-function renderConquestRow(def: ConquestDef, state: GameState, fleetEnabled: boolean): HTMLElement {
+ * fleetEnabled：舰队压制开关（conquest-fleet，UI 会话内存）——开启且可用战力 > 0 时显示贡献预览行）
+ * inputValue：玩家正在输入的投入值（ADR-0014：250ms 重建不重置；undefined = 未输入，用建议值 suggest） */
+function renderConquestRow(def: ConquestDef, state: GameState, fleetEnabled: boolean, inputValue?: string): HTMLElement {
   const card = document.createElement('div')
   card.className = 'build-card conquest-card'
   const cs = conquestState(state, def.id)
@@ -96,13 +97,15 @@ function renderConquestRow(def: ConquestDef, state: GameState, fleetEnabled: boo
   // 可发起：投入军力输入框（建议值 = 足额所需或当前军力）+ 攻占按钮
   const maxInvest = Math.floor(state.resources.military)
   const suggest = Math.max(1, Math.min(def.guard, maxInvest))
+  // 会话态输入值优先（250ms 重建不重置玩家正在输入的内容；空串视为未输入）
+  const inputVal = inputValue !== undefined && inputValue !== '' ? inputValue : String(suggest)
   // 舰队压制贡献预览（conquest-fleet）：开启且可用战力 > 0 → 显示「舰队压制：−N 军力」
   const fleetContrib = fleetEnabled ? fleetConquestContrib(state, def.guard) : 0
   const fleetHint = fleetContrib > 0 ? `<div class="conquest-meta" data-conquest-fleet-hint>${t('ui.military.23', { a0: formatNumber(fleetContrib) })}</div>` : ''
   card.innerHTML = `${icon}
     <div class="build-card-body">${info}${fleetHint}</div>
     <div class="build-actions conquest-actions">
-      <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${suggest}" aria-label="${t('ui.military.11')}" />
+      <input type="number" class="conquest-input" data-conquest-input="${def.id}" min="1" max="${maxInvest}" value="${escapeHtml(inputVal)}" aria-label="${t('ui.military.11')}" />
       <button type="button" class="build-btn conquest-btn" data-conquest="${def.id}" ${maxInvest >= 1 ? '' : 'disabled'} title="${t('ui.military.12')}">
         ${t('ui.military.13')} ⚔
       </button>
@@ -210,7 +213,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (state.archivedRounds?.[def.id] != null || conquestState(state, def.id).status === 'conquered') {
       archivedRows.push(archiveRow(defName(def), t('ui.military.18'), state.archivedRounds?.[def.id], def.id))
     } else {
-      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled))
+      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled, opts.conquestInputs?.[def.id]))
     }
   }
   // 无尽生成军事目标（动态）
@@ -221,7 +224,7 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
     if (state.archivedRounds?.[gt.id] != null || conquestState(state, gt.id).status === 'conquered') {
       archivedRows.push(archiveRow(gt.name, t('ui.military.18'), state.archivedRounds?.[gt.id], gt.id))
     } else {
-      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled))
+      conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled, opts.conquestInputs?.[gt.id]))
     }
   }
   conquestSection.appendChild(conquestGrid)

@@ -85,8 +85,15 @@ export function renderLogInto(el: HTMLElement, state: GameState, fromId: number,
  * 渲染待处理随机事件卡片（置顶于日志区，可点击选项）。
  * 事件卡描述 = 一次性叙事文本：首挂走 typewriter 逐字揭示（跨 250ms 重建续打，
  * 进度存 typed 表）；reduced-motion 直接全量渲染。typewriter 后重建不再重放。
+ * openSettlements：事件卡「结算明细」details 展开态集合（ADR-0014：#26 同构，
+ * key = 事件 uid；250ms 重建后按会话态恢复 open，不依赖浏览器原生 details 状态）
  */
-export function renderPendingEvents(el: HTMLElement, state: GameState, typed: TypedEvents = new Map()): void {
+export function renderPendingEvents(
+  el: HTMLElement,
+  state: GameState,
+  typed: TypedEvents = new Map(),
+  openSettlements: ReadonlySet<number> = new Set(),
+): void {
   // 移除旧的事件卡片容器
   for (const old of Array.from(el.querySelectorAll('.event-stack'))) old.remove()
   if (state.pendingEvents.length === 0) return
@@ -135,7 +142,7 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
       <div data-event-meta>${t('ui.logPanel.1', { a0: escapeHtml(ev.theme ?? ev.defId), a1: escapeHtml(ev.decisionType ?? 'exchange'), a2: escapeHtml(ev.riskLevel ?? 'low') })}</div>
       ${ev.handlingMode === 'blocking' ? `<div data-event-pause>${t('ui.logPanel.2')}</div>` : ''}
       ${descHtml}
-      ${renderSettlementDetails(ev.settlement)}
+      ${renderSettlementDetails(ev.settlement, openSettlements.has(ev.uid))}
       <div class="event-options">${options}</div>
       <label class="event-auto-toggle"><input type="checkbox" data-auto-quick-toggle="${escapeHtml(category)}" ${state.automationPolicies[category]?.enabled ? 'checked' : ''}>${t('ui.logPanel.3')}</label>`
     if (typedFrom >= 0) {
@@ -152,7 +159,7 @@ export function renderPendingEvents(el: HTMLElement, state: GameState, typed: Ty
   }
 }
 
-function renderSettlementDetails(settlement?: { deltas: Record<string, number>; breakdown: EventFormulaPart[] }): string {
+function renderSettlementDetails(settlement?: { deltas: Record<string, number>; breakdown: EventFormulaPart[] }, open = false): string {
   if (!settlement) return ''
   const names: Record<EventFormulaPart['name'], string> = { base: t('ui.logPanel.12'), stageLayer: t('ui.logPanel.13'), risk: t('ui.logPanel.14'), capability: t('ui.logPanel.15'), softCap: t('ui.logPanel.16') }
   const breakdown = settlement.breakdown.map((part) => `<li data-settlement-part="${part.name}">${names[part.name]}：${formatNumber(part.value)}${part.multiplier != null ? ` ${formatMultiplier(part.multiplier)}` : ''}</li>`).join('')
@@ -162,7 +169,7 @@ function renderSettlementDetails(settlement?: { deltas: Record<string, number>; 
     const unit = resource?.symbol ?? ''
     return `${label} ${value > 0 ? '+' : ''}${formatNumber(value)}${unit}`
   }).join(t('ui.logPanel.18')) || t('ui.logPanel.17')
-  return `<details data-event-settlement><summary>${t('ui.logPanel.4')}</summary><div data-settlement-deltas>${t('ui.logPanel.19', { a0: escapeHtml(deltas) })}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
+  return `<details data-event-settlement${open ? ' open' : ''}><summary>${t('ui.logPanel.4')}</summary><div data-settlement-deltas>${t('ui.logPanel.19', { a0: escapeHtml(deltas) })}</div><ul data-settlement-breakdown>${breakdown}</ul></details>`
 }
 
 /** 格式化旧存档中已持久化的事件选项提示，避免绕过事件生成器的 formatter。 */
@@ -201,8 +208,15 @@ function policySummary(category: typeof AUTO_CATEGORIES[number], policy: GameSta
   return t('ui.logPanel.21', { a0: risk, a1: option })
 }
 
-/** 渲染日志页自动处理配置；展开类别由调用方持有的 UI 会话状态决定。 */
-export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expandedCategory?: string): void {
+/** 渲染日志页自动处理配置；展开类别由调用方持有的 UI 会话状态决定。
+ * autoConfigInputs：number 输入框值会话态（ADR-0014：#26 同构，250ms 重建不重置玩家输入；
+ * key = `cooldown:<category>` / `budget:<category>:<resource>`；缺省回退存档策略值） */
+export function renderAutoConfigPanel(
+  el: HTMLElement,
+  state: GameState,
+  expandedCategory?: string,
+  autoConfigInputs: Readonly<Record<string, string>> = {},
+): void {
   el.innerHTML = `
     <div class="auto-config-card" data-auto-config-panel>
       <div class="auto-config-header"><h2>${t('ui.logPanel.5')}</h2><button type="button" data-auto-config-close aria-label="${t('ui.logPanel.22')}">×</button></div>
@@ -217,13 +231,17 @@ export function renderAutoConfigPanel(el: HTMLElement, state: GameState, expande
           const expanded = expandedCategory === category.id
           const riskOptions = RISK_LABELS.map((risk) => `<button type="button" class="option-pill${policy?.maxRiskLevel === (risk.id || undefined) ? ' selected' : ''}" data-auto-risk="${category.id}" value="${risk.id}">${t(risk.label)}</button>`).join('')
           const optionOptions = category.options.map((option) => `<button type="button" class="option-pill${policy?.fallbackOptionId === option.id ? ' selected' : ''}" data-auto-fallback="${category.id}" value="${option.id}">${t(option.label)}</button>`).join('')
+          // 会话态输入值优先（250ms 重建不重置正在输入的内容；undefined/'' → 回退存档策略值）
+          const cooldownVal = autoConfigInputs[`cooldown:${category.id}`] ?? (policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0)
+          const budgetMineralVal = autoConfigInputs[`budget:${category.id}:mineral`] ?? (policy?.resourceBudget?.mineral ?? '')
+          const budgetTechVal = autoConfigInputs[`budget:${category.id}:tech`] ?? (policy?.resourceBudget?.tech ?? '')
           return `<article data-auto-cat="${category.id}" class="auto-category${expanded ? ' expanded' : ''}">
             <div data-auto-cat-row="${category.id}" class="auto-category-row"><span><strong>${t(category.name)}</strong><small data-auto-summary>${policySummary(category, policy)}</small></span><input type="checkbox" data-auto-enabled="${category.id}" ${policy?.enabled ? 'checked' : ''} aria-label="${t(category.name)}自动处理"></div>
             ${expanded ? `<div class="auto-category-details" data-auto-details="${category.id}">
               <div class="option-field"><span>${t('ui.logPanel.7')}</span><div class="option-pills" role="radiogroup">${riskOptions}</div></div>
-              <label>${t('ui.logPanel.8')}<input type="number" min="0" data-auto-cooldown="${category.id}" value="${policy?.cooldownMs ? policy.cooldownMs / 60_000 : 0}"></label>
-              <label>${t('ui.logPanel.9')}<input type="number" min="0" data-auto-budget="${category.id}:mineral" value="${policy?.resourceBudget?.mineral ?? ''}"></label>
-              <label>${t('ui.logPanel.10')}<input type="number" min="0" data-auto-budget="${category.id}:tech" value="${policy?.resourceBudget?.tech ?? ''}"></label>
+              <label>${t('ui.logPanel.8')}<input type="number" min="0" data-auto-cooldown="${category.id}" value="${escapeHtml(String(cooldownVal))}"></label>
+              <label>${t('ui.logPanel.9')}<input type="number" min="0" data-auto-budget="${category.id}:mineral" value="${escapeHtml(String(budgetMineralVal))}"></label>
+              <label>${t('ui.logPanel.10')}<input type="number" min="0" data-auto-budget="${category.id}:tech" value="${escapeHtml(String(budgetTechVal))}"></label>
               <div class="option-field"><span>${t('ui.logPanel.11')}</span><div class="option-pills" role="radiogroup">${optionOptions || `<span class="settings-empty">${t('ui.logPanel.23')}</span>`}</div></div>
             </div>` : ''}
           </article>`

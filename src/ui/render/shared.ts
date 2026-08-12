@@ -36,6 +36,8 @@ export interface BuildPanelRenderOptions {
   hiddenBuildingsOpen?: Record<string, boolean>
   /** 舰队压制开关（conquest-fleet，军事面板专用）：手动攻占是否投入舰队战力（UI 会话内存，默认开） */
   conquestFleetEnabled?: boolean
+  /** 攻占投入输入框值（ADR-0014：#26 同构，250ms 重建不重置玩家输入；key = conquest id；空串 = 未输入用 suggest） */
+  conquestInputs?: Record<string, string>
 }
 
 /** 卡片主体点击的判定结果（building-cards ticket 03）：升级×1 / 建造×1 / 终局工程弹窗 */

@@ -25,6 +25,8 @@ export interface SessionUiState {
   lockedExpanded: Record<string, boolean>
   archivedExpanded: Record<string, boolean>
   typedEvents: Map<number | string, string>
+  /** 事件卡「结算明细」details 展开态（ADR-0014：#26 同构，250ms 重建不重置；key = 事件 uid） */
+  openSettlement: Set<number>
   justUpgradedId: string | null
   justUpgradedUntil: number
   autoConfigOpen: boolean
@@ -50,6 +52,11 @@ export interface SessionUiState {
   seenAchievementMaxAt: number
   /** 舰队压制开关（conquest-fleet）：手动攻占是否投入舰队战力（UI 会话内存，默认开，刷新回默认；引擎侧 autoConquest 恒纯军力） */
   conquestFleetEnabled: boolean
+  /** 攻占投入输入框值（ADR-0014：#26 同构，250ms 重建不重置玩家输入；key = conquest id） */
+  conquestInputs: Record<string, string>
+  /** 自动配置面板 number 输入框值（ADR-0014：#26 同构，250ms 重建不重置玩家输入；
+   * key = `cooldown:<category>` / `budget:<category>:<resource>`，与 data-auto-* 控件一一对应） */
+  autoConfigInputs: Record<string, string>
 }
 
 export interface SessionCtx {
@@ -202,6 +209,15 @@ export function bindListeners(ctx: SessionCtx): void {
     }
   })
 
+  // 攻占投入输入框（data-conquest-input）：input 事件实时写入会话态（ADR-0014：#26 同构，
+  // 250ms 全量重建不重置玩家正在输入的值；提交时按钮点击仍读 DOM 当前值 = 会话态值）
+  els.panel.addEventListener('input', (e) => {
+    const conquestInput = (e.target as HTMLElement).closest<HTMLInputElement>('[data-conquest-input]')
+    if (!conquestInput) return
+    const id = conquestInput.dataset.conquestInput ?? ''
+    ui.conquestInputs = { ...ui.conquestInputs, [id]: conquestInput.value }
+  })
+
   // 外交自动化（diplo-auto 纯全局迭代，2026-08-08：全局开关 data-diplo-auto-global / 全局方向 data-diplo-auto-mode；
   // 'coerce' 胁迫线 / 其余 'ally' 友好线；改完保存进存档）
   els.panel.addEventListener('change', (e) => {
@@ -301,6 +317,21 @@ export function bindListeners(ctx: SessionCtx): void {
       return
     }
     ctx.saveAutomationControl(target)
+  })
+
+  // 自动配置浮层：number 输入框 input 事件实时写入会话态（ADR-0014：#26 同构，
+  // 250ms 全量重建不重置玩家正在输入的值；change 保存仍读 DOM 当前值 = 会话态值）
+  els.autoConfigOverlay.addEventListener('input', (e) => {
+    const target = e.target as HTMLInputElement
+    const cd = target.closest<HTMLInputElement>('[data-auto-cooldown]')
+    if (cd) {
+      ui.autoConfigInputs = { ...ui.autoConfigInputs, [`cooldown:${cd.dataset.autoCooldown}`]: cd.value }
+      return
+    }
+    const bd = target.closest<HTMLInputElement>('[data-auto-budget]')
+    if (bd) {
+      ui.autoConfigInputs = { ...ui.autoConfigInputs, [`budget:${bd.dataset.autoBudget}`]: bd.value }
+    }
   })
 
   // 导入存档文件（隐藏 input；重操作实现见 actions-heavy.ts importSaveFile）
@@ -564,6 +595,19 @@ export function bindListeners(ctx: SessionCtx): void {
   // 日志区事件委托：随机事件卡片按钮（成交/拒绝/派遣等）
   // 注意：事件卡片渲染在日志区（.log-area），点击委托必须挂在这里而非操作面板
   els.logEl.addEventListener('click', (e) => {
+    // 事件卡「结算明细」details 展开/收起（#26 同构：展开态存 SessionUiState.openSettlement，
+    // 250ms 重建后由 renderPendingEvents 按会话态恢复 open，不依赖浏览器原生 details 状态）
+    const summary = (e.target as HTMLElement).closest<HTMLElement>('details[data-event-settlement] > summary')
+    if (summary) {
+      const card = summary.closest<HTMLElement>('[data-event]')
+      const uid = Number(card?.dataset.event ?? '')
+      if (!Number.isNaN(uid) && card) {
+        if (ui.openSettlement.has(uid)) ui.openSettlement.delete(uid)
+        else ui.openSettlement.add(uid)
+        render()
+      }
+      return
+    }
     const eventBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-event-resolve]')
     if (!eventBtn) return
     const raw = eventBtn.dataset.eventResolve ?? ''
