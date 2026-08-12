@@ -39,7 +39,7 @@
   }
   /* 资源条：4 等分 grid 强制单行（值/速率竖排二行，问号按钮悬浮右上角）；
      旧 flex-wrap 在 ≤360 视口下 4 个资源会换行成 4 条带，挤占 ~100px 垂直空间，
-     现在 4 个等宽 cell 永远一行，最多 ~30px 高。色彩由左 border 承担（替代被隐藏的 symbol） */
+     现在 4 个等宽 cell 永远一行，最多 ~30px 高。左 border 色标辅助辨识（#27 恢复 symbol 显示） */
   .resource-bar {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -69,7 +69,7 @@
     white-space: nowrap;
   }
   /* 资源 cell：竖排 2 行（值 + 速率）+ 右上角悬浮问号；
-     res-name 隐藏、res-symbol 隐藏（颜色由 border-left 承担） */
+     res-name 隐藏、res-symbol 显示（mobile-ui-fixes #27：恢复图标，左 border 色标保留辅助辨识） */
   .resource {
     position: relative;
     flex-direction: column;
@@ -82,7 +82,14 @@
     display: none;
   }
   .res-symbol {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .res-symbol svg {
+    width: 13px;
+    height: 13px;
   }
   .res-value {
     min-width: 0;
@@ -194,6 +201,46 @@
     flex-direction: column;
     align-items: stretch;
   }
+  /* 外交卡片（mobile-ui-fixes #28）：favor 行 5 个 inline 元素 wrap 防截断
+     （实测「好感度」单字竖排、「82.00/100」被截成「82.00/10」）；
+     min-width:0 允许文本在 cell 内自然收缩换行而非溢出截断 */
+  .faction-card .favor-row {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    align-items: baseline;
+  }
+  .faction-card .favor-row > * {
+    min-width: 0;
+  }
+  .faction-card .faction-info {
+    min-width: 0;
+  }
+  /* 外交按钮 2 列 → 1 列 stack：卡片窄，双列下按钮文字挤压（贸易/技术共享/结盟/威慑） */
+  .faction-card .build-actions {
+    grid-template-columns: 1fr;
+  }
+  .faction-card .faction-coercion-row {
+    justify-content: flex-start;
+  }
+  /* 资源来源分解面板（mobile-ui-fixes #26）：移动端由文档流就地展开改为 fixed modal——
+     文档流位置在 topbar 之后会被推到视口外（实测 summary top=940 > 视口 844），
+     fixed 悬浮于内容区上方，max-height 收窄保证全部内容可滚动可达；
+     点击外部关闭由 listeners 文档级委托天然支持（无需遮罩元素） */
+  .breakdown-panel {
+    position: fixed;
+    top: 170px;
+    left: 12px;
+    right: 12px;
+    z-index: 40;
+    max-height: calc(100vh - 230px);
+    margin: 0;
+    border: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 /* 超窄屏（320-360px 低端 Android / 小屏 iPhone）：进一步收紧间距 */
@@ -218,12 +265,11 @@
     font-size: 7px;
     line-height: 10px;
   }
-  /* 资源来源分解面板：窄屏全宽、字号收紧（问号按钮不随速率隐藏，保留可点） */
+  /* 资源来源分解面板：窄屏全宽、字号收紧（问号按钮不随速率隐藏，保留可点）；
+     定位继承 ≤480 fixed modal（#26），此处只收紧内部排版，不改 position/inset/max-height */
   .breakdown-panel {
-    margin: 0 6px;
     padding: 6px 8px 8px;
     font-size: 11px;
-    max-height: 40vh;
   }
   .breakdown-panel .bd-pct {
     display: none;

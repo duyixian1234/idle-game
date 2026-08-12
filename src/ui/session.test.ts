@@ -140,6 +140,46 @@ describe('session: 会话态 → 渲染联动', () => {
     expect(els.breakdownPanel.classList.contains('hidden')).toBe(true)
   })
 
+  it('资源分解面板：消耗明细 details 展开态跨 render 保留（#26 防 250ms 重建闪退）', () => {
+    const { els, session, state } = setup()
+    state.fleet = { count: 3 } // 舰队维护产生能源消耗明细
+    session.render()
+    // 打开能源 breakdown（能源有 consumption rows）
+    const trigger = els.resourceBar.querySelector<HTMLElement>('[data-breakdown-resource="energy"]')
+    expect(trigger).toBeTruthy()
+    trigger!.click()
+    const det = els.breakdownPanel.querySelector<HTMLDetailsElement>('details.breakdown-consumption')
+    expect(det).toBeTruthy() // 前置：details 存在
+    // 点击 summary 展开（listeners 翻转会话态展开标记）
+    det!.querySelector('summary')!.click()
+    expect(det!.open).toBe(true)
+    // 模拟 250ms tick 重渲染：展开态从会话态恢复，不重置
+    session.render()
+    const det2 = els.breakdownPanel.querySelector<HTMLDetailsElement>('details.breakdown-consumption')
+    expect(det2).toBeTruthy()
+    expect(det2!.open).toBe(true) // 修复前：innerHTML 重写重置为 false
+  })
+
+  it('资源分解面板：消耗明细展开态不跨资源携带（#26 切资源不继承旧展开）', () => {
+    const { els, session, state } = setup()
+    state.fleet = { count: 3 } // 能源消耗明细
+    session.render()
+    // 打开能源 breakdown 并展开消耗明细
+    const trigEnergy = els.resourceBar.querySelector<HTMLElement>('[data-breakdown-resource="energy"]')
+    trigEnergy!.click()
+    const detE = els.breakdownPanel.querySelector<HTMLDetailsElement>('details.breakdown-consumption')
+    expect(detE).toBeTruthy()
+    detE!.querySelector('summary')!.click()
+    expect(detE!.open).toBe(true)
+    session.render()
+    expect(els.breakdownPanel.querySelector<HTMLDetailsElement>('details.breakdown-consumption')!.open).toBe(true)
+    // 切到矿物（矿物一般无消耗明细；若有，展开态也不得继承——listeners 切换资源时重置会话态标记）
+    const trigMineral = els.resourceBar.querySelector<HTMLElement>('[data-breakdown-resource="mineral"]')
+    trigMineral!.click()
+    const detM = els.breakdownPanel.querySelector<HTMLDetailsElement>('details.breakdown-consumption')
+    if (detM) expect(detM.open).toBe(false) // 跨资源：旧展开态不携带
+  })
+
   it('日志 tab 角标：新增日志后切走 tab 显示差值，读后清零', () => {
     const { els, session, state } = setup()
     session.render()

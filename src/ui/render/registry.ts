@@ -209,6 +209,6 @@ RENDER_NODES.register({
   id: 'breakdown',
   phase: 'overlay',
   render: (ctx) => {
-    if (ctx.ui.openBreakdown) renderBreakdownPanel(ctx.els.breakdownPanel, ctx.state, ctx.ui.openBreakdown)
+    if (ctx.ui.openBreakdown) renderBreakdownPanel(ctx.els.breakdownPanel, ctx.state, ctx.ui.openBreakdown, ctx.ui.breakdownConsumptionOpen)
   },
 })

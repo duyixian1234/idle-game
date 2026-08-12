@@ -6,6 +6,29 @@ import { buildLayout } from './layout'
 import { renderDiplomacyPanel } from './render/diplomacy'
 
 describe('ui: 外交面板', () => {
+  it('外交自动策略 select 元素跨 render 复用且文本随语言刷新（#26 防移动端系统 picker 闪退）', () => {
+    const container = document.createElement('div')
+    buildLayout(container)
+    const s = createInitialState(0)
+    s.planets.orbital = { unlocked: true }
+    s.resources.mineral = 3_000_000
+    s.resources.tech = 200_000
+    const panel = container.querySelector('[data-panel="diplomacy"]') as HTMLElement
+    renderDiplomacyPanel(panel, s)
+    const sel1 = panel.querySelector<HTMLSelectElement>('[data-diplo-auto-mode]')
+    expect(sel1).toBeTruthy()
+    // 第二次渲染（模拟 250ms 重建）：select 元素引用必须稳定
+    // （原生 select 被替换会导致移动端系统选择器瞬间关闭）
+    renderDiplomacyPanel(panel, s)
+    const sel2 = panel.querySelector<HTMLSelectElement>('[data-diplo-auto-mode]')
+    expect(sel2).toBe(sel1)
+    // 复用分支仍刷新 option 文本（语言切换后不残留旧语言文案）
+    const opts = sel2!.querySelectorAll('option')
+    expect(opts.length).toBe(2)
+    expect(opts[0].textContent).toContain('友好')
+    expect(opts[1].textContent).toContain('胁迫')
+  })
+
   it('外交面板无 +10/+100 批量按钮（ADR-0037：贸易/技术共享单次操作统一为 1）', () => {
     const container = document.createElement('div')
     buildLayout(container)

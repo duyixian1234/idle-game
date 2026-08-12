@@ -30,6 +30,9 @@ export interface SessionUiState {
   autoConfigOpen: boolean
   autoExpandedCategory: string | undefined
   openBreakdown: ResourceKey | null
+  /** 资源分解面板「消耗明细」展开态（mobile-ui-fixes #26）：250ms 全量重建不重置；
+   * 切换资源时由 listeners 重置（展开态不跨资源携带），ADR-0014 会话态语义 */
+  breakdownConsumptionOpen: boolean
   logDirection: LogDirection
   lastLogId: number
   exploreEscortChecked: Set<number>
@@ -95,6 +98,17 @@ export function bindListeners(ctx: SessionCtx): void {
     const res = trigger.dataset.breakdownResource
     if (!res) return
     ui.openBreakdown = ui.openBreakdown === res ? null : (res as ResourceKey)
+    // 切换资源时重置消耗明细展开态（#26：展开态不跨资源携带）
+    ui.breakdownConsumptionOpen = false
+    render()
+  })
+  // 消耗明细折叠（#26）：点击 summary 翻转会话态展开标记（ADR-0014：展开态存 SessionUiState，
+  // 250ms 重建后由 renderBreakdownPanel 按会话态恢复 open，而非依赖浏览器原生 details 状态——
+  // 原生状态在 innerHTML 重写时会丢，移动端体感「闪一下就消失」）
+  els.breakdownPanel.addEventListener('click', (e) => {
+    const summary = (e.target as HTMLElement).closest<HTMLElement>('details.breakdown-consumption > summary')
+    if (!summary) return
+    ui.breakdownConsumptionOpen = !ui.breakdownConsumptionOpen
     render()
   })
   // 点击面板外任意处关闭（resourceBar 委托先于本监听执行，问号/面板内点击被排除）

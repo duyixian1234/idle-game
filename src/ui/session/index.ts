@@ -93,6 +93,8 @@ export function createSession(args: CreateSessionArgs): Session {
     autoExpandedCategory: undefined,
     // 资源来源分解面板展开态（会话状态，互斥：一次只展开一个资源；null = 收起）
     openBreakdown: null,
+    // 资源分解面板「消耗明细」展开态（mobile-ui-fixes #26：250ms 重建不重置；切换资源时 listeners 重置）
+    breakdownConsumptionOpen: false,
     // 日志排序方向（偏好记忆），已渲染日志游标
     logDirection: (localStorage.getItem(LOG_DIR_KEY) as LogDirection) || DEFAULT_LOG_DIRECTION,
     lastLogId: 0,

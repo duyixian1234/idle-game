@@ -93,6 +93,10 @@ function renderCoercionActions(state: GameState, id: string): string {
 /** 渲染外交面板：遍历运行时全部已登场派系（初始 4 家 + 探索发现的势力 + 无尽生成对象；未发现的探索势力不渲染）。
  * 已结盟（archivedRounds 有记录）= 不可再交互 → 移列表末尾归档折叠区（endless-expansion）。 */
 export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { archivedExpanded?: Record<string, boolean> } = {}): void {
+  // 外交自动条 select 元素复用（#26）：必须先于 el.innerHTML='' 保存引用——清空后 querySelector 恒为 null。
+  // 原生 <select> 被替换会导致移动端系统选择器瞬间关闭（体感「点开闪一下就消失」），
+  // 重建时复用旧 select DOM 节点（重建 option 刷新 i18n 文本 + 同步 value），引用保持稳定
+  const prevAutoSelect = el.querySelector<HTMLSelectElement>('[data-diplo-auto-mode]')
   el.innerHTML = ''
   if (!factionsVisible(state)) {
     el.innerHTML = `<div class="diplo-empty">${t('ui.diplomacy.6')}</div>`
@@ -123,6 +127,7 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
   }
   // 外交自动化（diplo-auto 纯全局迭代，2026-08-08）：全局开关 + 全局方向（友好/胁迫）；
   // 友好=自动贸易→结盟（仅通关后），胁迫=生成派系自动勒索→条约（raid 安全，静态/探索派系跳过）；挂机同步
+  // prevAutoSelect 已在函数开头保存（#26 select 元素复用，防移动端系统 picker 闪退）
   const autoCfg = state.diplomacyAuto
   const autoBar = document.createElement('div')
   autoBar.className = 'diplo-auto-bar'
@@ -138,6 +143,14 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
       </select>
     </label>
     <span class="diplo-auto-hint">${t('ui.diplomacy.12')}</span>`
+  if (prevAutoSelect) {
+    // 复用旧 select 节点：重建 option（刷新 i18n 文本）+ 同步 value，但元素引用不变——
+    // 移动端系统 picker 打开期间 DOM 重建不替换 select，picker 不会瞬间关闭
+    const newSelect = autoBar.querySelector<HTMLSelectElement>('[data-diplo-auto-mode]')!
+    prevAutoSelect.innerHTML = newSelect.innerHTML
+    prevAutoSelect.value = newSelect.value
+    newSelect.replaceWith(prevAutoSelect)
+  }
   el.appendChild(autoBar)
 
   const archived = opts.archivedExpanded ?? {}

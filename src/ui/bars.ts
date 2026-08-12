@@ -105,8 +105,9 @@ export function renderResources(el: HTMLElement, state: GameState, netProd: Reco
   }
 }
 
-/** 渲染资源速率来源分解面板（问号触发；内容 = productionBreakdown 当前 tick 快照，250ms 重建随 render 实时刷新） */
-export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource: ResourceKey): void {
+/** 渲染资源速率来源分解面板（问号触发；内容 = productionBreakdown 当前 tick 快照，250ms 重建随 render 实时刷新）。
+ * consumptionOpen = 会话态「消耗明细」展开标记（ADR-0014：跨重建展开态存 SessionUiState，不读 DOM） */
+export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource: ResourceKey, consumptionOpen = false): void {
   const bd = productionBreakdown(state)[resource]
   el.classList.remove('hidden')
   const meta = RESOURCE_META[resource]
@@ -125,7 +126,7 @@ export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource
     .join('')
   const consumption =
     bd.consumption && bd.consumption.rows.length > 0
-      ? `<details class="breakdown-consumption" data-breakdown-consumption><summary>${t('bar.5')}</summary>${rows(bd.consumption.rows)}</details>`
+      ? `<details class="breakdown-consumption" data-breakdown-consumption${consumptionOpen ? ' open' : ''}><summary>${t('bar.5')}</summary>${rows(bd.consumption.rows)}</details>`
       : ''
   const notes = [bd.capNote, bd.capSource, bd.energyNote].filter(Boolean).map((n) => `<div class="breakdown-note" data-breakdown-note>${escapeHtml(n as string)}</div>`).join('')
   el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(t(meta.nameKey))} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
