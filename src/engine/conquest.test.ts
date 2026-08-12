@@ -5,7 +5,9 @@ import { settleOffline } from './offline'
 import { generateConquestTarget } from './generate'
 import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
 import { TECHS } from './data'
+import { CONQUEST_MILITARY_REFUND_PCT } from './balance'
 import { militaryCap, nominalMilitaryProduction } from './production'
+import { formatNumber } from './format'
 import type { GameState, GeneratedTarget } from './types'
 
 /** 构造状态：解锁前置星球、给足军力与资源 */
@@ -502,5 +504,110 @@ describe('engine: boss 军力挑战（endless-progression，ADR-0053）', () => 
     const logs = autoConquestTick(s, 0)
     expect(logs.some((l) => l.includes('boss:L3') || l.includes('无尽守卫'))).toBe(true)
     expect(s.conquest['boss:L3'].startedAt).toBe(0)
+  })
+})
+
+describe('engine: 攻占军力返还（conquest-refund，ADR-0056）', () => {
+  /** 返还测试态：军力容量足够大（军港 25 → 容量 5100）、军力给足（满容量，容量铁律）、前置星球全解锁 */
+  function refundState(): GameState {
+    const s = conquestState()
+    s.planets.dawn = { unlocked: true }
+    s.planets.orbital = { unlocked: true }
+    s.planets.gas = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.resources.military = militaryCap(s)
+    return s
+  }
+
+  it('足额投入成功 → 返还 ⌊invested × 0.5⌋，捷报日志含返还文案', () => {
+    const s = refundState()
+    const cap = militaryCap(s)
+    startConquest(s, 'outpost', 2_000, 0) // 守卫 500，足额 2000 → 必成
+    const militaryBefore = s.resources.military // cap − 2000
+    const logs = settleConquests(s, 60 * 60_000, () => 0.999)
+    expect(s.conquest.outpost.status).toBe('conquered')
+    const refund = Math.floor(2_000 * CONQUEST_MILITARY_REFUND_PCT)
+    expect(s.resources.military).toBe(Math.min(cap, militaryBefore + refund))
+    expect(logs[0]).toContain('返还军力')
+    expect(logs[0]).toContain(formatNumber(refund)) // 日志经 formatNumber 格式化（1,000.00）
+  })
+
+  it('薄投成功 → 按 invested 返还（非守卫值），不产生净增军力', () => {
+    const s = refundState()
+    // outpost 守卫 500，薄投 200（40% 成功率）；rng 0.2 < 0.4 → 成功
+    startConquest(s, 'outpost', 200, 0)
+    const militaryBefore = s.resources.military // cap − 200
+    settleConquests(s, 60 * 60_000, () => 0.2)
+    expect(s.conquest.outpost.status).toBe('conquered')
+    const refund = Math.floor(200 * CONQUEST_MILITARY_REFUND_PCT)
+    expect(s.resources.military).toBe(militaryBefore + refund)
+    // 返还 ≤ 投入 → 军力不净增（防印钞）
+    expect(refund).toBeLessThan(200)
+    expect(s.resources.military).toBeLessThan(militaryCap(s))
+  })
+
+  it('返还受容量截断：返还入账 clamp 到 cap（返还率 <1 时仅在军力逼近 cap 的场景触发）', () => {
+    const s = refundState()
+    const cap = militaryCap(s)
+    // 返还前军力已逼近 cap（返还空间不足）；注入大额 invested 使返还量超过剩余容量 → min(cap, ...) 截断
+    s.resources.military = cap - 50
+    s.conquest.outpost = { status: 'available', startedAt: 0, finishAt: 60_000, invested: 10_000 }
+    settleConquests(s, 60 * 60_000, () => 0.999)
+    expect(s.conquest.outpost.status).toBe('conquered')
+    expect(s.resources.military).toBe(cap) // clamp 到容量上限，溢出浪费
+  })
+
+  it('失败 → 不返还（军力全损）', () => {
+    const s = refundState()
+    startConquest(s, 'outpost', 200, 0) // 薄投 40% 成功率
+    const militaryBefore = s.resources.military
+    settleConquests(s, 60 * 60_000, () => 0.9) // 0.9 > 0.4 → 失败
+    expect(s.conquest.outpost.status).toBe('available')
+    expect(s.resources.military).toBe(militaryBefore) // 全损，无返还
+  })
+
+  it('fleetLocked 折算不参与返还：仅按 invested 计算', () => {
+    const s = refundState()
+    s.buildings.dock = 1
+    s.upgrades.dock = 1
+    s.fleet.count = 3 // 战力 3600 → shipyard 守卫 2000×0.5=1000 锁定
+    s.resources.energy = 10_000
+    startConquest(s, 'shipyard', 1_000, 0, () => 0.99) // 1000 军力 + 1000 舰队 = 2000 = 守卫 → 必成
+    expect(s.conquest.shipyard.fleetLocked).toBe(1_000)
+    const militaryBefore = s.resources.military
+    settleConquests(s, 60 * 60_000, () => 0.999)
+    expect(s.conquest.shipyard.status).toBe('conquered')
+    // 返还仅按 invested 1000，不按 invested+fleetLocked 2000
+    const refund = Math.floor(1_000 * CONQUEST_MILITARY_REFUND_PCT)
+    expect(s.resources.military).toBe(militaryBefore + refund)
+  })
+
+  it('离线结算（settleOffline → settleConquests）同口径返还', () => {
+    const s = refundState()
+    // 压低所有派系威胁：防离线 raid 扣军力干扰返还断言
+    for (const f of Object.values(s.factions)) f.threat = 0
+    startConquest(s, 'outpost', 2_000, s.lastTick)
+    const militaryBefore = s.resources.military
+    const refund = Math.floor(2_000 * CONQUEST_MILITARY_REFUND_PCT)
+    const off = settleOffline(s, s.lastTick + 2 * 3600 * 1000, () => 0)
+    expect(off.conquestLogs.length).toBe(1)
+    expect(off.conquestLogs[0]).toContain('捷报')
+    expect(s.resources.military).toBe(militaryBefore + refund)
+  })
+
+  it('静态/动态/boss 统一适用：生成目标成功后同样返还', () => {
+    const s = refundState()
+    s.phase = 'infinite'
+    s.endingTriggered = true
+    const gt = generateConquestTarget(s, () => 0.5)
+    s.generatedTargets.push(gt)
+    s.conquest[gt.id] = { status: 'available' }
+    const guard = gt.guard!
+    startConquest(s, gt.id, guard, 0)
+    const militaryBefore = s.resources.military
+    const refund = Math.floor(guard * CONQUEST_MILITARY_REFUND_PCT)
+    settleConquests(s, 60 * 60_000, () => 0)
+    expect(s.conquest[gt.id].status).toBe('conquered')
+    expect(s.resources.military).toBe(militaryBefore + refund)
   })
 })

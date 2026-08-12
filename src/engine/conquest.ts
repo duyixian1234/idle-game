@@ -1,7 +1,7 @@
 import { t } from '../i18n'
 import { CONQUESTS, TECHS, defName } from './data'
 import type { ConquestDef } from './data'
-import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, BOSS_GUARD_CAP_LAYER_GROWTH, BOSS_GUARD_CAP_PCT, BOSS_GUARD_MAX_SECONDS, BOSS_GUARD_PROD_LAYER_GROWTH, BOSS_GUARD_PROD_SECONDS, BOSS_REWARD_LAYER_GROWTH, BOSS_REWARD_MINERAL_SECONDS, BOSS_REWARD_TECH_SECONDS, ENDLESS_CONQUEST_LAYER_PROGRESS, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, BOSS_GUARD_CAP_LAYER_GROWTH, BOSS_GUARD_CAP_PCT, BOSS_GUARD_MAX_SECONDS, BOSS_GUARD_PROD_LAYER_GROWTH, BOSS_GUARD_PROD_SECONDS, BOSS_REWARD_LAYER_GROWTH, BOSS_REWARD_MINERAL_SECONDS, BOSS_REWARD_TECH_SECONDS, CONQUEST_MILITARY_REFUND_PCT, ENDLESS_CONQUEST_LAYER_PROGRESS, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
 import { advanceEndlessLayer, endlessBossAvailable, endlessLayer } from './events'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
@@ -238,6 +238,19 @@ function settleOneConquest(
     const rewards: string[] = []
     // 攻占产出乘数（conquest-guard-cap）：结算时按当前科技等级实时乘（Q10；静态+动态全适用 Q12）
     const rewardMult = conquestRewardMult(state)
+    // 军力返还（conquest-refund，ADR-0056）：残兵归队——成功时返还 ⌊投入军力 × 返还率⌋，
+    // 受军力容量截断（返还量 clamp 到剩余容量，溢出浪费）；失败分支无返还（全损保留）。
+    // 按 invested 实际投入而非守卫（防薄投刷军力）；fleetLocked 是舰队战力折算、非军力消耗，不参与。
+    // 截断实现：min(refund, 剩余容量) —— 存量已超 cap（异常态）时返还 0，不压低既有存量。
+    const refund = Math.floor(invest * CONQUEST_MILITARY_REFUND_PCT)
+    if (refund > 0) {
+      const room = Math.max(0, militaryCap(state) - state.resources.military)
+      const actual = Math.min(refund, room)
+      if (actual > 0) {
+        state.resources.military += actual
+        rewards.push(t('cq.12', { a0: formatNumber(actual) }))
+      }
+    }
     if (def.rewardMineral) {
       state.resources.mineral += Math.floor(def.rewardMineral * rewardMult)
       rewards.push(t('cq.0', { a0: formatNumber(Math.floor(def.rewardMineral * rewardMult)) }))

@@ -292,6 +292,13 @@ export const AUTO_CONQUEST_COOLDOWN_MS = 60_000
 /** 自动攻占军力保底：投满守卫后仍保留军力容量 × 此比例（防耗尽影响 raid 击退 / 探索派遣）；
  * conquest-fleet 修订：0.2 → 0.1（守卫改锚产出后保底主导回充，降比让总回充 ≈55s 跟上 60s 冷却） */
 export const AUTO_CONQUEST_MILITARY_RESERVE_PCT = 0.1
+/** 攻占成功后军力返还比例（conquest-refund，2026-08-12，ADR-0056）：残兵归队/半回收投资——军力从"消耗品"转"半回收资源"，
+ * 缓解后期探索生成军事目标速率 > 自动攻占处理速率（60s/目标）的积压漏斗。
+ * - 返还 = ⌊invested × 此比例⌋，仅成功时返还（失败全损），受 militaryCap 容量截断（溢出浪费）；
+ * - 按 invested 实际投入而非守卫（防薄投刷军力）；fleetLocked 折算非军力消耗不参与；
+ * - 初值 0.5 起步，由 balance-sim 三档基准校验"单目标返还 ≤ 消耗"（军力不净增防印钞）后定稿；
+ * - 单目标净耗 = 50%×守卫 = 名义产出×20s < 自动攻占 60s 冷却 → 军力不构成瓶颈，漏斗转移到冷却（吞吐上限 1 目标/60s）。 */
+export const CONQUEST_MILITARY_REFUND_PCT = 0.5
 /** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
  * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
 export const FLEET_CONQUEST_CAP_PCT = 0.5

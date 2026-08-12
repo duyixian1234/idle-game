@@ -3,7 +3,8 @@ import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost, startExpedition } from './exploration'
 import { generateConquestTarget } from './generate'
-import { TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS, ENDLESS_LAYER_BONUS_CAP } from './balance'
+import { startConquest, settleConquests } from './conquest'
+import { TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS, ENDLESS_LAYER_BONUS_CAP, CONQUEST_MILITARY_REFUND_PCT } from './balance'
 import { militaryCap, nominalMilitaryProduction, productionReport, layerProductionMult } from './production'
 import type { GameState } from './types'
 
@@ -393,5 +394,57 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
     // NG+5 (×1.75) × 层 50 (+50%) = 2.625 < runaway 阈值（ENDLESS_LAYER_BONUS_CAP 3.0 约束层项）
     expect(permMult).toBeLessThan(1 + 0.15 * 5 + ENDLESS_LAYER_BONUS_CAP)
     expect(layerProductionMult(s)).toBe(1.5)
+  })
+
+  it('攻占军力返还三档永续性（conquest-refund，ADR-0056）：连续攻占净耗恒正（返还 ≤ 投入，不印钞）', () => {
+    // 三档基准（毕业/NG+5/普通通关），各跑连续攻占完整循环（生成→发起→结算成功）直至军力不足以发起下一个：
+    // 模拟「满员 → 投入守卫 → 结算返还 → 军力在冷却期回充」循环。断言：
+    // ① 单目标平均军力净耗（投入 − 返还）> 0（返还率 <1 → 不净增，防印钞）；
+    // ② 单目标净耗回充时间（净耗/军力名义产能）< 自动攻占 60s 冷却（军力不构成吞吐瓶颈，漏斗转移到冷却）。
+    const netCostPerTarget = (ng: number, miner: number): { net: number; seconds: number; targets: number } => {
+      const s = graduateState(ng, miner)
+      // 军力存量设为满容量（真实挂机合法态：军力 ≤ 容量，production 截断 + offline clamp 保证）——
+      // 1e9 超容量会让返还被 room=0 全 clamp，净耗失真。
+      s.resources.military = militaryCap(s)
+      const roll = (): number => 0.5 // 固定 roll：生成目标确定性（词库/数值落在区间内，守卫只依赖产能/容量）
+      const cap = militaryCap(s)
+      let totalInvest = 0
+      let totalRefund = 0
+      let targets = 0
+      for (let i = 0; i < 50; i++) {
+        const target = generateConquestTarget(s, roll)
+        s.generatedTargets.push(target)
+        s.conquest[target.id] = { status: 'available' }
+        const guard = target.guard ?? 0
+        if (s.resources.military < guard + cap * 0.1) break // 军力不足（+10% 保底）→ 循环结束，转入回充期
+        const r = startConquest(s, target.id, guard, 0)
+        expect(r.ok).toBe(true)
+        totalInvest += guard
+        // 军力保底（容量×10%）语义：投入后军力 ≥ 保底（守卫 ≤ 容量/3 → 容量 − 守卫 ≥ 2/3 容量 ≥ 10%）
+        expect(s.resources.military).toBeGreaterThanOrEqual(cap * 0.1)
+        settleConquests(s, 60 * 60_000, () => 0) // rng 0 → 必成
+        const refund = Math.floor(guard * CONQUEST_MILITARY_REFUND_PCT)
+        totalRefund += refund
+        targets += 1
+      }
+      // 至少攻占 1 个目标（守卫 ≤ 容量/3 + 返还 50% → 满员出发必能发起首个）
+      expect(targets).toBeGreaterThan(0)
+      // 单目标平均净耗 = (投入 − 返还)/目标数 > 0
+      const net = (totalInvest - totalRefund) / targets
+      expect(net).toBeGreaterThan(0)
+      // 单目标净耗回充时间 = 净耗 / 军力名义产能。守卫受双上限约束（产出×40s 或容量/3 取小，容量主导时守卫 = 容量/3），
+      // 净耗 = 守卫×(1−rate) ∈ [20s×产出, 容量/3×0.5]——断言上限 < 60s 冷却即军力不构成吞吐瓶颈（毕业档实测 ≈12s）。
+      const prod = nominalMilitaryProduction(s)
+      expect(prod).toBeGreaterThan(0)
+      return { net, seconds: net / prod, targets }
+    }
+    const graduated = netCostPerTarget(0, 10_000)
+    const ng5 = netCostPerTarget(5, 10_000)
+    const normal = netCostPerTarget(0, 1_000)
+    // 三档净耗回充时间均 < 60s 冷却（50% 返还 → 单目标净耗 ≈ 20s 产出）
+    for (const [label, { seconds }] of Object.entries({ graduated, ng5, normal })) {
+      expect(seconds, `${label} 净耗回充时间`).toBeLessThan(60)
+      expect(seconds, `${label} 净耗回充时间`).toBeGreaterThan(0)
+    }
   })
 })

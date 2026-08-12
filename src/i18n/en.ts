@@ -129,6 +129,7 @@ export const en: Zh = {
   'Not enough energy',
   'Endless Warden - Lv.{a0}',
   'A ruler of the deep layers. A military challenge (every 3 layers); defeating advances layers and the boss counter. Guard {a1}.',
+  'Recovered {a0} military',
   ],
   imp: [
   'Imported save offline gains: away {a0}, gained {a1}.',
