@@ -315,6 +315,13 @@ export const TRANSPORT_STATIC_CONQUEST_PCT = 0.05
 /** 运兵船池容量积累：boss 攻占成功 +3% 容量比例（troop-transport，ADR-0061；周目内，每层累加；
  * 生成目标不计——对齐 ADR-0012 程序生成零永久加成红线） */
 export const TRANSPORT_BOSS_PCT = 0.03
+/** 运兵船基础池（troop-transport，ADR-0061 修订，2026-08-13）：兵力上限 × 此比例——无任何攻占积累也有保底池，
+ * 前期 boss 试探可用；随兵力上限（基础兵力）放大 */
+export const TRANSPORT_BASE_POOL_PCT = 0.05
+/** 运兵船探索加成（troop-transport，ADR-0061 修订，2026-08-13）：池容量每无尽层数 +此比例（作用于整体，
+ * 与 C% 叠乘）——探索进度（无尽层数）越高池越大，与 boss 守卫容量锚（10%/层）保持增速差，
+ * 渐进回退主容量兜底的语义保留 */
+export const TRANSPORT_LAYER_GROWTH_PCT = 0.02
 /** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
  * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
 export const FLEET_CONQUEST_CAP_PCT = 0.5

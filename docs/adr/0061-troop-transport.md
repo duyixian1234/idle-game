@@ -18,3 +18,5 @@
 - schema v17：`GameState.transportShip`（capacityPct + stored），周目内重置；迁移纯增量缺省。
 - boss 结算管线（conquest.ts）支付源池优先（bossCanPay 资格判定）、返还回池，区分主容量/池两条军力通道。
 - 完全隔离仅在池容量 ≥ 守卫时成立；层数高时池不足部分回退主容量兜底（Q12 接受的渐进折中）。
+
+> **2026-08-13 修订（池容量加成）**：池容量公式由 `兵力上限 × C%` 扩展为 `兵力上限 × (基础池 5% + C%) × (1 + 2%×无尽层数)`——新增基础池（TRANSPORT_BASE_POOL_PCT，无攻占积累也有保底）与探索加成（TRANSPORT_LAYER_GROWTH_PCT，无尽层数每层 +2% 作用于整体）。兵力上限为基数（基础兵力越强池越大）、探索进度（层数）提供额外乘数。守卫容量锚（10%/层）增速仍大于池增速（2%/层），渐进回退主容量兜底语义不变；返还仍 ≤ 投入×50%（军力不净增防印钞约束不受池容量影响）。证据：`balance.ts`（TRANSPORT_BASE_POOL_PCT/TRANSPORT_LAYER_GROWTH_PCT）、`troop-transport.ts:transportCapacity`、`troop-transport.test.ts`（池容量/基础池/探索加成契约）。

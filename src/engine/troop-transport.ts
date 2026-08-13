@@ -1,5 +1,6 @@
 import { militaryCap } from './production'
-import { AUTO_CONQUEST_MILITARY_RESERVE_PCT } from './balance'
+import { AUTO_CONQUEST_MILITARY_RESERVE_PCT, TRANSPORT_BASE_POOL_PCT, TRANSPORT_LAYER_GROWTH_PCT } from './balance'
+import { endlessLayer } from './events'
 import type { GameState } from './types'
 
 /**
@@ -8,17 +9,22 @@ import type { GameState } from './types'
  * boss 专用的军力存储通道：军力自主容量即时存入/取出（存款语义、无费用），
  * 仅作 boss 出征支付源（池优先、池不足主容量补但保留安全垫），不参与
  * raid 防御/探索派遣/勒索臣服门槛（那些走主容量的驻防/威慑语义）。
- * 池容量 = 军力容量 × capacityPct（攻占积累：静态区 +5%、boss +3%，周目内重置；
- * 生成目标不计，对齐 ADR-0012 程序生成零永久加成）。
+ * 池容量 = 兵力上限 × (基础池 + C%) × (1 + 探索进度×层数)（ADR-0061 修订，2026-08-13）：
+ * - 兵力上限（militaryCap）为基数——基础兵力越强池越大；
+ * - 基础池（TRANSPORT_BASE_POOL_PCT = 5%）：无攻占积累也有保底池；
+ * - C%（capacityPct）攻占积累：静态区 +5%、boss +3%，周目内重置；
+ * - 探索进度（无尽层数 endlessLayer）每层 +TRANSPORT_LAYER_GROWTH_PCT（2%），作用于整体。
  * boss 守卫公式不动（锚主容量 cap、不含池）——池增长是纯收益、不推高守卫。
- * 深模块约定：只依赖 core/balance/production，供 conquest.ts 结算与 UI 调用。
+ * 深模块约定：只依赖 core/balance/production/events，供 conquest.ts 结算与 UI 调用。
  */
 
-/** 运兵船池容量 = 军力容量 × capacityPct（ADR-0061；无池 = 0） */
+/** 运兵船池容量 = 兵力上限 × (基础池 + C%) × (1 + 探索进度×层数)（ADR-0061 修订；无池 = 0） */
 export function transportCapacity(state: GameState): number {
   const ts = state.transportShip
   if (!ts) return 0
-  return Math.floor(militaryCap(state) * ts.capacityPct)
+  const cap = militaryCap(state)
+  const exploreMult = 1 + TRANSPORT_LAYER_GROWTH_PCT * endlessLayer(state)
+  return Math.floor(cap * (TRANSPORT_BASE_POOL_PCT + ts.capacityPct) * exploreMult)
 }
 
 /** 存款：主容量 → 池（即时无费），受池容量与主容量余额双重截断（超量不存，不扣负）；返回实际存入 */

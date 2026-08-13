@@ -16,23 +16,32 @@ function tsState(overrides: Partial<GameState> = {}): GameState {
   return { ...s, ...overrides }
 }
 
-describe('engine: 运兵船独立军力池（ADR-0061）', () => {
-  it('池容量 = floor(militaryCap × capacityPct)；capacityPct 缺省为 0（无池）', () => {
+describe('engine: 运兵船独立军力池（ADR-0061 + 修订：基础池 + 探索加成）', () => {
+  it('池容量 = 兵力上限 × (基础池 5% + C%) × (1 + 2%×层数)；层数 0 时无探索加成；无池 = 0', () => {
     const s = tsState()
-    expect(transportCapacity(s)).toBe(Math.floor(militaryCap(s) * 0.5)) // 5100 × 0.5 = 2550
+    // layer 0：5100 × (0.05 + 0.5) × 1 = 2805
+    expect(transportCapacity(s)).toBe(2805)
+    // 探索进度加成：layer 10 → ×(1 + 0.02×10) = ×1.2
+    s.endless.layer = 10
+    expect(transportCapacity(s)).toBe(Math.floor(2805 * 1.2))
+    // 基础池：无攻占积累（C=0）仍有 5% 保底
+    s.transportShip!.capacityPct = 0
+    s.endless.layer = 0
+    expect(transportCapacity(s)).toBe(Math.floor(militaryCap(s) * 0.05)) // 5100 × 0.05 = 255
+    // 无池 = 0
     delete s.transportShip
     expect(transportCapacity(s)).toBe(0)
   })
 
   it('存款：主容量 → 池，受池容量截断（超量不存，返回实际存入）', () => {
     const s = tsState()
-    // 池容量 2550，存入 3000 → 实际 2550，主容量 5000-2550=2450
-    expect(depositMilitary(s, 3000)).toBe(2550)
-    expect(s.transportShip!.stored).toBe(2550)
-    expect(s.resources.military).toBe(2450)
+    // 池容量 2805，存入 3000 → 实际 2805，主容量 5000-2805=2195
+    expect(depositMilitary(s, 3000)).toBe(2805)
+    expect(s.transportShip!.stored).toBe(2805)
+    expect(s.resources.military).toBe(2195)
     // 池满后再存 → 0
     expect(depositMilitary(s, 100)).toBe(0)
-    expect(s.transportShip!.stored).toBe(2550)
+    expect(s.transportShip!.stored).toBe(2805)
   })
 
   it('取款：池 → 主容量，受主容量 cap 截断（溢出浪费，军力容量铁律不破）', () => {
@@ -72,9 +81,10 @@ describe('engine: 运兵船独立军力池（ADR-0061）', () => {
     expect(s.transportShip!.capacityPct).toBeCloseTo(0.58, 10)
   })
 
-  it('NG+ 语义：新档 transportShip 为空态（capacityPct/stored = 0），无池容量', () => {
+  it('NG+ 语义：新档 transportShip 为空态（capacityPct/stored = 0），仅基础池（兵力上限×5%）', () => {
     const s = createInitialState(0)
     expect(s.transportShip).toEqual({ capacityPct: 0, stored: 0 })
-    expect(transportCapacity(s)).toBe(0)
+    // 无攻占积累（C=0）→ 池容量 = 基础池 = cap×5%（cap 100 → 5）
+    expect(transportCapacity(s)).toBe(Math.floor(militaryCap(s) * 0.05))
   })
 })
