@@ -2,7 +2,7 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP, INFINITE_TECH_PCT_PER_LEVEL} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
@@ -27,7 +27,8 @@ export function levelMultiplier(level: number): number {
 
 /**
  * 军力容量上限：基础 100 + 军港数量 × 200，再乘（永久加成 + 声望军力上限加成）累计，
- * 再乘军械科技容量加成（每级 +10%，ADR-0027），再乘虫洞容量加成（每级 +10%，ADR-0047）。
+ * 再乘军械科技容量加成（每级 +10%，ADR-0027），再乘虫洞容量加成（每级 +10%，ADR-0047），
+ * 再乘深空军备容量加成（每级 +2%，无封顶，ADR-0060）。
  * 军力是唯一有上限的资源：满上限时兵营产出截断（浪费语义，逼玩家消费/扩容）。
  */
 export function militaryCap(state: GameState): number {
@@ -38,7 +39,9 @@ export function militaryCap(state: GameState): number {
   const techBonus = (state.techLevels.militaryTech ?? 0) * MILITARY_CAP_TECH_PER_LEVEL
   // 虫洞等级钳制 maxLevel=10（与 exploration.ts 读取方式一致，防御性防越级）
   const wormholeBonus = Math.min(state.upgrades.wormhole ?? 0, 10) * WORMHOLE_CAP_PER_LEVEL
-  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus) * (1 + techBonus) * (1 + wormholeBonus))
+  // 深空军备（ADR-0060）：无封顶（名义 maxLevel 100，1.7^n 曲线实际点不满）
+  const armamentBonus = (state.techLevels.deepArmament ?? 0) * INFINITE_TECH_PCT_PER_LEVEL
+  return Math.floor((MILITARY_BASE_CAP + MILITARY_PORT_CAP * portCount * levelMultiplier(portLevel)) * (1 + bonus + repBonus) * (1 + techBonus) * (1 + wormholeBonus) * (1 + armamentBonus))
 }
 
 export interface ProductionReport {

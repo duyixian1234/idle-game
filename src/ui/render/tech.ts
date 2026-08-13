@@ -74,6 +74,14 @@ effectText = t('ui.tech.3', { a0: (BUILDINGS[def.effect.buildingId] ? defName(BU
         const next = 1 + def.effect.pct * (level + 1)
         effectText += ` → ${formatMultiplier(next)}`
       }
+    } else if (def.effect.kind === 'militaryCapAll') {
+      // 无限军力线（深空军备，ADR-0060）：军力容量 ×(1 + pct×Lv)，Lv0 预览 Lv1
+      const cur = 1 + def.effect.pct * Math.max(1, level)
+      effectText = `军力容量 ${formatMultiplier(cur)}`
+      if (upgradable) {
+        const next = 1 + def.effect.pct * (level + 1)
+        effectText += ` → ${formatMultiplier(next)}`
+      }
     } else {
       const cur = techMultiplier(def.effect, Math.max(1, level))
       effectText = `${t(RESOURCE_META[def.effect.resource].nameKey)}产出 ${formatMultiplier(cur)}`

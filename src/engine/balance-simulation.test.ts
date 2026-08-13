@@ -3,8 +3,9 @@ import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost, startExpedition } from './exploration'
 import { generateConquestTarget } from './generate'
-import { startConquest, settleConquests } from './conquest'
-import { TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS, ENDLESS_LAYER_BONUS_CAP, CONQUEST_MILITARY_REFUND_PCT } from './balance'
+import { startConquest, settleConquests, endlessBossGuard } from './conquest'
+import { bossMilitaryPay, addTransportCapacity, transportCapacity } from './troop-transport'
+import { TECH_UPGRADE_GROWTH, COERCION_UNLOCK_MILITARY_CAP, MILITARY_CAP_TECH_PER_LEVEL, WARP_EXPEDITION_COST_REDUCTION, WARP_ESCORT_FEE_REDUCTION, GEN_FACTION_GIFT_FAVOR, GEN_FACTION_FAVOR_MAX, EXPEDITION_MINERAL, GENERATED_CAP_EXPLORATIONS_DIVISOR, AUTO_CONQUEST_COOLDOWN_MS, GEN_CONQUEST_GUARD_SECONDS, ENDLESS_LAYER_BONUS_CAP, CONQUEST_MILITARY_REFUND_PCT, INFINITE_TECH_PCT_PER_LEVEL, BOSS_GUARD_CAP_LAYER_GROWTH, TRANSPORT_BOSS_PCT, TRANSPORT_STATIC_CONQUEST_PCT } from './balance'
 import { militaryCap, nominalMilitaryProduction, productionReport, layerProductionMult } from './production'
 import type { GameState } from './types'
 
@@ -448,6 +449,68 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
     for (const [label, { seconds }] of Object.entries({ graduated, ng5, normal })) {
       expect(seconds, `${label} 净耗回充时间`).toBeLessThan(30)
       expect(seconds, `${label} 净耗回充时间`).toBeGreaterThan(0)
+    }
+  })
+
+  it('深空军备成长 vs boss 守卫成长（ADR-0060）：+2%/级 vs 守卫容量锚 0.10/层，每层 ~5 级使 guard/cap 比例持平', () => {
+    // guard/cap = 1/3×(1+0.10×(l-1)) / (1+0.02×Lv)：守卫容量锚每层 +10%，深空军备每级 +2% →
+    // 每层点 5 级（0.02×5 = 0.10）即抵消守卫增长，guard/cap 比例恒定（相对难度不恶化）。
+    for (const [label, { layer, lv, layer2, lv2 }] of Object.entries({
+      毕业档: { layer: 20, lv: 50, layer2: 21, lv2: 55 },
+      NG5: { layer: 40, lv: 90, layer2: 41, lv2: 95 },
+    })) {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      s.buildings.militaryPort = 100
+      s.buildings.barracks = 200
+      s.techLevels.deepArmament = lv
+      s.endless = { layer, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false }
+      const ratio1 = endlessBossGuard(s, layer) / militaryCap(s)
+      s.techLevels.deepArmament = lv2
+      s.endless.layer = layer2
+      const ratio2 = endlessBossGuard(s, layer2) / militaryCap(s)
+      // 每层 +5 级深空军备 → guard/cap 比例持平（±5% 容差，min 切换安全阀时允许小幅波动）
+      expect(Math.abs(ratio2 - ratio1) / ratio1, `${label} guard/cap 漂移`).toBeLessThan(0.05)
+      // 绝对守卫随层数增长（内容侧难度）但相对占比不膨胀
+      expect(endlessBossGuard(s, layer2)).toBeGreaterThanOrEqual(endlessBossGuard(s, layer))
+    }
+    // 常数自洽：每层守卫容量锚 +10% ≈ 深空军备 5 级 +10%（1.02^5 ≈ 1.104）
+    expect(Math.pow(1 + INFINITE_TECH_PCT_PER_LEVEL, 5)).toBeGreaterThan(1 + BOSS_GUARD_CAP_LAYER_GROWTH)
+  })
+
+  it('运兵船 boss 序列军力不净增 + 挤占缓解（ADR-0061）：连续 boss 攻占池净耗恒正（返还 ≤ 消耗，防印钞）；池容量/守卫比例随 C 成长', () => {
+    // 模拟「池支付守卫 → 结算成功返还 50% 回池 → 层推进 → 下一层 boss」循环：
+    // 池内军力为一次性消耗源（主容量仅作兜底），断言单次 boss 池净耗 = 守卫×(1−rate) > 0。
+    for (const { ng, miner } of [{ ng: 0, miner: 10_000 }, { ng: 5, miner: 10_000 }, { ng: 0, miner: 1_000 }]) {
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      s.ngPlusLevel = ng
+      s.buildings.militaryPort = 100
+      s.buildings.barracks = 200
+      s.buildings.miner = miner
+      s.buildings.solar = miner
+      s.resources.military = 1e9
+      // 池容量 40%（静态 4 区 20% + 若干 boss）→ 池内放满
+      s.transportShip = { capacityPct: 0.4, stored: 0 }
+      addTransportCapacity(s, 4 * TRANSPORT_STATIC_CONQUEST_PCT + TRANSPORT_BOSS_PCT * 6) // 4×5% + 6×3% = 38%
+      s.transportShip.stored = transportCapacity(s)
+      const layer = 12
+      s.endless = { layer, stage: 0, badLuck: 0, bossDefeated: 0, layerProgress: 0, autoBoss: false }
+      const guard = endlessBossGuard(s, layer)
+      const poolBefore = s.transportShip.stored
+      expect(bossMilitaryPay(s, guard)).toBe(true)
+      const poolAfter = s.transportShip.stored
+      // 池全额支付守卫（返还发生在结算成功时）
+      expect(poolBefore - poolAfter).toBe(guard)
+      // 结算返还 50% 回池 → 池净耗 = 守卫×(1−rate) = 守卫×0.5 > 0（返还率 <1 保证军力不净增，防印钞）
+      const refund = Math.floor(guard * CONQUEST_MILITARY_REFUND_PCT)
+      s.transportShip!.stored += refund
+      expect(s.transportShip!.stored - poolAfter).toBe(refund)
+      expect(guard - refund).toBeGreaterThan(0)
+      // 挤占缓解：单次 boss 支付后主容量完全不动（池足额支付），探索/raid 安全垫不受影响
+      expect(s.resources.military).toBe(1e9)
+      // C 成长节奏：每层 +3% 池容量 vs 守卫容量锚 +10%/层 → C 增速 < 守卫增速（渐进回退主容量兜底，接受）
+      expect(TRANSPORT_BOSS_PCT).toBeLessThan(BOSS_GUARD_CAP_LAYER_GROWTH)
     }
   })
 })

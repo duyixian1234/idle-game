@@ -738,3 +738,25 @@ describe('engine: v14 → v15 普通建筑升级折算返还（ADR-0036）', () 
     expect(migrated.resources.tech).toBeGreaterThan(0)
   })
 })
+
+describe('engine: v16 → v17 运兵船迁移（troop-transport，ADR-0061）', () => {
+  it('v16 档加载后 transportShip 缺省补 { capacityPct: 0, stored: 0 }（纯增量，无存量改写）', () => {
+    const s = createInitialState(0)
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 16
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.transportShip).toEqual({ capacityPct: 0, stored: 0 })
+    // 既有 endless 字段原样保留（层数/boss 进度不回溯）
+    expect(migrated.endless.layer).toBe(s.endless.layer)
+  })
+
+  it('已带 transportShip 的档原样保留（不覆盖）', () => {
+    const s = createInitialState(0)
+    s.transportShip = { capacityPct: 0.5, stored: 1000 }
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 16
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.transportShip).toEqual({ capacityPct: 0.5, stored: 1000 })
+  })
+})

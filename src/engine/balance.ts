@@ -310,6 +310,11 @@ export const AUTO_CONQUEST_MILITARY_RESERVE_PCT = 0.1
  * - 初值 0.5 起步，由 balance-sim 三档基准校验"单目标返还 ≤ 消耗"（军力不净增防印钞）后定稿；
  * - 单目标净耗 = 50%×守卫 = 名义产出×20s < 自动攻占 30s 冷却 → 军力不构成瓶颈，漏斗转移到冷却+批量（吞吐上限 1 目标/30s，批量 ADR-0057 放大）。 */
 export const CONQUEST_MILITARY_REFUND_PCT = 0.5
+/** 运兵船池容量积累：静态 4 区攻占成功 +5% 容量比例（troop-transport，ADR-0061；周目内，NG+ 重置） */
+export const TRANSPORT_STATIC_CONQUEST_PCT = 0.05
+/** 运兵船池容量积累：boss 攻占成功 +3% 容量比例（troop-transport，ADR-0061；周目内，每层累加；
+ * 生成目标不计——对齐 ADR-0012 程序生成零永久加成红线） */
+export const TRANSPORT_BOSS_PCT = 0.03
 /** 舰队压制封顶（conquest-fleet，2026-08-09）：手动攻占舰队贡献 = min(可用战力, 守卫 × 此比例)——防 13 万满配舰队碾压守卫；
  * 0.5 = 舰队最多承担守卫一半，军力/舰队各半、两套军事系统都有存在感 */
 export const FLEET_CONQUEST_CAP_PCT = 0.5

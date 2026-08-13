@@ -323,6 +323,16 @@ export interface TechEffectEscortThroughput {
   pct: number
 }
 
+/** 科技效果：军力容量无限线（deep-armament，ADR-0060，2026-08-13）——每级 +pct 军力容量（乘数流第三轴，无封顶）。
+ * 效果 = 1 + pct×Lv；刻意打破 ADR-0055「无限科技军力不吃」红线——军力是唯一有容量截断的资源，其天花板是后期瓶颈，
+ * 需要「容量增长通道」。不进 productionMultipliers（军力不走产出倍率），由 militaryCap() 单独应用。
+ * 放大容量不推高 boss 相对难度（守卫容量锚与 cap 同步缩放、guard/cap 比例恒定）。 */
+export interface TechEffectMilitaryCapAll {
+  kind: 'militaryCapAll'
+  /** 每级军力容量加成（0.02 = +2%/级） */
+  pct: number
+}
+
 export type TechEffect =
   | TechEffectProduction
   | TechEffectUnlock
@@ -330,6 +340,7 @@ export type TechEffect =
   | TechEffectConquest
   | TechEffectProductionAll
   | TechEffectEscortThroughput
+  | TechEffectMilitaryCapAll
 
 export interface TechDef {
   id: string
@@ -618,6 +629,20 @@ export const TECHS: Record<string, TechDef> = {
     maxLevel: INFINITE_TECH_MAX_LEVEL,
     afterEnding: true,
     icon: 'ship',
+  },
+  // ---- 无限科技军力线（deep-armament，ADR-0060，2026-08-13）：第三条无限线，军力容量永续出口 ----
+  // 刻意打破 ADR-0055「军力不吃」红线：军力是唯一有容量截断的资源，容量天花板是后期瓶颈（军港成本爆炸 + 军械/虫洞双轴 Lv10 封顶）。
+  // 放大容量不推高 boss 相对难度（守卫容量锚与 cap 同步缩放、guard/cap 比例恒定）——只解决「增长通道」。
+  deepArmament: {
+    id: 'deepArmament',
+    nameKey: 'tech.deepArmament.name',
+    descKey: 'tech.deepArmament.desc',
+    descArgs: { pct: formatPercent(INFINITE_TECH_PCT_PER_LEVEL * 100), n: formatNumber(INFINITE_TECH_MAX_LEVEL) },
+    cost: INFINITE_TECH_COST_BASE,
+    effect: { kind: 'militaryCapAll', pct: INFINITE_TECH_PCT_PER_LEVEL },
+    maxLevel: INFINITE_TECH_MAX_LEVEL,
+    afterEnding: true,
+    icon: 'militaryPort',
   },
 }
 

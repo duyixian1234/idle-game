@@ -196,3 +196,35 @@ describe('engine: endless 层数永久产出加成（endless-progression，ADR-0
     expect(withNg).toBeCloseTo(base * 1.1 * (1 + 0.15 * 5), 6)
   })
 })
+
+describe('engine: 深空军备军力容量放大（ADR-0060：无限科技军力线）', () => {
+  it('无深空军备时容量与现状逐字节一致（回归保护）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.militaryTech = 5
+    expect(militaryCap(s)).toBe(7650) // (100 + 200×25) × 1.5 × 1
+  })
+
+  it('深空军备 Lv1 / Lv5 / Lv10 容量分别 ×1.02 / ×1.10 / ×1.20（基线 5100）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.deepArmament = 1
+    expect(militaryCap(s)).toBe(Math.floor(5100 * 1.02)) // 5100 × 1.02
+    s.techLevels.deepArmament = 5
+    expect(militaryCap(s)).toBe(Math.floor(5100 * 1.1)) // 5100 × 1.10
+    s.techLevels.deepArmament = 10
+    expect(militaryCap(s)).toBe(Math.floor(5100 * 1.2)) // 5100 × 1.20
+  })
+
+  it('与军械/虫洞互为独立乘法因子（军械 Lv5 ×1.5 + 虫洞 Lv10 ×2 + 深空军备 Lv10 ×1.2 → 总 ×3.6）', () => {
+    const s = prodState()
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.militaryTech = 5
+    s.upgrades.wormhole = 10
+    s.techLevels.deepArmament = 10
+    expect(militaryCap(s)).toBe(Math.floor(5100 * 1.5 * 2 * 1.2))
+  })
+})

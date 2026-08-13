@@ -583,6 +583,9 @@ export const en: Zh = {
     'Content: new targets unlock at layer {a0}',
     'Content: new targets unlocked',
     'Launch boss',
+    'Troop transport {a0} / {a1}',
+    'Deposit',
+    'Withdraw',
     ],
     overlays: [
     'Deep-Space Pioneering · Star System Federation',
@@ -691,6 +694,7 @@ export const en: Zh = {
     wormholeTheory: { name: 'Wormhole Theory', desc: 'Decodes the spacetime topology of deep-space wormholes, unlocking the "Wormhole" — a second shortcut for interstellar exploration. Requires alliances with {n} factions.' },
     deepMetallurgy: { name: 'Deep Metallurgy', desc: 'Alchemy for deep-space metals: all production +{pct} per level, a permanent sink for stockpiled minerals. Unlocked after the ending, nominal cap Lv.{n}.' },
     deepNavigation: { name: 'Deep Navigation', desc: 'Calibrates deep-space routes: escorted throughput +{pct} per level, turning large fleets into higher throughput. Unlocked after the ending, nominal cap Lv.{n}.' },
+    deepArmament: { name: 'Deep Armament', desc: 'Deep-space militarized reserve: military capacity +{pct} per level, a permanent growth channel beyond the port cost wall. Unlocked after the ending, nominal cap Lv.{n}.' },
   },
   planet: {
     barren: { name: 'Barren World P-01', desc: 'Your starting point. Shallow ore veins lie under a grey-brown surface.' },

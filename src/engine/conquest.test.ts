@@ -703,3 +703,87 @@ describe('engine: 攻占军力返还（conquest-refund，ADR-0056）', () => {
     expect(s.resources.military).toBe(militaryBefore + refund)
   })
 })
+
+describe('engine: 运兵船 boss 集成（troop-transport，ADR-0061）', () => {
+  /** boss 集成测试档：军港 25 → cap 5100、兵营 100 → 产能 50/s、池容量 50%、池内 2500 */
+  function transportBossState(): GameState {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.endingTriggered = true
+    s.planets.dawn = { unlocked: true }
+    s.planets.ice = { unlocked: true }
+    s.resources.military = 10_000_000
+    s.resources.mineral = 10_000_000_000
+    s.resources.tech = 1_000_000_000
+    s.buildings.miner = 100
+    s.buildings.solar = 100
+    s.buildings.militaryPort = 25
+    s.buildings.barracks = 100
+    s.transportShip = { capacityPct: 0.5, stored: 2500 }
+    return s
+  }
+
+  it('boss 支付池优先：池内军力足额时主容量不动，结算返还回池（残兵归库）', () => {
+    const s = transportBossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    const mainBefore = s.resources.military
+    const r = startConquest(s, 'boss:L3', guard, 0)
+    expect(r.ok).toBe(true)
+    // 池支付：stored 2500 - guard（≈2040）≈ 460；主容量不动
+    expect(s.transportShip!.stored).toBe(2500 - guard)
+    expect(s.resources.military).toBe(mainBefore)
+    // 结算成功：返还 ⌊guard×50%⌋ 回池
+    const refund = Math.floor(guard * CONQUEST_MILITARY_REFUND_PCT)
+    settleConquests(s, 30 * 60_000 + 1, () => 0)
+    expect(s.conquest['boss:L3'].status).toBe('conquered')
+    expect(s.transportShip!.stored).toBe(2500 - guard + refund)
+    expect(s.resources.military).toBe(mainBefore) // 返还进池不进主容量
+  })
+
+  it('boss 攻占成功 +3% 池容量（周目内积累）', () => {
+    const s = transportBossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    startConquest(s, 'boss:L3', guard, 0)
+    settleConquests(s, 30 * 60_000 + 1, () => 0)
+    expect(s.transportShip!.capacityPct).toBeCloseTo(0.53, 10) // 0.5 + 0.03
+  })
+
+  it('静态 4 区攻占成功 +5% 池容量（周目内积累）', () => {
+    const s = transportBossState()
+    startConquest(s, 'outpost', 500, 0) // outpost 守卫 500，ice 已解锁
+    settleConquests(s, 60 * 60_000, () => 0)
+    expect(s.conquest['outpost'].status).toBe('conquered')
+    expect(s.transportShip!.capacityPct).toBeCloseTo(0.55, 10) // 0.5 + 0.05
+  })
+
+  it('生成目标（gen: 前缀）攻占不计池容量（ADR-0012 红线）', () => {
+    const s = transportBossState()
+    const gt: GeneratedTarget = { kind: 'conquest', id: 'gen:conquest:1', name: 'gen 目标', desc: '', batch: 0, guard: 500 }
+    s.generatedTargets.push(gt)
+    s.conquest['gen:conquest:1'] = { status: 'available' }
+    startConquest(s, 'gen:conquest:1', 500, 0)
+    settleConquests(s, 60 * 60_000, () => 0)
+    expect(s.conquest['gen:conquest:1'].status).toBe('conquered')
+    expect(s.transportShip!.capacityPct).toBeCloseTo(0.5, 10) // 不变
+  })
+
+  it('池不足时主容量补（保留安全垫 cap×10%），主容量打到安全垫则拒绝发起', () => {
+    const s = transportBossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    s.transportShip!.stored = 100 // 池只有 100
+    s.resources.military = Math.floor(militaryCap(s) * 0.1) // 主容量恰好安全垫
+    const r = startConquest(s, 'boss:L3', guard, 0)
+    expect(r.ok).toBe(false) // 池 100 + 主容量 0 可付 < guard
+    expect(s.transportShip!.stored).toBe(100) // 支付不变
+    expect(s.resources.military).toBe(Math.floor(militaryCap(s) * 0.1))
+    // 主容量有富余时补足差额
+    s.resources.military = Math.floor(militaryCap(s) * 0.1) + guard - 100 + 1000
+    expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(true)
+  })
+})

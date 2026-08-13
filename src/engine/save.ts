@@ -44,6 +44,8 @@ const SCHEMA_V14 = 14
 const SCHEMA_V15 = 15
 /** 首个支持 endless 层推进进度与 autoBoss 的存档版本（endless-progression 占用） */
 const SCHEMA_V16 = 16
+/** 首个支持运兵船独立军力池的存档版本（troop-transport，ADR-0061 占用） */
+const SCHEMA_V17 = 17
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -110,6 +112,14 @@ const SAVE_SCHEMA: FieldSpec[] = [
   { key: 'archivedRounds', since: SCHEMA_V12, check: isPlainObject },
   { key: 'endless', since: SCHEMA_V9, check: isPlainObject },
   { key: 'eventsFullAuto', since: SCHEMA_V16, check: isBoolean },
+  {
+    key: 'transportShip',
+    since: SCHEMA_V17,
+    check: (v) =>
+      isPlainObject(v) &&
+      typeof (v as { capacityPct?: unknown }).capacityPct === 'number' &&
+      typeof (v as { stored?: unknown }).stored === 'number',
+  },
   { key: 'resources', check: isResourceMap },
   { key: 'buildings', check: isPlainObject },
   { key: 'upgrades', check: isPlainObject },
@@ -566,6 +576,18 @@ function migrateV15ToV16(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** v16 → v17：运兵船独立军力池缺省（troop-transport，ADR-0061）。
+ * - transportShip 缺省 = 无池（undefined）——纯增量可选字段，无存量数据改写；
+ *   旧档加载后池容量 C 从 0 起步（静态区攻占后 +5%），层数/boss 进度原样保留。 */
+function migrateV16ToV17(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  if (!isPlainObject(next.transportShip)) {
+    next.transportShip = { capacityPct: 0, stored: 0 }
+  }
+  next.schemaVersion = SCHEMA_V17
+  return next
+}
+
 /**
  * 迁移旧版本存档到当前版本。
  * - v1 存档（有 researched 无 techLevels）→ 转 v2 → 转 v3 → 转 v4 → 转 v5 → 转 v6 → 转 v7 → 转 v8
@@ -608,6 +630,7 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V13) cur = migrateV13ToV14(cur)
   if (cur.schemaVersion === SCHEMA_V14) cur = migrateV14ToV15(cur)
   if (cur.schemaVersion === SCHEMA_V15) cur = migrateV15ToV16(cur)
+  if (cur.schemaVersion === SCHEMA_V16) cur = migrateV16ToV17(cur)
   // 事件契约迁移对任意进入版本执行：v1-v14 链式迁移后必已 ≥ v14，v15 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   // save-size-opt（ADR-0058）：存量已归档 generatedTargets 条目幂等压缩（conquest/faction 白名单，planet 原样）——运行时行为，非结构变更

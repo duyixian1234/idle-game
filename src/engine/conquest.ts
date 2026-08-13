@@ -1,12 +1,13 @@
 import { t } from '../i18n'
 import { CONQUESTS, TECHS, defName } from './data'
 import type { ConquestDef } from './data'
-import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, BOSS_GUARD_CAP_LAYER_GROWTH, BOSS_GUARD_CAP_PCT, BOSS_GUARD_MAX_SECONDS, BOSS_GUARD_PROD_LAYER_GROWTH, BOSS_GUARD_PROD_SECONDS, BOSS_REWARD_LAYER_GROWTH, BOSS_REWARD_MINERAL_SECONDS, BOSS_REWARD_TECH_SECONDS, CONQUEST_MILITARY_REFUND_PCT, ENDLESS_CONQUEST_LAYER_PROGRESS, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES } from './balance'
+import { AUTO_CONQUEST_COOLDOWN_MS, AUTO_CONQUEST_MILITARY_RESERVE_PCT, BOSS_GUARD_CAP_LAYER_GROWTH, BOSS_GUARD_CAP_PCT, BOSS_GUARD_MAX_SECONDS, BOSS_GUARD_PROD_LAYER_GROWTH, BOSS_GUARD_PROD_SECONDS, BOSS_REWARD_LAYER_GROWTH, BOSS_REWARD_MINERAL_SECONDS, BOSS_REWARD_TECH_SECONDS, CONQUEST_MILITARY_REFUND_PCT, ENDLESS_CONQUEST_LAYER_PROGRESS, FLEET_CONQUEST_CAP_PCT, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES, TRANSPORT_BOSS_PCT, TRANSPORT_STATIC_CONQUEST_PCT } from './balance'
 import { advanceEndlessLayer, endlessBossAvailable, endlessLayer } from './events'
 import { playMilestone } from './story'
 import { reputationBonuses } from './reputation'
 import { militaryCap, netProduction, nominalMilitaryProduction } from './production'
 import { fleetAvailablePower } from './fleet'
+import { bossCanPay, bossMilitaryPay, addTransportCapacity, transportCapacity } from './troop-transport'
 import { rollDomain } from './rng'
 import { techLevel } from './tech'
 import { formatNumber, formatPercent } from './format'
@@ -167,13 +168,20 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
   if (!def) return { ok: false, reason: t('log.conquest.0') }
   if (!isConquestAvailable(state, id)) return { ok: false, reason: t('log.conquest.1') }
   if (!Number.isFinite(invest) || invest <= 0) return { ok: false, reason: t('log.conquest.2') }
-  if (state.resources.military < invest) return { ok: false, reason: t('log.conquest.3') }
+  // boss 军力挑战（troop-transport，ADR-0061）：boss 目标军力投入走运兵船池（池优先、主容量补保留安全垫），
+  // 手动与 autoBoss 一致；普通目标维持主容量支付。
+  const isBoss = id.startsWith('boss:L')
+  if (isBoss) {
+    if (!bossMilitaryPay(state, invest)) return { ok: false, reason: t('log.conquest.3') }
+  } else {
+    if (state.resources.military < invest) return { ok: false, reason: t('log.conquest.3') }
+    state.resources.military -= invest
+  }
   const target = state.generatedTargets.find((x) => x.kind === 'conquest' && x.id === id)
   const costMineral = target?.costMineral ?? 0
   const costEnergy = target?.costEnergy ?? 0
   if (state.resources.mineral < costMineral) return { ok: false, reason: t('log.conquest.4') }
   if (state.resources.energy < costEnergy) return { ok: false, reason: t('log.conquest.5') }
-  state.resources.military -= invest
   state.resources.mineral -= costMineral
   state.resources.energy -= costEnergy
   const cs: ConquestState = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
@@ -241,19 +249,32 @@ function settleOneConquest(
     const rewards: string[] = []
     // 攻占产出乘数（conquest-guard-cap）：结算时按当前科技等级实时乘（Q10；静态+动态全适用 Q12）
     const rewardMult = conquestRewardMult(state)
-    // 军力返还（conquest-refund，ADR-0056）：残兵归队——成功时返还 ⌊投入军力 × 返还率⌋，
-    // 受军力容量截断（返还量 clamp 到剩余容量，溢出浪费）；失败分支无返还（全损保留）。
+    // 军力返还（conquest-refund，ADR-0056 + troop-transport，ADR-0061）：残兵归队——
+    // 成功时返还 ⌊投入军力 × 返还率⌋；boss 目标返还回运兵船池（残兵归库，池容量截断），
+    // 普通目标返还主容量（军力容量截断）。失败分支无返还（全损保留）。
     // 按 invested 实际投入而非守卫（防薄投刷军力）；fleetLocked 是舰队战力折算、非军力消耗，不参与。
-    // 截断实现：min(refund, 剩余容量) —— 存量已超 cap（异常态）时返还 0，不压低既有存量。
+    const isBoss = id.startsWith('boss:L')
     const refund = Math.floor(invest * CONQUEST_MILITARY_REFUND_PCT)
     if (refund > 0) {
-      const room = Math.max(0, militaryCap(state) - state.resources.military)
-      const actual = Math.min(refund, room)
-      if (actual > 0) {
-        state.resources.military += actual
-        rewards.push(t('cq.12', { a0: formatNumber(actual) }))
+      if (isBoss && state.transportShip) {
+        const room = Math.max(0, transportCapacity(state) - state.transportShip.stored)
+        const actual = Math.min(refund, room)
+        if (actual > 0) {
+          state.transportShip.stored += actual
+          rewards.push(t('cq.12', { a0: formatNumber(actual) }))
+        }
+      } else {
+        const room = Math.max(0, militaryCap(state) - state.resources.military)
+        const actual = Math.min(refund, room)
+        if (actual > 0) {
+          state.resources.military += actual
+          rewards.push(t('cq.12', { a0: formatNumber(actual) }))
+        }
       }
     }
+    // 运兵船池容量积累（troop-transport，ADR-0061）：静态 4 区 +5%、boss +3%（周目内）；生成目标不计（ADR-0012）
+    if (isStatic) addTransportCapacity(state, TRANSPORT_STATIC_CONQUEST_PCT)
+    else if (isBoss) addTransportCapacity(state, TRANSPORT_BOSS_PCT)
     if (def.rewardMineral) {
       state.resources.mineral += Math.floor(def.rewardMineral * rewardMult)
       rewards.push(t('cq.0', { a0: formatNumber(Math.floor(def.rewardMineral * rewardMult)) }))
@@ -342,8 +363,13 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
   for (const gt of candidates) {
     const guard = gt.guard ?? 0
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
-    // 军力不足：候选已按守卫升序 → 当前打不起则后续守卫更大更打不起（单调屏障），break 结束本冷却周期
-    if (state.resources.military < guard + reserve) break
+    // 军力不足：候选已按守卫升序 → 当前打不起则后续守卫更大更打不起（单调屏障），break 结束本冷却周期。
+    // boss 目标（autoBoss）：走运兵船池资格判定（池 + 主容量（保留安全垫）可付，troop-transport，ADR-0061）。
+    if (gt.id.startsWith('boss:L')) {
+      if (!bossCanPay(state, guard)) break
+    } else if (state.resources.military < guard + reserve) {
+      break
+    }
     // 自动攻占纯军力（useFleet=false，conquest-fleet Q6）：舰队锁定 = 防御真空取舍，自动系统不替玩家做
     const r = startConquest(state, gt.id, guard, nowMs, undefined, false)
     if (r.ok) {

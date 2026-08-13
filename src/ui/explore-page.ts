@@ -13,6 +13,7 @@ import {endlessBatchUnlocked, endlessTargetId} from '../engine/generate'
 import {iconUse} from './icons'
 import {renderAsciiBar} from './render/shared'
 import {escapeHtml} from './helpers'
+import {transportCapacity} from '../engine/troop-transport'
 
 /**
  * 渲染探索页（一级 tab 内嵌）：
@@ -244,6 +245,10 @@ function renderEndlessPanel(state: GameState): string {
       : t('ui.explorePage.42', { a0: formatNumber(bossDef!.guard), a1: formatNumber(bossDef!.rewardMineral ?? 0), a2: formatNumber(bossDef!.rewardTech ?? 0) })
   // autoBoss 开关（默认关；开启后由自动攻占系统按冷却发起）
   const autoBossChecked = state.endless?.autoBoss === true
+  // 运兵船独立军力池（troop-transport，ADR-0061）：boss 专用军力储备显示 + 一键存入/取出
+  const tsStored = state.transportShip?.stored ?? 0
+  const tsCapacity = transportCapacity(state)
+  const tsText = t('ui.explorePage.49', { a0: formatNumber(tsStored), a1: formatNumber(tsCapacity) })
   // 已解锁内容批次：batch 3+（关键层批次）在层数达标后进入探索池（ticket 05）
   const contentText = endlessBatchUnlocked(state, 3)
     ? t('ui.explorePage.47')
@@ -255,6 +260,10 @@ function renderEndlessPanel(state: GameState): string {
       <div class="explore-endless-content" data-endless-content>${escapeHtml(contentText)}</div>
       <div class="explore-endless-boss" data-endless-boss-state>${escapeHtml(bossState)}</div>
       <div class="explore-endless-reward" data-endless-reward>${t('ui.explorePage.44', { a0: formatMultiplier(nextLayerMult) })}</div>
+      <div class="explore-endless-transport" data-endless-transport>${escapeHtml(tsText)}
+        <button type="button" class="ending-btn" data-transport-deposit>${t('ui.explorePage.50')}</button>
+        <button type="button" class="ending-btn" data-transport-withdraw>${t('ui.explorePage.51')}</button>
+      </div>
       <div class="explore-auto" data-auto-boss-row>
         <label class="escort-toggle-label"><input type="checkbox" data-endless-auto-boss ${autoBossChecked ? 'checked' : ''}>${t('ui.explorePage.45')}</label>
         ${bossReady && !bossDefeated ? `<button type="button" class="ending-btn primary" data-endless-boss-launch="${escapeHtml(bossId ?? '')}">${t('ui.explorePage.48')}</button>` : ''}

@@ -1,5 +1,6 @@
 import { MEGASTRUCTURE_BUILDINGS, PLANETS } from '../../engine/data'
 import { conquestDef, ensureEndlessBoss } from '../../engine/conquest'
+import { depositMilitary, withdrawMilitary } from '../../engine/troop-transport'
 import { pushLog } from '../../engine/core'
 import { advanceTutorial, skipTutorial } from '../../engine/tutorial'
 import { setLanguage } from '../../i18n'
@@ -445,6 +446,23 @@ export function bindListeners(ctx: SessionCtx): void {
       if (boss && bossId) {
         dispatch(state, 'conquest', { id: bossId, invest: boss.guard }, deps)
       }
+      return
+    }
+    // 运兵船池存取（troop-transport，ADR-0061）：一键存入/取出全部可用量（受各自容量截断）
+    const depositBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-transport-deposit]')
+    if (depositBtn) {
+      const state = getState()
+      depositMilitary(state, state.resources.military)
+      render()
+      void deps.save()
+      return
+    }
+    const withdrawBtn = (e.target as HTMLElement).closest<HTMLElement>('[data-transport-withdraw]')
+    if (withdrawBtn) {
+      const state = getState()
+      withdrawMilitary(state, state.transportShip?.stored ?? 0)
+      render()
+      void deps.save()
       return
     }
   })

@@ -151,8 +151,17 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v16 = endless 层推进进度 + autoBoss；v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 16
+/** 存档 schema 版本（v17 = 运兵船独立军力池；v16 = endless 层推进进度 + autoBoss；v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 17
+
+/** 运兵船独立军力池（v17 新增，ADR-0061）：boss 专用军力存储通道。
+ * - capacityPct：池容量比例（池容量 = 军力容量 × capacityPct），由攻占积累（静态区 +5%、boss +3%），周目内重置
+ * - stored：池内军力存量，仅 boss 出征支付源（池优先、主容量补保留安全垫），boss 打赢返还回池
+ * 可选字段（undefined = 无池，旧档/新档迁移缺省） */
+export interface TransportShipState {
+  capacityPct: number
+  stored: number
+}
 
 /** 区域攻占状态：locked（未解锁）/ available（可发起）/ conquered（已攻占） */
 export type ConquestStatus = 'locked' | 'available' | 'conquered'
@@ -413,6 +422,8 @@ export interface GameState {
   diplomacyAuto?: DiplomacyAutoConfig
   /** 一键全自动事件开关（v16 新增，默认 false）：开启后等价于五类自动化策略全部启用（按各自 fallback 结算） */
   eventsFullAuto?: boolean
+  /** 运兵船独立军力池（v17 新增，ADR-0061；可选字段，缺省 = 无池） */
+  transportShip?: TransportShipState
   /** 下一条派遣 id（递增；v6 新增） */
   nextExpeditionId: number
   /** 派系外交状态：factionId -> FactionState */

@@ -353,3 +353,24 @@ describe('engine: 无限科技 sink（infinite-tech，ADR-0055）', () => {
     expect(canTechUpgrade(def, 100)).toBe(false)
   })
 })
+
+describe('engine: 深空军备军力线（ADR-0060：无限科技军力容量线）', () => {
+  it('深空军备：可研发（通关后）且 militaryCapAll kind 可升级至名义 maxLevel', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.resources.mineral = 1e18
+    s.resources.tech = 1e18
+    expect(canResearchTech(s, 'deepArmament')).toBe(true)
+    expect(researchTech(s, 'deepArmament')).toEqual({ ok: true })
+    for (let lv = 1; lv < 10; lv++) expect(upgradeTech(s, 'deepArmament')).toEqual({ ok: true })
+    expect(s.techLevels.deepArmament).toBe(10)
+    // 成本曲线与深空冶金同族（base 1e9 矿 + 2e8 科）
+    expect(techCost(s, 'deepArmament')).toMatchObject({ mineral: Math.ceil(1_000_000_000 * 1.7 ** 10), tech: Math.ceil(200_000_000 * 1.7 ** 10) })
+    const def = TECHS.deepArmament
+    expect(def.effect.kind).toBe('militaryCapAll')
+    s.techLevels.deepArmament = 99
+    expect(canTechUpgrade(def, 99)).toBe(true)
+    s.techLevels.deepArmament = 100
+    expect(canTechUpgrade(def, 100)).toBe(false)
+  })
+})

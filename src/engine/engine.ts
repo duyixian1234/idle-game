@@ -78,6 +78,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     hiddenBuildings: [],
     diplomacyAuto: { enabled: false },
     eventsFullAuto: false,
+    transportShip: { capacityPct: 0, stored: 0 },
     nextExpeditionId: 1,
     factions: createFactions(),
     planetStaySeconds: 0,
@@ -406,6 +407,8 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
   const conquestReset: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}
   for (const def of Object.values(CONQUESTS)) conquestReset[def.id] = { status: 'locked' }
   state.conquest = conquestReset
+  // 运兵船独立军力池（ADR-0061）：周目内语义，NG+ 归零（对齐科技等级重置；层数轴跨周目继承，池随周目重积累）
+  state.transportShip = { capacityPct: 0, stored: 0 }
   state.phase = 'playing'
   state.endingTriggered = false
   state.lastTick = nowMs
