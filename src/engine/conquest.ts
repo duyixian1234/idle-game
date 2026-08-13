@@ -355,16 +355,26 @@ function feeOf(gt: GeneratedTarget): number {
  * - 离线由 settleOffline 按冷却周期批量推进（虚拟时钟）。
  */
 export function autoConquestTick(state: GameState, nowMs: number): string[] {
+  // autoBoss 独立于 autoConquest（ADR-0061 修订，2026-08-13）：autoBoss 开启即自动发起 boss，
+  // 不依赖 autoConquest 开启（boss 与普通生成目标是两条独立自动化能力；autoConquest 关闭时普通目标不自动发起）。
+  const autoConq = state.autoConquest?.enabled === true
+  const autoBoss = state.endless?.autoBoss === true
+  if (!autoConq && !autoBoss) return []
   const cfg = state.autoConquest
-  if (!cfg?.enabled) return []
-  if (cfg.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
+  // 冷却：autoConquest 与 autoBoss 共享同一冷却周期；boss-only 模式（autoConquest 未开启）无配置时
+  // 首个 tick 直接尝试，发起成功后创建配置（enabled=false，仅持久化 lastActionAt）
+  if (cfg?.lastActionAt != null && nowMs - cfg.lastActionAt < AUTO_CONQUEST_COOLDOWN_MS) return []
   // 确保当前层 boss 目标存在（autoBoss 开启时由本函数纳入候选）
   ensureEndlessBoss(state)
   const candidates = state.generatedTargets
     .filter((gt) => {
       if (gt.kind !== 'conquest') return false
-      // boss 军力挑战（ADR-0053）：仅 autoBoss 开启时纳入自动候选（默认关 = 手动发起）
-      if (isBossTarget(gt.id) && state.endless?.autoBoss !== true) return false
+      // boss 目标仅 autoBoss 开启时纳入自动候选（默认关 = 手动发起）；普通目标仅 autoConquest 开启时纳入
+      if (isBossTarget(gt.id)) {
+        if (!autoBoss) return false
+      } else if (!autoConq) {
+        return false
+      }
       const cs = state.conquest[gt.id]
       if (cs?.status !== 'available' || cs.startedAt != null) return false
       return (gt.guard ?? 0) > 0
@@ -376,7 +386,8 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     const guard = gt.guard ?? 0
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
     // 军力不足：候选已按守卫升序 → 当前打不起则后续守卫更大更打不起（单调屏障），break 结束本冷却周期。
-    // boss 目标（autoBoss）：走运兵船池资格判定（池 + 主容量（保留安全垫）可付，troop-transport，ADR-0061）。
+    // boss 目标（autoBoss）：走运兵船池资格判定（池 + 主容量全量可付，突破安全垫，troop-transport，ADR-0061）；
+    // 普通目标仍保留安全垫保底（自动系统不替玩家抽干 raid/探索军力）。
     if (isBossTarget(gt.id)) {
       if (!bossCanPay(state, guard)) break
     } else if (state.resources.military < guard + reserve) {
@@ -390,9 +401,15 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     }
     if (r.reason === t('cq.8') || r.reason === t('cq.9') || r.reason === '矿物不足' || r.reason === '能源不足') {
       // 经济费不足：非单调屏障（后续目标资源费可能更低）→ continue + pausedAt，冷却后重试
-      cfg.pausedAt = nowMs
+      // （仅普通目标触发；boss 目标无资源费。boss-only 模式下 cfg 可能未配置 → 无 pausedAt 可写）
+      if (cfg) cfg.pausedAt = nowMs
     }
   }
-  if (logs.length > 0) cfg.lastActionAt = nowMs // 批量成功后统一更新（本 tick 只进一次冷却判定）
+  if (logs.length > 0) {
+    // 批量成功后统一更新冷却（本 tick 只进一次冷却判定）。
+    // boss-only 模式（autoBoss 开启但 autoConquest 未配置）→ 创建配置（enabled=false，仅持久化 lastActionAt）
+    if (state.autoConquest) state.autoConquest.lastActionAt = nowMs
+    else state.autoConquest = { enabled: false, lastActionAt: nowMs }
+  }
   return logs
 }

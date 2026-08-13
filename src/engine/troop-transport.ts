@@ -1,5 +1,5 @@
 import { militaryCap } from './production'
-import { AUTO_CONQUEST_MILITARY_RESERVE_PCT, TRANSPORT_BASE_POOL_PCT, TRANSPORT_LAYER_GROWTH_PCT } from './balance'
+import { TRANSPORT_BASE_POOL_PCT, TRANSPORT_LAYER_GROWTH_PCT } from './balance'
 import { endlessLayer } from './events'
 import type { GameState } from './types'
 
@@ -56,22 +56,27 @@ export function withdrawMilitary(state: GameState, amount: number): number {
   return actual
 }
 
-/** 只读判断：boss 出征军力是否可付（池可付 + 主容量可付（保留安全垫）≥ invested；无副作用）。
- * 供 autoConquestTick 预检查与 bossMilitaryPay 复用（批量屏障/发起资格判定）。 */
+/**
+ * 只读判断：boss 出征军力是否可付（池可付 + 主容量全量可付 ≥ invested；无副作用）。
+ * 供 autoConquestTick 预检查与 bossMilitaryPay 复用（批量屏障/发起资格判定）。
+ *
+ * **boss 突破安全垫（ADR-0061 修订，2026-08-13）**：主容量支付不保留 cap×10% 安全垫——
+ * 池已隔离 boss 消耗、boss 发起（手动/autoBoss）是玩家主动决策，主容量全量计入可付。
+ * 自动攻占普通目标的保底语义不受影响（autoConquestTick 对非 boss 目标仍按
+ * `military < guard + reserve` 保留安全垫）。修复「池+主容量总量够守卫但被安全垫锁死」的失败场景。
+ */
 export function bossCanPay(state: GameState, invested: number): boolean {
   const ts = state.transportShip
   const pool = ts ? ts.stored : 0
-  let remaining = invested - Math.min(pool, invested)
+  const remaining = invested - Math.min(pool, invested)
   if (remaining <= 0) return true
-  const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
-  const mainRoom = Math.max(0, state.resources.military - reserve)
-  return mainRoom >= remaining
+  return state.resources.military >= remaining
 }
 
 /**
- * boss 出征支付：池优先，池不足主容量补（保留安全垫 cap × AUTO_CONQUEST_MILITARY_RESERVE_PCT，
- * 对齐 autoConquest 保底语义防抽干 raid/探索军力）；不足返回 false（不发起，支付不变）。
- * 手动与 autoBoss 一致（Q16）。
+ * boss 出征支付：池优先，池不足主容量补（主容量全量可付，**不保留安全垫**——
+ * 池已隔离 boss 消耗，主动发起是玩家决策；自动攻占普通目标的保底由 autoConquestTick 单独保证）。
+ * 不足返回 false（不发起，支付不变）。手动与 autoBoss 一致。
  */
 export function bossMilitaryPay(state: GameState, invested: number): boolean {
   if (!bossCanPay(state, invested)) return false

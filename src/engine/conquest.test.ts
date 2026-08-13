@@ -597,6 +597,22 @@ describe('engine: boss 军力挑战（endless-progression，ADR-0053）', () => 
     expect(logs.some((l) => l.includes('boss:L3') || l.includes('无尽守卫'))).toBe(true)
     expect(s.conquest['boss:L3'].startedAt).toBe(0)
   })
+
+  it('autoBoss 独立生效（ADR-0061 修订）：autoConquest 未开启时，autoBoss 开启仍自动发起 boss；冷却持久化到配置', () => {
+    const s = bossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    expect(s.autoConquest?.enabled).toBe(false) // autoConquest 配置存在但关闭
+    // 仅开启 autoBoss（autoConquest 保持关闭）
+    s.endless.autoBoss = true
+    const logs = autoConquestTick(s, 0)
+    expect(logs.some((l) => l.includes('boss:L3') || l.includes('无尽守卫'))).toBe(true)
+    expect(s.conquest['boss:L3'].startedAt).toBe(0)
+    // boss-only 模式冷却写入：lastActionAt 持久化到已有配置
+    expect(s.autoConquest).toEqual({ enabled: false, lastActionAt: 0 })
+    // 冷却期内不重复发起
+    expect(autoConquestTick(s, 10_000)).toEqual([])
+  })
 })
 
 describe('engine: 攻占军力返还（conquest-refund，ADR-0056）', () => {
@@ -771,20 +787,32 @@ describe('engine: 运兵船 boss 集成（troop-transport，ADR-0061）', () => 
     expect(s.transportShip!.capacityPct).toBeCloseTo(0.5, 10) // 不变
   })
 
-  it('池不足时主容量补（保留安全垫 cap×10%），主容量打到安全垫则拒绝发起', () => {
+  it('池不足时主容量全量补（boss 突破安全垫，ADR-0061 修订）；池+主容量总量不足则拒绝', () => {
     const s = transportBossState()
     s.endless.layer = 3
     ensureEndlessBoss(s)
     const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
-    s.transportShip!.stored = 100 // 池只有 100
-    s.resources.military = Math.floor(militaryCap(s) * 0.1) // 主容量恰好安全垫
+    // 池 100 + 主容量（全量可付，含安全垫部分）610 < 守卫 → 拒绝
+    s.transportShip!.stored = 100
+    s.resources.military = Math.floor(militaryCap(s) * 0.1) // 主容量恰好安全垫（510）
     const r = startConquest(s, 'boss:L3', guard, 0)
-    expect(r.ok).toBe(false) // 池 100 + 主容量 0 可付 < guard
+    expect(r.ok).toBe(false) // 池 100 + 主容量 510 = 610 < guard
     expect(s.transportShip!.stored).toBe(100) // 支付不变
     expect(s.resources.military).toBe(Math.floor(militaryCap(s) * 0.1))
-    // 主容量有富余时补足差额
-    s.resources.military = Math.floor(militaryCap(s) * 0.1) + guard - 100 + 1000
-    expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(true)
+    // boss 突破安全垫：主容量低于安全垫但池+主容量 ≥ 守卫 → 仍可发起（主容量全量可付）
+    const s2 = transportBossState()
+    s2.endless.layer = 3
+    ensureEndlessBoss(s2)
+    s2.transportShip!.stored = guard - 400 // 池补足差额（池容量 2805 ≥ 1640）
+    s2.resources.military = 400 // 低于安全垫 510
+    expect(startConquest(s2, 'boss:L3', guard, 0).ok).toBe(true)
+    expect(s2.transportShip!.stored).toBe(0) // 池优先全额支付（1640）
+    expect(s2.resources.military).toBe(0) // 主容量补剩余 400（突破安全垫全付）
+    // 池+主容量总量不足 → 拒绝
+    s.transportShip!.stored = 100
+    s.resources.military = 300
+    expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(false)
+    expect(s.transportShip!.stored).toBe(100)
   })
 })
 

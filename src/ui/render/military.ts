@@ -7,7 +7,7 @@ import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { ConquestDef } from '../../engine/data'
 import { CONQUESTS, ENDLESS_CONQUESTS, MILITARY_BUILDINGS, PLANETS, RESOURCE_META, TECHS, defName, defDesc} from '../../engine/data'
-import { conquestDef, conquestState, isConquestAvailable } from '../../engine/conquest'
+import { conquestDef, conquestState, isConquestAvailable, isBossTarget } from '../../engine/conquest'
 import { endlessBatchUnlocked, endlessTargetId } from '../../engine/generate'
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, techCost, techLevel } from '../../engine/tech'
 import { techMultiplier } from '../../engine/production'
@@ -225,9 +225,10 @@ export function renderMilitaryPanel(el: HTMLElement, state: GameState, opts: Bui
       conquestGrid.appendChild(renderConquestRow(def, state, fleetEnabled, opts.conquestInputs?.[def.id]))
     }
   }
-  // 无尽生成军事目标（动态）
+  // 无尽生成军事目标（动态）；boss:L 目标由无尽面板管理（ADR-0061 单入口），不出现在军事攻占列表
   for (const gt of state.generatedTargets) {
     if (gt.kind !== 'conquest') continue
+    if (isBossTarget(gt.id)) continue
     const def = conquestDef(state, gt.id)
     if (!def) continue
     if (state.archivedRounds?.[gt.id] != null || conquestState(state, gt.id).status === 'conquered') {
