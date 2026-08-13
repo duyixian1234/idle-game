@@ -96,6 +96,12 @@ export function endlessBossId(state: GameState): string | null {
   return `boss:L${layer}`
 }
 
+/** boss 目标判定（troop-transport，ADR-0061）：id 前缀 `boss:L`（endless boss 军力挑战）。
+ * 载荷分类器：boss 的支付源（池优先）、返还去向（回池）、容量积累（+3%）、autoBoss 候选均以此为界。 */
+export function isBossTarget(id: string): boolean {
+  return id.startsWith('boss:L')
+}
+
 /** 确保当前层 boss 目标存在（幂等）：layer%3===0 且未获得时注入 generatedTargets + conquest 可用态。
  * boss 复用攻占结算管线（发起/守卫/结算/奖励）；autoBoss 开启后由自动系统按冷却发起。 */
 export function ensureEndlessBoss(state: GameState): string | null {
@@ -170,18 +176,24 @@ export function startConquest(state: GameState, id: string, invest: number, nowM
   if (!Number.isFinite(invest) || invest <= 0) return { ok: false, reason: t('log.conquest.2') }
   // boss 军力挑战（troop-transport，ADR-0061）：boss 目标军力投入走运兵船池（池优先、主容量补保留安全垫），
   // 手动与 autoBoss 一致；普通目标维持主容量支付。
-  const isBoss = id.startsWith('boss:L')
-  if (isBoss) {
-    if (!bossMilitaryPay(state, invest)) return { ok: false, reason: t('log.conquest.3') }
-  } else {
-    if (state.resources.military < invest) return { ok: false, reason: t('log.conquest.3') }
-    state.resources.military -= invest
-  }
+  // ⚠️ 扣费顺序：全部校验（军力/矿/能）通过后再原子扣除——失败发起不消耗任何资源（含资源费不足时军力不白扣）。
+  const isBoss = isBossTarget(id)
   const target = state.generatedTargets.find((x) => x.kind === 'conquest' && x.id === id)
   const costMineral = target?.costMineral ?? 0
   const costEnergy = target?.costEnergy ?? 0
+  if (isBoss) {
+    // 只读资格判定（bossCanPay 无副作用）；实际扣费在全部校验通过后走 bossMilitaryPay
+    if (!bossCanPay(state, invest)) return { ok: false, reason: t('log.conquest.3') }
+  } else if (state.resources.military < invest) {
+    return { ok: false, reason: t('log.conquest.3') }
+  }
   if (state.resources.mineral < costMineral) return { ok: false, reason: t('log.conquest.4') }
   if (state.resources.energy < costEnergy) return { ok: false, reason: t('log.conquest.5') }
+  if (isBoss) {
+    bossMilitaryPay(state, invest) // 资格已校验通过，必成功（实际扣费：池优先 + 主容量补）
+  } else {
+    state.resources.military -= invest
+  }
   state.resources.mineral -= costMineral
   state.resources.energy -= costEnergy
   const cs: ConquestState = { status: 'available', startedAt: nowMs, finishAt: nowMs + rollConquestDuration(state, rng), invested: invest }
@@ -253,7 +265,7 @@ function settleOneConquest(
     // 成功时返还 ⌊投入军力 × 返还率⌋；boss 目标返还回运兵船池（残兵归库，池容量截断），
     // 普通目标返还主容量（军力容量截断）。失败分支无返还（全损保留）。
     // 按 invested 实际投入而非守卫（防薄投刷军力）；fleetLocked 是舰队战力折算、非军力消耗，不参与。
-    const isBoss = id.startsWith('boss:L')
+    const isBoss = isBossTarget(id)
     const refund = Math.floor(invest * CONQUEST_MILITARY_REFUND_PCT)
     if (refund > 0) {
       if (isBoss && state.transportShip) {
@@ -306,7 +318,7 @@ function settleOneConquest(
     // endless 层推进（endless-progression）：每次征服 +0.04（平滑进度制，跨 NG+ 继承）
     advanceEndlessLayer(state, ENDLESS_CONQUEST_LAYER_PROGRESS)
     // boss 军力挑战（ADR-0053）：攻克当前层 boss → bossDefeated 计数 + 层数 +1（boss 击败路径保留）
-    if (id.startsWith('boss:L')) {
+    if (isBossTarget(id)) {
       state.endless.bossDefeated = (state.endless.bossDefeated ?? 0) + 1
       advanceEndlessLayer(state, 1)
       // 下一层 boss 由 ensureEndlessBoss 在后续 tick 注入（当前层已归档）
@@ -352,7 +364,7 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     .filter((gt) => {
       if (gt.kind !== 'conquest') return false
       // boss 军力挑战（ADR-0053）：仅 autoBoss 开启时纳入自动候选（默认关 = 手动发起）
-      if (gt.id.startsWith('boss:L') && state.endless?.autoBoss !== true) return false
+      if (isBossTarget(gt.id) && state.endless?.autoBoss !== true) return false
       const cs = state.conquest[gt.id]
       if (cs?.status !== 'available' || cs.startedAt != null) return false
       return (gt.guard ?? 0) > 0
@@ -365,7 +377,7 @@ export function autoConquestTick(state: GameState, nowMs: number): string[] {
     const reserve = Math.floor(militaryCap(state) * AUTO_CONQUEST_MILITARY_RESERVE_PCT)
     // 军力不足：候选已按守卫升序 → 当前打不起则后续守卫更大更打不起（单调屏障），break 结束本冷却周期。
     // boss 目标（autoBoss）：走运兵船池资格判定（池 + 主容量（保留安全垫）可付，troop-transport，ADR-0061）。
-    if (gt.id.startsWith('boss:L')) {
+    if (isBossTarget(gt.id)) {
       if (!bossCanPay(state, guard)) break
     } else if (state.resources.military < guard + reserve) {
       break

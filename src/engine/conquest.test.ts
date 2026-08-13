@@ -787,3 +787,19 @@ describe('engine: 运兵船 boss 集成（troop-transport，ADR-0061）', () => 
     expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(true)
   })
 })
+
+describe('engine: 发起失败不消耗资源（扣费顺序回归）', () => {
+  it('资源费不足（costMineral 不够）→ 发起失败，军力不白扣、不写 conquest 态', () => {
+    const s = conquestState()
+    const gt: GeneratedTarget = { kind: 'conquest', id: 'gen:conquest:fail', name: 'x', desc: '', batch: 0, guard: 500, costMineral: 9_000_000, costEnergy: 0 }
+    s.generatedTargets.push(gt)
+    s.conquest['gen:conquest:fail'] = { status: 'available' }
+    s.resources.mineral = 1_000 // 不够 costMineral
+    s.resources.military = 50_000
+    const r = startConquest(s, 'gen:conquest:fail', 500, 0)
+    expect(r.ok).toBe(false)
+    expect(s.resources.military).toBe(50_000) // 军力不白扣（校验通过后才扣）
+    expect(s.resources.mineral).toBe(1_000)
+    expect(s.conquest['gen:conquest:fail'].startedAt).toBeUndefined()
+  })
+})

@@ -458,6 +458,7 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
     for (const [label, { layer, lv, layer2, lv2 }] of Object.entries({
       毕业档: { layer: 20, lv: 50, layer2: 21, lv2: 55 },
       NG5: { layer: 40, lv: 90, layer2: 41, lv2: 95 },
+      普通通关: { layer: 8, lv: 20, layer2: 9, lv2: 25 },
     })) {
       const s = createInitialState(0)
       s.phase = 'infinite'
@@ -509,6 +510,9 @@ describe('balance: 三档基准（endless-progression spec，ADR-0053/0055）', 
       expect(guard - refund).toBeGreaterThan(0)
       // 挤占缓解：单次 boss 支付后主容量完全不动（池足额支付），探索/raid 安全垫不受影响
       expect(s.resources.military).toBe(1e9)
+      // 挤占缓解比例 = 池容量/守卫：C=38% 时池能覆盖同层守卫（守卫 ≤ cap/3×(1+0.10×(l-1))，l=12 → ≤ 0.53cap；
+      // 池容量 0.38cap < 0.53cap 无法全隔离，但已覆盖大部分守卫（绝对缓解 + 主容量兜底）
+      expect(transportCapacity(s) / guard).toBeGreaterThan(0.7)
       // C 成长节奏：每层 +3% 池容量 vs 守卫容量锚 +10%/层 → C 增速 < 守卫增速（渐进回退主容量兜底，接受）
       expect(TRANSPORT_BOSS_PCT).toBeLessThan(BOSS_GUARD_CAP_LAYER_GROWTH)
     }

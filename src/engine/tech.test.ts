@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from './engine'
+import { createInitialState, startNewGamePlus } from './engine'
 import { canResearchTech, canTechUpgrade, canUpgradeTech, isTechResearched, researchTech, techCost, techRequirementsMet, upgradeTech } from './tech'
 import { alliedCount } from './core'
 import { buyBuilding, isBuildingUnlocked } from './buildings'
 import { TECH_MAX_LEVEL, TECH_UPGRADE_GROWTH } from './balance'
-import { netProduction, productionMultipliers } from './production'
+import { netProduction, productionMultipliers, militaryCap } from './production'
 import { escortThroughputMult } from './exploration'
 import { TECHS } from './data'
 import type { GameState } from './types'
@@ -372,5 +372,18 @@ describe('engine: 深空军备军力线（ADR-0060：无限科技军力容量线
     expect(canTechUpgrade(def, 99)).toBe(true)
     s.techLevels.deepArmament = 100
     expect(canTechUpgrade(def, 100)).toBe(false)
+  })
+
+  it('周目内重置：NG+ 后 deepArmament 归零，军力容量回到无科技无军港的基础值（ADR-0060 周目内语义）', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.planets.orbital = { unlocked: true }
+    s.buildings.militaryPort = 25
+    s.techLevels.deepArmament = 10
+    expect(militaryCap(s)).toBe(Math.floor(5100 * 1.2)) // 基线 5100 ×(1+2%×10)
+    startNewGamePlus(s, 0)
+    expect(s.techLevels.deepArmament ?? 0).toBe(0) // 科技重置
+    expect(s.buildings.militaryPort ?? 0).toBe(0) // 建筑重置
+    expect(militaryCap(s)).toBe(100) // 基础容量（无军港、无深空军备）
   })
 })

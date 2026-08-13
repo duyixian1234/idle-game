@@ -1,6 +1,7 @@
 # 深空军备——军力容量无限科技线
 
-Status: proposed
+**状态**: Accepted（2026-08-13 grill：后期兵力瓶颈，issue #36 ticket 02）
+**证据**: `src/engine/data.ts`（deepArmament def + TechEffectMilitaryCapAll）；`src/engine/production.ts:42-44`（militaryCap 深空军备乘数）；`src/engine/tech.ts`（canTechUpgrade militaryCapAll）；`src/engine/balance.ts`（INFINITE_TECH_* 常量）；`src/engine/production.test.ts`（放大契约）
 
 后期军力容量存在结构性天花板：军港数量成本超线性（post100 曲线）、军械/虫洞两条乘数轴 Lv10 封顶（×2×2），而 endless boss 守卫随层数持续放大（容量锚 ×0.10/层）——玩家缺少容量增长通道，"兵力不够"的结构根源。决策：新增第三条无限科技线「深空军备」（ADR-0055 同族），每级 +2% 军力容量、成本 1e9 矿 + 2e8 科 ×1.7^n、maxLevel 名义 100、通关解锁、周目内重置（NG+ 只折现科技点）——刻意打破 ADR-0055「无限科技军力不吃」的原始红线。
 
@@ -14,5 +15,5 @@ Status: proposed
 
 ## Consequences
 
-- 生产侧 `productionMultipliers` 的 `productionAll` 分支需新增军力容量语义（`productionAll` 当前明确军力不吃，需扩展效果类型或单独分支）。
+- `productionMultipliers` 的 `productionAll` 分支**不动**——`militaryCapAll` 不进产出倍率（军力不走产出倍率），由 `militaryCap()` 单独应用（production.ts:42-44）。
 - balance-sim 三档基准需新增"深空军备成长 vs boss 守卫成长"校验（+2%/级 vs 0.10/层，每层需约 5 级抵消）。

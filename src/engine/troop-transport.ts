@@ -21,12 +21,13 @@ export function transportCapacity(state: GameState): number {
   return Math.floor(militaryCap(state) * ts.capacityPct)
 }
 
-/** 存款：主容量 → 池（即时无费），受池容量截断（超量不存，溢出浪费）；返回实际存入 */
+/** 存款：主容量 → 池（即时无费），受池容量与主容量余额双重截断（超量不存，不扣负）；返回实际存入 */
 export function depositMilitary(state: GameState, amount: number): number {
   const ts = state.transportShip
   if (!ts || amount <= 0) return 0
+  const available = Math.min(amount, Math.max(0, state.resources.military))
   const room = Math.max(0, transportCapacity(state) - ts.stored)
-  const actual = Math.min(amount, room)
+  const actual = Math.min(available, room)
   if (actual > 0) {
     state.resources.military -= actual
     ts.stored += actual
