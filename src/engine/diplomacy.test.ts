@@ -774,7 +774,11 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
   })
 
   it('探索势力结盟提供资源产出加成', () => {
-    const base = productionReport(createInitialState(0)).nominal
+    const baseState = createInitialState(0)
+    baseState.resources.mineral = 1_000_000
+    baseState.resources.energy = 1_000_000
+    baseState.resources.tech = 100_000
+    const base = productionReport(baseState).nominal
     const s = createInitialState(0)
     s.resources.mineral = 1_000_000
     s.resources.energy = 1_000_000
