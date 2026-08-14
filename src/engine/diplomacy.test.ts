@@ -782,9 +782,10 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     s.factions.ashCommune = createFactionState(EXPLORE_FACTIONS.ashCommune)
     s.factions.ashCommune.favor = 85
     expect(factionAlliance(s, 'ashCommune')).toEqual({ ok: true })
-    expect(productionReport(s).nominal.mineral).toBeCloseTo(base.mineral * 1.05, 6)
-    expect(productionReport(s).nominal.energy).toBeCloseTo(base.energy * 1.05, 6)
-    expect(productionReport(s).nominal.tech).toBeCloseTo(base.tech * 1.05, 6)
+    const allianceMult = 1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION
+    expect(productionReport(s).nominal.mineral).toBeCloseTo(base.mineral * allianceMult, 6)
+    expect(productionReport(s).nominal.energy).toBeCloseTo(base.energy * allianceMult, 6)
+    expect(productionReport(s).nominal.tech).toBeCloseTo(base.tech * allianceMult, 6)
   })
 
   it('周目内语义：NG+ 派系重置后加成归零', () => {
