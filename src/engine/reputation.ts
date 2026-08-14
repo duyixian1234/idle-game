@@ -4,8 +4,8 @@ import type { GameState } from './types'
 
 /**
  * 声望系统：全局单一值（0-100），由成就解锁驱动，只升不降（跨周目）。
- * - 声望 = 历史解锁成就 rep 之和（2026-08-14 修订：成就永久化后去掉周目匹配，跨周目累计，
- *   NG+ 不归零——`unlockedAt` 存在即计入），纯派生不存档。
+ * - 声望 = 历史解锁成就 rep 之和（2026-08-14 修订：成就重解锁恢复后仍按「已解锁」跨周目累计，
+ *   重解锁不重复计分——按 id 只计一次；NG+ 不归零——`unlockedAt` 存在即计入），纯派生不存档。
  * - 加成六件套：贸易成本折扣 / 骚扰触发阈值上移（硬上限 +10）/ 军力上限加成 / 攻占成功率加成 /
  *   探索槽位（ADR-0063）/ 护航费折扣（ADR-0063）。
  *   全部作用于「上限/效率/门槛/阈值」类，永不触碰任何每秒产出系数。
@@ -18,7 +18,7 @@ export function reputation(state: GameState): number {
   let sum = 0
   for (const def of Object.values(ACHIEVEMENTS)) {
     const cur = state.achievements?.[def.id]
-    // 成就永久化（ngplus-experience）：unlockedAt 存在即永久解锁 → 声望跨周目累计、只升不降
+    // 已解锁（unlockedAt 存在）即计入——按 id 只计一次，重解锁不重复计分；跨周目累计、只升不降
     if (cur) sum += def.rep
   }
   return Math.min(REPUTATION_CAP, sum)

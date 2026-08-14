@@ -26,7 +26,7 @@ describe('reputation', () => {
     const s = makeState()
     unlockByIds(s, ['firstBuild', 'firstTech']) // 2 + 2 = 4
     expect(reputation(s)).toBe(4)
-    // 跨周目：ngPlusLevel 变化不归零（成就永久化后历史解锁即计入）
+    // 跨周目：ngPlusLevel 变化不归零（已解锁即计入，重解锁按 id 只计一次）
     s.ngPlusLevel = 1
     expect(reputation(s)).toBe(4)
   })

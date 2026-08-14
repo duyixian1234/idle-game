@@ -34,7 +34,7 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     expect(s.ngPlusLevel).toBe(1)
     // 声望保留（跨周目累计：历史解锁成就仍计入）
     expect(reputation(s)).toBeGreaterThan(0)
-    // 成就不重解锁（已解锁即永久）
+    // 叙事类成就不重解锁（story 永久类，storyFlags 保留）
     const newly = checkAchievements(s, 3000)
     expect(newly.map((d) => d.id)).not.toContain('firstBuild')
   })
@@ -67,7 +67,7 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     expect(s.endless.bossDefeated).toBe(1)
   })
 
-  it('NG+ 后收集类成就不重解锁、不重发奖励（永久化）', () => {
+  it('NG+ 后收集类成就随周目内状态重新解锁并发奖励（遗产机制：重打但更强）', () => {
     const s = makeState()
     s.storyFlags.firstBuild = true
     // 一周目直接达成 trades50（解锁进图鉴）
@@ -80,9 +80,9 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     s.resources.mineral = 100_000
     const mineralBefore = s.resources.mineral
     const newly = checkAchievements(s, 3000)
-    expect(newly.map((d) => d.id)).not.toContain('trades50') // 不重解锁
-    expect(s.achievements.trades50?.unlockedInRound).toBe(0) // 首次解锁周目保留
-    expect(s.resources.mineral - mineralBefore).toBe(100_000) // 仅 ng2 首次解锁奖励 10 万，无 trades50 重发
+    expect(newly.map((d) => d.id)).toContain('trades50') // 重解锁
+    expect(s.achievements.trades50?.unlockedInRound).toBe(1) // unlockedInRound 覆盖为当前周目
+    expect(s.resources.mineral).toBeGreaterThan(mineralBefore) // 重解锁发奖励（trades50 +20k）
     // 声望 = 历史解锁（firstBuild 2 + trades50 4 + ng2 5）= 11
     expect(reputation(s)).toBe(11)
   })

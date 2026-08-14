@@ -42,9 +42,10 @@ export interface AchievementDef {
   /** 声望点数（2-8，达成即得；总计略超 100 留容错，封顶在 reputation.ts） */
   rep: number
   /**
-   * @deprecated 成就永久化（ngplus-experience，2026-08-14）后不再使用——所有成就跨周目只解锁一次，
-   * 无重解锁/重发奖励；字段保留仅为类型兼容（AchievementDef 为代码定义，非存档 schema，无迁移负担）。
-   * 原语义：是否周目内可重解锁（NG+ 重新积累）——true（缺省）重解锁重发奖；false 永久。
+   * 是否周目内可重解锁（NG+ 重新积累）：
+   * - true（缺省）：unlockedInRound 不匹配时条件再满足 → 重解锁 + 重发奖励（收集类/联邦/周目成就）
+   * - false：一旦解锁永久（图鉴即终点）——storyFlags 驱动的叙事类（storyFlags 跨周目保留，
+   *   若可重解锁会令二周目开局白拿全部叙事成就）；conquestAll 同理
    */
   recurring?: boolean
 }
@@ -195,7 +196,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     condition: (s) => Boolean(s.storyFlags.conquestAll),
     rewardMineral: 200_000,
     rep: 6,
-    // @deprecated recurring 字段已废弃（成就永久化，2026-08-14）：保留仅为类型兼容，实际不读
+    // storyFlags 驱动：跨周目保留，永久类（否则二周目开局白拿）
     recurring: false,
   },
 
@@ -513,7 +514,7 @@ export const ACHIEVEMENTS: Record<string, AchievementDef> = {
     condition: (s) => (s.buildings.ringSmelter ?? 0) >= 1 && (s.buildings.jumpgate ?? 0) >= 1,
     rewardMineral: 200_000,
     rep: 3,
-    // @deprecated recurring 字段已废弃（成就永久化，2026-08-14）：保留仅为类型兼容，实际不读
+    // 建筑 NG+ 清零，周目内重新达成可重解锁（与收集类一致）
     recurring: true,
   },
   // ---- 胁迫外交（diplomacy-coercion）----
@@ -555,11 +556,11 @@ export function achievementUnlocked(state: GameState, def: AchievementDef): bool
 }
 
 /**
- * 检查并解锁新成就：条件满足且「未解锁」→ 解锁 + 发奖励 + 日志。
+ * 检查并解锁新成就：条件满足且「未解锁 或（周目可重解锁且 unlockedInRound ≠ 当前周目）」→ 解锁 + 发奖励 + 日志。
  * - 首次解锁（unlockedAt 不存在）：发一次性资源奖励
- * - **成就永久化（ngplus-experience，2026-08-14）：所有成就跨周目只解锁一次**——
- *   已解锁（unlockedAt 存在）即跳过，无论类别（story/collect/finale），无重解锁/重发奖励；
- *   `unlockedInRound` 因此不再被覆盖，语义 = 首次解锁周目（零迁移）
+ * - 永久类（叙事 storyFlags 驱动 或 recurring: false）：解锁一次即终点，永不重解锁
+ * - 周目可重解锁（收集类/联邦/周目成就）：unlockedInRound ≠ 当前周目时条件再满足 → 重解锁 + 重发奖励
+ *   （NG+「重打但更强」的期望行为——NG+ 开局即由 ng2/ng3 等周目成就重发矿物/科技，遗产机制生效）
  * - 回溯迁移路径不调用本函数（迁移直接设值、不发奖励，见 save.ts migrateV3ToV4）
  * @returns 本次新解锁的成就定义（测试断言用）
  */
@@ -568,8 +569,9 @@ export function checkAchievements(state: GameState, nowMs: number = Date.now()):
   for (const def of Object.values(ACHIEVEMENTS)) {
     if (!achievementUnlocked(state, def)) continue
     const cur = state.achievements[def.id]
-    // 成就永久化：已解锁即跳过（跨周目只解锁一次）
-    if (cur) continue
+    // 永久类（storyFlags 驱动）：解锁过即跳过；周目类：本周目已解锁即跳过
+    const permanent = def.category === 'story' || def.recurring === false
+    if (cur && (permanent || cur.unlockedInRound === state.ngPlusLevel)) continue
     state.achievements[def.id] = { unlockedAt: nowMs, unlockedInRound: state.ngPlusLevel }
     if (def.rewardMineral) state.resources.mineral += def.rewardMineral
     if (def.rewardTech) state.resources.tech += def.rewardTech

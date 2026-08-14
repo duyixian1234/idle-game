@@ -142,22 +142,22 @@ describe('achievements', () => {
     expect(s.resources.mineral).toBeGreaterThan(15 + (def.rewardMineral ?? 0) - 1) // 含奖励（15 初始 + 50k）
   })
 
-  it('探索成就：永久化（NG+ 后不重解锁、不重发奖励）', () => {
+  it('探索成就：周目语义（NG+ 后重置可重解锁）', () => {
     const s = makeState()
     s.stats.explorations = 1
     checkAchievements(s, 1000)
     expect(s.achievements.explorerFirst?.unlockedInRound).toBe(0)
-    // NG+（二周目）：探索统计重置，条件不满足 → 不解锁
+    // NG+（二周目）：探索统计重置，成就条件不再满足
     s.ngPlusLevel = 1
     s.stats.explorations = 0
     expect(checkAchievements(s, 2000).map((d) => d.id)).not.toContain('explorerFirst')
-    // 二周目再次派遣：条件满足但已解锁（跨周目永久）→ 不重解锁、不重发奖励、unlockedInRound 不覆盖
+    // 二周目再次派遣 → 重解锁（unlockedInRound 更新为 1 + 重发奖励）
     const mineralBefore = s.resources.mineral
     s.stats.explorations = 1
     const newly = checkAchievements(s, 3000)
-    expect(newly.map((d) => d.id)).not.toContain('explorerFirst')
-    expect(s.achievements.explorerFirst?.unlockedInRound).toBe(0) // 首次解锁周目保留
-    expect(s.resources.mineral).toBe(mineralBefore) // 无重发奖励
+    expect(newly.map((d) => d.id)).toContain('explorerFirst')
+    expect(s.achievements.explorerFirst?.unlockedInRound).toBe(1)
+    expect(s.resources.mineral).toBeGreaterThan(mineralBefore)
   })
 
   describe('永恒殖民（endlessII）：累计采集 100 亿 + 无限模式前置', () => {
@@ -359,21 +359,20 @@ describe('achievements: 攻占数量梯度（conquest-guard-cap）', () => {
     expect(ACHIEVEMENTS.conquests50.progress!(s)).toEqual([7, 50])
   })
 
-  it('永久化：NG+ 后重新攻占不重解锁、不重发奖励', () => {
+  it('周目语义：NG+ 后 conquest 重置 → 重新积累可重解锁', () => {
     const s = makeState()
     for (let i = 0; i < 10; i++) s.conquest[`c${i}`] = { status: 'conquered' }
     checkAchievements(s, 1000)
     expect(s.achievements.conquests10?.unlockedInRound).toBe(0)
-    // NG+：conquest 重置；重新攻占 10 个 → 条件满足但已解锁（永久）→ 不重解锁、不重发奖励
+    // NG+：conquest 重置，成就解锁记录保留但周目不匹配 → 不重发；重新攻占 10 个 → 重解锁
     startNewGamePlus(s, 2000)
     const before = s.resources.mineral
     expect(checkAchievements(s, 3000).map((d) => d.id)).not.toContain('conquests10')
     for (let i = 0; i < 10; i++) s.conquest[`c${i}`] = { status: 'conquered' }
     const newly = checkAchievements(s, 4000)
-    expect(newly.map((d) => d.id)).not.toContain('conquests10')
-    expect(s.achievements.conquests10?.unlockedInRound).toBe(0) // 首次解锁周目保留
-    // 仅 ng2 首次解锁奖励 10 万（周目成就）；conquests10 若重发则增量 20 万（ng2 10万 + conquests10 10万）
-    expect(s.resources.mineral - before).toBe(100_000)
+    expect(newly.map((d) => d.id)).toContain('conquests10')
+    expect(s.achievements.conquests10?.unlockedInRound).toBe(1)
+    expect(s.resources.mineral).toBeGreaterThan(before) // 重发奖励
   })
 })
 
@@ -400,7 +399,7 @@ describe('achievements: 星际帝国（wormhole-empire ticket 05）', () => {
     expect(ACHIEVEMENTS.stellarEmpire.progress!(stateAt(10, 20))).toEqual([10, 10])
   })
 
-  it('类别/奖励/rep：collect 类永久解锁、矿物 500 万 + 科技 50 万、rep 8', () => {
+  it('类别/奖励/rep：collect 类周目可重解锁、矿物 500 万 + 科技 50 万、rep 8', () => {
     expect(ACHIEVEMENTS.stellarEmpire.category).toBe('collect')
     expect(ACHIEVEMENTS.stellarEmpire.rep).toBe(8)
     expect(ACHIEVEMENTS.stellarEmpire.rewardMineral).toBe(5_000_000)
@@ -423,7 +422,7 @@ describe('achievements: 星际帝国（wormhole-empire ticket 05）', () => {
     expect(s.resources.mineral).toBe(mineralAfter)
   })
 
-  it('NG+ 重置后（虫洞清零/结盟清零）不重解锁：已解锁即永久', () => {
+  it('NG+ 重置后（虫洞清零/结盟清零）可重解锁，声望按周目重计', () => {
     const s = stateAt(10, 20)
     checkAchievements(s, 0)
     expect(s.achievements.stellarEmpire).toBeTruthy()
@@ -433,7 +432,7 @@ describe('achievements: 星际帝国（wormhole-empire ticket 05）', () => {
     expect(Object.values(s.factions).filter((f) => f.allied).length).toBe(0)
     // 周目内不满足条件 → 不解锁
     expect(ACHIEVEMENTS.stellarEmpire.condition(s)).toBe(false)
-    // 重新达成（新周目重爬）：恢复虫洞 + 结盟 → 条件满足但已解锁（永久）→ 不重解锁、不重发奖励
+    // 重新达成（新周目重爬）：恢复虫洞 + 结盟 → 条件满足且周目不匹配 → 重解锁 + 重发奖励
     s.buildings.wormhole = 1
     s.upgrades.wormhole = 10
     for (let i = 0; i < 20; i++) {
@@ -441,30 +440,30 @@ describe('achievements: 星际帝国（wormhole-empire ticket 05）', () => {
     }
     const mineralBefore = s.resources.mineral
     const newly = checkAchievements(s, 0)
-    expect(newly.map((d) => d.id)).not.toContain('stellarEmpire')
-    // 仅 ng2 首次解锁奖励 10 万；stellarEmpire 若重发则 +500 万
-    expect(s.resources.mineral - mineralBefore).toBe(100_000)
+    expect(newly.map((d) => d.id)).toContain('stellarEmpire')
+    // 重发奖励：ng2（10万）+ stellarEmpire（500万）等——增量远超 100 万
+    expect(s.resources.mineral - mineralBefore).toBeGreaterThan(1_000_000)
   })
 })
 
-describe('achievements: 终局类永久化（dualMega）', () => {
-  it('dualMega：首次达成解锁；NG+ 后建筑清零重达不成不重解锁、不重发奖励', () => {
+describe('achievements: 终局类周目重解锁（dualMega）', () => {
+  it('dualMega：首次达成解锁；NG+ 后建筑清零重建可重解锁、重发奖励', () => {
     const s = makeState()
     s.buildings.ringSmelter = 1
     s.buildings.jumpgate = 1
     checkAchievements(s, 1000)
     expect(s.achievements.dualMega).toBeDefined()
     expect(s.achievements.dualMega?.unlockedInRound).toBe(0)
-    // NG+：建筑清零 → 条件不满足；重建两座 → 条件满足但已解锁（成就永久化）→ 不重解锁
+    // NG+：建筑清零 → 条件不满足；重建两座 → 条件满足且周目不匹配 → 重解锁
     startNewGamePlus(s, 2000)
     s.buildings.ringSmelter = 1
     s.buildings.jumpgate = 1
     const mineralBefore = s.resources.mineral
     const newly = checkAchievements(s, 3000)
-    expect(newly.map((d) => d.id)).not.toContain('dualMega')
-    expect(s.achievements.dualMega?.unlockedInRound).toBe(0) // 首次解锁周目保留
-    // 仅 ng2 首次解锁奖励 10 万；dualMega 若重发则 +20 万
-    expect(s.resources.mineral - mineralBefore).toBe(100_000)
+    expect(newly.map((d) => d.id)).toContain('dualMega')
+    expect(s.achievements.dualMega?.unlockedInRound).toBe(1) // 覆盖为当前周目
+    // 重发奖励：ng2（10万）+ dualMega（20万）= 30 万
+    expect(s.resources.mineral - mineralBefore).toBe(300_000)
   })
 })
 

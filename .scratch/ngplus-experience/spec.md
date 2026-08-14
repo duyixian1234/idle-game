@@ -1,6 +1,6 @@
 Status: ready-for-agent
 
-# Spec: 新周目体验优化（成就永久化 / 设置重置 / 继承摘要 / 探索声望加成）
+# Spec: 新周目体验优化（成就重解锁恢复 / 设置重置 / 继承摘要 / 探索声望加成）
 
 ## Problem Statement
 
@@ -68,6 +68,6 @@ Status: ready-for-agent
 
 ## Further Notes
 
-- 设计经 grill-with-docs 三轮访谈定稿（2026-08-14）：Q1 设置全量重置（localStorage 保留）、Q2 成就永久化、Q3 声望跨周目累计、Q4 摘要仅现有数据（零 schema）、Q5 军事保持现状、Q6 探索槽位+护航费折扣、Q7 每次 NG+ 后弹一次。ADR-0009 已修订（成就永久化/声望跨周目/设置重置扩展），ADR-0063 新增（探索声望加成）。
-- 零迁移红利：成就永久化后 `unlockedInRound` 不再被覆盖 → 自动成为「首次解锁周目」，面板可直接显示「第 N 周目解锁」。
+- 设计经 grill-with-docs 三轮访谈定稿（2026-08-14）：Q1 设置全量重置（localStorage 保留）、Q2 成就永久化、Q3 声望跨周目累计、Q4 摘要仅现有数据（零 schema）、Q5 军事保持现状、Q6 探索槽位+护航费折扣、Q7 每次 NG+ 后弹一次。ADR-0009 已修订（成就重解锁恢复/声望跨周目/设置重置扩展），ADR-0063 新增（探索声望加成）。
+- **2026-08-14 当日修订（Q2 反转）**：成就永久化破坏 NG+ 遗产机制——NG+ 后开局资源全 0（ng2/ng3 等周目成就不再重发矿物/科技），新周目无法开局。`checkAchievements` 恢复 `recurring` 重解锁分支（story/`recurring:false` 永久类除外），周目类成就 NG+ 后条件再满足 → 重解锁重发奖励（81c0471 行为）。`unlockedInRound` 语义回到「最近解锁周目」。声望跨周目累计保留（按 id 只计一次，重解锁不重复计分）。
 - 改动面：引擎（achievements.ts / reputation.ts / engine.ts / exploration.ts / balance.ts 常量）+ UI（layout.ts overlay 容器 / overlays.ts 渲染 / session + listeners 开关与序列）+ 测试 5 组；按 4 ticket 推进（01/02/03 并行，04 依赖 01），每步原子提交。
