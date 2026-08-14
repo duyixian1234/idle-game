@@ -204,6 +204,31 @@ describe('engine: 自动攻占（ADR-0033）', () => {
     expect(s.resources.military).toBe(5_100 - 800) // 容量 5100 截断后投 800
   })
 
+  it('离线军事回充（offline-regen）：兵营产出使自动攻占超出一次性预算持续发起', () => {
+    // 8 个守卫 800 的目标：一次性预算（cap 5100 − 保底 510 = 4590）只够 5 个；
+    // 兵营（20 座 = 10/s）在离线批量循环内步进入账回充 → 每个冷却周期军力恢复，可全部发起。
+    const mkTargets = () =>
+      Array.from({ length: 8 }, (_, i) => ({
+        kind: 'conquest' as const,
+        id: `gen:conquest:${i}`,
+        name: `目标${i}`,
+        desc: '',
+        batch: 0 as const,
+        guard: 800,
+        rewardMineral: 100_000,
+      }))
+    const s1 = autoStateMulti(mkTargets()) // 无兵营：军事一次性预算
+    const s2 = autoStateMulti(mkTargets())
+    s2.buildings.barracks = 20 // 10/s 军事产出 → 离线 5min 回充 3000
+    settleOffline(s1, s1.lastTick + 5 * 60_000)
+    settleOffline(s2, s2.lastTick + 5 * 60_000)
+    const started1 = s1.generatedTargets.filter((gt) => s1.conquest[gt.id]?.startedAt != null).length
+    const started2 = s2.generatedTargets.filter((gt) => s2.conquest[gt.id]?.startedAt != null).length
+    expect(started1).toBe(5) // 一次性预算被 cap 卡住
+    expect(started2).toBe(8) // 军事回充 → 全部发起
+    expect(started2).toBeGreaterThan(started1)
+  })
+
   /** 多目标自动攻占态（auto-conquest-priority）：默认守卫 800/1200/2000 无资源费；数组序 = 发现序 */
   function autoStateMulti(targets: GeneratedTarget[] = [
     { kind: 'conquest', id: 'gen:conquest:0', name: '目标甲', desc: '', batch: 0, guard: 800, rewardMineral: 100_000 },
@@ -613,6 +638,17 @@ describe('engine: boss 军力挑战（endless-progression，ADR-0053）', () => 
     expect(s.autoConquest).toEqual({ enabled: false, lastActionAt: 0 })
     // 冷却期内不重复发起
     expect(autoConquestTick(s, 10_000)).toEqual([])
+  })
+
+  it('离线（settleOffline）：autoBoss 独立生效——autoConquest 未开启也按冷却周期发起 boss', () => {
+    const s = bossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    // 仅开启 autoBoss（autoConquest 保持关闭）
+    s.endless.autoBoss = true
+    settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期）
+    expect(s.conquest['boss:L3'].startedAt).toBeDefined()
+    expect(s.autoConquest?.lastActionAt).toBeDefined() // boss-only 冷却持久化
   })
 })
 

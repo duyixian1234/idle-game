@@ -439,6 +439,8 @@ describe('engine: 自动探索（fleet-dock-10 ticket 04）', () => {
 
   it('settleOffline 主流程接入：autoExploreLogs 并入 expeditionLogs', () => {
     const s = escortState()
+    s.buildings.militaryPort = 3 // cap 700：规避离线步进入账的军力截断（无军港 cap 100）后 5 槽一轮 600 不足
+    s.buildings.barracks = 2 // 军力产出（0.5/s·座）：离线每轮回充 ≥ 单轮 5 槽消耗，军力不成为探索次数瓶颈
     s.autoExplore = { enabled: true, escort: false }
     s.lastTick = 0
     const r = settleOffline(s, 4 * 3600_000)

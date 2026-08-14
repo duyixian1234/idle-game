@@ -711,9 +711,16 @@ export function autoExploreDispatch(state: GameState, nowMs: number): Expedition
  * - 每轮步长 = 该轮掷出的派遣时长（uniform 10~30min，duration 域持久计数器；多槽各自 finishAt 略有差异，
  *   settleExpeditions 按 finishAt 判到期 → 早到期早结算、滞后不丢总量，与原固定 60min 步长近似度一致）；
  * - 派遣走同一 startExpedition 路径（含护航费扣减、rng 走 explore/duration 域持久化计数器、结果固化）——防 SL 契约不破；
- * - 资源不足 → 暂停该轮（enabled 保持开），离线结尾仍处派遣中的自动编队留待回归后在线续算（与手动派遣离线语义一致）。
+ * - 资源不足 → 暂停该轮（enabled 保持开），离线结尾仍处派遣中的自动编队留待回归后在线续算（与手动派遣离线语义一致）；
+ * - advance（可选回调，offline-regen 2026-08-14）：每轮步进前以**绝对时间戳（ms）**通知离线层入账「该时间点之前的累计产出」，
+ *   使护航费/派遣费从「到该时间点为止的累计产出」里扣——与在线逐 tick「资源先入账 → 再结算/续派」同口径，而非一次性冻结预算。
  */
-export function settleOfflineAutoExplore(state: GameState, nowMs: number, durationSeconds: number): ExpeditionLog[] {
+export function settleOfflineAutoExplore(
+  state: GameState,
+  nowMs: number,
+  durationSeconds: number,
+  advance?: (toMs: number) => void,
+): ExpeditionLog[] {
   const logs: ExpeditionLog[] = []
   if (!state.autoExplore?.enabled) return logs
   if (!isExploreAvailable(state)) return logs
@@ -725,6 +732,9 @@ export function settleOfflineAutoExplore(state: GameState, nowMs: number, durati
     // 每轮步长 = 该轮派遣时长（原固定 60min → 随机 10~30min，与派遣冻结语义同源）
     tm += rollExpeditionDuration(state)
     if (tm > nowMs) break
+    // 步进入账（offline-regen）：先入账到 tm 的累计产出再结算/续派，护航费从「到该时间点为止的产出」里扣；
+    // 军力 cap 截断与 energy clamp 由 offline 层 advance 负责；循环 break 后的剩余时长由调用方兜底入账
+    advance?.(tm)
     // 到点：结算该轮到期派遣（含上一轮续派出发的；resolved 幂等）
     for (const log of settleExpeditions(state, tm)) logs.push(log)
     // 暂停冷却：距暂停不足冷却时长则跳过本轮（离线节流，防每轮日志刷屏；步长最短 10min > 60s 冷却，实际不触发）
