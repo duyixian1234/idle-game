@@ -18,7 +18,7 @@ import {
   renderLogInto,
 } from '../log'
 import type { LogDirection, LogFilter } from '../log'
-import { renderMegastructureModal, renderNgPlusModal } from '../overlays'
+import { renderMegastructureModal, renderNgPlusModal, renderNgPlusSummaryModal } from '../overlays'
 import type { NavId } from '../layout'
 import type { AppElements } from '../layout'
 import { dispatch } from '../actions'
@@ -333,6 +333,16 @@ if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? t('
     els.ngplusOverlay.classList.remove('hidden')
   }
 
+  // ---- NG+ 继承摘要弹窗（开启新周目后立即展示，每次 NG+ 后一次） ----
+  function closeNgPlusSummaryModal(): void {
+    els.ngplusSummaryOverlay.classList.add('hidden')
+  }
+
+  function openNgPlusSummaryModal(prevCodexLength: number): void {
+    renderNgPlusSummaryModal(els.ngplusSummaryOverlay, state, prevCodexLength)
+    els.ngplusSummaryOverlay.classList.remove('hidden')
+  }
+
   // ---- 终局工程（双轨开放） ----
   // 星域页工程卡片（data-megastructure）→ 确认弹窗 → 确认后 dispatch('megastructure') 建造
   function closeMegastructureModal(): void {
@@ -387,6 +397,8 @@ if (logdirBtn) logdirBtn.textContent = ui.logDirection === 'newest-bottom' ? t('
     updatePanelTabs,
     openNgPlusModal,
     closeNgPlusModal,
+    openNgPlusSummaryModal,
+    closeNgPlusSummaryModal,
     openMegastructureModal,
     closeMegastructureModal,
     startNewGamePlusSequence: () => startNewGamePlusSequence(ctx),

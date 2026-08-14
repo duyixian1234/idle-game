@@ -400,8 +400,16 @@ export function startNewGamePlus(state: GameState, nowMs: number): void {
     layerProgress: prevEndless.layerProgress ?? 0,
     autoBoss: prevEndless.autoBoss ?? false,
   }
-  // 一键全自动事件开关（ticket 07）：全局 QoL 开关跨 NG+ 保留（与 diplomacyAuto 同款可选字段持久化语义）
-  state.eventsFullAuto = state.eventsFullAuto ?? false
+  // 一键全自动事件开关（ticket 07）：**不再跨 NG+ 保留**（ngplus-experience，2026-08-14：全设置恢复默认）
+  state.eventsFullAuto = false
+  // 自动化行为设置全量重置（ngplus-experience，2026-08-14）：新周目从默认配置开始（「隐藏，自动」= 无感知执行）——
+  // 外交自动化/事件策略/自动 boss 恢复默认关，隐藏偏好清空；
+  // localStorage 偏好（语言/静音/日志方向/筛选/二级 tab）不参与（用户级偏好，与周目无关）
+  state.diplomacyAuto = undefined
+  state.automationPolicies = createDefaultAutomationPolicies()
+  state.endless.autoBoss = false
+  state.hiddenPlanets = []
+  state.hiddenBuildings = []
   state.lastStormHarvestAt = nowMs
   // 区域攻占重置为全部 locked（永久加成已保留在 permanentBonuses，NG+ 继承）
   const conquestReset: Record<string, { status: 'locked' | 'available' | 'conquered'; startedAt?: number; finishAt?: number; invested?: number }> = {}

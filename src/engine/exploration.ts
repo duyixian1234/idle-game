@@ -50,6 +50,7 @@ import { fleetAvailablePower, fleetPowered } from './fleet'
 import { playMilestone } from './story'
 import { advanceEndlessLayer } from './events'
 import { militaryCap, netProduction } from './production'
+import { reputationBonuses } from './reputation'
 import { formatNumber, formatPercent } from './format'
 import { rollDomain } from './rng'
 import type { ExpeditionResult, ExpeditionState, GameState, LogType } from './types'
@@ -140,13 +141,15 @@ export function wormholeLevelForSlot(slotNo: number): number {
   return Math.min(10, slotNo - 10)
 }
 
-/** 探索槽位数量：基础 5 + 跃迁枢纽等级槽位（Lv1 +1、Lv10 +5）+ 虫洞等级槽位（每级 +1、Lv10 +10），
- * 总上限 20。无虫洞时与 ADR-0038 现状逐字节一致（虫洞 0 级 → +0）。
+/** 探索槽位数量：基础 5 + 跃迁枢纽等级槽位（Lv1 +1、Lv10 +5）+ 虫洞等级槽位（每级 +1、Lv10 +10）+
+ * 声望探索槽（ADR-0063：80 档 +1、100 档 +2），总上限 20 + 声望槽（同步提升，防声望项被 min 吞掉——满配 22）。
+ * 无虫洞时与 ADR-0038 现状逐字节一致（虫洞 0 级 → +0）；无声望时与 ADR-0042 现状一致。
  * 等级读 `state.upgrades.jumpgate` / `state.upgrades.wormhole`（unique 建筑等级惯例，buildings 字段恒 0/1） */
 export function explorationSlots(state: GameState): number {
   const jumpgateLv = Math.min(state.upgrades.jumpgate ?? 0, 10)
   const wormholeLv = Math.min(state.upgrades.wormhole ?? 0, 10)
-  return Math.min(20, 5 + (JUMPGATE_SLOT_TABLE[jumpgateLv] ?? 0) + (WORMHOLE_SLOT_TABLE[wormholeLv] ?? 0))
+  const repSlots = reputationBonuses(state).exploreSlotBonus
+  return Math.min(20 + repSlots, 5 + (JUMPGATE_SLOT_TABLE[jumpgateLv] ?? 0) + (WORMHOLE_SLOT_TABLE[wormholeLv] ?? 0) + repSlots)
 }
 
 /** 虫洞探索能源减耗比例：每级 WORMHOLE_ENERGY_REDUCTION_PER_LEVEL，Lv10 封顶 50%（只作用基础派遣能源，不含护航费） */
@@ -222,11 +225,13 @@ export function escortFeePerShip(state: GameState): number {
 }
 
 /** 总护航远征费（能源）= 单艘 × 等效舰数 × 护航吞吐倍率（0 舰/停摆 = 0）——
- * 加成与费用同一杠杆，权衡始终一致；星舰推进 Lv≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变，锚定产出不脱钩）。
+ * 加成与费用同一杠杆，权衡始终一致；星舰推进 Lv≥20 时 ×(1 − WARP_ESCORT_FEE_REDUCTION)（ADR-0026 质变，锚定产出不脱钩），
+ * 声望护航费折扣（ADR-0063：80 档 −5%、100 档 −10%）与 warpDrive 同通道叠加，clamp ≥ 0（满配 −10% −10% = −20%）。
  * 吞吐倍率（深空导航）放大费用侧吞吐 → 回报锚定远征费同比放大，ROI 恒常数（ADR-0055）。 */
 export function escortFee(state: GameState): number {
   const fee = Math.floor(escortFeePerShip(state) * equivalentFleet(state) * escortThroughputMult(state))
-  return (state.techLevels?.warpDrive ?? 0) >= 20 ? Math.floor(fee * (1 - WARP_ESCORT_FEE_REDUCTION)) : fee
+  const discount = ((state.techLevels?.warpDrive ?? 0) >= 20 ? WARP_ESCORT_FEE_REDUCTION : 0) + reputationBonuses(state).escortFeeDiscount
+  return Math.max(0, Math.floor(fee * (1 - discount)))
 }
 
 /** 护航收获倍率 = 1（escort-ROI 修复，ADR-0054，2026-08-11）：E 的倍率贡献已移除——

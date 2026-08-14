@@ -18,17 +18,17 @@ describe('reputation', () => {
   it('初始声望 0、加成全零、阈值 55', () => {
     const s = makeState()
     expect(reputation(s)).toBe(0)
-    expect(reputationBonuses(s)).toEqual({ tradeDiscount: 0, raidThresholdBonus: 0, militaryCapBonus: 0, conquestSuccessBonus: 0 })
+    expect(reputationBonuses(s)).toEqual({ tradeDiscount: 0, raidThresholdBonus: 0, militaryCapBonus: 0, conquestSuccessBonus: 0, exploreSlotBonus: 0, escortFeeDiscount: 0 })
     expect(raidThreshold(s)).toBe(55)
   })
 
-  it('声望 = 已解锁且 unlockedInRound === 当前周目的成就 rep 之和', () => {
+  it('声望 = 历史解锁成就 rep 之和（跨周目累计，只升不降）', () => {
     const s = makeState()
     unlockByIds(s, ['firstBuild', 'firstTech']) // 2 + 2 = 4
     expect(reputation(s)).toBe(4)
-    // 旧周目成就不计入
+    // 跨周目：ngPlusLevel 变化不归零（成就永久化后历史解锁即计入）
     s.ngPlusLevel = 1
-    expect(reputation(s)).toBe(0)
+    expect(reputation(s)).toBe(4)
   })
 
   it('声望封顶 100', () => {
@@ -55,6 +55,8 @@ describe('reputation', () => {
     expect(b.militaryCapBonus).toBe(0.1)
     expect(b.raidThresholdBonus).toBe(10)
     expect(b.conquestSuccessBonus).toBe(0.1)
+    expect(b.exploreSlotBonus).toBe(1) // ADR-0063：80 档 +1 探索槽
+    expect(b.escortFeeDiscount).toBe(0.05) // ADR-0063：80 档护航费 −5%
     // 骚扰阈值 55+10 = 65（硬上限）
     expect(raidThreshold(s)).toBe(65)
   })
@@ -67,6 +69,8 @@ describe('reputation', () => {
     expect(b.tradeDiscount).toBe(0.15)
     expect(b.militaryCapBonus).toBe(0.2)
     expect(b.conquestSuccessBonus).toBe(0.15)
+    expect(b.exploreSlotBonus).toBe(2) // ADR-0063：100 档 +2 探索槽
+    expect(b.escortFeeDiscount).toBe(0.1) // ADR-0063：100 档护航费 −10%
     expect(b.raidThresholdBonus).toBeLessThanOrEqual(RAID_THRESHOLD_BONUS_CAP)
     expect(raidThreshold(s)).toBe(65)
   })

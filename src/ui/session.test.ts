@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { createInitialState } from '../engine/engine'
 import { pushLog } from '../engine/core'
-import { formatNumber } from '../engine/format'
+import { formatMultiplier, formatNumber } from '../engine/format'
 import { buildLayout } from './layout'
 import { createSession } from './session'
 import type { SoundManager } from '../audio'
@@ -232,6 +232,44 @@ describe('session: 重操作序列（actions-heavy）', () => {
     const { session } = setup()
     session.render()
     expect(() => session.render()).not.toThrow()
+  })
+
+  it('NG+ 序列后继承摘要弹窗自动打开：周目/科技点/图鉴新增渲染，三通道关闭可用', () => {
+    const { els, session, state } = setup()
+    session.render()
+    // 一周目已结盟 1 派系（NG+ 后图鉴新增 +1）
+    const first = Object.keys(state.factions)[0]
+    state.factions[first].allied = true
+    // 模拟确认弹窗出现并点击确认（listeners 委托：confirm → closeNgPlusModal + startNewGamePlusSequence）
+    els.ngplusOverlay.innerHTML = `<button type="button" data-ngplus-confirm>确认</button>`
+    els.ngplusOverlay.classList.remove('hidden')
+    els.ngplusOverlay.querySelector<HTMLButtonElement>('[data-ngplus-confirm]')!.click()
+    // NG+ 已执行 + 摘要弹窗自动打开（每次 NG+ 后一次）
+    expect(session.state.ngPlusLevel).toBe(1)
+    expect(els.ngplusSummaryOverlay.classList.contains('hidden')).toBe(false)
+    const text = els.ngplusSummaryOverlay.textContent ?? ''
+    expect(text).toContain(`第 ${formatNumber(1)} 周目`)
+    expect(text).toContain(formatNumber(session.state.resources.tech)) // 继承科技点 2000 × 1
+    expect(text).toContain(formatMultiplier(session.state.permanentMult)) // 永久产出加成 1.15 倍
+    expect(text).toContain(`${formatNumber(Object.keys(session.state.achievements).length)} 个`) // 成就数
+    expect(text).toContain(`新增 +${formatNumber(1)}`) // 图鉴新增（已结盟派系并入）
+    // 通道①：「继续」按钮关闭
+    els.ngplusSummaryOverlay.querySelector<HTMLButtonElement>('[data-ngplus-summary-close]')!.click()
+    expect(els.ngplusSummaryOverlay.classList.contains('hidden')).toBe(true)
+  })
+
+  it('摘要弹窗遮罩 / Escape 关闭通道', () => {
+    const { els } = setup()
+    // 直接渲染摘要 overlay 内容（验证关闭通路，不重复走序列）
+    els.ngplusSummaryOverlay.innerHTML = `<div class="ngplus-card"><button type="button" data-ngplus-summary-close>继续</button></div>`
+    els.ngplusSummaryOverlay.classList.remove('hidden')
+    // 通道②：遮罩点击关闭
+    els.ngplusSummaryOverlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(els.ngplusSummaryOverlay.classList.contains('hidden')).toBe(true)
+    // 重新打开 → 通道③：Escape 关闭
+    els.ngplusSummaryOverlay.classList.remove('hidden')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(els.ngplusSummaryOverlay.classList.contains('hidden')).toBe(true)
   })
 })
 

@@ -79,6 +79,8 @@ export interface SessionCtx {
   updatePanelTabs(): void
   openNgPlusModal(): void
   closeNgPlusModal(): void
+  openNgPlusSummaryModal(prevCodexLength: number): void
+  closeNgPlusSummaryModal(): void
   openMegastructureModal(id: string): void
   closeMegastructureModal(): void
   startNewGamePlusSequence(): void
@@ -369,6 +371,7 @@ export function bindListeners(ctx: SessionCtx): void {
       render()
     }
     if (e.key === 'Escape' && !els.ngplusOverlay.classList.contains('hidden')) ctx.closeNgPlusModal()
+    if (e.key === 'Escape' && !els.ngplusSummaryOverlay.classList.contains('hidden')) ctx.closeNgPlusSummaryModal()
     if (e.key === 'Escape' && !els.megastructureOverlay.classList.contains('hidden')) ctx.closeMegastructureModal()
     if (e.key === 'Escape' && ui.openBreakdown) {
       ui.openBreakdown = null
@@ -391,6 +394,19 @@ export function bindListeners(ctx: SessionCtx): void {
       ctx.closeNgPlusModal()
       // 与结局面板 NG+ 分支一致的统一序列（auto-infinite-entry：结局面板已退役，入口统一为 infinite 上下文）
       startNewGamePlusSequence(ctx)
+    }
+  })
+
+  // NG+ 继承摘要弹窗（遮罩 / 「继续」按钮；Escape 见统一处理）
+  els.ngplusSummaryOverlay.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement
+    if (t === els.ngplusSummaryOverlay) {
+      ctx.closeNgPlusSummaryModal()
+      return
+    }
+    if (t.closest('[data-ngplus-summary-close]')) {
+      ctx.closeNgPlusSummaryModal()
+      return
     }
   })
 

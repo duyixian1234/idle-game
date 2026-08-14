@@ -1,5 +1,6 @@
-/* ---- 开启新周目 / 终局工程 确认弹窗（共享遮罩与卡片体系；一键买满弹窗已删 ADR-0037；结局面板已退役 auto-infinite-entry） ---- */
+/* ---- 开启新周目 / 终局工程 / 继承摘要 弹窗（共享遮罩与卡片体系；一键买满弹窗已删 ADR-0037；结局面板已退役 auto-infinite-entry） ---- */
 .ngplus-overlay,
+.ngplus-summary-overlay,
 .megastructure-overlay {
   position: fixed;
   inset: 0;
@@ -13,6 +14,7 @@
 }
 
 .ngplus-overlay.hidden,
+.ngplus-summary-overlay.hidden,
 .megastructure-overlay.hidden {
   display: none;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState } from './engine'
 import { resolveEvent, triggerRandomEvent } from './events'
+import { ACHIEVEMENTS } from './achievements'
 import { equivalentFleet, escortFee, escortFeePerShip, escortHarvestMult, expeditionMilitaryCost, startExpedition } from './exploration'
 import { generateConquestTarget } from './generate'
 import { startConquest, settleConquests, endlessBossGuard } from './conquest'
@@ -228,6 +229,25 @@ describe('balance: 舰队战力→探索链路（fleet-power-exploration ticket 
     expect(escortFee(f)).toBe(Math.floor(rawFee20 * (1 - WARP_ESCORT_FEE_REDUCTION)))
     expect(escortFeePerShip(f)).toBeGreaterThan(0)
     expect(rawFee).toBeGreaterThan(0)
+  })
+
+  it('声望护航费折扣定标（ADR-0063）：满声望 −10%，与 warpDrive Lv20 叠加 −20%', () => {
+    const f = createInitialState(0)
+    f.phase = 'ended'
+    f.buildings.dock = 1
+    f.upgrades.dock = 1
+    f.fleet.count = 3
+    f.buildings.solar = 1000 // 放大能源净产出（3 舰维护 ≈119/s 可忽略）→ perShip 大，floor 可区分
+    f.resources.energy = 1e15
+    // 满声望（成就全解锁）
+    for (const def of Object.values(ACHIEVEMENTS)) f.achievements[def.id] = { unlockedAt: 1, unlockedInRound: 0 }
+    const rawFee = Math.floor(escortFeePerShip(f) * equivalentFleet(f))
+    expect(rawFee).toBeGreaterThan(100) // 前提：费用量级足够
+    expect(escortFee(f)).toBe(Math.floor(rawFee * (1 - 0.1))) // 满声望 −10%（ADR-0063 定标值）
+    // warpDrive Lv20 叠加 → −20%
+    f.techLevels.warpDrive = 20
+    const rawFee20 = Math.floor(escortFeePerShip(f) * equivalentFleet(f))
+    expect(escortFee(f)).toBe(Math.floor(rawFee20 * (1 - 0.2))) // 0.1（warp）+ 0.1（声望）
   })
 })
 

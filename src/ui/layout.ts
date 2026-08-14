@@ -13,6 +13,7 @@ export interface AppElements {
   panel: HTMLElement
   ngplusOverlay: HTMLElement
   megastructureOverlay: HTMLElement
+  ngplusSummaryOverlay: HTMLElement
   tutorial: HTMLElement
   navBar: HTMLElement
   navPages: Record<NavId, HTMLElement>
@@ -67,6 +68,7 @@ export function buildLayout(container: HTMLElement): AppElements {
       <button type="button" class="nav-item" data-nav="settings">${iconUse('nav-settings', 'nav-icon')}<span class="nav-label">${t('ui.layout.25')}</span></button>
     </footer>
     <div class="ngplus-overlay hidden" data-overlay="ngplus" aria-label="${t('ui.layout.12')}"></div>
+    <div class="ngplus-summary-overlay hidden" data-overlay="ngplus-summary" aria-label="${t('ui.layout.29')}"></div>
     <div class="megastructure-overlay hidden" data-overlay="megastructure" aria-label="${t('ui.layout.13')}"></div>
     <div class="auto-config-overlay hidden" data-auto-config-overlay aria-label="${t('ui.layout.14')}"></div>
     <div class="tutorial hidden" aria-label="${t('ui.layout.15')}"></div>
@@ -87,6 +89,7 @@ export function buildLayout(container: HTMLElement): AppElements {
     logEl: container.querySelector('[data-log]') as HTMLElement,
     panel: container.querySelector('.panel') as HTMLElement,
     ngplusOverlay: container.querySelector('[data-overlay="ngplus"]') as HTMLElement,
+    ngplusSummaryOverlay: container.querySelector('[data-overlay="ngplus-summary"]') as HTMLElement,
     megastructureOverlay: container.querySelector('[data-overlay="megastructure"]') as HTMLElement,
     tutorial: container.querySelector('.tutorial') as HTMLElement,
     navBar: container.querySelector('.nav-bar') as HTMLElement,

@@ -16,7 +16,7 @@ import {
 } from './exploration'
 import { formatPercent } from './format'
 import { settleOffline } from './offline'
-import { checkAchievements } from './achievements'
+import { ACHIEVEMENTS, checkAchievements } from './achievements'
 import { reputation } from './reputation'
 import { previewNewGamePlus } from './ngplus'
 import { createFactionState, factionTechShare, isFederationUnified, techShareCost, tradeCost } from './diplomacy'
@@ -788,6 +788,57 @@ describe('engine: 探索与 NG+ 交互（决策 Q18）', () => {
     // 无派遣时为 0
     const s3 = endedState()
     expect(previewNewGamePlus(s3).lost.activeExpeditions).toBe(0)
+  })
+})
+
+describe('engine: 探索声望加成（ngplus-experience，ADR-0063：探索槽 + 护航费折扣）', () => {
+  /** 逐步解锁成就直至声望 ≥ n（借道 achievements 集合，绕条件） */
+  const pushRep = (s: GameState, n: number): void => {
+    let sum = 0
+    for (const def of Object.values(ACHIEVEMENTS)) {
+      if (sum >= n) return
+      if (!s.achievements[def.id]) {
+        s.achievements[def.id] = { unlockedAt: 1, unlockedInRound: 0 }
+        sum += def.rep
+      }
+    }
+  }
+
+  it('explorationSlots：声望阶梯探索槽（80→+1、100→+2），上限 20 同步 +2 → 22', () => {
+    const s = endedState()
+    expect(explorationSlots(s)).toBe(5) // 无声望基线
+    // 声望 80：+1 槽（5 → 6）
+    pushRep(s, 80)
+    expect(reputation(s)).toBeGreaterThanOrEqual(80)
+    expect(explorationSlots(s)).toBe(6)
+    // 声望 100：+2 槽（→ 7）
+    pushRep(s, 100)
+    expect(explorationSlots(s)).toBe(7)
+    // 满配：枢纽 Lv10（+5）+ 虫洞 Lv10（+10）+ 声望 2 = 22（上限 20+2 同步提升）
+    s.buildings.jumpgate = 1
+    s.upgrades.jumpgate = 10
+    s.buildings.wormhole = 1
+    s.upgrades.wormhole = 10
+    expect(explorationSlots(s)).toBe(22)
+  })
+
+  it('escortFee：声望护航费折扣（满声望 −10%）；与 warpDrive Lv20 −10% 叠加共 −20%', () => {
+    const s = endedState()
+    s.fleet = { count: 5 } // 5 舰维护费可控（1.5^5 几何级数），能源足量 → 运转
+    s.buildings.dock = 1
+    s.buildings.solar = 2000 // 放大能源净产出 → perShip 大，floor 误差可忽略
+    // 无声望、无 warp：基准（E = 舰数，escortThroughputMult = 1）
+    const fee0 = escortFee(s)
+    expect(fee0).toBeGreaterThan(100) // 前提校验：费用量级足够支撑比例断言
+    // 满声望（warp 未变，E 不变）→ −10%
+    pushRep(s, 100)
+    expect(escortFee(s)).toBe(Math.max(0, Math.floor(fee0 * (1 - 0.1))))
+    // warpDrive Lv20：E 含 warp 倍率（基准变化），同 warp 下有/无声望对比 → 叠加 −20% vs −10%
+    s.techLevels.warpDrive = 20
+    const feeWarpRep = escortFee(s)
+    for (const id of Object.keys(s.achievements)) delete s.achievements[id]
+    const feeWarpNoRep = escortFee(s)
+    expect(feeWarpRep / feeWarpNoRep).toBeCloseTo(0.8 / 0.9, 2) // (1−0.2)/(1−0.1)
   })
 })
 

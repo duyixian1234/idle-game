@@ -536,7 +536,7 @@ describe('engine: 存档 v11 迁移（fleet-dock-10）', () => {
 })
 
 describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
-  it('「编队护航」：首次护航远征结算后达成；非护航不达成；周目内可重解锁', () => {
+  it('「编队护航」：首次护航远征结算后达成；非护航不达成；永久化（NG+ 后不重解锁）', () => {
     const s = escortState()
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(false)
     // 非护航派遣结算 → 不达成
@@ -552,20 +552,18 @@ describe('engine: 护航/船坞成就（fleet-dock-10 ticket 06）', () => {
     const newly = checkAchievements(s, 5000)
     expect(newly.map((d) => d.id)).toContain('escortFirst')
     expect(s.achievements.escortFirst.unlockedInRound).toBe(0)
-    // NG+（二周目）：护航统计重置 → 条件不再满足；再次护航结算 → 重解锁（unlockedInRound 更新 + 重发奖励）
+    // NG+（二周目）：护航统计重置 → 条件不再满足；再次护航结算 → 条件满足但已解锁（成就永久化）→ 不重解锁
     s.ngPlusLevel = 1
     s.stats.escortedExpeditions = 0
     expect(checkAchievements(s, 6000).map((d) => d.id)).not.toContain('escortFirst')
-    const mineralBefore = s.resources.mineral
     startExpedition(s, 0, () => 0.99, 0, true)
     settleExpeditions(s, CYCLE * 3)
     expect(ACHIEVEMENTS.escortFirst.condition(s)).toBe(true)
     const newly2 = checkAchievements(s, 7000)
-    expect(newly2.map((d) => d.id)).toContain('escortFirst')
-    expect(s.achievements.escortFirst.unlockedInRound).toBe(1)
-    // 重解锁重发奖励：奖励日志出现 + 矿物净增量级判定（10 万奖励主导，远征基础成本为小额支出）
-    expect(s.log.some((l) => l.type === 'reward' && l.text.includes('编队护航'))).toBe(true)
-    expect(s.resources.mineral - mineralBefore).toBeGreaterThan((ACHIEVEMENTS.escortFirst.rewardMineral ?? 0) / 2)
+    expect(newly2.map((d) => d.id)).not.toContain('escortFirst')
+    expect(s.achievements.escortFirst.unlockedInRound).toBe(0) // 首次解锁周目保留
+    // 无重发奖励：奖励日志仅首次解锁一条（重发会新增第二条）
+    expect(s.log.filter((l) => l.type === 'reward' && l.text.includes('编队护航')).length).toBe(1)
   })
 
   it('「星海霸主」：船坞 Lv10 达成；Lv9 未达成；谓词与 DOCK_SHIP_CAP 同源（无硬编码漂移）', () => {

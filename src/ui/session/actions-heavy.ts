@@ -89,15 +89,18 @@ export async function resetGame(ctx: SessionCtx): Promise<void> {
   void ctx.deps.save()
 }
 
-/** 手动开启新周目的统一序列：NG+ 推进 → 日志流重置 → seen 重置 → 渲染保存 */
+/** 手动开启新周目的统一序列：NG+ 推进 → 日志流重置 → seen 重置 → 渲染保存 → 继承摘要弹窗。
+ * 摘要弹窗（ngplus-experience，2026-08-14）：每次 NG+ 后展示一次，prevCodexLength 为执行前捕获（「图鉴新增」对比）。 */
 export function startNewGamePlusSequence(ctx: SessionCtx): void {
   const { ui, els } = ctx
+  const prevCodexLength = ctx.getState().factionCodex.length // NG+ 前捕获（摘要「图鉴新增」基线）
   startNewGamePlus(ctx.getState(), Date.now())
   ui.lastLogId = 0
   els.logEl.innerHTML = ''
   ctx.resetSeenSnapshot()
   ctx.render()
   void ctx.deps.save()
+  ctx.openNgPlusSummaryModal(prevCodexLength)
 }
 
 /** 切换日志排序方向（偏好记忆，localStorage 持久化），全量重渲染 */

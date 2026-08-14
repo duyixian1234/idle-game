@@ -288,6 +288,7 @@ export const en: Zh = {
     '[ Voyage Log ]',
     'Toggle log sort direction',
     'Auto-handling',
+    'Inheritance Summary',
     ],
     overlaysX: [
     'Endgame Project: {a0}',
@@ -626,7 +627,16 @@ export const en: Zh = {
     'Achievement Codex',
     "⚠ Cannot be undone after confirmation: this run's resources, buildings, tech, faction favor, conquest progress and reputation will all be reset.",
     'Start New Run',
-    'Cancel'
+    'Cancel',
+    'Inheritance Summary',
+    'Entering run {a0} — here is what carried over from the previous run.',
+    'Run',
+    'Output Bonus',
+    'Tech Points',
+    'Codex Factions',
+    'Achievements',
+    'Permanent Bonuses',
+    'Continue'
     ],
     tech: [
     '🔒 Unlocks after the ending',

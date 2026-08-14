@@ -75,6 +75,15 @@ export function renderMegastructureModal(el: HTMLElement, state: GameState, id: 
     </div>`
 }
 
+/** 永久加成表文本（production → 全产出；其余键 → 军力容量；空表 → 无）——NG+ 确认弹窗与继承摘要共用 */
+function formatBonusText(bonuses: Record<string, number>): string {
+  return (
+    Object.entries(bonuses)
+      .map(([k, v]) => `${k === 'production' ? t('ui.overlaysX.5') : t('ui.overlaysX.6')} +${formatPercent(v * 100)}`)
+      .join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
+  )
+}
+
 /** 渲染「开启新周目」确认弹窗（双清单：将失去 / 将继承，继承为预览值） */
 export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: NgPlusPreview): void {
   const { lost } = preview
@@ -85,10 +94,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
   const facText = lost.alliedFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
   // 将继承（NG+ 后生效，预览值）
   const codexText = preview.codexFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
-  const bonusText =
-    Object.entries(preview.permanentBonuses)
-      .map(([k, v]) => `${k === 'production' ? t('ui.overlaysX.5') : t('ui.overlaysX.6')} +${formatPercent(v * 100)}`)
-      .join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
+  const bonusText = formatBonusText(preview.permanentBonuses)
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
     <div class="ngplus-card" data-ngplus-card>
@@ -119,6 +125,32 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
       <div class="buy-max-actions">
         <button type="button" class="ending-btn primary" data-ngplus-confirm>${t('ui.overlays.30')}</button>
         <button type="button" class="ending-btn ghost" data-ngplus-cancel>${t('ui.overlays.31')}</button>
+      </div>
+    </div>`
+}
+
+/** 渲染「继承摘要」弹窗（开启新周目后立即展示，2026-08-14 ngplus-experience）：
+ * 上周目继承汇总——周目 / 永久产出加成 / 继承科技点 / 派系图鉴（含新增）/ 成就数 / 永久加成表；
+ * 全部来自现有存档与 NG+ 后 state（零新增字段、零存档变更）。关闭：遮罩 / Escape / 「继续」按钮。 */
+export function renderNgPlusSummaryModal(el: HTMLElement, state: GameState, prevCodexLength: number): void {
+  const newCodexCount = Math.max(0, state.factionCodex.length - prevCodexLength)
+  const codexText = state.factionCodex.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
+  const bonusText = formatBonusText(state.permanentBonuses)
+  const achCount = Object.keys(state.achievements).length
+  el.innerHTML = `
+    <div class="ngplus-card" data-ngplus-summary-card>
+      <div class="buy-max-title">${t('ui.overlays.32')}</div>
+      <div class="buy-max-summary">${t('ui.overlays.33', { a0: formatNumber(state.ngPlusLevel) })}</div>
+      <table class="buy-max-table">
+        <tr><th>${t('ui.overlays.34')}</th><td>第 ${formatNumber(state.ngPlusLevel)} 周目</td></tr>
+        <tr><th>${t('ui.overlays.35')}</th><td>${formatMultiplier(state.permanentMult)}</td></tr>
+        <tr><th>${t('ui.overlays.36')}</th><td>${formatNumber(state.resources.tech)}</td></tr>
+        <tr><th>${t('ui.overlays.37')}</th><td>${escapeHtml(codexText)}（${formatNumber(state.factionCodex.length)} 派系${newCodexCount > 0 ? ` · 新增 +${formatNumber(newCodexCount)}` : ''}）</td></tr>
+        <tr><th>${t('ui.overlays.38')}</th><td>${formatNumber(achCount)} 个</td></tr>
+        <tr><th>${t('ui.overlays.39')}</th><td>${bonusText}</td></tr>
+      </table>
+      <div class="buy-max-actions">
+        <button type="button" class="ending-btn primary" data-ngplus-summary-close>${t('ui.overlays.40')}</button>
       </div>
     </div>`
 }
