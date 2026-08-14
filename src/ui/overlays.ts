@@ -92,8 +92,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
   const bldText = lost.buildings.map((id) => `${(BUILDINGS[id] ? defName(BUILDINGS[id]) : id)} ×${formatNumber(state.buildings[id] ?? 0)}`).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
   const techText = lost.techs.map((id) => `${(TECHS[id] ? defName(TECHS[id]) : id)} Lv.${formatNumber(state.techLevels[id] ?? 0)}`).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
   const facText = lost.alliedFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
-  // 将继承（NG+ 后生效，预览值）
-  const codexText = preview.codexFactions.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
+  // 将继承（NG+ 后生效，预览值）——派系图鉴只展示聚合数量，不逐项列出（后期限无尽生成派系累积可达数百）
   const bonusText = formatBonusText(preview.permanentBonuses)
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
@@ -117,7 +116,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
         <tr><th>${t('ui.overlays.23')}</th><td>第 ${formatNumber(preview.nextLevel)} 周目</td></tr>
         <tr><th>${t('ui.overlays.24')}</th><td>${formatMultiplier(preview.permanentMult)}</td></tr>
         <tr><th>${t('ui.overlays.25')}</th><td>${formatNumber(preview.carryTech)}</td></tr>
-        <tr><th>${t('ui.overlays.26')}</th><td>${escapeHtml(codexText)}（初始好感 +${formatNumber(25)}）</td></tr>
+        <tr><th>${t('ui.overlays.26')}</th><td>${formatNumber(preview.codexFactions.length)} 派系（初始好感 +${formatNumber(25)}）</td></tr>
         <tr><th>${t('ui.overlays.27')}</th><td>${bonusText}</td></tr>
         <tr><th>${t('ui.overlays.28')}</th><td>${formatNumber(achCount)} 个（跨周目保留）</td></tr>
       </table>
@@ -134,7 +133,7 @@ export function renderNgPlusModal(el: HTMLElement, state: GameState, preview: Ng
  * 全部来自现有存档与 NG+ 后 state（零新增字段、零存档变更）。关闭：遮罩 / Escape / 「继续」按钮。 */
 export function renderNgPlusSummaryModal(el: HTMLElement, state: GameState, prevCodexLength: number): void {
   const newCodexCount = Math.max(0, state.factionCodex.length - prevCodexLength)
-  const codexText = state.factionCodex.map((id) => (FACTIONS[id] ? defName(FACTIONS[id]) : id)).join(t('ui.overlaysX.4')) || t('ui.overlaysX.3')
+  // 派系图鉴只展示聚合数量，不逐项列出（后期限无尽生成派系累积可达数百）
   const bonusText = formatBonusText(state.permanentBonuses)
   const achCount = Object.keys(state.achievements).length
   el.innerHTML = `
@@ -145,7 +144,7 @@ export function renderNgPlusSummaryModal(el: HTMLElement, state: GameState, prev
         <tr><th>${t('ui.overlays.34')}</th><td>第 ${formatNumber(state.ngPlusLevel)} 周目</td></tr>
         <tr><th>${t('ui.overlays.35')}</th><td>${formatMultiplier(state.permanentMult)}</td></tr>
         <tr><th>${t('ui.overlays.36')}</th><td>${formatNumber(state.resources.tech)}</td></tr>
-        <tr><th>${t('ui.overlays.37')}</th><td>${escapeHtml(codexText)}（${formatNumber(state.factionCodex.length)} 派系${newCodexCount > 0 ? ` · 新增 +${formatNumber(newCodexCount)}` : ''}）</td></tr>
+        <tr><th>${t('ui.overlays.37')}</th><td>${formatNumber(state.factionCodex.length)} 派系${newCodexCount > 0 ? ` · 新增 +${formatNumber(newCodexCount)}` : ''}</td></tr>
         <tr><th>${t('ui.overlays.38')}</th><td>${formatNumber(achCount)} 个</td></tr>
         <tr><th>${t('ui.overlays.39')}</th><td>${bonusText}</td></tr>
       </table>
