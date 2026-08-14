@@ -224,7 +224,7 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
     const allianceMult = allianceProductionMult(state)
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
-      if (base !== 0) values[key] = base * bonus * permMult * allianceMult * smelterMult
+      if (base !== 0) values[key] = base * bonus * permMult * (key === 'military' ? 1 : allianceMult) * smelterMult
     }
     out.push({ planetId: id, name: defName(def), values })
   }
