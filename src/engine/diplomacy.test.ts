@@ -773,6 +773,20 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     expect(productionReport(four).nominal.military).toBe(productionReport(base).nominal.military)
   })
 
+  it('探索势力结盟提供资源产出加成', () => {
+    const base = productionReport(createInitialState(0)).nominal
+    const s = createInitialState(0)
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    s.factions.ashCommune = createFactionState(EXPLORE_FACTIONS.ashCommune)
+    s.factions.ashCommune.favor = 85
+    expect(factionAlliance(s, 'ashCommune')).toEqual({ ok: true })
+    expect(productionReport(s).nominal.mineral).toBeCloseTo(base.mineral * 1.05, 6)
+    expect(productionReport(s).nominal.energy).toBeCloseTo(base.energy * 1.05, 6)
+    expect(productionReport(s).nominal.tech).toBeCloseTo(base.tech * 1.05, 6)
+  })
+
   it('周目内语义：NG+ 派系重置后加成归零', () => {
     const s = alliedState(['ferro', 'lumen'])
     expect(alliedNamedFactionCount(s)).toBe(2)
