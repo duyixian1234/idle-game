@@ -27,6 +27,13 @@ export const en: Zh = {
   'Capped at military limit (current {a0} / cap {a1})',
   'Energy supply rate {a0}%: energy-consuming building output reduced by shortfall',
   'Military cap source: Wormhole Lv.{a0} (+{a1} per level)',
+  'Fixed output',
+  'Permanent bonus',
+  'Tribute (treaty/subjugated)',
+  'Alliance bonus',
+  'NG+ multiplier',
+  'Zone bonus (NG+ legacy + conquest)',
+  'Endless layers',
   ],
   mechlog: [
   'Next storm harvest in {a0}s',

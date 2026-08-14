@@ -6,7 +6,7 @@ import {PLANET_MECHANICS} from '../engine/mechanics'
 import {formatMultiplier, formatNumber, formatRate} from '../engine/format'
 import {isPlanetUnlocked} from '../engine/planets'
 import {militaryCap, productionBreakdown} from '../engine/production'
-import type { BreakdownRow } from '../engine/production'
+import type { BreakdownGroup, BreakdownRow, BreakdownSection } from '../engine/production'
 import {endlessBossAvailable, endlessBossProgress, endlessLayer} from '../engine/events'
 import {iconUse} from './icons'
 import {escapeHtml} from './helpers'
@@ -121,13 +121,24 @@ export function renderBreakdownPanel(el: HTMLElement, state: GameState, resource
         return `<div class="breakdown-row" data-breakdown-row data-breakdown-kind="${r.kind}"><span class="bd-name">${name}</span><span class="bd-value">${mult}${fmt(r.value)}</span><span class="bd-pct">${pct(r.value)}</span></div>`
       })
       .join('')
-  const groups = bd.groups
-    .map((g) => (g.rows.length > 0 ? `<section class="breakdown-group" data-breakdown-group="${escapeHtml(g.id)}"><h4>${escapeHtml(g.label)}</h4>${rows(g.rows)}</section>` : ''))
+  const groups = (gs: BreakdownGroup[]): string =>
+    gs.map((g) => (g.rows.length > 0 ? `<section class="breakdown-group" data-breakdown-group="${escapeHtml(g.id)}"><h4>${escapeHtml(g.label)}</h4>${rows(g.rows)}</section>` : '')).join('')
+  const sectionTotal = (sec: BreakdownSection): string => {
+    let s = 0
+    for (const g of sec.groups) for (const r of g.rows) s += r.value
+    return `<span class="bd-section-total" data-bd-section-total>${fmt(s)}${pct(s)}</span>`
+  }
+  const sections = bd.sections
+    .map((s) => `<div class="breakdown-section" data-breakdown-section="${s.id}"><h3 class="bd-section-title">${escapeHtml(s.label)} ${sectionTotal(s)}</h3>${groups(s.groups)}</div>`)
     .join('')
+  const adjustments =
+    bd.adjustments && bd.adjustments.rows.length > 0
+      ? `<div class="breakdown-adjustments" data-breakdown-adjustments><h3 class="bd-section-title">${escapeHtml(bd.adjustments.label)}</h3>${rows(bd.adjustments.rows)}</div>`
+      : ''
   const consumption =
     bd.consumption && bd.consumption.rows.length > 0
       ? `<details class="breakdown-consumption" data-breakdown-consumption${consumptionOpen ? ' open' : ''}><summary>${t('bar.5')}</summary>${rows(bd.consumption.rows)}</details>`
       : ''
   const notes = [bd.capNote, bd.capSource, bd.energyNote].filter(Boolean).map((n) => `<div class="breakdown-note" data-breakdown-note>${escapeHtml(n as string)}</div>`).join('')
-  el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(t(meta.nameKey))} · 速率构成</div>${groups}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
+  el.innerHTML = `<div class="breakdown-head" data-breakdown-head>${meta.symbol} ${escapeHtml(t(meta.nameKey))} · 速率构成</div>${sections}${adjustments}<div class="breakdown-total" data-breakdown-total>总计 ${fmt(bd.total)}</div>${consumption}${notes}`
 }

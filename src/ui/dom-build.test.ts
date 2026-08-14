@@ -84,8 +84,19 @@ describe('ui: 布局与冒烟', () => {
     renderBreakdownPanel(panel, s, 'mineral')
     expect(panel.classList.contains('hidden')).toBe(false)
     expect(panel.querySelector('[data-breakdown-head]')?.textContent).toContain('矿物')
-    expect(panel.querySelector('[data-breakdown-group="building"]')).toBeTruthy()
-    expect(panel.querySelector('[data-breakdown-group="tech"]')).toBeTruthy()
+    // sections 两级结构：fixed（建筑产出）+ permanent（科技加成）
+    const fixedSec = panel.querySelector('[data-breakdown-section="fixed"]')
+    const permSec = panel.querySelector('[data-breakdown-section="permanent"]')
+    expect(fixedSec).toBeTruthy()
+    expect(permSec).toBeTruthy()
+    expect(fixedSec!.querySelector('[data-breakdown-group="building"]')).toBeTruthy()
+    expect(permSec!.querySelector('[data-breakdown-group="tech"]')).toBeTruthy()
+    // section 标题含合计与占比
+    expect(fixedSec!.querySelector('[data-bd-section-total]')?.textContent).toContain('+100.00/秒')
+    expect(permSec!.querySelector('[data-bd-section-total]')?.textContent).toContain('+50.00/秒')
+    expect(fixedSec!.querySelector('[data-bd-section-total]')?.textContent).toContain('66.7%')
+    // 无能源折减 → adjustments 区不渲染
+    expect(panel.querySelector('[data-breakdown-adjustments]')).toBeNull()
     // 建筑 100 + 科技 50 = 总计 150
     expect(panel.querySelectorAll('[data-breakdown-row]')).toHaveLength(2)
     expect(panel.querySelector('[data-breakdown-total]')?.textContent).toContain('+150.00/秒')

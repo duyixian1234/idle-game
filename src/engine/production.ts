@@ -416,12 +416,20 @@ export interface BreakdownGroup {
   rows: BreakdownRow[]
 }
 
+export interface BreakdownSection {
+  id: 'fixed' | 'permanent'
+  label: string
+  groups: BreakdownGroup[]
+}
+
 export interface ResourceBreakdown {
   resource: ResourceKey
   /** 各产出行之和（军力截断时 = 截断后速率） */
   total: number
-  /** 管线顺序分组（空组省略） */
-  groups: BreakdownGroup[]
+  /** 两级分区：fixed（固定产出：建筑/机制/探索/贡税）+ permanent（永久加成：科技/NG+/区域/无尽/结盟/冶炼场） */
+  sections: BreakdownSection[]
+  /** 能源结算折减（energy-ratio 组，独立区；不属任一 section，守恒公式 Σsections + Σadjustments = total） */
+  adjustments?: BreakdownGroup
   /** 消耗明细（默认收起；无消耗时省略） */
   consumption?: BreakdownGroup
   /** 军力容量截断说明（截断发生时） */
@@ -503,20 +511,53 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     }
   }
 
-  // 5. NG+ 永久加成（×permMult：NG+ 遗产 + 攻占奖励 + 冶炼场遗产 + endless 层数加成）
+  // 5. 跨周目永久加成（拆三行，乘法级联差分，引擎顺序 permanentMult → (1+bonus) → layerMult）：
+  //    NG+ 周目系数（ngplus）/ 区域加成 zone = NG+ 遗产+攻占奖励混合（permanent）/ 无尽层数（layer）。
+  //    三行贡献之和恒等于原单行 base×(permMult−1)——守恒不改，仅展示拆分。
   const permMult = state.permanentMult * (1 + (state.permanentBonuses['production'] ?? 0)) * layerProductionMult(state)
-  const permRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
-  if (permMult !== 1) {
-    for (const key of RESOURCE_KEYS) {
-      const contrib = (mechView[key] + exploreSum[key]) * (permMult - 1)
-      if (contrib !== 0) permRows[key].push({ name: t('prod.1'), mult: permMult, value: contrib, kind: 'mult' })
+  const ngRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const zoneRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const layerRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const afterPerm = zeroResources()
+  for (const key of RESOURCE_KEYS) {
+    const base = mechView[key] + exploreSum[key]
+    afterPerm[key] = base * permMult
+    if (base === 0) continue
+    const zoneBonus = state.permanentBonuses['production'] ?? 0
+    const layerMult = layerProductionMult(state)
+    if (state.permanentMult !== 1) {
+      const contrib = base * (state.permanentMult - 1)
+      if (contrib !== 0) ngRows[key].push({ name: t('prod.20'), mult: state.permanentMult, value: contrib, kind: 'mult' })
+    }
+    if (zoneBonus !== 0) {
+      const contrib = base * state.permanentMult * zoneBonus
+      if (contrib !== 0) zoneRows[key].push({ name: t('prod.21'), mult: 1 + zoneBonus, value: contrib, kind: 'mult' })
+    }
+    if (layerMult !== 1) {
+      const contrib = base * state.permanentMult * (1 + zoneBonus) * (layerMult - 1)
+      if (contrib !== 0) layerRows[key].push({ name: t('prod.22'), mult: layerMult, value: contrib, kind: 'mult' })
     }
   }
 
-  // 6. 能源结算折减（ratio<1 时，消耗能源建筑的产出按 (1−ratio) 折——与真源同公式）
-  const afterPerm = zeroResources()
-  for (const key of RESOURCE_KEYS) afterPerm[key] = (mechView[key] + exploreSum[key]) * permMult
-  const energyRatio = settleEnergyRatio(state, afterPerm.energy, energyDemand)
+  // 6. 结盟全局产出加成（permanent section；allianceMult 在 perm 后、能源结算前——引擎顺序真源）。
+  //    军力不吃（对齐 smelterMult 口径——结盟是资源线）。
+  const allianceMult = allianceProductionMult(state)
+  const allianceRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
+  const afterAlliance = zeroResources()
+  if (allianceMult !== 1) {
+    for (const key of RESOURCE_KEYS) {
+      afterAlliance[key] = afterPerm[key] * (key === 'military' ? 1 : allianceMult)
+      if (key === 'military') continue
+      const contrib = afterPerm[key] * (allianceMult - 1)
+      if (contrib !== 0) allianceRows[key].push({ name: t('prod.19'), mult: allianceMult, value: contrib, kind: 'mult' })
+    }
+  } else {
+    for (const key of RESOURCE_KEYS) afterAlliance[key] = afterPerm[key]
+  }
+
+  // 7. 能源结算折减（ratio<1 时，消耗能源建筑的产出按 (1−ratio) 折——与真源同公式）。
+  //    基线用 perm+alliance 后能源（对齐 productionReport 真源——引擎用结盟放大后的能源作供给池）。
+  const energyRatio = settleEnergyRatio(state, afterAlliance.energy, energyDemand)
   const ratioRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
   if (energyRatio < 1) {
     for (const [id, count] of Object.entries(state.buildings)) {
@@ -532,14 +573,14 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     }
   }
 
-  // 7. 冶炼场全局乘数（能源结算后应用；军力不吃）
+  // 8. 冶炼场全局乘数（能源结算后应用；军力不吃）
   const smelterMult = smelterGlobalMult(state)
   const smelterRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
   const smelterSum = zeroResources()
   if (smelterMult !== 1) {
     for (const key of RESOURCE_KEYS) {
       if (key === 'military') continue
-      const contrib = (afterPerm[key] + sumRows(ratioRows[key])) * (smelterMult - 1)
+      const contrib = (afterAlliance[key] + sumRows(ratioRows[key])) * (smelterMult - 1)
       if (contrib !== 0) {
         smelterRows[key].push({ name: t('prod.3'), mult: smelterMult, value: contrib, kind: 'mult' })
         smelterSum[key] = contrib
@@ -547,7 +588,11 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
     }
   }
 
-  // 8. 军力容量截断
+  // 9. 贡税流（diplomacy-coercion）：条约 + 臣服派系的矿物税，进 fixed section 末行。
+  //    与真源一致不乘冶炼场/NG+/科技——纯政治收入流，并入 total（仅 mineral）。
+  const tributeValue = tributePerSec(state)
+
+  // 10. 军力容量截断
   const room = militaryCap(state) - state.resources.military
   const preMilitary = afterPerm.military + sumRows(ratioRows.military)
   const cappedMilitary = Math.max(0, Math.min(preMilitary, room))
@@ -586,19 +631,36 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   // —— 组装 ——
   const out = {} as Record<ResourceKey, ResourceBreakdown>
   for (const key of RESOURCE_KEYS) {
-    const groups: BreakdownGroup[] = []
-    if (buildingRows[key].length > 0) groups.push({ id: 'building', label: t('prod.5'), rows: buildingRows[key] })
-    if (techRows[key].length > 0) groups.push({ id: 'tech', label: t('prod.6'), rows: techRows[key] })
-    if (mechRows[key].length > 0) groups.push({ id: 'mechanics', label: t('prod.7'), rows: mechRows[key] })
-    if (exploreRows[key].length > 0) groups.push({ id: 'explore', label: t('prod.8'), rows: exploreRows[key] })
-    if (permRows[key].length > 0) groups.push({ id: 'permanent', label: t('prod.9'), rows: permRows[key] })
-    if (ratioRows[key].length > 0) groups.push({ id: 'energy-ratio', label: t('prod.10'), rows: ratioRows[key] })
-    if (smelterRows[key].length > 0) groups.push({ id: 'smelter', label: t('prod.11'), rows: smelterRows[key] })
-    const total = key === 'military' ? cappedMilitary : afterPerm[key] + sumRows(ratioRows[key]) + smelterSum[key]
+    // 固定产出 section（加法型来源，管线顺序）
+    const fixedGroups: BreakdownGroup[] = []
+    if (buildingRows[key].length > 0) fixedGroups.push({ id: 'building', label: t('prod.5'), rows: buildingRows[key] })
+    if (mechRows[key].length > 0) fixedGroups.push({ id: 'mechanics', label: t('prod.7'), rows: mechRows[key] })
+    if (exploreRows[key].length > 0) fixedGroups.push({ id: 'explore', label: t('prod.8'), rows: exploreRows[key] })
+    if (key === 'mineral' && tributeValue !== 0) {
+      fixedGroups.push({ id: 'tribute', label: t('prod.18'), rows: [{ name: t('prod.18'), value: tributeValue, kind: 'add' }] })
+    }
+
+    // 永久加成 section（乘数型来源，乘法顺序）
+    const permGroups: BreakdownGroup[] = []
+    if (techRows[key].length > 0) permGroups.push({ id: 'tech', label: t('prod.6'), rows: techRows[key] })
+    if (ngRows[key].length > 0) permGroups.push({ id: 'ngplus', label: t('prod.20'), rows: ngRows[key] })
+    if (zoneRows[key].length > 0) permGroups.push({ id: 'zone', label: t('prod.21'), rows: zoneRows[key] })
+    if (layerRows[key].length > 0) permGroups.push({ id: 'layer', label: t('prod.22'), rows: layerRows[key] })
+    if (allianceRows[key].length > 0) permGroups.push({ id: 'alliance', label: t('prod.19'), rows: allianceRows[key] })
+    if (smelterRows[key].length > 0) permGroups.push({ id: 'smelter', label: t('prod.11'), rows: smelterRows[key] })
+
+    const sections: BreakdownSection[] = []
+    if (fixedGroups.length > 0) sections.push({ id: 'fixed', label: t('prod.16'), groups: fixedGroups })
+    if (permGroups.length > 0) sections.push({ id: 'permanent', label: t('prod.17'), groups: permGroups })
+    const adjustments: BreakdownGroup | undefined =
+      ratioRows[key].length > 0 ? { id: 'energy-ratio', label: t('prod.10'), rows: ratioRows[key] } : undefined
+
+    const total = key === 'military' ? cappedMilitary : afterAlliance[key] + sumRows(ratioRows[key]) + smelterSum[key] + (key === 'mineral' ? tributeValue : 0)
     const b: ResourceBreakdown = {
       resource: key,
       total,
-      groups,
+      sections,
+      ...(adjustments ? { adjustments } : {}),
       ...(key === 'energy' && energyConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: energyConsumption } } : {}),
       ...(key === 'mineral' && mineralConsumption.length > 0 ? { consumption: { id: 'consumption', label: t('prod.12'), rows: mineralConsumption } } : {}),
       ...(key === 'military' && preMilitary > room ? { capNote: t('prod.13', { a0: formatNumber(state.resources.military), a1: formatNumber(militaryCap(state)) }) } : {}),
