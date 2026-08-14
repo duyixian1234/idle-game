@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
-import { autoConquestTick, conquestCostMult, conquestRewardMult, ensureEndlessBoss, isConquestAvailable, settleConquests, startConquest } from './conquest'
+import { autoConquestTick, conquestCostMult, conquestRewardMult, endlessBossGuard, ensureEndlessBoss, isConquestAvailable, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
 import { generateConquestTarget } from './generate'
 import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
 import { TECHS } from './data'
 import { CONQUEST_MILITARY_REFUND_PCT } from './balance'
 import { militaryCap, nominalMilitaryProduction } from './production'
+import { transportCapacity, bossCanPay } from './troop-transport'
 import { formatNumber } from './format'
 import type { GameState, GeneratedTarget } from './types'
 
@@ -813,6 +814,52 @@ describe('engine: 运兵船 boss 集成（troop-transport，ADR-0061）', () => 
     s.resources.military = 300
     expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(false)
     expect(s.transportShip!.stored).toBe(100)
+  })
+
+  it('守卫可支付上限约束（死锁修复，2026-08-14）：守卫 ≤ 主容量上限 + 运兵船池容量（投满必成）', () => {
+    const s = transportBossState()
+    // 高层数：原公式容量项 ⌊cap/3⌋×(1+0.10×(layer-1)) 随层数放大可超玩家总量上限 →
+    // 必须被「主容量 + 池容量」封顶，保证玩家总能凑齐军力发起
+    s.endless.layer = 30
+    const guard = endlessBossGuard(s, 30)
+    const maxPay = militaryCap(s) + transportCapacity(s)
+    expect(guard).toBeLessThanOrEqual(maxPay)
+    // 池全量 + 主容量满 → 可付（投满守卫必成，而非「守卫 > 兵力上限+运兵船上限」的不可达死锁）
+    s.transportShip!.stored = transportCapacity(s)
+    s.resources.military = militaryCap(s)
+    expect(bossCanPay(s, guard)).toBe(true)
+    // 守卫仍 ≥ 500 保底（不因封顶塌 0）
+    expect(guard).toBeGreaterThanOrEqual(500)
+  })
+
+  it('存量 boss 守卫快照刷新（死锁修复，2026-08-14）：已存在目标守卫超限时收敛到当前公式值（含可支付上限）', () => {
+    const s = transportBossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const id = 'boss:L3'
+    // 人为制造超限快照（旧档场景：守卫公式未含可支付上限时生成的固化守卫）
+    const t = s.generatedTargets.find((x) => x.id === id)!
+    t.guard = militaryCap(s) * 10 // 远超任何可支付能力
+    // 重新 ensure → 刷新为当前公式值（含可支付上限约束），不重复注入
+    expect(ensureEndlessBoss(s)).toBe(id)
+    const refreshed = s.generatedTargets.find((x) => x.id === id)!
+    expect(refreshed.guard).toBe(endlessBossGuard(s, 3))
+    expect(refreshed.guard).toBeLessThanOrEqual(militaryCap(s) + transportCapacity(s))
+    expect(s.generatedTargets.filter((x) => x.id === id)).toHaveLength(1)
+  })
+
+  it('军力浮点残差不阻塞 boss 发起（死锁修复，2026-08-14）：462,335.9999 级残差按 ceil 判付', () => {
+    const s = transportBossState()
+    s.endless.layer = 3
+    ensureEndlessBoss(s)
+    const guard = s.generatedTargets.find((x) => x.id === 'boss:L3')!.guard!
+    // 池全量 + 主容量满（带浮点残差）：ceil(462335.9999)=462336 ≥ remaining → 可付
+    s.transportShip!.stored = guard // 池全量恰好覆盖守卫 → 主容量零补足
+    s.resources.military = 462_335.9999
+    expect(bossCanPay(s, guard)).toBe(true)
+    // 扣费不扣成负数：军力残差侧实扣封顶
+    expect(startConquest(s, 'boss:L3', guard, 0).ok).toBe(true)
+    expect(s.resources.military).toBeGreaterThanOrEqual(0)
   })
 })
 

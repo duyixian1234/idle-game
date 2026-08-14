@@ -92,4 +92,21 @@ describe('engine: 运兵船独立军力池（ADR-0061 + 修订：基础池 + 探
     // 无攻占积累（C=0）→ 池容量 = 基础池 = cap×5%（cap 100 → 5）
     expect(transportCapacity(s)).toBe(Math.floor(militaryCap(s) * 0.05))
   })
+
+  it('浮点容差（死锁修复，2026-08-14）：军力浮点残差不阻塞判定、扣费不扣成负数', () => {
+    const s = tsState()
+    // 满仓边界：remaining = 池存量不足补主容量，军力带 1e-10 级残差 → ceil 判付通过
+    s.transportShip!.stored = 2805
+    s.resources.military = 462_335.9999
+    // invested = 池全量 + 主容量全量 = 2805 + 462336（满仓边界）
+    expect(bossMilitaryPay(s, 2805 + 462_336)).toBe(true)
+    expect(s.resources.military).toBeGreaterThanOrEqual(0) // 不扣成负数
+    expect(s.transportShip!.stored).toBe(0)
+    // 残差侧实际扣费封顶：军力 < remaining → 只扣到 0
+    const s2 = tsState()
+    s2.transportShip!.stored = 0
+    s2.resources.military = 100.9999
+    expect(bossMilitaryPay(s2, 101)).toBe(true)
+    expect(s2.resources.military).toBe(0)
+  })
 })

@@ -67,16 +67,26 @@ export function conquestDef(state: GameState, id: string): ConquestDef | undefin
 
 // ---- boss 军力挑战（endless-progression，ADR-0053，2026-08-11）----
 
-/** boss 守卫公式（ADR-0053）：`min(产能×40s×(1+0.15×(layer-1)), ⌊军力上限×1/3⌋×(1+0.10×(layer-1)), 产能×180s×2)`
+/**
+ * boss 守卫公式（ADR-0053 + troop-transport 可支付上限，ADR-0061 修订）：
+ * `min(产能×40s×(1+0.15×(layer-1)), ⌊军力上限×1/3⌋×(1+0.10×(layer-1)), 产能×180s×2, 玩家可支付上限)`
  * - 产能项 × 层数系数（产出越高、层数越高 → 守卫越强）
  * - 容量项受攻占双上限硬约束（≤ 军力上限 1/3），随层数放大
  * - 末项 = GEN_CONQUEST_GUARD_MAX_SECONDS×2 安全阀（boss 强于普通生成目标）
- * 产能 0（无兵营）时取 500 保底（与生成目标同构防守卫塌 0） */
+ * - **可支付上限（死锁修复，2026-08-14）**：守卫 ≤ ⌊主容量上限 + 运兵船池容量⌋——
+ *   保证玩家始终能凑齐军力发起 boss（池全量 + 主容量全量 ≥ 守卫，投满必成）。
+ *   原公式容量项 10%/层 增速远快于池 2%/层，层数高时守卫可超玩家总量上限，
+ *   造成「守卫 > 兵力上限+运兵船上限」的不可达死锁（真实档 layer=42：守卫 785,971 > 可付 700,531）。
+ * 产能 0（无兵营）时取 500 保底（与生成目标同构防守卫塌 0）。 */
 export function endlessBossGuard(state: GameState, layer: number): number {
   const byProd = Math.floor(nominalMilitaryProduction(state) * BOSS_GUARD_PROD_SECONDS * (1 + BOSS_GUARD_PROD_LAYER_GROWTH * (layer - 1)))
   const byCap = Math.floor(Math.floor(militaryCap(state) * BOSS_GUARD_CAP_PCT) * (1 + BOSS_GUARD_CAP_LAYER_GROWTH * (layer - 1)))
   const byMax = Math.floor(nominalMilitaryProduction(state) * BOSS_GUARD_MAX_SECONDS)
-  return Math.max(500, Math.min(byProd, byCap, byMax))
+  const byFormula = Math.min(byProd, byCap, byMax)
+  // 可支付上限（troop-transport，ADR-0061 修订）：守卫永不超「主容量 + 运兵船池」，
+  // 保证玩家总能投满守卫必成；早期可支付 < 500 时保底优先（500 保底语义不变）。
+  const payCap = Math.max(500, militaryCap(state) + transportCapacity(state))
+  return Math.min(Math.max(500, byFormula), payCap)
 }
 
 /** boss 一次性奖励（层数系数）：奖励锚定当期净产出（ADR-0028 同源），× (1 + 0.15×(layer-1)) */
@@ -103,11 +113,21 @@ export function isBossTarget(id: string): boolean {
 }
 
 /** 确保当前层 boss 目标存在（幂等）：layer%3===0 且未获得时注入 generatedTargets + conquest 可用态。
- * boss 复用攻占结算管线（发起/守卫/结算/奖励）；autoBoss 开启后由自动系统按冷却发起。 */
+ * boss 复用攻占结算管线（发起/守卫/结算/奖励）；autoBoss 开启后由自动系统按冷却发起。
+ * **存量守卫刷新（死锁修复，2026-08-14）**：已存在的 boss 目标若守卫 > 当前可支付上限
+ * （cap + 运兵船池，公式含层数系数随玩家成长而漂移），则刷新为当前公式值——
+ * 旧档在守卫超限时生成的 boss 快照（如 layer=42 档 736,848 > 可付 700,531）将自动收敛到可达成值。 */
 export function ensureEndlessBoss(state: GameState): string | null {
   const id = endlessBossId(state)
   if (!id) return null
-  if (state.generatedTargets.some((x) => x.kind === 'conquest' && x.id === id)) return id
+  const existing = state.generatedTargets.find((x) => x.kind === 'conquest' && x.id === id)
+  if (existing) {
+    // 死锁修复：存量 boss 守卫刷新到当前公式值（含可支付上限约束），不重复注入
+    const layer = endlessLayer(state)
+    const guard = endlessBossGuard(state, layer)
+    if ((existing.guard ?? 0) !== guard) existing.guard = guard
+    return id
+  }
   const layer = endlessLayer(state)
   const guard = endlessBossGuard(state, layer)
   const { rewardMineral, rewardTech } = endlessBossReward(state, layer)

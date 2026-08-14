@@ -64,19 +64,25 @@ export function withdrawMilitary(state: GameState, amount: number): number {
  * 池已隔离 boss 消耗、boss 发起（手动/autoBoss）是玩家主动决策，主容量全量计入可付。
  * 自动攻占普通目标的保底语义不受影响（autoConquestTick 对非 boss 目标仍按
  * `military < guard + reserve` 保留安全垫）。修复「池+主容量总量够守卫但被安全垫锁死」的失败场景。
+ *
+ * **浮点容差（死锁修复，2026-08-14）**：军力是浮点累加资源（如 462,335.9999），守卫经可支付
+ * 上限约束后可能恰好等于 cap+池 的满仓边界，严格 `>=` 比较会因 1e-10 级残差误判不可付——
+ * 比较前对军力向上取整（462,335.9999 → 462,336），与生产截断语义一致。
  */
 export function bossCanPay(state: GameState, invested: number): boolean {
   const ts = state.transportShip
   const pool = ts ? ts.stored : 0
   const remaining = invested - Math.min(pool, invested)
   if (remaining <= 0) return true
-  return state.resources.military >= remaining
+  return Math.ceil(state.resources.military) >= remaining
 }
 
 /**
  * boss 出征支付：池优先，池不足主容量补（主容量全量可付，**不保留安全垫**——
  * 池已隔离 boss 消耗，主动发起是玩家决策；自动攻占普通目标的保底由 autoConquestTick 单独保证）。
  * 不足返回 false（不发起，支付不变）。手动与 autoBoss 一致。
+ * 扣费安全：主容量按 `min(remaining, 军力)` 实扣，军力浮点残差（462,335.9999 等 1e-10 级）不扣成负数
+ * （判定经 bossCanPay ceil 容差通过，实扣封顶到军力现值，残差自然归零）。
  */
 export function bossMilitaryPay(state: GameState, invested: number): boolean {
   if (!bossCanPay(state, invested)) return false
@@ -85,7 +91,7 @@ export function bossMilitaryPay(state: GameState, invested: number): boolean {
   if (ts) ts.stored -= poolPay
   const remaining = invested - poolPay
   if (remaining <= 0) return true
-  state.resources.military -= remaining
+  state.resources.military = Math.max(0, state.resources.military - Math.min(remaining, state.resources.military))
   return true
 }
 

@@ -26,3 +26,9 @@
 > 证据：`troop-transport.ts`（bossCanPay/bossMilitaryPay）、`conquest.ts`（autoConquestTick autoBoss 分支）、`ui/render/military.ts`（isBossTarget 排除）、`troop-transport.test.ts`/`conquest.test.ts`（突破安全垫/独立 autoBoss 契约）。
 
 > **2026-08-13 修订（池容量加成）**：池容量公式由 `兵力上限 × C%` 扩展为 `兵力上限 × (基础池 5% + C%) × (1 + 2%×无尽层数)`——新增基础池（TRANSPORT_BASE_POOL_PCT，无攻占积累也有保底）与探索加成（TRANSPORT_LAYER_GROWTH_PCT，无尽层数每层 +2% 作用于整体）。兵力上限为基数（基础兵力越强池越大）、探索进度（层数）提供额外乘数。守卫容量锚（10%/层）增速仍大于池增速（2%/层），渐进回退主容量兜底语义不变；返还仍 ≤ 投入×50%（军力不净增防印钞约束不受池容量影响）。证据：`balance.ts`（TRANSPORT_BASE_POOL_PCT/TRANSPORT_LAYER_GROWTH_PCT）、`troop-transport.ts:transportCapacity`、`troop-transport.test.ts`（池容量/基础池/探索加成契约）。
+
+> **2026-08-14 修订③（守卫可支付上限，死锁修复）**：boss 守卫公式新增可支付上限约束——`守卫 ≤ 主容量上限 + 运兵船池容量`（conquest.ts `endlessBossGuard` 末项）。触发场景：原公式容量项 `⌊cap/3⌋×(1+0.10×(layer-1))` 随层数线性放大（10%/层），增速远快于池容量（2%/层），layer 高时守卫可超玩家总量上限。真实存档（NG+5，layer=42）实测：守卫 785,971 vs 可支付上限 700,531（主容量 462,336 + 池 238,195），`startConquest` 全量投入仍返回「军力不足」——玩家永远无法发起 boss，也无法像普通攻占那样多次进攻/失败重试，是结构性不可达死锁。修复三件套：
+> 1. **守卫封顶可支付上限**：`endlessBossGuard` = min(原公式, max(500, cap + 池容量))——投满守卫必成（100% 成功率），失败可重试（复用攻占管线多次进攻）；
+> 2. **存量守卫刷新**：`ensureEndlessBoss` 对已存在 boss 目标守卫超限时刷新为当前公式值（旧档快照自动收敛，不重复注入）；
+> 3. **浮点容差**：`bossCanPay` 军力比较前 `Math.ceil`（462,335.9999 → 462,336），`bossMilitaryPay` 实扣封顶军力现值（残差不扣成负数）——守卫恰好等于 cap+池 满仓边界时不因 1e-10 级残差误判不可付。
+> 证据：`conquest.ts`（endlessBossGuard/ensureEndlessBoss）、`troop-transport.ts`（bossCanPay/bossMilitaryPay）、`conquest.test.ts`/`troop-transport.test.ts`（可支付上限/存量刷新/浮点容差契约）。
