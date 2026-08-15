@@ -11,7 +11,7 @@ import { t } from '../../i18n'
 import type { GameState } from '../../engine/types'
 import type { FactionDef } from '../../engine/data'
 import {ENDLESS_FACTIONS, defName, defDesc} from '../../engine/data'
-import {ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, ALLIANCE_PRODUCTION_PCT_PER_FACTION, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, TECH_SHARE_COST} from '../../engine/balance'
+import {ALLIANCE_COST, ALLIANCE_FAVOR_THRESHOLD, ALLIANCE_PRODUCTION_PCT_PER_FACTION, COERCION_UNLOCK_MILITARY_CAP, ENDLESS_BATCH_2_EXPLORATIONS, EXPLORATION_DIPLOMACY_MULT_CAP, TECH_SHARE_COST} from '../../engine/balance'
 import {alliedNamedFactionCount, canFactionAlliance, canFactionAtone, canFactionExtort, canFactionIntimidate, canFactionSubjugate, canFactionTechShare, canFactionTrade, canFactionTreaty, coercionUnlocked, atoneCost, diplomacyAutoMode, diplomacyOverview, extortCost, factionDef, factionsVisible, intimidateCost, tradeCost, treatyCost} from '../../engine/diplomacy'
 import {endlessBatchUnlocked, endlessTargetId} from '../../engine/generate'
 import {explorationDiplomacyMult} from '../../engine/production'
@@ -114,11 +114,12 @@ export function renderDiplomacyPanel(el: HTMLElement, state: GameState, opts: { 
     allianceCount > 0
       ? `<div class="diplo-header-row" data-diplo-alliance-bonus>${t('ui.diplomacy.38', { a0: formatPercent(allianceCount * ALLIANCE_PRODUCTION_PCT_PER_FACTION * 100) })}</div>`
       : ''
-  // 探索外交产出加成（ADR-0064）：ended/infinite 阶段 1.05 + 0.05×探索结盟累计，独立于有名派系结盟加成
+  // 探索外交产出加成（ADR-0064 修订）：ended/infinite 阶段 1.05 + 0.05×结盟累计（全部已结盟派系），
+  // 封顶 +400%（EXPLORATION_DIPLOMACY_MULT_CAP，防程序生成派系无限叠加）；与有名派系结盟加成独立
   const explorationMult = explorationDiplomacyMult(state)
   const explorationBonusRow =
     explorationMult !== 1
-      ? `<div class="diplo-header-row" data-diplo-exploration-bonus>${t('ui.diplomacy.39', { a0: formatPercent((explorationMult - 1) * 100) })}</div>`
+      ? `<div class="diplo-header-row" data-diplo-exploration-bonus>${t('ui.diplomacy.39', { a0: formatPercent((explorationMult - 1) * 100), a1: formatPercent((EXPLORATION_DIPLOMACY_MULT_CAP - 1) * 100) })}</div>`
       : ''
   const header = document.createElement('div')
   header.className = 'diplo-header'

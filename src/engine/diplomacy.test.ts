@@ -62,6 +62,7 @@ import {
   ATONE_TRADE_FAVOR_MULT,
   COERCION_UNLOCK_MILITARY_CAP,
   ALLIANCE_PRODUCTION_PCT_PER_FACTION,
+  EXPLORATION_DIPLOMACY_MULT_CAP,
 } from './balance'
 import { EXPLORE_FACTIONS } from './data'
 import type { GameState } from './types'
@@ -807,7 +808,7 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     const inf = createInitialState(0)
     inf.phase = 'infinite'
     expect(explorationDiplomacyMult(inf)).toBeCloseTo(1.05)
-    // 探索势力结盟 → 累计入册（4 家封顶，同一势力只计一次）
+    // 探索势力结盟 → 累计入册（同一势力只计一次）
     inf.resources.mineral = 1_000_000
     inf.resources.energy = 1_000_000
     inf.resources.tech = 100_000
@@ -818,8 +819,6 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     }
     expect(inf.explorationAlliances).toHaveLength(4)
     expect(explorationDiplomacyMult(inf)).toBeCloseTo(1.25)
-    // 生成派系/静态派系不计入探索外交累计（仅 EXPLORE_FACTIONS 入册）
-    expect(inf.explorationAlliances).toEqual(Object.keys(EXPLORE_FACTIONS))
     // 产出合并：allianceMult(1+0.05×4)=1.2 与 exploration(1.25) 加法合并 = 1.45（infinite 基础 1.05 已含于 base）
     const s3 = createInitialState(0)
     s3.phase = 'infinite'
@@ -849,5 +848,34 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     const s4base = createInitialState(0)
     s4base.buildings.barracks = 1
     expect(productionReport(s4).nominal.military).toBe(productionReport(s4base).nominal.military)
+  })
+
+  it('ADR-0064 修订：静态派系/程序生成派系结盟也计入探索外交累计（v19 计数池扩大）', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    s.resources.mineral = 1_000_000
+    s.resources.energy = 1_000_000
+    s.resources.tech = 100_000
+    // 静态派系（ferro 初始存在）
+    s.factions.ferro.favor = 85
+    expect(factionAlliance(s, 'ferro')).toEqual({ ok: true })
+    // 程序生成派系（需先入 generatedTargets 才有 def）
+    s.generatedTargets.push({ kind: 'faction', id: 'gen:faction:1', name: '生成派系A', desc: '测试', batch: 0, initialFavor: 10, initialThreat: 30 })
+    s.factions['gen:faction:1'] = createFactionState({ id: 'gen:faction:1', initialFavor: 10, initialThreat: 30 })
+    s.factions['gen:faction:1'].favor = 85
+    expect(factionAlliance(s, 'gen:faction:1')).toEqual({ ok: true })
+    expect(s.explorationAlliances).toEqual(['ferro', 'gen:faction:1'])
+    expect(explorationDiplomacyMult(s)).toBeCloseTo(1.15)
+  })
+
+  it('ADR-0064 修订：探索外交加成封顶（+400%，1.05+0.05×n ≤ 5.0）', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    // 直接塞满 80 个已结盟派系 id → 超 cap，mult 钳制在 5.0
+    s.explorationAlliances = Array.from({ length: 80 }, (_, i) => `gen:faction:${i}`)
+    expect(explorationDiplomacyMult(s)).toBeCloseTo(EXPLORATION_DIPLOMACY_MULT_CAP)
+    // 封顶边界：79 个恰好触顶，80 个不再增长
+    s.explorationAlliances = Array.from({ length: 79 }, (_, i) => `gen:faction:${i}`)
+    expect(explorationDiplomacyMult(s)).toBeCloseTo(EXPLORATION_DIPLOMACY_MULT_CAP)
   })
 })

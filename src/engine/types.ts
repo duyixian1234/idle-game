@@ -151,8 +151,8 @@ export interface EventInstance {
   payload?: Record<string, number | string>
 }
 
-/** 存档 schema 版本（v18 = 探索外交结盟累计，ADR-0064；v17 = 运兵船独立军力池；v16 = endless 层推进进度 + autoBoss；v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
-export const SCHEMA_VERSION = 18
+/** 存档 schema 版本（v19 = 探索外交计数池扩大至全部结盟派系，ADR-0064 修订；v18 = 探索外交结盟累计，ADR-0064；v17 = 运兵船独立军力池；v16 = endless 层推进进度 + autoBoss；v15 = 普通建筑升级取消，升级投入折算返还；v14 = 外交自动化逐派系三态（perFaction boolean → mode）；v13 = 胁迫外交派系状态；v12 新增无尽生成目标与归档标记；v11 = 自动探索设置；v10 = 虫群强度倍率，bug-defense 占用；顶部天体隐藏设置向后兼容补齐） */
+export const SCHEMA_VERSION = 19
 
 /** 运兵船独立军力池（v17 新增，ADR-0061）：boss 专用军力存储通道。
  * - capacityPct：池容量比例（池容量 = 军力容量 × capacityPct），由攻占积累（静态区 +5%、boss +3%），周目内重置
@@ -367,9 +367,10 @@ export interface GameState {
   ngPlusLevel: number
   /** 已结盟派系图鉴（NG+ 继承） */
   factionCodex: string[]
-  /** 探索外交结盟累计势力 id（ADR-0064，v18 新增；可选字段，缺省空数组）：探索发现势力首次成功结盟入册，
+  /** 探索外交结盟累计势力 id（ADR-0064，v18 新增；v19 修订计数池 = 全部已结盟派系；可选字段，缺省空数组）：
+   * 所有派系首次成功结盟入册（静态 4 + 探索 4 + 程序生成派系，由 factionAlliance 统一登记），
    * 跨 NG+ 保留；同一势力只计一次，关系失效/周目更替不撤销——驱动探索外交产出加成
-   * （ended/infinite 阶段 1.05 + 0.05×n，production.ts explorationDiplomacyMult）。 */
+   * （ended/infinite 阶段 1.05 + 0.05×n，封顶 +400%，production.ts explorationDiplomacyMult）。 */
   explorationAlliances?: string[]
   /** 永久产出加成系数（NG+ 继承，默认 1） */
   permanentMult: number

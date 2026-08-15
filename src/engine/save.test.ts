@@ -496,27 +496,44 @@ describe('engine: 存档序列化往返', () => {
     expect(restored.endless.layerProgress).toBe(0.5)
   })
 
-  it('v17 → v18 迁移：探索外交结盟累计回填（已结盟探索势力入册），幂等保留既有累计', () => {
-    // 旧档（v17）无 explorationAlliances → 回填当前已结盟的探索势力（EXPLORE_FACTIONS ∩ allied）
+  it('v17 → v18 → v19 迁移：探索外交结盟累计回填（已结盟派系全部入册），幂等保留既有累计', () => {
+    // 旧档（v17）无 explorationAlliances → 回填当前已结盟的派系（探索势力 + 程序生成派系 + 静态派系）
     const s = createInitialState(0)
     s.phase = 'infinite'
     for (const id of Object.keys(EXPLORE_FACTIONS)) {
       s.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
       s.factions[id].allied = true
     }
-    // 生成派系结盟不计入探索外交累计（ADR-0012 红线）
+    // 程序生成派系结盟计入（ADR-0012 修订：v19 起程序生成派系入册）
     s.factions['gen:faction:0'] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 0 }
     const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
     raw.schemaVersion = 17
     delete raw.explorationAlliances
     const migrated = deserializeSave(JSON.stringify(raw))
     expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
-    expect(migrated.explorationAlliances).toEqual(Object.keys(EXPLORE_FACTIONS))
+    expect(migrated.explorationAlliances).toContain('gen:faction:0')
+    expect(migrated.explorationAlliances).toContain('ashCommune')
     // 幂等：已有累计保留（跨 NG+ 的累计不被覆盖）
     const s2 = createInitialState(0)
     s2.explorationAlliances = ['ashCommune']
     const restored = deserializeSave(serializeSave(s2))
     expect(restored.explorationAlliances).toEqual(['ashCommune'])
+  })
+
+  it('v18 → v19 迁移：既有 explorationAlliances 并入当前已结盟的静态/生成派系（去重），保留既有累计', () => {
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    // 既有累计（模拟 v18 档：只含探索势力 4 家）
+    s.explorationAlliances = ['ashCommune', 'ringOrder']
+    // 当前已结盟的静态派系 + 程序生成派系
+    s.factions.ferro.favor = 100
+    s.factions.ferro.allied = true
+    s.factions['gen:faction:7'] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 0 }
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 18
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.explorationAlliances).toEqual(['ashCommune', 'ringOrder', 'ferro', 'gen:faction:7'])
   })
 
   it('save-size-opt：存量已归档 generatedTargets 条目在加载时幂等压缩（conquest/faction 白名单，planet 原样）', () => {

@@ -48,6 +48,8 @@ const SCHEMA_V16 = 16
 const SCHEMA_V17 = 17
 /** 首个支持探索外交结盟累计的存档版本（ADR-0064 占用：explorationAlliances，跨 NG+ 保留） */
 const SCHEMA_V18 = 18
+/** 首个支持探索外交计数池扩大至全部已结盟派系的存档版本（ADR-0064 修订，2026-08-15） */
+const SCHEMA_V19 = 19
 /** 当前事件统一契约版本（独立于存档主 schema，避免旧系统版本跳跃） */
 const EVENT_CONFIG_VERSION = 1
 /** 支持的最低版本（当前全部可迁移版本） */
@@ -591,6 +593,24 @@ function migrateV16ToV17(raw: Record<string, unknown>): Record<string, unknown> 
   return next
 }
 
+/** v18 → v19：探索外交计数池扩大（ADR-0064 修订，2026-08-15）。
+ * - v18 回填仅覆盖 EXPLORE_FACTIONS 四家；v19 需将当前已结盟的全部派系（静态/探索/程序生成）
+ *   并入 explorationAlliances（去重）——否则旧档中已结盟的程序生成派系不进入计数池，
+ *   探索外交加成与"已结盟 N 个目标"的体感脱节。
+ * - 幂等：仅在既有累计基础上并入当前已结盟派系 id；既有累计保留（跨 NG+ 累计不被覆盖）。 */
+function migrateV18ToV19(raw: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...raw }
+  const factions = isPlainObject(next.factions) ? (next.factions as Record<string, unknown>) : {}
+  const existing = isArray(next.explorationAlliances) ? (next.explorationAlliances as unknown[]) : []
+  const alliedIds = Object.keys(factions).filter((id) => {
+    const f = factions[id]
+    return isPlainObject(f) && (f as { allied?: unknown }).allied === true && !existing.includes(id)
+  })
+  next.explorationAlliances = [...existing, ...alliedIds]
+  next.schemaVersion = SCHEMA_V19
+  return next
+}
+
 /** v17 → v18：探索外交结盟累计缺省（ADR-0064）。
  * - explorationAlliances 缺省 = 回填当前已结盟的探索势力 id（EXPLORE_FACTIONS ∩ allied）——
  *   结盟为永久状态（关系失效不撤销），旧档本周目已结盟的探索势力即已发生"首次成功结盟"，应计入累计，
@@ -626,7 +646,7 @@ function migrateV17ToV18(raw: Record<string, unknown>): Record<string, unknown> 
  * - v13 存档（外交自动化 perFaction boolean → 三态模式）→ 转 v14
  * - v14 存档（普通建筑升级取消，升级投入折算返还）→ 转 v15
  * - v15 存档（endless 层推进进度 + autoBoss，一键全自动事件开关）→ 转 v16
- * - v16 存档（无探索外交结盟累计）→ 转 v17（运兵船池）→ 转 v18（探索外交累计回填）
+ * - v16 存档（无探索外交结盟累计）→ 转 v17（运兵船池）→ 转 v18（探索外交累计回填）→ 转 v19（计数池扩大至全部结盟派系）
  * - 任意版本最后过事件契约迁移（幂等：eventConfigVersion 达标则跳过事件处理，主 schema 版本不变）
  * - 已是当前版本：事件迁移幂等跳过，原样返回
  *
@@ -654,6 +674,7 @@ export function migrateSave(raw: GameState): GameState {
   if (cur.schemaVersion === SCHEMA_V15) cur = migrateV15ToV16(cur)
   if (cur.schemaVersion === SCHEMA_V16) cur = migrateV16ToV17(cur)
   if (cur.schemaVersion === SCHEMA_V17) cur = migrateV17ToV18(cur)
+  if (cur.schemaVersion === SCHEMA_V18) cur = migrateV18ToV19(cur)
   // 事件契约迁移对任意进入版本执行：v1-v14 链式迁移后必已 ≥ v14，v15 档幂等跳过（migrateEventContract 不改主版本）
   cur = migrateEventContract(cur)
   // save-size-opt（ADR-0058）：存量已归档 generatedTargets 条目幂等压缩（conquest/faction 白名单，planet 原样）——运行时行为，非结构变更

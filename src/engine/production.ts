@@ -2,7 +2,7 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, EXPLORATION_DIPLOMACY_BASE_MULT, EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP, INFINITE_TECH_PCT_PER_LEVEL} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, EXPLORATION_DIPLOMACY_BASE_MULT, EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE, EXPLORATION_DIPLOMACY_MULT_CAP, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP, INFINITE_TECH_PCT_PER_LEVEL} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
@@ -116,14 +116,17 @@ export function allianceProductionMult(state: GameState): number {
   return 1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION * alliedNamedFactionCount(state)
 }
 
-/** 探索外交产出加成（ADR-0064，2026-08-15）：进入 ended/infinite 阶段后 1.05 + 0.05×探索结盟累计次数；否则 1.0。
+/** 探索外交产出加成（ADR-0064 修订，2026-08-15）：进入 ended/infinite 阶段后 1.05 + 0.05×探索结盟累计次数；
+ * 否则 1.0。计数池 = 全部已结盟派系（静态/探索/程序生成，factionAlliance 统一入册），封顶 +400%
+ * （EXPLORATION_DIPLOMACY_MULT_CAP，防程序生成派系无限叠加——ADR-0012 修订）。
  * 与 ADR-0048 有名派系结盟加成（allianceProductionMult）加法合并（合计 = alliance + exploration − 1）；
  * 军力不吃（对齐结盟资源线口径）；覆盖所有资源产出路径（主管线/探索天体/离线——离线走 productionReport 同源）。
- * 累计次数（explorationAlliances）跨 NG+ 保留，由 diplomacy.ts factionAlliance 在探索势力首次结盟时累计。 */
+ * 累计次数（explorationAlliances）跨 NG+ 保留，由 diplomacy.ts factionAlliance 在派系首次结盟时累计。 */
 export function explorationDiplomacyMult(state: GameState): number {
   if (state.phase !== 'ended' && state.phase !== 'infinite') return 1
   const count = (state.explorationAlliances ?? []).length
-  return EXPLORATION_DIPLOMACY_BASE_MULT + EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE * count
+  const mult = EXPLORATION_DIPLOMACY_BASE_MULT + EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE * count
+  return Math.min(mult, EXPLORATION_DIPLOMACY_MULT_CAP)
 }
 
 /** 无尽层数全产出永久加成（endless-progression，ADR-0053）：每层 +1%，跨 NG+ 继承（endless 状态全继承）。
