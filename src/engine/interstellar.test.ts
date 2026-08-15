@@ -66,12 +66,12 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
   it('唯一大件产出增长：base × 2^level（星港 500 → 1000 → 2000 矿/s）', () => {
     const s = endedState()
     s.buildings.starportMine = 1
-    // endedState 深钻 6 台贡献 48 矿/s（星港解锁前置的真实副作用）
-    expect(productionReport(s).nominal.mineral).toBeCloseTo(500 + 48)
+    // endedState 深钻 6 台贡献 48 矿/s（星港解锁前置的真实副作用）；ended 阶段探索外交基础 ×1.05（ADR-0064）
+    expect(productionReport(s).nominal.mineral).toBeCloseTo((500 + 48) * 1.05)
     s.upgrades.starportMine = 1
-    expect(productionReport(s).nominal.mineral).toBeCloseTo(1000 + 48)
+    expect(productionReport(s).nominal.mineral).toBeCloseTo((1000 + 48) * 1.05)
     s.upgrades.starportMine = 2
-    expect(productionReport(s).nominal.mineral).toBeCloseTo(2000 + 48)
+    expect(productionReport(s).nominal.mineral).toBeCloseTo((2000 + 48) * 1.05)
   })
 
   it('四座 unique 大件 Lv10 封顶：Lv9 可升至 Lv10，Lv10 拒绝继续升级', () => {
@@ -98,9 +98,9 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
       const s = endedState()
       s.buildings[id] = 1
       s.upgrades[id] = 10
-      // endedState 深钻 6 台贡献 48 矿/s（仅 mineral 键受影响）
+      // endedState 深钻 6 台贡献 48 矿/s（仅 mineral 键受影响）；ended 阶段探索外交基础 ×1.05（ADR-0064）
       const extra = resource === 'mineral' ? 48 : 0
-      expect(productionReport(s).nominal[resource]).toBeCloseTo(base * 1024 + extra)
+      expect(productionReport(s).nominal[resource]).toBeCloseTo((base * 1024 + extra) * 1.05)
     }
     const smelter = withThreeInterstellar(endedState())
     smelter.buildings.ringSmelter = 1
@@ -137,10 +137,10 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     s.resources.energy = 0 // 极端：能源余额为 0
     const mineralBefore = s.resources.mineral
     tick(s, 1000)
-    // Lv0 维护 20 矿/s：1 秒扣 20；深钻 6 台产 48 矿/s → 净 +28
-    expect(s.resources.mineral).toBeCloseTo(mineralBefore - 20 + 48)
-    // 能源产出完整 1000/s（维护费独立结算，不走 settleEnergyRatio 打折）
-    expect(s.resources.energy).toBeCloseTo(1000)
+    // Lv0 维护 20 矿/s：1 秒扣 20；深钻 6 台产 48 矿/s（探索外交 ×1.05 = 50.4/s）→ 净 +30.4
+    expect(s.resources.mineral).toBeCloseTo(mineralBefore - 20 + 48 * 1.05)
+    // 能源产出完整 1000×1.05/s（维护费独立结算，不走 settleEnergyRatio 打折）
+    expect(s.resources.energy).toBeCloseTo(1000 * 1.05)
   })
 
   it('维护费随等级 ×2^level（恒星 Lv2 = 80 矿/s）', () => {
@@ -149,7 +149,7 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     s.upgrades.stellarArray = 2
     const mineralBefore = s.resources.mineral
     tick(s, 1000)
-    expect(s.resources.mineral).toBeCloseTo(mineralBefore - 80 + 48)
+    expect(s.resources.mineral).toBeCloseTo(mineralBefore - 80 + 48 * 1.05)
   })
 
   it('维护费离线结算同口径：settleOffline 整段扣减', () => {
@@ -160,11 +160,11 @@ describe('engine: 数据模型扩展（ticket 01）——唯一大件/星际类�
     const now = 0
     s.lastTick = now - 5 * 3600 * 1000 // 离线 5 小时（不超 8h 封顶）
     const off = settleOffline(s, now)
-    // 5h × 20 矿/s = 360,000 维护费；深钻 6 台 48 矿/s 产出入账（净 -360k + 864k = +504k）
+    // 5h × 20 矿/s = 360,000 维护费；深钻 6 台 48 矿/s 产出入账（探索外交 ×1.05 = 50.4/s）
     expect(off.durationSeconds).toBe(5 * 3600)
-    expect(s.resources.mineral).toBeCloseTo(50_000_000_000 - 20 * 5 * 3600 + 48 * 5 * 3600)
-    // 能源产出完整入账（恒星 1000/s × 5h，相对初始 10e9）
-    expect(s.resources.energy).toBeCloseTo(10_000_000_000 + 1000 * 5 * 3600)
+    expect(s.resources.mineral).toBeCloseTo(50_000_000_000 - 20 * 5 * 3600 + 48 * 1.05 * 5 * 3600)
+    // 能源产出完整入账（恒星 1000×1.05/s × 5h，相对初始 10e9）
+    expect(s.resources.energy).toBeCloseTo(10_000_000_000 + 1000 * 1.05 * 5 * 3600)
   })
 })
 
@@ -233,17 +233,17 @@ describe('engine: 恒星阵列 + 星海智库（ticket 04）——链式解锁',
   it('恒星产出跃迁：Lv0 1000 → Lv1 2000 能源/s', () => {
     const s = endedState()
     s.buildings.stellarArray = 1
-    expect(productionReport(s).nominal.energy).toBeCloseTo(1000)
+    expect(productionReport(s).nominal.energy).toBeCloseTo(1000 * 1.05)
     s.upgrades.stellarArray = 1
-    expect(productionReport(s).nominal.energy).toBeCloseTo(2000)
+    expect(productionReport(s).nominal.energy).toBeCloseTo(2000 * 1.05)
   })
 
   it('智库产出跃迁：Lv0 200 → Lv1 400 科技/s', () => {
     const s = endedState()
     s.buildings.thinkTank = 1
-    expect(productionReport(s).nominal.tech).toBeCloseTo(200)
+    expect(productionReport(s).nominal.tech).toBeCloseTo(200 * 1.05)
     s.upgrades.thinkTank = 1
-    expect(productionReport(s).nominal.tech).toBeCloseTo(400)
+    expect(productionReport(s).nominal.tech).toBeCloseTo(400 * 1.05)
   })
 })
 
@@ -305,16 +305,18 @@ describe('engine: 星环冶炼场 + 双轨开放（megastructure-open）——�
     let r = productionReport(s)
     expect(r.energyRatio).toBe(1)
     // Lv10 能耗 1000/s = 恒星 Lv0 产出 1000/s：能源闭环恰好平衡（ticket 07 锚点），仍不打折
+    // （探索外交 ×1.05 放大供给至 1050/s，闭环下仍充足）
     s.upgrades.ringSmelter = 10
     r = productionReport(s)
     expect(r.energyRatio).toBe(1)
-    // 追加 2 座精炼厂（各耗 0.5/s）：需求 1001 > 供给 1000 → 能源不足打折（冶炼场能耗真实约束）
-    s.buildings.refinery = 2
+    // 追加 102 座精炼厂（各耗 0.5/s）：需求 1000 + 51 = 1051 > 供给 1050 → 能源不足打折（冶炼场能耗真实约束）
+    s.buildings.refinery = 102
     r = productionReport(s)
-    expect(r.energyRatio).toBeCloseTo(1000 / 1001, 4)
-    // 精炼厂矿物产出按 ratio 折减（能源链张力：冶炼场能耗挤压精炼厂；星港 + 深钻产出全量入账不受影响）
-    const refineryContribution = r.nominal.mineral - 500 * 1024 - 48 * 1024
-    expect(refineryContribution).toBeCloseTo(2 * 3 * (1000 / 1001) * 1024, 0)
+    expect(r.energyRatio).toBeCloseTo(1050 / 1051, 4)
+    // 精炼厂矿物产出按 ratio 折减（能源链张力：冶炼场能耗挤压精炼厂；星港 + 深钻产出全量入账不受影响）。
+    // 折减公式只乘 techMult×permMult（不含 allianceMult，ADR-0064 后 alliance=1.05）：贡献 = count×3×(1.05−(1−ratio))×1024
+    const refineryContribution = r.nominal.mineral - (500 + 48) * 1024 * 1.05
+    expect(refineryContribution).toBeCloseTo(102 * 3 * (1.05 - (1 - 1050 / 1051)) * 1024, 0)
   })
 
   it('NG+ 遗产：双轨等级 ×1.5% 折算 permanentBonuses，选择字段重置', () => {

@@ -869,6 +869,33 @@ describe('engine: 事件与产出协同', () => {
       expect(s.endless.bossDefeated).toBe(1)
       expect(s.endless.chain?.completed).toBe(true)
     })
+
+    it('无尽监督者（endless-overseer）可自动处理：军力足够自动迎战，不足自动撤军（修复 2026-08-15）', () => {
+      // security 策略启用 → 自动处理。军力足够 → 迎战（推进阶段链/层数）
+      const s = createInitialState(0)
+      s.phase = 'infinite'
+      s.endless.layer = 3
+      s.resources.military = 100_000
+      s.automationPolicies.security = { enabled: true, rules: [] }
+      s.pendingEvents.push(createEventInstance(s, 'endless-overseer'))
+      const results = autoResolvePendingEvents(s, 1_000)
+      expect(results[0].status).toBe('resolved')
+      expect(s.endless.layer).toBe(4)
+      expect(s.endless.bossDefeated).toBe(1)
+      expect(s.pendingEvents).toHaveLength(0)
+      // 军力不足 → 自动撤军（不推进、事件移除，blocking 事件不卡住自动处理）
+      const s2 = createInitialState(0)
+      s2.phase = 'infinite'
+      s2.endless.layer = 3
+      s2.resources.military = 0
+      s2.automationPolicies.security = { enabled: true, rules: [] }
+      s2.pendingEvents.push(createEventInstance(s2, 'endless-overseer'))
+      const results2 = autoResolvePendingEvents(s2, 1_000)
+      expect(results2[0].status).toBe('resolved')
+      expect(s2.endless.layer).toBe(3)
+      expect(s2.endless.bossDefeated).toBe(0)
+      expect(s2.pendingEvents).toHaveLength(0)
+    })
   })
 
   it('净产出函数可独立使用', () => {

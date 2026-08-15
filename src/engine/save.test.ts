@@ -5,6 +5,8 @@ import { reputation } from './reputation'
 import { deserializeSave, isValidSave, migrateSave, serializeSave } from './save'
 import { createEventInstance, pickEventDef } from './events'
 import { settleConquests } from './conquest'
+import { createFactionState } from './diplomacy'
+import { EXPLORE_FACTIONS } from './data'
 import { SCHEMA_VERSION } from './types'
 import type { GameState } from './types'
 
@@ -492,6 +494,29 @@ describe('engine: 存档序列化往返', () => {
     expect(restored.eventsFullAuto).toBe(true)
     expect(restored.endless.autoBoss).toBe(true)
     expect(restored.endless.layerProgress).toBe(0.5)
+  })
+
+  it('v17 → v18 迁移：探索外交结盟累计回填（已结盟探索势力入册），幂等保留既有累计', () => {
+    // 旧档（v17）无 explorationAlliances → 回填当前已结盟的探索势力（EXPLORE_FACTIONS ∩ allied）
+    const s = createInitialState(0)
+    s.phase = 'infinite'
+    for (const id of Object.keys(EXPLORE_FACTIONS)) {
+      s.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
+      s.factions[id].allied = true
+    }
+    // 生成派系结盟不计入探索外交累计（ADR-0012 红线）
+    s.factions['gen:faction:0'] = { favor: 100, allied: true, tradeCount: 0, intimidateCount: 0, threat: 0 }
+    const raw = JSON.parse(serializeSave(s)) as Record<string, unknown>
+    raw.schemaVersion = 17
+    delete raw.explorationAlliances
+    const migrated = deserializeSave(JSON.stringify(raw))
+    expect(migrated.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(migrated.explorationAlliances).toEqual(Object.keys(EXPLORE_FACTIONS))
+    // 幂等：已有累计保留（跨 NG+ 的累计不被覆盖）
+    const s2 = createInitialState(0)
+    s2.explorationAlliances = ['ashCommune']
+    const restored = deserializeSave(serializeSave(s2))
+    expect(restored.explorationAlliances).toEqual(['ashCommune'])
   })
 
   it('save-size-opt：存量已归档 generatedTargets 条目在加载时幂等压缩（conquest/faction 白名单，planet 原样）', () => {

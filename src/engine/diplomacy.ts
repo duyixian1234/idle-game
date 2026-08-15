@@ -234,6 +234,12 @@ export function factionAlliance(state: GameState, id: string): ActionResult {
   f.favor = FAVOR_CAP
   // 记录派系图鉴（NG+ 继承）
   if (!state.factionCodex.includes(id)) state.factionCodex.push(id)
+  // 探索外交结盟累计（ADR-0064）：探索发现势力（EXPLORE_FACTIONS 四家）首次成功结盟入册——
+  // 跨 NG+ 保留、同一势力只计一次（includes 去重），驱动 ended/infinite 阶段的探索外交产出加成。
+  if (id in EXPLORE_FACTIONS) {
+    state.explorationAlliances = state.explorationAlliances ?? []
+    if (!state.explorationAlliances.includes(id)) state.explorationAlliances.push(id)
+  }
   // 归档周目标记（endless-expansion：结盟 = 外交对象不可再交互 → 移列表末尾折叠；本周目语义，NG+ 清空）
   state.archivedRounds[id] = state.ngPlusLevel ?? 0
   // save-size-opt：生成派系结盟归档即压缩（conquest/faction 白名单；静态派系不在 generatedTargets）

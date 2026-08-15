@@ -639,6 +639,8 @@ function optionCost(instance: EventInstance, optionId: string): Partial<Record<R
   if (instance.family === 'security' && instance.defId !== 'raid' && optionId === 'repel') return { military: Number(payload.repelCost ?? 0) }
   if (instance.defId === 'raid' && optionId === 'repel') return { military: Number(payload.repelCost ?? 0) }
   if (instance.defId === 'raid' && optionId === 'buyoff') return { mineral: Number(payload.buyoff ?? 0) }
+  // 无尽 boss（endless-overseer）：confront 需军力（payload.cost），供 fallbackGate 负担能力判定（2026-08-15 修复）
+  if (instance.isBoss && optionId === 'confront') return { military: Number(payload.cost ?? 0) }
   return {}
 }
 
@@ -770,6 +772,17 @@ export function autoResolvePendingEvents(state: GameState, nowMs = state.lastTic
           if (fallbackGate(state, instance, candidate, chainPolicy, nowMs).allowed) {
             optionId = candidate
             break
+          }
+        }
+        // 无尽 boss 事件（endless-overseer）：security 降级链（repel/dispatch/jam/ignore）不含 boss
+        // 选项（confront/retreat），降级链全败时补充兜底——军力足够则迎战（推进阶段链），否则撤军
+        // （避免 blocking 事件永久卡住自动处理；军力不足走 retreat 由 fallbackGate 负担判定保证）。
+        if (!optionId && instance.isBoss) {
+          for (const candidate of ['confront', 'retreat'] as const) {
+            if (fallbackGate(state, instance, candidate, chainPolicy, nowMs).allowed) {
+              optionId = candidate
+              break
+            }
           }
         }
       } else {

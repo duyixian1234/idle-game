@@ -32,7 +32,7 @@ import {
   unlockCoercion,
 } from './diplomacy'
 import { raidableFaction } from './events'
-import { militaryCap, productionReport, tributePerSec } from './production'
+import { militaryCap, productionReport, tributePerSec, explorationDiplomacyMult } from './production'
 import { settleOffline } from './offline'
 import {
   ALLIANCE_COST,
@@ -798,5 +798,56 @@ describe('engine: 结盟长期产出加成（alliance-perpetual-output）', () =
     // startNewGamePlus 重置派系 → allied 清空 → 归零（模拟：清空 allied 标志）
     for (const f of Object.values(s.factions)) f.allied = false
     expect(alliedNamedFactionCount(s)).toBe(0)
+  })
+
+  it('ADR-0064 探索外交加成：结盟累计跨周目保留，ended/infinite 阶段 1.05+0.05×n 与结盟加成加法合并', () => {
+    // playing 阶段不生效；infinite 无累计 → 1.05 基础项
+    const playing = createInitialState(0)
+    expect(explorationDiplomacyMult(playing)).toBe(1)
+    const inf = createInitialState(0)
+    inf.phase = 'infinite'
+    expect(explorationDiplomacyMult(inf)).toBeCloseTo(1.05)
+    // 探索势力结盟 → 累计入册（4 家封顶，同一势力只计一次）
+    inf.resources.mineral = 1_000_000
+    inf.resources.energy = 1_000_000
+    inf.resources.tech = 100_000
+    for (const id of Object.keys(EXPLORE_FACTIONS)) {
+      inf.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
+      inf.factions[id].favor = 85
+      expect(factionAlliance(inf, id)).toEqual({ ok: true })
+    }
+    expect(inf.explorationAlliances).toHaveLength(4)
+    expect(explorationDiplomacyMult(inf)).toBeCloseTo(1.25)
+    // 生成派系/静态派系不计入探索外交累计（仅 EXPLORE_FACTIONS 入册）
+    expect(inf.explorationAlliances).toEqual(Object.keys(EXPLORE_FACTIONS))
+    // 产出合并：allianceMult(1+0.05×4)=1.2 与 exploration(1.25) 加法合并 = 1.45（infinite 基础 1.05 已含于 base）
+    const s3 = createInitialState(0)
+    s3.phase = 'infinite'
+    s3.buildings.miner = 1
+    expect(productionReport(s3).nominal.mineral).toBeCloseTo(1.05, 6)
+    s3.resources.mineral = 1_000_000
+    s3.resources.energy = 1_000_000
+    s3.resources.tech = 100_000
+    for (const id of Object.keys(EXPLORE_FACTIONS)) {
+      s3.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
+      s3.factions[id].favor = 85
+      factionAlliance(s3, id)
+    }
+    expect(productionReport(s3).nominal.mineral).toBeCloseTo(1.45, 6)
+    // military 不吃探索外交加成（资源线口径，与结盟加成一致）
+    const s4 = createInitialState(0)
+    s4.phase = 'infinite'
+    s4.buildings.barracks = 1
+    s4.resources.mineral = 1_000_000
+    s4.resources.energy = 1_000_000
+    s4.resources.tech = 100_000
+    for (const id of Object.keys(EXPLORE_FACTIONS)) {
+      s4.factions[id] = createFactionState(EXPLORE_FACTIONS[id])
+      s4.factions[id].favor = 85
+      factionAlliance(s4, id)
+    }
+    const s4base = createInitialState(0)
+    s4base.buildings.barracks = 1
+    expect(productionReport(s4).nominal.military).toBe(productionReport(s4base).nominal.military)
   })
 })

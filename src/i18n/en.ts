@@ -34,6 +34,7 @@ export const en: Zh = {
   'NG+ multiplier',
   'Zone bonus (NG+ legacy + conquest)',
   'Endless layers',
+  'Exploration diplomacy',
   ],
   mechlog: [
   'Next storm harvest in {a0}s',
@@ -184,6 +185,7 @@ export const en: Zh = {
   ', ',
   'boss ready',
   '{a0} layers to boss',
+  'boss assault in progress',
   ],
   expR: [
   '(with escort fleet)',
@@ -536,6 +538,7 @@ export const en: Zh = {
     'Body',
     'Reaching a military cap of {a0} or facing faction harassment unlocks coercion (extortion / tribute treaty / subjugation).',
     'Alliance Bonus: +{a0} all output',
+    'Exploration Diplomacy Bonus: +{a0} all output',
     ],
     explore: [
     'Explored',
@@ -594,6 +597,7 @@ export const en: Zh = {
     'Troop transport {a0} / {a1}',
     'Deposit',
     'Withdraw',
+    'boss assault in progress',
     ],
     overlays: [
     'Deep-Space Pioneering · Star System Federation',

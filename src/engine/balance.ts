@@ -78,6 +78,12 @@ export const ALLIANCE_COST: Record<ResourceKey, number> = { mineral: 200_000, en
  * 有名派系封顶 8（4 静态 + 4 探索）→ 满配 +40%；程序生成派系不计入（ADR-0012 红线）；周目内生效、NG+ 归零。 */
 export const ALLIANCE_PRODUCTION_PCT_PER_FACTION = 0.05
 
+/** 探索外交产出加成（ADR-0064，2026-08-15）：进入 ended/infinite 阶段后基础 1.05 倍，每个探索势力首次
+ * 成功结盟再 +0.05（跨 NG+ 保留，仅统计探索发现的有名势力，EXPLORE_FACTIONS 四家，同一势力只计一次）。
+ * 该贡献与 ADR-0048 有名派系加成加法合并；军力不吃（对齐资源线口径）。 */
+export const EXPLORATION_DIPLOMACY_BASE_MULT = 1.05
+export const EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE = 0.05
+
 /** 技术共享：花费科技点直接提升好感（纯科技点出口，与结盟成本同量级） */
 export const TECH_SHARE_FAVOR_GAIN = 15
 export const TECH_SHARE_COST: Record<ResourceKey, number> = { mineral: 0, energy: 0, tech: 20_000, military: 0 }

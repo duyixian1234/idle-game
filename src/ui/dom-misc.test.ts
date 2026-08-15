@@ -293,8 +293,8 @@ describe('ui: 探索页', () => {
     const row = page.querySelector<HTMLElement>('[data-planet-output="rubbleBelt"]')
     expect(row).toBeTruthy()
     expect(row!.textContent).toContain('碎星矿带')
-    // 基础 2×1（无科技）×1.1 + 比例 100×2%×1.1 = 2.2 + 2.2 = 4.4 → UI 取整显示 +4/s
-    expect(row!.textContent).toContain('◆ +4.40/秒')
+    // 基础 2×1（无科技）×1.1 + 比例 100×2%×1.1 = 2.2 + 2.2 = 4.4；ended 阶段探索外交 ×1.05（ADR-0064）→ 4.62
+    expect(row!.textContent).toContain('◆ +4.62/秒')
     // 行内联隐藏按钮（B1）
     expect(row!.querySelector('[data-planet-visibility="rubbleBelt"]')).toBeTruthy()
   })

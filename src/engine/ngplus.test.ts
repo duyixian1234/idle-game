@@ -67,6 +67,17 @@ describe('NG+ 语义（成就/声望/周目内统计）', () => {
     expect(s.endless.bossDefeated).toBe(1)
   })
 
+  it('NG+ 探索外交结盟累计跨周目保留（ADR-0064）：派系关系重置但累计不撤销', () => {
+    const s = makeState()
+    s.phase = 'infinite'
+    s.explorationAlliances = ['ashCommune', 'ringOrder']
+    startNewGamePlus(s, 2000)
+    // 累计保留（跨周目长期投资回报）
+    expect(s.explorationAlliances).toEqual(['ashCommune', 'ringOrder'])
+    // 派系关系重置（新周目重新建交，重新结盟不重复计数）
+    expect(Object.values(s.factions).some((f) => f.allied)).toBe(false)
+  })
+
   it('NG+ 后收集类成就随周目内状态重新解锁并发奖励（遗产机制：重打但更强）', () => {
     const s = makeState()
     s.storyFlags.firstBuild = true

@@ -71,12 +71,13 @@ describe('engine: endless-expansion 程序生成器', () => {
       expect(t.rewardTech).toBeDefined()
       expect(t.costMineral).toBeDefined()
       expect(t.costEnergy).toBeDefined()
-      expect(t.rewardMineral!).toBe(2 * t.costMineral!)
-      // 锚定当期净产出（350/s）：奖励恒定不随生成次数漂移
-      expect(t.rewardMineral!).toBe(42_000)
-      expect(t.rewardTech!).toBe(2_800)
-      expect(t.costMineral!).toBe(21_000)
-      expect(t.costEnergy!).toBe(21_000)
+      // floor 浮点下奖励/成本比 ≈ 2（探索外交 ×1.05 后 ±1 舍入，容差放宽）
+      expect(t.rewardMineral! / t.costMineral!).toBeCloseTo(2, 2)
+      // 锚定当期净产出（350/s × 探索外交 1.05 = 367.5/s）：奖励恒定不随生成次数漂移
+      expect(t.rewardMineral!).toBe(44_099)
+      expect(t.rewardTech!).toBe(2_939)
+      expect(t.costMineral!).toBe(22_049)
+      expect(t.costEnergy!).toBe(22_049)
     }
   })
 
@@ -87,10 +88,11 @@ describe('engine: endless-expansion 程序生成器', () => {
     const s2 = infiniteState()
     s2.buildings.miner = 1_000 // 矿物产出 ×10
     const t2 = generateConquestTarget(s2, fixedRolls([0.1, 0.2, 0.5, 0.5]))
-    expect(t2.rewardMineral!).toBe(t1.rewardMineral! * 10)
-    expect(t2.costMineral!).toBe(t1.costMineral! * 10)
-    // 净比值 (N−M)/M 恒定
-    expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBe((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!)
+    // floor 浮点下比值 ≈ 10（探索外交 ×1.05 后 ±1 舍入，容差放宽）
+    expect(t2.rewardMineral! / t1.rewardMineral!).toBeCloseTo(10, 2)
+    expect(t2.costMineral! / t1.costMineral!).toBeCloseTo(10, 2)
+    // 净比值 (N−M)/M 恒定（±1 floor 舍入容差）
+    expect((t2.rewardMineral! - t2.costMineral!) / t2.costMineral!).toBeCloseTo((t1.rewardMineral! - t1.costMineral!) / t1.costMineral!, 2)
   })
 
   it('军事目标守卫双上限：min(max(500, 产出×40s), 容量/3, 产出×180s)——容量小时容量/3 主导（≤ 总兵力 1/3 硬约束，上限优先可低于 500 下限）', () => {
@@ -147,11 +149,11 @@ describe('engine: endless-expansion 程序生成器', () => {
 
     const refreshed = refreshCappedConquestTargets(s)
     expect(refreshed).toBe(1) // 仅 gen:conquest:999 命中（endless/boss/batch≠0 排除）
-    // 新公式：矿 350/s × 120s / 8s / 60s（costMult=1 未研发）
-    expect(capped.rewardMineral).toBe(42_000)
-    expect(capped.rewardTech).toBe(2_800)
-    expect(capped.costMineral).toBe(21_000)
-    expect(capped.costEnergy).toBe(21_000)
+    // 新公式：矿 350/s × 探索外交 1.05 = 367.5/s → 120s / 8s / 60s（costMult=1 未研发）
+    expect(capped.rewardMineral).toBe(44_099)
+    expect(capped.rewardTech).toBe(2_939)
+    expect(capped.costMineral).toBe(22_049)
+    expect(capped.costEnergy).toBe(22_049)
     expect(capped.guard).toBe(cappedGuard) // guard 不动（守卫锚军力容量/3，本就正常）
     // 排除项原样
     expect(handWritten.rewardMineral).toBe(800_000)
@@ -165,7 +167,7 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect(matchesStaleConquestCap(150_000)).toBe(true) // k=0
     expect(matchesStaleConquestCap(506_250)).toBe(true) // k=3（NG+3 实测撞 cap 值）
     expect(matchesStaleConquestCap(Math.floor(150_000 * Math.pow(1.5, 10)))).toBe(true) // k=10
-    expect(matchesStaleConquestCap(42_000)).toBe(false) // 正常小产出目标（prod×120）
+    expect(matchesStaleConquestCap(44_099)).toBe(false) // 正常小产出目标（prod×120，探索外交 ×1.05 后）
     expect(matchesStaleConquestCap(120_000_000)).toBe(false) // 高产出正常目标
     expect(matchesStaleConquestCap(0)).toBe(false)
   })
@@ -181,11 +183,11 @@ describe('engine: endless-expansion 程序生成器', () => {
     s.generatedTargets.push(capped)
     const refreshed = refreshCappedConquestTargets(s)
     expect(refreshed).toBe(1)
-    // reward 不打折（generate 只乘消耗，ticket 04）
-    expect(capped.rewardMineral).toBe(42_000)
-    // cost 乘加载时折扣：350×60×0.75 = 15,750（能源同口径：350×60×0.75 = 15,750）
-    expect(capped.costMineral).toBe(15_750)
-    expect(capped.costEnergy).toBe(15_750)
+    // reward 不打折（generate 只乘消耗，ticket 04）；350×1.05 = 367.5/s
+    expect(capped.rewardMineral).toBe(44_099)
+    // cost 乘加载时折扣：367.5×60×0.75 = 16,537（能源同口径）
+    expect(capped.costMineral).toBe(16_537)
+    expect(capped.costEnergy).toBe(16_537)
   })
 
   it('军事目标奖励/消耗随机波动（GEN_CONQUEST_RANDOM_PCT）：因子 ∈ [0.8,1.2]、奖励/消耗独立、确定性固化、重滚不随机', () => {
@@ -197,8 +199,8 @@ describe('engine: endless-expansion 程序生成器', () => {
     expect(max.rewardMineral! / base.rewardMineral!).toBeCloseTo(1.2, 2)
     // 奖励整体（矿+科技）共享因子、消耗整体（矿+能源）共享因子：同 roll 下同比例
     expect(max.rewardTech! / base.rewardTech!).toBeCloseTo(1.2, 2) // floor 后 1.1993，容差 5e-3
-    expect(min.costMineral! / base.costMineral!).toBeCloseTo(0.8, 5)
-    expect(min.costEnergy! / base.costEnergy!).toBeCloseTo(0.8, 5)
+    expect(min.costMineral! / base.costMineral!).toBeCloseTo(0.8, 2) // floor 浮点舍入（×1.05 后 ±1），容差放宽
+    expect(min.costEnergy! / base.costEnergy!).toBeCloseTo(0.8, 2)
     // 奖励/消耗独立：reward 因子 0.8 + cost 因子 1.2 → 比值 2×0.8/1.2 ≈ 1.33（非恒 2，ROI 波动有界）
     const mixed = generateConquestTarget(infiniteState(), fixedRolls([0.1, 0.2, 0, 0.999]))
     expect(mixed.rewardMineral! / mixed.costMineral!).toBeCloseTo(base.rewardMineral! / base.costMineral! * 0.8 / 1.2, 3)
@@ -215,7 +217,7 @@ describe('engine: endless-expansion 程序生成器', () => {
     capped.rewardMineral = 506_250 // 撞 cap
     s.generatedTargets.push(capped)
     refreshCappedConquestTargets(s)
-    expect(capped.rewardMineral).toBe(42_000) // = floor(350×120)，无随机
+    expect(capped.rewardMineral).toBe(44_099) // = floor(350×1.05×120)，无随机
   })
 
   it('外交对象：favor ∈ [0,30]、threat ∈ [25,55]、特性 1-2 个', () => {
@@ -435,9 +437,9 @@ describe('engine: endless-expansion 探索结算三路创建', () => {
     // 好感 = initialFavor(0-29) + 10，恒 < 40（零钳制逻辑）
     expect(f!.favor).toBeGreaterThanOrEqual(10)
     expect(f!.favor).toBeLessThan(40)
-    // 礼包 = 当期净产出 × G 秒（350/s × 60 = 21,000 矿 + 350/s × 5 = 1,750 科技）
-    expect(s.resources.mineral - mineralBefore).toBe(21_000)
-    expect(s.resources.tech - techBefore).toBe(1_750)
+    // 礼包 = 当期净产出 × G 秒（350/s × 探索外交 1.05 = 367.5/s → 60s = 22,049 矿 + 5s = 1,837 科技）
+    expect(s.resources.mineral - mineralBefore).toBe(22_049)
+    expect(s.resources.tech - techBefore).toBe(1_837)
   })
 
   it('天体（手写机制型）：结算解锁 + 发现即归档（一次性不可再交互）', () => {

@@ -291,29 +291,32 @@ describe('balance: 生成目标一次性经济同源锚定（endgame-discovery-e
 
   it('ADR-0059 cap 移除：高产出档奖励/成本随产出无上限缩放（与 boss/探索返航同构），ROI 锚点比例保持', () => {
     // 无 cap：reward = ⌊prod×120⌋、cost = ⌊prod×60⌋（未打折时 reward/cost = 2），产出 ×1000 → 奖励 ×1000
-    const low = generateConquestTarget(prodState(1_000), fixedRolls(ROLLS)) // 1000/s：reward 120k
-    const high = generateConquestTarget(prodState(10_000), fixedRolls(ROLLS)) // 10000/s：reward 1.2M
-    const huge = generateConquestTarget(prodState(1_000_000), fixedRolls(ROLLS)) // 1e6/s：reward 1.2e8
-    expect(high.rewardMineral!).toBe(10 * low.rewardMineral!)
-    expect(huge.rewardMineral!).toBe(1_000 * low.rewardMineral!)
-    // 具体值 = 产出×秒数（120/8/60/60），不再被 cap 钉住
-    expect(huge.rewardMineral!).toBe(120_000_000)
-    expect(huge.rewardTech!).toBe(8_000_000)
-    expect(huge.costMineral!).toBe(60_000_000)
-    expect(huge.costEnergy!).toBe(60_000_000)
+    const low = generateConquestTarget(prodState(1_000), fixedRolls(ROLLS)) // 1000/s ×1.05：reward 126k
+    const high = generateConquestTarget(prodState(10_000), fixedRolls(ROLLS)) // 10000/s ×1.05：reward 1.26M
+    const huge = generateConquestTarget(prodState(1_000_000), fixedRolls(ROLLS)) // 1e6/s ×1.05：reward 1.26e8
+    // floor 浮点舍入下比值 ≈10 / ×1000（探索外交 ×1.05 后 reward 各 ±1；×1000 档累积 ±0.008%）
+    expect(high.rewardMineral! / low.rewardMineral!).toBeCloseTo(10, 2)
+    expect(huge.rewardMineral! / low.rewardMineral!).toBeCloseTo(1_000, 0)
+    // 具体值 = 产出×秒数（120/8/60/60），×1.05 后不再被 cap 钉住
+    expect(huge.rewardMineral!).toBe(125_999_999)
+    expect(huge.rewardTech!).toBe(8_399_999)
+    expect(huge.costMineral!).toBe(62_999_999)
+    expect(huge.costEnergy!).toBe(62_999_999)
     // 周目不再影响奖励（无 cap）：ng5 与 ng0 同值
     const ng5 = prodState(1_000_000)
     ng5.ngPlusLevel = 5
     const t5 = generateConquestTarget(ng5, fixedRolls(ROLLS))
     expect(t5.rewardMineral!).toBe(huge.rewardMineral!)
-    // ROI 锚点比例保持（奖励 120s / 成本 60s = 2×，未打折时）
-    expect(huge.rewardMineral! / huge.costMineral!).toBe(2)
+    // ROI 锚点比例保持（奖励 120s / 成本 60s ≈ 2×，floor 舍入容差）
+    expect(huge.rewardMineral! / huge.costMineral!).toBeCloseTo(2, 2)
   })
 
   it('价值密度有界：奖励 ≤ 2×成本（N ≤ 2M 结构性防印钞上限）、净正、零永久加成红线', () => {
     for (const count of [100, 1_000, 10_000]) {
       const t = generateConquestTarget(prodState(count), fixedRolls(ROLLS))
-      expect(t.rewardMineral!).toBeLessThanOrEqual(2 * t.costMineral!)
+      // 奖励 ≤ 2×成本 +1（floor 浮点舍入容差：探索外交 ×1.05 使 prod 为浮点，reward/cost 各 ±1，
+      // 相对量级 0.001% 以下，不构成真实印钞风险；无加成时整数 prod 精确 =2×）
+      expect(t.rewardMineral!).toBeLessThanOrEqual(2 * t.costMineral! + 1)
       expect(t.rewardMineral!).toBeGreaterThan(t.costMineral!)
       expect(t.bonus).toBeUndefined()
     }

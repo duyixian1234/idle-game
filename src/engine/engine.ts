@@ -51,6 +51,7 @@ export function createInitialState(nowMs: number, seed = randSeed()): GameState 
     endingTriggered: false,
     ngPlusLevel: 0,
     factionCodex: [],
+    explorationAlliances: [],
     permanentMult: 1,
     permanentBonuses: {},
     conquest,

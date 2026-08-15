@@ -695,9 +695,10 @@ describe('engine: 探索天体机制', () => {
   }
 
   it('logisticsHub：科技点折算能源，缺口场景 energyRatio 提升', () => {
-    // 缺口档：10 精炼厂（需求 5/s）vs 1 太阳能（产出 1/s）→ 无科技 ratio = 1/5 = 0.2
+    // 缺口档：10 精炼厂（需求 5/s）vs 1 太阳能（产出 1/s）→ 无科技 ratio = 1.05/5 = 0.21
+    // （ended 阶段探索外交基础 ×1.05，ADR-0064：能源产出同比例放大）
     const base = productionReport(prodState(10, 1)).energyRatio
-    expect(base).toBeCloseTo(0.2, 6)
+    expect(base).toBeCloseTo(1.05 / 5, 6)
     // 切物流港但无科技盈余 → 折算 0，ratio 不变
     const noTech = prodState(10, 1)
     noTech.planets.logistics = { unlocked: true, unlockedAt: 1000 }
@@ -722,20 +723,20 @@ describe('engine: 探索天体机制', () => {
 
   it('outpost：能源缺口场景需求 ×1.2 → ratio 下降', () => {
     const base = productionReport(prodState(10, 1))
-    expect(base.energyRatio).toBeCloseTo(0.2, 6)
+    expect(base.energyRatio).toBeCloseTo(1.05 / 5, 6)
     const s = prodState(10, 1)
     s.planets.outpost = { unlocked: true, unlockedAt: 1000 }
     s.activePlanet = 'outpost'
     const out = productionReport(s)
-    expect(out.energyRatio).toBeCloseTo(1 / (5 * OUTPOST_ENERGY_MULT), 6) // 1 / 6
+    expect(out.energyRatio).toBeCloseTo(1.05 / (5 * OUTPOST_ENERGY_MULT), 6) // 1.05 / 6
   })
 
   it('outpost 机制独立于科技加成（×1.25 在科技乘数之上）', () => {
     const s = prodState(10, 20, { planetDrill: 1 })
     s.planets.outpost = { unlocked: true, unlockedAt: 1000 }
     s.activePlanet = 'outpost'
-    // 10 精炼厂 × 3/s × 科技 1.5 × 前哨 1.25 = 56.25
-    expect(productionReport(s).nominal.mineral).toBeCloseTo(10 * 3 * 1.5 * OUTPOST_MINERAL_MULT, 6)
+    // 10 精炼厂 × 3/s × 科技 1.5 × 前哨 1.25 × 探索外交 1.05 = 59.0625
+    expect(productionReport(s).nominal.mineral).toBeCloseTo(10 * 3 * 1.5 * OUTPOST_MINERAL_MULT * 1.05, 6)
   })
 })
 

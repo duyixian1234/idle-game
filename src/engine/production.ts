@@ -2,7 +2,7 @@ import {defName} from '../engine/data'
 import {t} from '../i18n'
 import {BUILDINGS, EXPLORE_PLANETS, PLANETS, RESOURCE_KEYS, TECHS} from './data'
 import type { PlanetDef, TechEffectProduction } from './data'
-import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP, INFINITE_TECH_PCT_PER_LEVEL} from './balance'
+import {LEVEL_PRODUCTION_BONUS, MILITARY_BASE_CAP, MILITARY_PORT_CAP, MILITARY_CAP_TECH_PER_LEVEL, WORMHOLE_CAP_PER_LEVEL, UNIQUE_UPGRADE_GROWTH, SUBJUGATE_MINERAL_PER_SEC, TREATY_MINERAL_PER_SEC, ALLIANCE_PRODUCTION_PCT_PER_FACTION, EXPLORATION_DIPLOMACY_BASE_MULT, EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE, ENDLESS_LAYER_PRODUCTION_PCT, ENDLESS_LAYER_BONUS_CAP, INFINITE_TECH_PCT_PER_LEVEL} from './balance'
 import {PLANET_MECHANICS} from './mechanics'
 import {zeroResources} from './core'
 import {reputationBonuses} from './reputation'
@@ -116,6 +116,16 @@ export function allianceProductionMult(state: GameState): number {
   return 1 + ALLIANCE_PRODUCTION_PCT_PER_FACTION * alliedNamedFactionCount(state)
 }
 
+/** 探索外交产出加成（ADR-0064，2026-08-15）：进入 ended/infinite 阶段后 1.05 + 0.05×探索结盟累计次数；否则 1.0。
+ * 与 ADR-0048 有名派系结盟加成（allianceProductionMult）加法合并（合计 = alliance + exploration − 1）；
+ * 军力不吃（对齐结盟资源线口径）；覆盖所有资源产出路径（主管线/探索天体/离线——离线走 productionReport 同源）。
+ * 累计次数（explorationAlliances）跨 NG+ 保留，由 diplomacy.ts factionAlliance 在探索势力首次结盟时累计。 */
+export function explorationDiplomacyMult(state: GameState): number {
+  if (state.phase !== 'ended' && state.phase !== 'infinite') return 1
+  const count = (state.explorationAlliances ?? []).length
+  return EXPLORATION_DIPLOMACY_BASE_MULT + EXPLORATION_DIPLOMACY_PCT_PER_ALLIANCE * count
+}
+
 /** 无尽层数全产出永久加成（endless-progression，ADR-0053）：每层 +1%，跨 NG+ 继承（endless 状态全继承）。
  * 层加成因子 = 1 + min(层数×1%, ENDLESS_LAYER_BONUS_CAP)（cap 防 runaway）；与 NG+ permanentMult /
  * 攻占 production 加成乘法叠乘（层加成 × NG+ 倍率叠乘的上限校验见 balance-sim 断言）。 */
@@ -145,12 +155,15 @@ export function productionReport(state: GameState): ProductionReport {
     for (const key of RESOURCE_KEYS) nominal[key] *= permMult
   }
 
-  // 结盟全局产出加成（alliance-perpetual-output）：每结盟有名派系 +5%（矿/能源/科技，军力不吃）。
+  // 结盟全局产出加成（alliance-perpetual-output + 探索外交 ADR-0064）：每结盟有名派系 +5%（矿/能源/科技，军力不吃）；
+  // 探索外交加成（ended/infinite 阶段 1.05 + 0.05×探索结盟累计）与有名派系加成**加法合并**。
   // 与 permMult 同层（能源结算前）：结盟加成可为自己供能（类比 NG+ 遗产口径）；对生成派系结盟无效（ADR-0012）。
   const allianceMult = allianceProductionMult(state)
-  if (allianceMult !== 1) {
+  const explorationMult = explorationDiplomacyMult(state)
+  const combinedAllianceMult = allianceMult + explorationMult - 1
+  if (combinedAllianceMult !== 1) {
     for (const key of RESOURCE_KEYS) {
-      if (key !== 'military') nominal[key] *= allianceMult
+      if (key !== 'military') nominal[key] *= combinedAllianceMult
     }
   }
 
@@ -222,9 +235,11 @@ export function explorePlanetOutputs(state: GameState): ExplorePlanetOutput[] {
     const bonus = 1 + (ps.outputBonus ?? 0)
     const values = zeroResources()
     const allianceMult = allianceProductionMult(state)
+    const explorationMult = explorationDiplomacyMult(state)
+    const combinedAllianceMult = allianceMult + explorationMult - 1
     for (const key of RESOURCE_KEYS) {
       const base = (def.output?.[key] ?? 0) * techMult[key] + (def.outputPct?.[key] ?? 0) * nominal[key]
-      if (base !== 0) values[key] = base * bonus * permMult * (key === 'military' ? 1 : allianceMult) * smelterMult
+      if (base !== 0) values[key] = base * bonus * permMult * (key === 'military' ? 1 : combinedAllianceMult) * smelterMult
     }
     out.push({ planetId: id, name: defName(def), values })
   }
@@ -540,16 +555,25 @@ export function productionBreakdown(state: GameState): Record<ResourceKey, Resou
   }
 
   // 6. 结盟全局产出加成（permanent section；allianceMult 在 perm 后、能源结算前——引擎顺序真源）。
+  //    有名派系结盟（ADR-0048）与探索外交加成（ADR-0064）加法合并拆分两行：合计 = A + E − 1。
   //    军力不吃（对齐 smelterMult 口径——结盟是资源线）。
   const allianceMult = allianceProductionMult(state)
+  const explorationMult = explorationDiplomacyMult(state)
   const allianceRows: Record<ResourceKey, BreakdownRow[]> = emptyRows()
   const afterAlliance = zeroResources()
-  if (allianceMult !== 1) {
+  const combinedAllianceMult = allianceMult + explorationMult - 1
+  if (combinedAllianceMult !== 1) {
     for (const key of RESOURCE_KEYS) {
-      afterAlliance[key] = afterPerm[key] * (key === 'military' ? 1 : allianceMult)
+      afterAlliance[key] = afterPerm[key] * (key === 'military' ? 1 : combinedAllianceMult)
       if (key === 'military') continue
-      const contrib = afterPerm[key] * (allianceMult - 1)
-      if (contrib !== 0) allianceRows[key].push({ name: t('prod.19'), mult: allianceMult, value: contrib, kind: 'mult' })
+      if (allianceMult !== 1) {
+        const contrib = afterPerm[key] * (allianceMult - 1)
+        if (contrib !== 0) allianceRows[key].push({ name: t('prod.19'), mult: allianceMult, value: contrib, kind: 'mult' })
+      }
+      if (explorationMult !== 1) {
+        const contrib = afterPerm[key] * (explorationMult - 1)
+        if (contrib !== 0) allianceRows[key].push({ name: t('prod.23'), mult: explorationMult, value: contrib, kind: 'mult' })
+      }
     }
   } else {
     for (const key of RESOURCE_KEYS) afterAlliance[key] = afterPerm[key]

@@ -153,6 +153,15 @@ export function endlessBossDefeated(state: GameState): boolean {
   return state.archivedRounds[id] != null || state.conquest[id]?.status === 'conquered'
 }
 
+/** boss 是否攻占进行中（已发起、未攻克）：探索面板/状态栏在此时显示"攻占中"而非"可战"——
+ * 修复 2026-08-15：原判定仅看 conquered，攻占进行中（startedAt 已设、status 仍 available）仍显示可战。 */
+export function endlessBossInProgress(state: GameState): boolean {
+  const id = endlessBossId(state)
+  if (!id) return false
+  if (state.archivedRounds[id] != null || state.conquest[id]?.status === 'conquered') return false
+  return state.conquest[id]?.startedAt != null
+}
+
 /** 区域是否可发起攻占：未攻占、不在进行中、前置星球已解锁、（通关后区域需 phase ≠ playing） */
 export function isConquestAvailable(state: GameState, id: string): boolean {
   const def = conquestDef(state, id)

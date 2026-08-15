@@ -5,7 +5,7 @@ import {formatMultiplier, formatNumber, formatPercent, formatRate} from '../engi
 import {formatDuration} from '../engine/offline'
 import {canEscort, equivalentFleet, escortFee, explorationHarvestMult, escortThroughputMult, expeditionCost, explorationSlots, exploreProgress, isExploreAvailable, jumpgateLevelForSlot, wormholeLevelForSlot} from '../engine/exploration'
 import {endlessBossAvailable, endlessBossProgress, endlessLayer} from '../engine/events'
-import {endlessBossDefeated, endlessBossGuard, endlessBossId, endlessBossReward} from '../engine/conquest'
+import {endlessBossDefeated, endlessBossGuard, endlessBossId, endlessBossInProgress, endlessBossReward} from '../engine/conquest'
 import {layerProductionMult} from '../engine/production'
 import {ENDLESS_BATCH_2_EXPLORATIONS, ENDLESS_BATCH_LAYER_INTERVAL, INFINITE_TECH_PCT_PER_LEVEL, MISSION_DURATION_MAX_MINUTES, MISSION_DURATION_MIN_MINUTES} from '../engine/balance'
 import {explorePlanetOutputs} from '../engine/production'
@@ -235,14 +235,17 @@ function renderEndlessPanel(state: GameState): string {
   const progress = endlessBossProgress(state)
   const bossReady = endlessBossAvailable(state)
   const bossDefeated = endlessBossDefeated(state)
+  const bossInProgress = endlessBossInProgress(state)
   const bossId = endlessBossId(state)
   const nextLayerMult = layerProductionMult(state)
   const bossDef = bossId ? { guard: endlessBossGuard(state, layer), ...endlessBossReward(state, layer) } : null
   const bossState = !bossReady
     ? t('ui.explorePage.40', { a0: formatNumber(progress) })
-    : bossDefeated
-      ? t('ui.explorePage.41')
-      : t('ui.explorePage.42', { a0: formatNumber(bossDef!.guard), a1: formatNumber(bossDef!.rewardMineral ?? 0), a2: formatNumber(bossDef!.rewardTech ?? 0) })
+    : bossInProgress
+      ? t('ui.explorePage.52')
+      : bossDefeated
+        ? t('ui.explorePage.41')
+        : t('ui.explorePage.42', { a0: formatNumber(bossDef!.guard), a1: formatNumber(bossDef!.rewardMineral ?? 0), a2: formatNumber(bossDef!.rewardTech ?? 0) })
   // autoBoss 开关（默认关；开启后由自动攻占系统按冷却发起）
   const autoBossChecked = state.endless?.autoBoss === true
   // 运兵船独立军力池（troop-transport，ADR-0061）：boss 专用军力储备显示 + 一键存入/取出
@@ -266,7 +269,7 @@ function renderEndlessPanel(state: GameState): string {
       </div>
       <div class="explore-auto" data-auto-boss-row>
         <label class="escort-toggle-label"><input type="checkbox" data-endless-auto-boss ${autoBossChecked ? 'checked' : ''}>${t('ui.explorePage.45')}</label>
-        ${bossReady && !bossDefeated ? `<button type="button" class="ending-btn primary" data-endless-boss-launch="${escapeHtml(bossId ?? '')}">${t('ui.explorePage.48')}</button>` : ''}
+        ${bossReady && !bossDefeated && !bossInProgress ? `<button type="button" class="ending-btn primary" data-endless-boss-launch="${escapeHtml(bossId ?? '')}">${t('ui.explorePage.48')}</button>` : ''}
       </div>
     </div>`
 }

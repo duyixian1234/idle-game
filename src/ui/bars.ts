@@ -8,6 +8,7 @@ import {isPlanetUnlocked} from '../engine/planets'
 import {militaryCap, productionBreakdown} from '../engine/production'
 import type { BreakdownGroup, BreakdownRow, BreakdownSection } from '../engine/production'
 import {endlessBossAvailable, endlessBossProgress, endlessLayer} from '../engine/events'
+import {endlessBossInProgress} from '../engine/conquest'
 import {iconUse} from './icons'
 import {escapeHtml} from './helpers'
 
@@ -76,9 +77,12 @@ function renderEndlessStatus(state: GameState): string {
   const layer = endlessLayer(state)
   const progress = endlessBossProgress(state)
   const boss = endlessBossAvailable(state)
-  const bossText = boss
-    ? t('bar.8')
-    : t('bar.9', { a0: formatNumber(Math.max(0, 3 - progress)) })
+  const bossInProgress = boss && endlessBossInProgress(state)
+  const bossText = bossInProgress
+    ? t('bar.10')
+    : boss
+      ? t('bar.8')
+      : t('bar.9', { a0: formatNumber(Math.max(0, 3 - progress)) })
   return `<span class="mech-status endless-status" data-endless-status>无尽 Lv.${formatNumber(layer)} · ${bossText}（${formatNumber(progress)}/3）</span>`
 }
 

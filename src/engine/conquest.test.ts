@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, enterInfiniteMode, startNewGamePlus, tick } from './engine'
-import { autoConquestTick, conquestCostMult, conquestRewardMult, endlessBossGuard, ensureEndlessBoss, isConquestAvailable, settleConquests, startConquest } from './conquest'
+import { autoConquestTick, conquestCostMult, conquestRewardMult, endlessBossGuard, endlessBossInProgress, ensureEndlessBoss, isConquestAvailable, settleConquests, startConquest } from './conquest'
 import { settleOffline } from './offline'
 import { generateConquestTarget } from './generate'
 import { canResearchTech, canTechUpgrade, researchTech, upgradeTech } from './tech'
@@ -649,6 +649,26 @@ describe('engine: boss 军力挑战（endless-progression，ADR-0053）', () => 
     settleOffline(s, s.lastTick + 5 * 60_000) // 5min 离线（≥5 个冷却周期）
     expect(s.conquest['boss:L3'].startedAt).toBeDefined()
     expect(s.autoConquest?.lastActionAt).toBeDefined() // boss-only 冷却持久化
+  })
+
+  it('boss 攻占进行中：endlessBossInProgress 判定（发起后不再显示可战，攻克后解除）', () => {
+    const s = bossState()
+    s.endless.layer = 27
+    ensureEndlessBoss(s)
+    const id = 'boss:L27'
+    // 未发起：不在进行中（探索面板/状态栏显示可战）
+    expect(endlessBossInProgress(s)).toBe(false)
+    const guard = s.generatedTargets.find((x) => x.id === id)!.guard!
+    const r = startConquest(s, id, guard, 0)
+    expect(r.ok).toBe(true)
+    // 发起后：进行中（startedAt 已设、status 仍 available）
+    expect(s.conquest[id].status).toBe('available')
+    expect(s.conquest[id].startedAt).toBe(0)
+    expect(endlessBossInProgress(s)).toBe(true)
+    // 攻克后：不再进行中
+    settleConquests(s, 30 * 60_000 + 1)
+    expect(s.conquest[id].status).toBe('conquered')
+    expect(endlessBossInProgress(s)).toBe(false)
   })
 })
 
